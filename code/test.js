@@ -3232,7 +3232,42 @@ function cards(ids) { return ids.map(card); }
   ok(wr.ok === false, 'the winner cannot play past its own pick either  [' + (wr.reason || 'accepted') + ']');   // the turn check answers first ("Not your turn."); its UI is in the pick anyway
   E.chooseLossTarget(g, 0);
   ok(!g.pendingLossChoice, 'choosing the target clears the wait — the guard has a way out');
+  ok(g.stripRound === 3, 'the chosen strike STAMPS the round it stripped in (stripRound=' + g.stripRound + ')');
   E.setLossTargetInteractive(null);
+})();
+
+/* ============ THE ROUND THAT LAST STRIPPED A SHIELD (one-ceremony, 2026-10-06) ============
+   The UI holds a round's shatter until each seat's own ceremony has shown it, keyed on `stripRound` — so the
+   stamp must be set by a ROUND strip, by nothing else, and carried on every round-win result (a jab round's
+   ceremony is what releases a strip some earlier ceremony failed to present). Each leg is a stamp that a
+   plausible wrong implementation would get wrong: stamping on any shield drop (the Critical Hit leg), on any
+   strike attempt (the Leyline leg), or only on stripping rounds (the jab leg). */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var g = E.newGame(null, { numPlayers: 2, starter: 0 }), P = g.players;
+  var go = function (f) { var r = f(); if (r && r.transition === 'play') { while (g.respondFor != null) E.declineResponse(g, g.respondFor); r = f(); } while (g.respondFor != null) E.declineResponse(g, g.respondFor); return r; };
+  var deal = function (rnd, h0, h1) { g.round = rnd; g.turn = 0; g.initiative = 0; g.pile = null; g.lastPlayer = null; g.passes = 0; g.subPhase = 'main';
+    P.forEach(function (p) { p.energy = []; }); P[0].hand = h0; P[1].hand = h1; };
+  deal(4, [mk(9, 'C', 'a9'), mk(9, 'H', 'b9'), mk(4, 'D', 'x4')], [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')]);
+  var sh = P[1].shields;
+  go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); });
+  go(function () { return E.pass(g, 1); });
+  ok(P[1].shields === sh - 1 && g.stripRound === 4, 'a pair that strips a shield stamps ITS round (shields ' + sh + '→' + P[1].shields + ', stripRound=' + g.stripRound + ')');
+  deal(6, [mk(8, 'C', 'j8'), mk(4, 'D', 'j4')], [mk(3, 'H', 'k3'), mk(5, 'S', 'k5')]);
+  go(function () { return E.play(g, 0, [P[0].hand[0]]); });
+  var jr = go(function () { return E.pass(g, 1); });
+  ok(g.stripRound === 4 && jr && jr.stripRound === 4, 'a JAB round strips nothing and stamps nothing — and its result still CARRIES the last strip (' + (jr && jr.stripRound) + '), so its ceremony can release a missed one');
+  deal(8, [mk(10, 'C', 'p10'), mk(10, 'H', 'q10'), mk(4, 'D', 'p4')], [mk(3, 'H', 'm3'), mk(5, 'S', 'm5')]);
+  P[1].cantLoseRound = true; sh = P[1].shields;
+  go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); });
+  go(function () { return E.pass(g, 1); });
+  ok(P[1].shields === sh && g.stripRound === 4, 'a strike Leyline SPARES is not a strip — no stamp (stripRound=' + g.stripRound + ')');
+  var cs = E.SUITS.filter(function (s) { var e = E.effectOf({ rank: 9, suit: s }); return e && e.kind === 'destroyShield'; })[0];
+  deal(10, [mk(9, cs, 'crit'), mk(10, 'D', 'z10'), mk(4, 'D', 'z4')], [mk(3, 'H', 'n3')]);   // a 10 pays the Broadway pitch this suit's 9 carries (an Ace is rank 1 here, not 14)
+  P[0].energy = [1,2,3,4,5,6,7,8,9,10,11,12].map(function (n) { return mk(n, cs, 'e' + n); });
+  sh = P[1].shields;
+  go(function () { return E.activate(g, 0, 'crit', { target: 1 }); });
+  ok(P[1].shields === sh - 1 && g.stripRound === 4, 'a mid-turn Critical Hit breaks a shield and stamps NOTHING — it has no ceremony and must shatter at once (shields ' + sh + '→' + P[1].shields + ', stripRound=' + g.stripRound + ')');
 })();
 
 /* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============

@@ -2760,6 +2760,13 @@
       st.losses.pop();
       resolveShieldLossObj(st, top, result);
     }
+    /* THE ROUND THAT LAST STRIPPED A SHIELD, so every seat can hold the shatter until ITS ceremony has shown it
+       (one-ceremony, 2026-10-06). A round's strip lands BEFORE the ceremony that presents it — in the Resolution
+       go-round, or after a strike choice — and the UI's old proxies (its own ceremony flag, then the engine's
+       boundary flags) each left a gap in which a render or a mirror showed the break early, on one seat and
+       not another. A round number is exact: a seat holds while the stripped round is one it has not presented.
+       ROUND strips only — a mid-turn `destroyShield` (Critical Hit) has no ceremony and must shatter at once. */
+    if (roundWin && result.shieldStripped) st.stripRound = st.round;
     if (roundWin) return finishRoundWin(st, result);
     return result;
   }
@@ -3245,6 +3252,7 @@
      populated, and the round boundary must not carry it into the next round. */
   function finishRoundWin(st, result) {
     st.losses = []; st.roundWinResult = null;
+    result.stripRound = st.stripRound || 0;   // EVERY round-win result, jabs included: its ceremony marks every strip up to here as shown, so one missed presentation cannot hold a seat's shields forever
     if (st.finished) return result;
     /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
        and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`

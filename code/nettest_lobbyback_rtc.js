@@ -62,8 +62,11 @@ async function invite(host, client, prevOffer){
   // round 1 is jabs only — reach round 2, then stage the kick (the nettest_endscreen shape)
   await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
   await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
-  await until(async()=>(await view(join)).yourTurn, 100);
-  await click(join,'passBtn');
+  /* "your turn" IS NOT "the controls are live": a client's board stays HELD until its round ceremony ends
+     (one-ceremony), and `click` refuses a disabled button and returns false — a single click the moment the
+     turn tag flips was a no-op, the game never finished, and every assertion after it timed out. Retry the
+     click until it LANDS, the `nettest_endscreen` shape. */
+  await until(async()=>(await view(join)).yourTurn && await click(join,'passBtn'), 100);
   ok(await until(async()=>(await view(host)).round>=2, 120), 'round 2 reached');
   await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(9,'D','h'),C(9,'H','h'),C(4,'C','h'),C(5,'S','h')],
@@ -72,8 +75,7 @@ async function invite(host, client, prevOffer){
   await wait(600);
   await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();}); });
   await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
-  await until(async()=>(await view(join)).yourTurn, 100);
-  await click(join,'passBtn');
+  await until(async()=>(await view(join)).yourTurn && await click(join,'passBtn'), 100);
   ok(await until(async()=>(await view(host)).finished===true, 140), 'game one finished on the host');
   ok(await until(async()=>(await view(join)).overlay===true, 100), 'the client sees its end screen');
 

@@ -2462,15 +2462,25 @@ __QR__
   var announcedThresh={};      // REWORK: which transform tiers have had their unlock ceremony this duel
   var pendingThreshold=null;   // a threshold unlock waiting for its OWN beat (so it doesn't overlap the round-win banner)
   var holdShields=false;       // when a round strips a shield, defer the shatter to the ceremony's "loses a shield" beat
+  var presentedStrip=0;        // the last round whose strip THIS seat's ceremony has shown, at its `revealShields`
   /* IS A SHIELD DROP RIGHT NOW THE ROUND'S STRIP — which a ceremony will present on its shield beat? (one-ceremony,
      2026-10-06). `holdShields` answered only from the ceremony's first line, and the engine strips BEFORE that: a
      3-player chosen strike resolves in the Resolution go-round, and an automatic one after a knock-out goes
      through the N-player settle, and anything that rendered in between shattered the shield on the spot —
      on every seat, ~30ms before the ceremony (`nettest_parity`). The duel never saw it: there the strip happens
-     inside the ceremony's own call. While the ENGINE is mid-boundary (Resolution, Clean-up, the Beginning's
-     upkeep, or a pending strike choice) a drop is the round's, so it waits — and because a mirror carries those
-     same flags (`netview`), a client holds on the same data as the host, by construction. */
-  function shieldsHeld(){ return holdShields || !!(state && (state.resolution || state.cleanup || state.endCleanup || state.upkeep || state.pendingLossChoice)); }
+     inside the ceremony's own call.
+     THE FIRST REPAIR READ THE ENGINE'S BOUNDARY FLAGS (Resolution, Clean-up, upkeep, a pending strike) AND STILL
+     LEFT A GAP: once the engine has blown through the boundary and before a seat's ceremony begins, none of them
+     is set — so a CLIENT shattered from the very mirror that carried the strip, a whole beat ahead of its own
+     ceremony, and the host queued ROAR ahead of the break it announces (`nettest_parity`, 3 of 5 three-player
+     runs). Both proxies asked "is something happening?" when the question is "has THIS seat shown it yet?".
+     So the engine stamps the round it stripped in (`stripRound`, carried on the mirror) and a seat holds while
+     that round is one its own ceremony has not presented — exact on every seat, whatever the timing. A
+     mid-turn `destroyShield` is not a round strip and still shatters at once. Two releases mean a missed
+     presentation can never hold a seat's shields for good: the game ending, and the table moving two rounds
+     past the strip. */
+  function shieldsHeld(){ return holdShields || !!(state && !state.finished && (state.stripRound||0) > presentedStrip && state.round <= (state.stripRound||0)+1); }
+  function markStripShown(res){ var sr=(res && res.stripRound!=null) ? res.stripRound : ((state && state.stripRound) || 0); if(sr>presentedStrip) presentedStrip=sr; }
   var oppShieldEls={};         // seat -> its panel's shield row, kept ACROSS renders so a shatter is not wiped mid-flight (free-for-all)
   /* THE PHASE THE PLAYER IS IN, WHICH IS NOT ALWAYS THE PHASE THE ENGINE IS PARKED IN (2026-09-25).
      `state.resolution` / `state.cleanup` are set only while the engine HOLDS at a boundary waiting for
@@ -6404,7 +6414,7 @@ __QR__
       return playKillKick(res, function(){ if(gk===gen) playPreBeats(res, done); });
     }
     var fx=$('roundfx'), inner=fx&&fx.querySelector('.rfInner'), g=gen, shieldShown=false;
-    function revealShields(){ if(shieldShown) return; shieldShown=true; holdShields=false; if(g===gen && state){ if(MP()){ for(var oq in oppShieldEls) if(+oq!==YOU && state.players[+oq]) animateShields(oppShieldEls[oq], state.players[+oq].shields, +oq); } else animateShields($('rivalShields'), state.players[RIVAL].shields, RIVAL);   /* MP: the PANELS — the hidden duel panel shares prevShields[1] and would eat seat 1's drop */ animateShields($('youShields'), state.players[YOU].shields, YOU); if(thresholdOwed){ thresholdOwed=false; checkThresholds(); } } }   /* …and PAY THE TIER CHECK NOW, unconditionally (the shatter it follows has just been SHOWN, whatever the engine's flags say), on the shatter's own beat (one-ceremony, 2026-10-06): a debt left for a render was paid mid-beats on a CLIENT (a mirror renders) and only at `flushThreshold` on the HOST (nothing renders between beats), so ROAR came right after the shatter on one seat and after Clean-up on the other — filmed by `nettest_parity`. Paid here, on both, the next beat step shows it: cause, then effect. */
+    function revealShields(){ if(shieldShown) return; shieldShown=true; holdShields=false; markStripShown(res); if(g===gen && state){ if(MP()){ for(var oq in oppShieldEls) if(+oq!==YOU && state.players[+oq]) animateShields(oppShieldEls[oq], state.players[+oq].shields, +oq); } else animateShields($('rivalShields'), state.players[RIVAL].shields, RIVAL);   /* MP: the PANELS — the hidden duel panel shares prevShields[1] and would eat seat 1's drop */ animateShields($('youShields'), state.players[YOU].shields, YOU); if(thresholdOwed){ thresholdOwed=false; checkThresholds(); } } }   /* …and PAY THE TIER CHECK NOW, unconditionally (the shatter it follows has just been SHOWN, whatever the engine's flags say), on the shatter's own beat (one-ceremony, 2026-10-06): a debt left for a render was paid mid-beats on a CLIENT (a mirror renders) and only at `flushThreshold` on the HOST (nothing renders between beats), so ROAR came right after the shatter on one seat and after Clean-up on the other — filmed by `nettest_parity`. Paid here, on both, the next beat step shows it: cause, then effect. */
     if(!fx || reduceMotion()){ revealShields(); setTimeout(function(){ if(g===gen) done(); }, reduceMotion()?200:0); return; }
     var beats=buildPreDrawBeats(res), i=0, timers=[], ended=false;
     function fin(){ if(ended) return; ended=true; timers.forEach(clearTimeout); revealShields(); if(g===gen) done(); }
@@ -7613,7 +7623,7 @@ __QR__
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
-    prevShields={}; oppShieldEls={}; holdShields=false; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
+    prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
        (`resetBoardMemory` itself, `handOrder`/`layout`/`sortState`, `PRIO_LOG`, `seatDecks`, `uiPhase`).
@@ -11537,7 +11547,7 @@ __QR__
        * if (aliveCount(st) <= 1) st.finished = true; }`), so the client needs to be told which one this is. */
       var o={ roundWinner:rot(res.roundWinner), comboType:res.comboType, kick:!!res.kick, prevented:!!res.prevented,
         finished:!!(hostState && hostState.finished),
-        shieldStripped:!!res.shieldStripped, opening:!!res.opening, newRound:res.newRound, shieldToHand:!!res.shieldToHand };
+        shieldStripped:!!res.shieldStripped, opening:!!res.opening, newRound:res.newRound, shieldToHand:!!res.shieldToHand, stripRound:res.stripRound||0 };
       if(res.milled){ o.milled={}; for(var k in res.milled){ if(res.milled[k]!=null) o.milled[rot(+k)]=res.milled[k]; } }
       /* WHO LOST THE SHIELD HAD TO BE ON THE WIRE, and the announcement's own comment said so (v1.31.118).
          `announceRoundWin` reads `res.struck`; a client's ceremony result never carried it, so `struck` was
@@ -11997,7 +12007,7 @@ __QR__
       }
       releaseCeremony(tok);
     }
-    function dropCeremonyHold(){ ceremonyHold=false; ceremonyLocked=false; roundCardShowing=false; hostCer=false; clearTimeout(ceremonyWatch); ceremonyWatch=null; ceremonySeq++; }   // a new game or the lobby: nothing owed
+    function dropCeremonyHold(){ ceremonyHold=false; ceremonyLocked=false; roundCardShowing=false; hostCer=false; presentedStrip=0; clearTimeout(ceremonyWatch); ceremonyWatch=null; ceremonySeq++; }   // a new game or the lobby: nothing owed
     function clientPlayCeremony(res){
       if(isHost() || !res || lobbyHold) return;   // lobbyHold: a ceremony for a game this seat has left (v1.31.95)
       /* A HELD MIRROR DISCARDED HERE IS THE LEADING CANDIDATE FOR THE `nettest_sync` FORK, and this is the
