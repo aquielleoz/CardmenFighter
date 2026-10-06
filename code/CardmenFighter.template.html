@@ -1199,13 +1199,31 @@
   #kick.mid-game .flash, #kick.mid-game .rays, #kick.mid-game .word{animation-duration:1s;}
   #kick.mid-game .word{font-size:min(11vw,84px);}
   #kick.mid .word .sub{color:#fff;}
+  /* THE FINALE IS THE BIG ONE (Aj, 2026-10-06: "the final kick should get bigger… that's the only kick the 1v1
+     sees"). Now that a 3-6 player game shows a kick per kill, the game-ender has to read as a different event:
+     longer, larger words, a shockwave ring, and a harder shake. Same frames, so the two cannot drift. */
+  #kick.final .flash, #kick.final .rays, #kick.final .word{animation-duration:2.4s;}
+  /* NEVER SMALLER THAN BEFORE, BIGGER WHERE THERE IS ROOM. Measured: the words are ~7px wide per px of font and
+     the entrance overshoots to 1.14x, so 150px fits only from ~1300px wide — at 1100 it ran off both edges, and
+     at 844x390 it wrapped to two lines taller than the screen. 11.5vw is the width that still clears the
+     overshoot; the old size is the floor, so a phone (where it already wraps to two big lines) is unchanged. */
+  #kick.final .word{font-size:max(min(15vw,116px), min(11.5vw,150px)); letter-spacing:3px;}
+  #kick.final .word .sub{font-size:.34em; letter-spacing:7px;}
+  #kick .ring{position:absolute; left:50%; top:47%; width:22vmin; height:22vmin; margin:-11vmin 0 0 -11vmin; border-radius:50%;
+    border:6px solid rgba(255,236,190,.95); box-shadow:0 0 40px rgba(255,220,150,.8), inset 0 0 30px rgba(255,220,150,.6); opacity:0;
+    animation:kickRing 1.1s cubic-bezier(.15,.7,.3,1) .12s forwards;}
+  #kick.lose .ring{border-color:rgba(255,130,130,.95); box-shadow:0 0 40px rgba(255,90,90,.8), inset 0 0 30px rgba(255,90,90,.6);}
+  #kick .ring.r2{animation-delay:.42s; border-width:3px;}
+  @keyframes kickRing{0%{opacity:.95; transform:scale(.2);} 70%{opacity:.35;} 100%{opacity:0; transform:scale(6);}}
+  @keyframes shakeBig{8%,92%{transform:translate(-4px,2px);}16%,84%{transform:translate(9px,-4px);}24%,40%,56%,72%{transform:translate(-12px,4px);}32%,48%,64%{transform:translate(12px,-3px);}}
+  body.kicking.kick-final main{animation:shakeBig .8s ease-in-out;}
   @keyframes kickFlash{0%{opacity:0;} 7%{opacity:1;} 30%{opacity:.35;} 100%{opacity:0;}}
   @keyframes kickSpin{0%{opacity:0; transform:rotate(0deg) scale(.55);} 12%{opacity:1;} 100%{opacity:0; transform:rotate(130deg) scale(1.25);}}
   @keyframes kickWord{0%{transform:scale(.2) rotate(-8deg); opacity:0;} 12%{opacity:1;} 22%{transform:scale(1.14) rotate(2deg);} 34%{transform:scale(1) rotate(0);} 82%{transform:scale(1) rotate(0); opacity:1;} 100%{transform:scale(1.06); opacity:0;}}
   @keyframes shake{10%,90%{transform:translate(-2px,1px);}20%,80%{transform:translate(4px,-2px);}30%,50%,70%{transform:translate(-6px,2px);}40%,60%{transform:translate(6px,-1px);}}
   body.kicking main{animation:shake .5s ease-in-out;}
   @media (prefers-reduced-motion: reduce){
-    #kick .flash,#kick .rays,#kick .word{animation:none;}
+    #kick .flash,#kick .rays,#kick .word,#kick .ring{animation:none;}
     body.kicking main{animation:none;}
   }
 
@@ -3749,19 +3767,20 @@ __QR__
    * the kill (shorter, naming who went out, no WIN/LOSE — the game is not over), and only the game-ender is
    * queued for the end screen. `playFinisher` stays the end screen's name for the final one, so the two
    * occasions share every frame of the animation and cannot drift.
-   *   o.final  — the game-ender: 1.65s, "YOU WIN" / "YOU LOSE"
+   *   o.final  — the game-ender: 2.45s, bigger, a shockwave ring and a harder shake, "YOU WIN" / "YOU LOSE"
    *   o.sub    — mid-game: the line under the words ("RIVAL 2 IS OUT"), 1.0s
    *   o.tone   — 'win' | 'lose' | 'mid' (a kill between two other seats is neither yours to win nor lose) */
   function playKick(o, done){
     SFX.play('kick');                        // the kick lands (sound fires even under reduced-motion)
     if(reduceMotion()){ done(); return; }
-    var k=$('kick'), hold=o.final?1650:1000;
-    k.className='show '+o.tone+(o.final?'':' mid-game');
+    var k=$('kick'), hold=o.final?2450:1000;
+    k.className='show '+o.tone+(o.final?' final':' mid-game');
     k.innerHTML='<div class="flash"></div><div class="rays"></div>'+
+      (o.final?'<div class="ring"></div><div class="ring r2"></div>':'')+
       '<div class="word">FIGHTER KICK<span class="sub">'+o.sub+'</span></div>';
-    document.body.classList.add('kicking');
+    document.body.classList.add('kicking'); if(o.final) document.body.classList.add('kick-final');
     var g=gen;
-    setTimeout(function(){ document.body.classList.remove('kicking'); }, 520);
+    setTimeout(function(){ document.body.classList.remove('kicking'); document.body.classList.remove('kick-final'); }, o.final?820:520);
     setTimeout(function(){ if(g!==gen) return; k.className=''; k.innerHTML=''; done(); }, hold);
   }
   function playFinisher(youWin, done){ playKick({ final:true, tone:youWin?'win':'lose', sub:youWin?'YOU WIN':'YOU LOSE' }, done); }

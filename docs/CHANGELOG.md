@@ -15,6 +15,29 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.18 — the final Fighter Kick is bigger
+
+**The game-ending Fighter Kick is now the big event** (Aj, 2026-10-06: *"the final kick should get bigger…
+that's the only kick the 1v1 sees"*). Now that a 3-6 player game flashes a kick at every kill, the one that
+ends the game has to read as something else:
+
+- **It holds longer:** 2.45s against 1.65s.
+- **Two shockwave rings** burst out behind the words.
+- **The screen shake is harder and longer.**
+- **The words are bigger wherever there is room:** 116px → 126px at 1100 wide, and 150px from about 1300.
+
+The mid-game flash is unchanged, and it shares every frame of the animation through `playKick`.
+
+- **Sized by measurement, not by eye.** The words are about 7px wide per px of font, and the entrance
+  overshoots to 1.14x. The first cut (150px everywhere) ran **66px off the screen** at 1100 wide and
+  wrapped to two lines taller than the screen at 844x390. The size is now
+  `max(the old size, min(11.5vw, 150px))`: never smaller than before, so phones and landscape are unchanged
+  (there the words already fill the width), and bigger where there is room.
+- `kicktest` 27 (+5). The finale carries its own class and the rings, its words are bigger than 116px at
+  1100 wide, and they never pass the screen edge in any sampled frame. That last check is red against the
+  150px first cut (66px over). The mid-game flash must carry no rings.
+- Reduced motion still plays the sound and skips the animation, rings included.
+
 ### v1.32.17 — the Fighter Kick flashes at every kill
 
 **At 3-6 players, knocking someone out now flashes FIGHTER KICK at the moment it happens**, not only at the
