@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.13.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.14.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.13** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.14** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -946,18 +946,6 @@ never read.*
   `[id: landscapetest-newlog-flaky]`
 
 ### Features
-
-- `ready to build`      · **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
-  *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
-  buttons"*. It is one tall column of five label/control rows plus the roll strip, which is exactly the shape
-  that does not fit a short viewport — `landscapetest` already has to assert the dialog *scrolls* to reach its
-  last control at 568x320. His grouping is the natural one: your setup, their setup, actions.
-  **Precedent to copy, not invent:** the Custom rules panel is the one dialog that already goes multi-column
-  (`.modal` is shared by every dialog, so the width lives on a class on that panel alone, and `showModal`
-  resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
-  widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
-  and wide, so the query is the landscape band, not a width breakpoint.
-  `[id: setup-dialog-three-columns]`
 
 - `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
   while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡

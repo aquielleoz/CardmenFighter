@@ -1033,6 +1033,44 @@
   .modal .confirmBtns button{flex:1 1 0; min-width:0; margin-top:0;}
   .modal .setupReset{text-align:right; margin:3px 0 0; min-height:18px;}
   .modal .verRow{text-align:center; margin:10px 0 0; font-size:12px; opacity:.5;}
+  /* NEW DUEL IN THREE COLUMNS — short landscape only (setup-dialog-three-columns). Stacked, the two `.setup`
+   * groups must read as ONE list, so the second one's top margin collapses to the old row gap. In the band,
+   * a row's label sits ABOVE its control: a 200px select beside a label does not fit a ~250px column. */
+  .modal .setupCol.them > .setup{margin-top:10px;}
+  @media (orientation:landscape) and (max-height:520px) and (min-width:560px){
+    .modal.setupPanel{max-width:min(1000px, calc(100vw - 24px)); padding:11px 18px;}
+    .modal.setupPanel h2{font-size:21px; margin:0 0 6px;}
+    .modal.setupPanel .setupCols{display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; align-items:start;}
+    .modal.setupPanel .setup,
+    .modal.setupPanel .setupCol.them > .setup{margin:0; gap:8px;}
+    .modal.setupPanel .setRow{flex-direction:column; align-items:stretch; gap:3px; font-size:12.5px;}
+    .modal.setupPanel .setRow select,
+    .modal.setupPanel .setRow input#setName{min-width:0; width:100%; padding:6px 8px;}
+    .modal.setupPanel .segHint{font-size:11.5px; text-align:left;}
+    /* an opponent row is "P2  [class][strength]" — two pickers already, so it stays a row; stacked, the class
+     * picker shrank to its chevron */
+    .modal.setupPanel #oppList{display:flex; flex-direction:column; gap:6px;}
+    .modal.setupPanel #oppList .setRow{flex-direction:row; align-items:center; gap:6px;}
+    .modal.setupPanel #oppList .oppPick select,
+    .modal.setupPanel #oppList .oppPick select.strength{width:auto; flex:1 1 0; min-width:0; padding:5px 6px;}
+    .modal.setupPanel .diceArea{margin:6px 0 2px; min-height:60px; gap:14px;}
+    .modal.setupPanel .setupMsg{font-size:12px; margin:4px 0 0;}
+    .modal.setupPanel .rollRow{flex-wrap:wrap; margin-top:0;}
+    .modal.setupPanel .rollRow #rollBtn{flex:1 1 100%; order:-1; padding:9px 10px; font-size:15px;}
+    .modal.setupPanel .rollRow .sideBtn{flex:1 1 0; padding:8px 10px;}
+    .modal.setupPanel .setupBtns{margin-top:6px; gap:6px;}
+    .modal.setupPanel .setupBtns .ghostBtn{padding:7px 6px; font-size:12px;}
+    .modal.setupPanel .segHint{margin:0;}
+    /* the version stamp sits under the SHORTEST column instead of under all three — 22px the button column needs */
+    .modal.setupPanel{position:relative;}
+    .modal.setupPanel .verRow{position:absolute; left:18px; bottom:10px; margin:0; text-align:left;}
+    .modal.setupPanel .setupBtns{margin-top:5px;}
+    .modal.setupPanel .tutDismissRow{margin:-1px 0 0;}
+  }
+  /* at the floor the dialog SCROLLS, so a stamp pinned to the box's bottom would sit on column one's controls */
+  @media (orientation:landscape) and (max-height:360px) and (min-width:560px){
+    .modal.setupPanel .verRow{position:static; margin:6px 0 0; text-align:center;}
+  }
   .modal .ruleIntro{margin:2px 0 10px; font-size:13px; line-height:1.45; opacity:.85;}
   .modal .ruleWarn{margin:10px 0 0; font-size:12px; line-height:1.45; color:#f2b8b8;}
   .modal .settingRow.ro{opacity:.72; cursor:default;}
@@ -9374,8 +9412,14 @@ __QR__
   function openSetup(){
     TUT.stop(); currentLesson=null;   // leaving to set up a fresh duel ends any running tutorial
     clearBoard();                     // ONE funnel: whatever you were playing is over before this dialog opens
+    /* THREE COLUMN GROUPS — yours · theirs · the buttons (Aj, 2026-09-07: *"player count, name, your deck;
+     * opponent strength and decks; buttons"*). Everywhere but the short-landscape band they STACK, in exactly
+     * the old order, so desktop and portrait are untouched; in that band `.setupPanel` lays them side by side.
+     * The width lives on the class, never on `.modal` (the rules-panel precedent), and `showModal` resets the
+     * class list so it cannot leak into the next dialog. */
     var html='<h2>New Duel</h2>'+
-      '<div class="setup">'+
+      '<div class="setupCols">'+
+      '<div class="setup setupCol you">'+
         /* The CONTROL moved to ⚗️ Custom rules, but the ANSWER stays here: Basics is the beginner ramp, and a
          * mode you cannot see from the New Duel screen is a mode a new player never finds. One line, and it
          * names where to change it. */
@@ -9383,6 +9427,9 @@ __QR__
         '<label class="setRow"><span>Players</span><select id="setPlayers"><option value="2">2 · Duel</option><option value="3">3 · Free-for-all</option><option value="4">4 · Free-for-all</option><option value="5">5 · Free-for-all</option><option value="6">6 · Free-for-all</option></select></label>'+
         '<label class="setRow"><span>Your name</span><input id="setName" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></label>'+
         '<label class="setRow"><span>Your class</span><select id="setYouDeck">'+deckOptionsHTML()+'</select></label>'+
+      '</div>'+
+      '<div class="setupCol them">'+
+      '<div class="setup">'+
         '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff">'+diffOptionsHTML('🎲 Random')+'</select></label>'+
         '<label class="setRow" id="rowOppClass"><span>Opponent class</span><select id="setRivalDeck">'+deckOptionsHTML()+'</select></label>'+
         '<div id="oppList"></div>'+
@@ -9394,6 +9441,8 @@ __QR__
         '<div class="dieWrap"><span class="dieLabel rival">Rival</span><span class="die" id="dieRival">⚀</span></div>'+
       '</div>'+
       '<div id="setupMsg" class="setupMsg">Pick your matchup, then roll to see who leads round 1.</div>'+
+      '</div>'+
+      '<div class="setupCol go">'+
       '<div class="rollRow">'+
         '<button id="goFirstBtn" class="ghostBtn sideBtn" title="Skip the roll — you lead round 1">Go first</button>'+
         '<button id="rollBtn">🎲 Roll for initiative</button>'+
@@ -9416,8 +9465,10 @@ __QR__
       '<div class="setupBtns">'+
         '<button id="rulesBtn" class="ghostBtn">⚗️ Custom rules'+(customRules()?' · on':'')+'</button>'+
       '</div>'+
+      '</div>'+
+      '</div>'+
       '<div class="verRow">Cardmen Fighter '+verTag()+'</div>';
-    showModal(html);
+    showModal(html, 'setupPanel');
     $('setYouDeck').value=sel.you; $('setRivalDeck').value=sel.rival; $('setDiff').value=sel.diff; $('setPlayers').value=String(sel.players||2);
     if($('setName')){ $('setName').value=myName; $('setName').addEventListener('input', function(){ saveMyName(this.value); }); }
     var MODE_HINT={ full:'Full game — with Rides &amp; Forms (J/Q/K).', basics:'Basics — no transforms; learn the ladder, effects &amp; energy first.' };

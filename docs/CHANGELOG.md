@@ -15,6 +15,30 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.14 — New Duel in three columns on a sideways phone
+
+**The New Duel dialog now fits on one screen on a phone held sideways.** It was one tall column, which needed
+scrolling in every landscape size. In the short-landscape band it is now three columns, in Aj's grouping
+(2026-09-07): **your setup** (mode, players, name, class) · **your opponents** (strength and class, or the
+per-opponent list in a free-for-all, then the dice) · **the buttons** (roll, go first or second, and the
+rest). At 844x390 the whole dialog fits with nothing to scroll, the first-duel tutorial rows and six
+players included. Desktop and portrait are unchanged, **pixel for pixel**: every row and button sits at the
+same y as v1.32.13.
+
+- The width lives on a `setupPanel` class, the Custom rules panel's precedent, so `.modal` and every other
+  dialog are untouched.
+- In the band a label sits above its control, except an opponent row: that row already holds two pickers,
+  and stacked, its class picker collapsed to a bare chevron.
+- At the 320px floor the dialog still scrolls, as it is allowed to, and the version stamp returns to the
+  normal flow so it cannot sit on the controls.
+
+**`landscapetest`'s dialog checks were measuring the wrong dialog.** They started a game first, and mid-game
+`New` means Concede, so "the setup dialog is on screen and reachable" had been asserted of the 196px
+"Concede?" box since v1.31.57. They now open the real dialog and assert it is New Duel before measuring.
+Re-pointed at it, the old reachability claims all hold. The new layout checks run both ways, three columns
+in the band and stacked everywhere else: 6 red on v1.32.13, and 2 red with the grid leaked to every size.
+215/0.
+
 ### v1.32.13 — "The 2" lesson always gets its finale
 
 **The Rival's last play in "The 2" lesson can no longer go missing, and it no longer shows the same card
