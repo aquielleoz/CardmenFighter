@@ -80,6 +80,19 @@ function writeTimes(prev, runs) {
   try { fs.writeFileSync(TIMES_FILE, JSON.stringify(out, null, 1) + '\n'); } catch (e) {}
 }
 
+/* EACH GREEN SUITE'S PASS COUNT, for `docsweep.js` (suite-counts-declared-twice). CLAUDE.md declares the count
+ * of every suite TWICE — the command list and the verified list — and nothing checked either: 27 were stale
+ * on 2026-09-30. The sweep is the one thing that already sees every real count, so it records them and
+ * docsweep REPORTS the disagreement; it never gates, because a suite legitimately changes count in the
+ * same commit as the doc. LATEST green run, not the minimum — a count is a fact about the build, not a cost.
+ * Its own file rather than a field in `.sweep-times.json`, so the scheduler's format cannot change under it. */
+const COUNTS_FILE = path.join(__dirname, '.sweep-counts.json');
+function writeCounts(runs) {
+  let prev = {}; try { prev = JSON.parse(fs.readFileSync(COUNTS_FILE, 'utf8')); } catch (e) {}
+  runs.forEach(r => { if (r.failed) return; const m = /PASS: (\d+)/.exec(r.counts || ''); if (m) prev[r.file] = +m[1]; });
+  try { fs.writeFileSync(COUNTS_FILE, JSON.stringify(prev, null, 1) + '\n'); } catch (e) {}
+}
+
 const here = __dirname;
 const all = fs.readdirSync(here)
   .filter(f => /\.js$/.test(f))
@@ -92,6 +105,7 @@ const suites = all.concat(['../relay/relaytest.js'])
   .sort((a, b) => cost(b) - cost(a));                                           // longest first, by measurement
 
 const t0 = Date.now();
+let countReport = '';
 const results = [];
 let next = 0, port = 8600;
 
@@ -130,6 +144,11 @@ async function lane(i) { while (next < suites.length) { const f = suites[next++]
   const bad = results.filter(r => r.failed);
   const wall = ((Date.now() - t0) / 1000).toFixed(0);
   writeTimes(TIMES, results);
+  writeCounts(results);
+  /* …and SAY whether CLAUDE.md's declared counts still match. The report existed only in `docsweep.js`, and a
+     report nobody runs is the exact failure that let 27 counts go stale — so the run everybody does prints it. */
+  try { const cr = require('child_process').spawnSync('node', ['docsweep.js', '--counts'], { cwd: here, encoding: 'utf8' });
+        const txt = (cr.stdout || '').trim(); if (txt) countReport = txt; } catch (e) {}
   /* A GREEN SUITE'S OWN WARNINGS WERE BEING THROWN AWAY, which is the same mistake as cropping the summary
    * line, one step earlier: a suite that PASSED while telling you it nearly did not is invisible. Every one
    * of these lines exists because somebody was bitten by the thing it reports — `lessonlib` prints
@@ -157,6 +176,7 @@ async function lane(i) { while (next < suites.length) { const f = suites[next++]
      * arrives unexplained; the suite had already done the work. */
     bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR|WHY:|←|⚠|⏱/.test(l)).slice(0, 20).join('\n')); });
   }
+  if (countReport) console.log('\n──── declared counts (CLAUDE.md vs this sweep — a report, not a gate) ────\n' + countReport);
   console.log(`\n${bad.length ? 'FAILED — ' : ''}${suites.length - bad.length}/${suites.length} suites green in ${wall}s`);
   process.exit(bad.length ? 1 : 0);
 })();

@@ -46,7 +46,7 @@ node netview.test.js                            # netplay snapshot redaction + t
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
 node browsertest.js                             # headless duel smoke
-node decktest.js                                # custom deck builder, full UI (35 assertions)
+node decktest.js                                # custom deck builder, full UI (42 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (26)
 node dragtest.js                                # DRAGGING MEANS TWO THINGS AND THE SUB-PHASE DECIDES (21).
                                                 # In MAIN a drag ACTIVATES; in the Fight Sub-Phase it PLAYS
@@ -536,7 +536,9 @@ node ../relay/relaytest.js   # the signalling relay's protocol, against a local 
                              # relay/worker.js from reviewed code into tested code.
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
-node docsweep.js             # THE DOCS STALENESS SWEEP, mechanical half. Greps every backticked identifier
+node docsweep.js             # THE DOCS STALENESS SWEEP, mechanical half — and, with --counts (which the sweep
+                             # runs at its end), the suite counts declared here against the last green sweep.
+                             # Greps every backticked identifier
                              # in every BACKLOG entry against the live code; a symbol that no longer exists
                              # is the cheapest proof an entry has moved on. Reports, never gates — a hit is
                              # a LEAD (a browser API reads the same). It CANNOT see an entry whose remedy
@@ -2448,16 +2450,19 @@ verified list below had drifted in 3 places; **the COMMAND LIST above had drifte
 wildly — `rulestest` said 36 against a real 150, `landscapetest` 96 against 195, `peektest` 31 against 43,
 `resolutiontest_ui` 46 against 71. The command list is the one a session reads FIRST, to decide what to
 run, and it was the one nobody was updating.
-**THE AUDIT IS MECHANICAL AND TAKES SECONDS — DO IT WHENEVER A SWEEP IS FRESH.** Parse each `node x.js`
-block's single `(N)` and the verified list's `` `name` N ``, and diff both against the sweep's own
-per-suite `PASS:` lines. A first pass that reads only the FIRST line of each command entry misses five,
-because several blocks carry the count on a continuation line — walk the whole block to the next
-`node `.
-**THE REAL DEFECT IS THE SECOND COPY, NOT THE NUMBERS.** This file's own rule is that a measurement lives
-in exactly ONE place and any second copy must be ASSERTED rather than written. Two hand-maintained count
-lists is that rule broken twice over, and re-typing 27 numbers fixes today and guarantees a repeat. Filed
-as `[id: suite-counts-declared-twice]`: have `sweep.js` record per-suite counts beside `.sweep-times.json`
-and have `docsweep.js` report the diff — report, never gate, like every other staleness check here.
+**THE AUDIT IS AUTOMATIC NOW (2026-10-06) — READ THE `declared counts` SECTION AT THE END OF EVERY SWEEP.**
+`sweep.js` records each green suite's `PASS:` count in `code/.sweep-counts.json` (gitignored, beside
+`.sweep-times.json`) and then runs `node docsweep.js --counts`, which parses BOTH lists here — every
+`node x.js` block to the next `node ` line, so a count on a continuation line or written `(N assertions)`
+is seen — and names each declaration that disagrees, plus any suite listed twice. **It reports and never
+gates**: a suite changes count in the same commit as this file, and a gate would fire on the way past.
+**ITS FIRST RUN FOUND ONE THE HAND AUDIT MISSED**: `decktest` declared **35** against a real **42**, written
+`(35 assertions)` — a shape the 2026-09-30 sweep's parser never matched. **The fix to a stale line is to
+edit this file**; the report exists so the edit happens in the same PR as the suite change.
+**THE REAL DEFECT WAS THE SECOND COPY, NOT THE NUMBERS.** This file's own rule is that a measurement lives
+in exactly ONE place and any second copy must be ASSERTED rather than written. Both lists are still written
+by hand — they are documentation a session reads before running anything — but neither is unchecked any
+more, which is the half of that rule that matters.
 
 **AND A SUITE CAN BE LISTED TWICE, WHICH NO COUNT CHECK CATCHES BY ITSELF (2026-10-01).** `narrate`
 appeared in the netplay list as both **11** and **12**. A diff that walks the declared entries finds the

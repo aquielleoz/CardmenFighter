@@ -263,8 +263,8 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   // is what produces the announcement lines. (Forcing a pile/hands mid-round leaves the driver mid-cycle — it
   // fails to resolve identically on main, so it is a staging artifact, not a regression.)
   ok(await start3p(), '3-player game restarted for round-result naming');
-  let resolved=false;
-  for(let i=0;i<160 && !resolved;i++){
+  let resolved=false, itersUsed=0; const t3p=Date.now();
+  for(let i=0;i<160 && !resolved;i++){ itersUsed=i;
     resolved=(await log()).some(l=>/won with a|won the round of Jabs/.test(l));
     if(resolved) break;
     await p.evaluate(()=>{
@@ -284,7 +284,19 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     });
     await wait(260);
   }
-  ok(resolved, 'a round resolved in a real 3-player game');
+  ok(resolved, 'a round resolved in a real 3-player game'+(resolved?'':'  (gave up after '+itersUsed+' iterations, '+((Date.now()-t3p)/1000).toFixed(0)+'s)'));
+  /* A GIVE-UP IS A STUCK BOARD, NOT A SLOW ONE: a passing run resolves in 13-22 of these 160 iterations (measured
+     2026-10-06, 3.7-6.2s), so exhausting them means the driver met a state it cannot play. Say which, so the
+     next red names its cause instead of sending someone after a budget (mptest-3p-round-never-resolves). */
+  if(!resolved) console.log('   WHY: '+await p.evaluate(()=>{ const st=window.__solo.st(), ov=document.getElementById('overlay');
+    const vis=id=>{ const e=document.getElementById(id); return !!(e&&e.offsetParent); };
+    return JSON.stringify({ round:st.round, turn:st.turn, pending:!!st.pending, respondFor:st.respondFor, subPhase:st.subPhase,
+      discardPending:!!st.discardPending, pile:st.pile?st.pile.combo.type+'/'+st.pile.combo.size:null, finished:!!st.finished,
+      overlay:!!(ov&&ov.classList.contains('show')), modalBtns:[...document.querySelectorAll('#modal button')].filter(b=>b.offsetParent).map(b=>b.id||b.textContent.trim().slice(0,18)),
+      fight:vis('fightBtn')&&!document.getElementById('fightBtn').disabled, pass:vis('passBtn')&&!document.getElementById('passBtn').disabled,
+      hint:(document.getElementById('hint')||{}).textContent, message:((document.getElementById('message')||{}).textContent||'').slice(0,90),
+      hand:st.players[0].hand.length }); }));
+  if(process.env.MPPOLL) console.log('   3p round resolved after '+itersUsed+' iterations, '+((Date.now()-t3p)/1000).toFixed(1)+'s');
   // the round card + draw line land AFTER the win line, once the ceremony dwell finishes
   await waitFor(async()=>(await log()).some(l=>/^Round \d+ begins/.test(l)), 60);
   const lines=await log();
