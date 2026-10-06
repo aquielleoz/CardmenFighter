@@ -897,21 +897,6 @@ never read.*
 
 ### Features
 
-- `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
-  while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
-  channel; **at ≤340px nothing changed**, because the row cannot afford it on either axis — the `@media
-  (max-width:480px)` block already records it as **2px over budget at 327px**, and `landscapetest`'s
-  ratchet on the known expand overflow at 327×660 went **63px → 73px** the moment 44px targets were
-  applied there. That ratchet is what caught it, on the first run.
-  **SO THE LEVER IS NOT THE BUTTONS, IT IS `sortBtn`.** It is the widest item in the row by a distance
-  (86-106px against 30-44px) because it keeps a WORD — the sort state it reports — while every other
-  button collapsed to a glyph. The `max-width:480px` block already shaves its padding twice for exactly
-  this reason. Freeing ~40px there is what would buy the floor phones the same targets.
-  **DO NOT JUST COLLAPSE IT TO ⇅.** v1.31.104's note is explicit that Sort keeps words *because it is the
-  state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
-  the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
-  `[id: narrowest-phones-still-34px]`
-
 - `parked`              · **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
   debuff on opponents' cards. Aj's example: the pile is a boosted pair of 4s at effective 6 and you hold a pair
