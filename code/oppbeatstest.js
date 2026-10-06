@@ -110,6 +110,20 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   ok(dline && !/Caster/.test(dline),
      '  …and NOT the caster — the seat whose turn is being presented is not the seat that discarded');
 
+  /* THE AI's CAST LINE NAMES ITS TARGET (cast-line-names-no-target). The cast line echoed the card's text —
+     "Target Rival discards 1 card" — so Aj could not tell he was the one hit. `ai.js` now logs the activation's
+     `r.target` beside the card, and this feeds `buildOppBeats` that exact entry, like the legs around it.
+     THREE TARGETS, ONE CASTER: you ("You", in your frame), another seat (its name), and a card target, whose
+     owner rides as a seat too and gets NO possessive — `{foe}’s` would render "You’s". */
+  const castLine = async (target)=>{ const n0=await p.evaluate(()=>document.querySelectorAll('#log .le').length);
+    await p.evaluate(t=>window.__solo.oppBeats([{ play:'tk', card:{rank:3,suit:'D',id:'tk3D'}, target:t }], 1), target);
+    await wait(3000);
+    return p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(e=>e.textContent.trim()).filter(t=>/played a/.test(t))[0]||'', n0); };
+  const atYou=await castLine({seat:0}), atOther=await castLine({seat:2}), atCard=await castLine({equip:{name:'Holy Bow', owner:0}});
+  ok(/^Caster played .* — aimed at You\.$/.test(atYou), `an AI cast aimed at you SAYS so  ["${atYou}"]`+(/aimed at/.test(atYou)?'':'  ← REPRODUCED: the card\'s text and no target'));
+  ok(/— aimed at Victim\.$/.test(atOther), `…aimed at another seat names THAT seat  ["${atOther}"]`);
+  ok(/— aimed at Holy Bow \(owned by You\)\.$/.test(atCard) && !/You’s|You's/.test(atCard), `…and a card target names the card and its owner, with no "You’s"  ["${atCard}"]`);
+
   /* THE AI's PHANTASMAL ILLUSION NAMES A SHAPE (phantasm-beat-reads-wrong-field). Bibong's export read
      "a Special undefined overtakes the pile": `ai.js` logs `{ phantasm: rp.made }` and the renderer read
      `e.made`. Fed the exact entry ai.js produces, like the forced-discard leg above. */

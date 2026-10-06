@@ -15,6 +15,36 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.19 — a targeted cast says who it hit
+
+**A Technique aimed at someone now says who in the battle log** (Aj, live 3-player game 2026-10-02: *"oh
+this is out balance, i was the target i guess but it's not on the log"*). The cast line echoed the card's
+own rules text, *"Vyers played a Technique - A♠ Outbalance — Target Rival discards 1 card."*, so at 3+
+players nothing said whether Vyers hit you or the third player. It now ends *"— aimed at You."*, *"— aimed
+at Rozalin."*, or for a card target *"— aimed at Holy Bow (owned by Tank)."*. That covers every targeted
+Technique: the three forced discards, Back Stab, Critical Hit, removals, Annoint and Counter Spell.
+
+- **The engine says what a cast is aimed at.** `activate` returns `r.target`, built from `stackTargetOf`,
+  the definition resolution itself uses. It is computed BEFORE the push, so a removal that resolves at once
+  still names what it took. The AI logs it beside the card, which is what `buildOppBeats` narrates from.
+  Untargeted casts carry nothing and read exactly as before.
+- **One funnel, `sayCast`, for all five cast lines:** your own casts (two paths), AI casts, and the netplay
+  host narrating a client's cast in a duel and at 3-6 players.
+- **Named in each reader's frame.** The target travels as a `{foe}` seat, so the player hit reads "You" and
+  every other seat reads its own name for them. A card target's owner gets no possessive, because `{foe}'s`
+  renders "You's", the sender-baked grammar bug this repo has already shipped once.
+- **Tests.**
+  - `test.js` +6, with real activations at 3 players: a seat target both ways, a removal that still names
+    its Equipment, an untargeted cast that names nothing, and every hostile AI cast in seeded games
+    carrying its seat (0 of 12 with the `ai.js` line reverted).
+  - `oppbeatstest` +3: an AI cast at you, at another seat, and at a card.
+  - `nettest_target3` +3: the host reads "Rival 3", the caster reads "Rival 2", and the client hit reads
+    "You".
+  - All six UI checks are red on v1.32.18.
+- **Closes the telekinesis entry, in Aj's favour.** It asked whether a discard owed by the HUMAN ever opens
+  the picker. In the same game behind this fix it did, for both casts, and he discarded from each. That
+  report only ever lived in the unmerged PR #347, which this supersedes.
+
 ### v1.32.18 — the final Fighter Kick is bigger
 
 **The game-ending Fighter Kick is now the big event** (Aj, 2026-10-06: *"the final kick should get bigger…

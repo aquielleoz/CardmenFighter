@@ -793,7 +793,7 @@
     }
     var r = E.activate(st, p, id, opts);
     if (!r.ok) return false;
-    if (log) log.push({ play: tag, card: card });
+    if (log) log.push({ play: tag, card: card, target: r.target || null });   // what it was aimed at, for the cast line
     if (r.pending) {
       if (isHuman(humans, st.respondFor)) return true;        // human decides — leave st.pending for the UI
       resolveAIWindows(st, humans, log);                      // AI opponent answers recursively (Counter-a-Counter)

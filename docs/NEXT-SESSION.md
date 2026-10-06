@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**645**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**651**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.18.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.19.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.18** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.19** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -607,24 +607,6 @@ its own. Kept separate so it does not get tangled in `epic/priority-windows`, an
 knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
-
-- `needs a repro`       · **WAS AJ ACTUALLY TELEKINESIS'D, OR WAS SOMEONE ELSE? THE LOG COULD NOT SAY — AND NOW IT CAN
-  (2026-09-30).** He reported *"i did not discard any cards despite being telekinesis'd. was it auto picked
-  again?"* from a 3-player game with FOUR `Adell played a Technique - 3♦ Telekinesis` lines in it. The
-  question was unanswerable, because `buildOppBeats` rendered a forced discard with the CASTER's name — so
-  *"Adell discarded 2 cards"* and "somebody was hit and we cannot tell who" were the same text. **That half
-  is fixed**: the line names the target (`oppbeatstest`, A/B'd).
-  **WHAT IS STILL OPEN is whether a discard owed by the HUMAN ever gets asked for.** Measured on the way:
-  the ENGINE is correct — a staged AI cast at seat 0 returns `ok`, sets `discardPending {player:0,count:2}`
-  and leaves the hand untouched for the target to choose. So if he WAS the target, the gap is in the UI
-  never opening the picker. `runOpponents`' `step()` does check
-  `state.discardPending && state.discardPending.player===YOU` first, so it should prompt — which is
-  precisely why this needs a repro rather than a patch.
-  **THE CHEAP NEXT STEP IS HIS NEXT LOG.** With the naming fixed, one more 3-player game says outright
-  whether he is ever the target; if he is and no `You discarded` line follows, the picker is the bug and
-  the repro is already half-built. A staged attempt to make the AI cast it did NOT cast — its heuristics
-  declined — so drive the engine directly (`E.activate(st, 1, 'tk', {target:0})`) and then let the UI run.
-  `[id: telekinesis-target-never-asked]`
 
 - `needs a repro`       · **⚠ ITS NAMED ROOT WAS FIXED 2026-09-30 — RE-CHECK BEFORE INVESTIGATING FURTHER.**
   The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
