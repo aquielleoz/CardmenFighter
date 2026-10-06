@@ -350,6 +350,42 @@ change, and `loss='all'` is separately a measured balance disaster — see the [
 PATCHNOTES 0j. The open design question is whether something between the corners lands at ~15–18 rounds; that
 half stays in the BACKLOG.
 
+## Deck cycling by player count <a id="deck-cycling"></a>
+
+**Measured 2026-10-06** with `node recyclesim.js 300` (knight self-play, 300 seeded games per cell, rng AND
+`Math.random` pinned, so two runs print identical numbers). It answers Aj's *"so were decks actually getting
+thinner without me noticing?"* for every table size; the only earlier figure was duel-only and older than
+the draw scaling with player count.
+
+| players | rounds (med/max) | games where a seat reshuffles | seats that reshuffle | reshuffles per seat | first reshuffle (med round) | cards each seat Discards | deck-out eliminations per game |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2 | 11 / 18 | 51% | 39% | 0.40 | 11 | 3.8 | 0.00 |
+| 3 | 14 / 22 | 100% | 80% | 1.05 | 11 | 4.8 | 0.00 |
+| 4 | 20 / 30 | 100% | 97% | 2.35 | 10 | 6.4 | 0.00 |
+| 6 | 31 / 48 | 100% | 100% | 4.64 | 8 | 8.7 | **0.07** |
+
+The same runs with `recycle` (spent Techniques go to the Shuffle Pile instead of the Discard): rounds
+11 / 14 / 19 / 30, reshuffles per seat 0.39 / 1.05 / 2.22 / 5.03, Discarded per seat **0.7 / 1.0 / 1.4 /
+2.2** (pitches, Counter Spell's own card and destroyed Equipment still go there), deck-outs **0.01** at six.
+
+**What it settles:**
+- **Yes, decks thin, and the table size is the whole story.** In a duel the deck runs dry in about half of
+  games and a seat loses ~4 cards for good. At six players every seat cycles 4-5 times, starting around
+  round 8, and loses ~9 cards, a sixth of a 52-card deck. The duel row reproduces the old recorded figure
+  (39% of seats, first at round 11), which is the instrument's check against history.
+- **Thinning does not change game length:** 31 vs 30 rounds at 6p with Techniques recycling. It is not a
+  lever for [game length](#game-length).
+- **The one place it bites is six-player deck-outs:** 21 games in 300 eliminated a seat for running out of
+  cards outright, against 3 in 300 when Techniques recycle. A real effect, but small: about one game in 14.
+- **"Without noticing" is still the missing Discard viewer.** Nothing here contradicts it; see the
+  `re-check-setrecycletech-discard` BACKLOG entry for what is left.
+
+**AN INSTRUMENT NOTE THAT COST A WRONG TABLE.** The first cut read "deck-out" as "eliminated with shields
+left and no cards", and printed **0.00 at every count**. A forced deck-out at 3 players was not counted,
+because `eliminatePlayer` zeroes the shields: read after the step, every N-player deck-out looked like a
+kick. It now reads the shields from before the step. The duel path was right all along, which is why only
+forcing the N-player case found it.
+
 ## Where the deck is stuck: VALUE, not shape <a id="value-stuck"></a>
 
 **Measured with `stucksim.js`, 2026-08-25.** Moved out of the BACKLOG on 2026-09-07 — it is a measurement that

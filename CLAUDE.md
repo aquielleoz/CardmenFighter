@@ -477,7 +477,9 @@ node analysis.js 130 on      # class round-robin — args: N catchup recycle dif
 node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= apex nostrip noshp nodpp.
                              # It PRINTS the config it resolved — read that line. Positional args once made
                              # every arm of two studies run the SAME config; see PATCHNOTES 0j.
-node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
+node recyclesim.js 300       # DECK CYCLING BY PLAYER COUNT — reshuffles, cards lost to the Discard, deck-outs and
+                             # rounds, at 2/3/4/6p, every seat, Math.random pinned. `players=2,6` `recycle` `tier=` are
+                             # NAMED flags and it prints its CONFIG. Results: DECISIONS.md#deck-cycling
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
 node strengthsim.js 4000 demon knight   # IS THIS CHANGE STRONGER? — the ONLY harness here that can ask.
                              # Every other sim runs the same AI on both seats and is structurally blind to it.
