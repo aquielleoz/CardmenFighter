@@ -1350,8 +1350,14 @@
        card until one is printed that names those types. */
 
     // --- push the activated effect onto the stack; the opponent may answer with a Quick before it resolves ---
+    /* WHAT THIS CAST IS AIMED AT, for the cast line (cast-line-names-no-target, Aj 2026-10-02: *"i was the target
+       i guess but it's not on the log"*). Computed BEFORE the push, from `stackTargetOf` — the one definition
+       resolution itself uses — because a removal resolving at once would take its target off the board before
+       anyone asked. Same shape: { seat } | { equip } | { zone } | { effect }, or absent when untargeted. */
+    var aim = stackTargetOf(st, { kind: 'effect', p: p, eff: eff, opts: opts || {} });
     var res = pushEffect(st, p, card, eff, opts);
     if (pitchCard && res) res.pitched = { rank: pitchCard.rank, suit: pitchCard.suit, id: pitchCard.id };
+    if (aim && res) res.target = aim;
     return res;
   }
   /* `opponentCanRespond` WAS DELETED HERE (v1.31.125). It answered "may anyone respond?" for the RETIRED

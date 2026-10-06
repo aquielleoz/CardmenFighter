@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.32.18**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.32.19**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 645 + 68 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 651 + 68 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 645 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 651 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 68, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -2327,7 +2327,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.32.18 — last FULL sweep 2026-10-06, `npm run sweep`, 117/117 in 355s** (115 on the run
+Status as of **v1.32.19 — last FULL sweep 2026-10-06, `npm run sweep`, 117/117 in 297s** (115 on the run
 itself: `versiontest` red on this very line, which is the line's job — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2341,9 +2341,9 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 645, `netview` 68, `mptest` 120, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 651, `netview` 68, `mptest` 120, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 11, `counterfeittest` 12, `roartest` 21, `kicktest` 27, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 14, `counterfeittest` 12, `roartest` 21, `kicktest` 27, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2352,7 +2352,7 @@ The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 9, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 15, `drawfizzle` 8, `respondtarget3` 8, `ping` 10.
+`target3` 12, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 15, `drawfizzle` 8, `respondtarget3` 8, `ping` 10.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

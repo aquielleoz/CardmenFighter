@@ -82,6 +82,15 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const c2Log=await c2.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
   ok(longForm(hLog), 'the host narrates the client\'s cast in full ("…played a Technique - 9♠ Critical Hit — …")'+(longForm(hLog)?'':'  ← '+((hLog.match(/.*Critical Hit.*/)||[''])[0])));
   ok(longForm(c2Log), '…and so does the OTHER client');
+  /* …AND IT SAYS WHO WAS HIT, IN EACH READER'S OWN FRAME (cast-line-names-no-target; Aj: "i was the target i
+     guess but it's not on the log"). The target travels as a `{foe}` SEAT, so the struck client reads "You" and
+     every other seat reads its own name for seat 2 — default names are frame-relative, so the host calls it
+     "Rival 3" and the caster c1 calls it "Rival 2". A sender-baked name would read "Rival 3" on all three. */
+  const c1Log=await c1.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
+  const aimOf=t=>((t.match(/9♠ Critical Hit —[^\n]*?— aimed at ([^.\n]+)\./)||[])[1]||'(no target named)');
+  ok(aimOf(hLog)==='Rival 3', `the HOST's cast line names the target: "aimed at ${aimOf(hLog)}"`);
+  ok(aimOf(c1Log)==='Rival 2', `the CASTER's names it in its own frame: "aimed at ${aimOf(c1Log)}"`);
+  ok(aimOf(c2Log)==='You', `and the client that was HIT reads "aimed at You": "aimed at ${aimOf(c2Log)}"`);
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

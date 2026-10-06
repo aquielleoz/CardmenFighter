@@ -3153,6 +3153,54 @@ function cards(ids) { return ids.map(card); }
   ok(E.stackTargetOf(g, { oid: 'o8', kind: 'effect', p: 0, trig: true, name: 'Caltrops' }) === null, 'a trigger (no eff) names nothing and does not throw');
 })();
 
+/* ============ A CAST RETURNS WHAT IT IS AIMED AT (cast-line-names-no-target) ============
+   Aj, live 3-player game: "i was the target i guess but it's not on the log". The cast line echoed the card's
+   text; `activate` now returns `r.target` from `stackTargetOf`, computed BEFORE the push so a removal that
+   resolves at once still names what it took. Real activations, not staged stack objects, both ways on one table. */
+(function () {
+  function cardOfKind(kind) {
+    var suits = ['D', 'H', 'C', 'S'];
+    for (var si = 0; si < 4; si++) for (var r = 3; r <= 14; r++) { var e = E.effectOf({ rank: r, suit: suits[si] }); if (e && e.kind === kind && e.impl) return { rank: r, suit: suits[si], id: 'cast' + r + suits[si] }; }
+    return null;
+  }
+  function table(cast) {
+    var g = E.newGame(null, { starter: 0, numPlayers: 3 });
+    g.turn = 0; g.pile = null; g.subPhase = 'main'; g.round = 3;
+    var mk = function (r, s, i) { return { rank: r, suit: s, id: 'e' + i + r + s }; }, en = [];
+    ['D', 'H', 'C', 'S'].forEach(function (su, k) { for (var i = 0; i < 6; i++) en.push(mk(5 + i, su, k)); });
+    g.players[0].energy = en;
+    g.players[0].hand = [cast, mk(13, 'D', 'h'), mk(12, 'H', 'h'), mk(4, 'C', 'h')];
+    g.players[1].hand = [mk(3, 'D', 'x'), mk(4, 'D', 'x')]; g.players[2].hand = [mk(3, 'H', 'y'), mk(4, 'H', 'y')];
+    return g;
+  }
+  var dc = cardOfKind('discardOpp'), rm = cardOfKind('removeEquip'), dr = cardOfKind('draw');
+  ok(dc && rm && dr, 'STAGED: the pool has a forced discard, a removal and a draw');
+  var g = table(dc), r = E.activate(g, 0, dc.id, { target: 2 });
+  ok(r.ok !== false && r.target && r.target.seat === 2, 'a forced discard aimed at seat 2 RETURNS seat 2 — the cast line can name who was hit  [' + JSON.stringify(r.target || r.reason) + ']');
+  var g1 = table(dc), r1 = E.activate(g1, 0, dc.id, { target: 1 });
+  ok(r1.ok !== false && r1.target && r1.target.seat === 1, '…and aimed at seat 1 returns seat 1 (both ways, one table)');
+  var g2 = table(rm); g2.players[2].equipment = [{ id: 'eqX', name: 'Spiked Armor', counters: 3 }];
+  var r2 = E.activate(g2, 0, rm.id, { target: 'eqX' });
+  ok(r2.ok !== false && r2.target && r2.target.equip && r2.target.equip.name === 'Spiked Armor' && r2.target.equip.owner === 2,
+     'a removal returns the Equipment and its owner, even though resolving takes it off the board  [' + JSON.stringify(r2.target || r2.reason) + ']');
+  var g3 = table(dr), r3 = E.activate(g3, 0, dr.id, {});
+  ok(r3.ok !== false && !r3.target, 'an UNTARGETED cast returns no target — its line stays exactly as it was  [' + (r3.reason || 'ok') + ']');
+  /* …AND THE AI'S LOG CARRIES IT, because that log is what `buildOppBeats` narrates from — an AI cast is the
+     exact case Aj reported. Played, not staged: seeded 3-player games until hostile single-target casts happen. */
+  var HOSTILE = { discardOpp: 1, destroyShield: 1, energyDenyOpp: 1, lockout: 1 }, seen = 0, named = 0;
+  for (var s = 1; s <= 40 && seen < 12; s++) {
+    var gg = E.newGame((function (a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; })(s), { numPlayers: 3 }); gg._diff = { 0: 'knight', 1: 'knight', 2: 'knight' }; var guard = 0;
+    while (!gg.finished && ++guard < 4000) {
+      var caster = gg.turn;                                // captured BEFORE the turn — takeTurn moves it on
+      (AI.takeTurn(gg, caster, 'knight') || []).forEach(function (e) {
+        var ef = e && e.play && e.card ? E.effectOf(e.card) : null;
+        if (ef && HOSTILE[ef.kind]) { seen++; if (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster) named++; }
+      });
+    }
+  }
+  ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log (' + named + ' of ' + seen + ')');
+})();
+
 /* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============
    Staged so a default and a choice are DISTINGUISHABLE: the lowest Broadway card (a 10) is the one worth
    keeping and a higher one (an Ace) is spare — "which card left" is the assertion, never "the hand shrank". */

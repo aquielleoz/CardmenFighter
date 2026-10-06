@@ -3265,8 +3265,14 @@
        card until one is printed that names those types. */
 
     // --- push the activated effect onto the stack; the opponent may answer with a Quick before it resolves ---
+    /* WHAT THIS CAST IS AIMED AT, for the cast line (cast-line-names-no-target, Aj 2026-10-02: *"i was the target
+       i guess but it's not on the log"*). Computed BEFORE the push, from `stackTargetOf` — the one definition
+       resolution itself uses — because a removal resolving at once would take its target off the board before
+       anyone asked. Same shape: { seat } | { equip } | { zone } | { effect }, or absent when untargeted. */
+    var aim = stackTargetOf(st, { kind: 'effect', p: p, eff: eff, opts: opts || {} });
     var res = pushEffect(st, p, card, eff, opts);
     if (pitchCard && res) res.pitched = { rank: pitchCard.rank, suit: pitchCard.suit, id: pitchCard.id };
+    if (aim && res) res.target = aim;
     return res;
   }
   /* `opponentCanRespond` WAS DELETED HERE (v1.31.125). It answered "may anyone respond?" for the RETIRED
@@ -6197,7 +6203,7 @@
     }
     var r = E.activate(st, p, id, opts);
     if (!r.ok) return false;
-    if (log) log.push({ play: tag, card: card });
+    if (log) log.push({ play: tag, card: card, target: r.target || null });   // what it was aimed at, for the cast line
     if (r.pending) {
       if (isHuman(humans, st.respondFor)) return true;        // human decides — leave st.pending for the UI
       resolveAIWindows(st, humans, log);                      // AI opponent answers recursively (Counter-a-Counter)
@@ -7129,7 +7135,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.18';
+  var GAME_VERSION='v1.32.19';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7165,6 +7171,22 @@ window.CardFace = {};
     if(!eff) return 'a Technique'+(card?' - '+cardSym(card):'');
     var art=/^[AEIOU]/i.test(eff.type)?'an':'a';   // "an Equipment", "a Technique"
     return art+' '+eff.type+' - '+cardSym(card)+' '+eff.name+' — '+(eff.text||'').replace(/\.$/,'');
+  }
+  /* THE CAST LINE NAMES ITS TARGET (cast-line-names-no-target; Aj, live 3-player game 2026-10-02: *"oh this is
+   * out balance, i was the target i guess but it's not on the log"*). `effPhrase` echoes the card's own rules
+   * text — "Target Rival discards 1 card" — so at 3+ players nothing said WHO was hit. The engine now returns
+   * what a cast is aimed at (`r.target`, from `stackTargetOf`, the definition resolution uses) and every cast
+   * line goes through here.
+   * THE SEAT TRAVELS AS `{foe}`, never as text: `say` broadcasts the template and each end names the seat in its
+   * own frame, so the target reads "You" on the target's screen and its name everywhere else. And NO
+   * POSSESSIVE on it — `{foe}’s Spiked Armor` renders "You’s" for the owner, the catalogued sender-baked
+   * grammar bug — so a card target reads "aimed at Spiked Armor (owned by {foe})". */
+  function sayCast(actor, card, r, cls, tail){
+    var t=r&&r.target, aim='', foes;
+    if(t && typeof t.seat==='number'){ aim=' — aimed at {foe}'; foes=[t.seat]; }
+    else if(t){ var o=t.equip||t.zone||t.effect;
+      if(o && typeof o.owner==='number'){ aim=' — aimed at <b>'+esc(o.name||'a card')+'</b> (owned by {foe})'; foes=[o.owner]; } }
+    say(actor, '{who} played '+effPhrase(card)+aim+(tail||'')+'.', cls, foes);
   }
   var state=null, selected={}, busy=false, gen=0, fullLog=[];
   /* ---- THE FIGHT END LEDGER (epic step 18) ----
@@ -10803,7 +10825,7 @@ window.CardFace = {};
     }
     var pitchNote=r.pitched?(' <span class="subtle">(pitched '+cardSym(r.pitched)+')</span>'):'';
     setMessage('You played <b>'+eff.name+'</b>.'+pitchNote);
-    say(YOU, '{who} played '+effPhrase(card)+(r.pitched?' — pitched '+cardSym(r.pitched):'')+'.', 'you');
+    sayCast(YOU, card, r, 'you', r.pitched?' — pitched '+cardSym(r.pitched):'');
     bumpEffect(YOU, eff);
     TUT.note('activate', eff);
     revealEffect(card, 'You');              // quick flash of what you just played
@@ -10880,7 +10902,7 @@ window.CardFace = {};
     if(!r.ok){ setMessage(r.reason); targeting=null; render(); return; }
     selected={}; targeting=null;
     setMessage('You played <b>'+eff.name+'</b>.');
-    say(YOU, '{who} played '+effPhrase(card)+'.', 'you');
+    sayCast(YOU, card, r, 'you');
     bumpEffect(YOU, eff);
     revealEffect(card, 'You');
     /* THE HOST MUST TAKE CONTROL BACK, AND THIS CONTINUATION FORGOT TO — SEVENTH INSTANCE (2026-09-18).
@@ -11874,7 +11896,7 @@ window.CardFace = {};
         if(e.play){
           var eff=e.card?E.effectOf(e.card):null;
           beats.push({ dwell: revealDwell(e.card), run:function(){
-            say(seat, '{who} played '+effPhrase(e.card)+'.', 'rival'); bumpEffect(seat, eff);
+            sayCast(seat, e.card, e, 'rival'); bumpEffect(seat, eff);   // `e.target` is the AI's activation result's aim
             if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
           }});
         }
@@ -16479,7 +16501,7 @@ window.CardFace = {};
         try{ r=E.activate(hostState, 1, it.id, { target:(it.target!=null?it.target:YOU), copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch }); }
         catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-        say(1, '{who} played '+effPhrase(acard)+'.', 'rival');   // effPhrase, like the host's own casts and every AI cast (client-activation-line-short-form)
+        sayCast(1, acard, r, 'rival');   // effPhrase, like the host's own casts and every AI cast (client-activation-line-short-form)
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
         bumpEffect(1, aeff);     // ...and uncounted: every other bumpEffect site is a LOCAL path, so the host's record — the one every seat ADOPTS — had this seat at zero
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
@@ -16896,7 +16918,7 @@ window.CardFace = {};
           var tgt=(it.target!=null)?((it.target+seat)%n):undefined;   // un-rotate the client's (rotated) target back to the absolute seat
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-          say(seat, '{who} played '+effPhrase(ac)+'.', 'rival');   // effPhrase — same grammar as every other cast; the duel handler's twin
+          sayCast(seat, ac, r, 'rival');   // effPhrase — same grammar as every other cast; the duel handler's twin
           fxBroadcast(seat, ac);
           bumpEffect(seat, ae);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
