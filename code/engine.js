@@ -2369,7 +2369,12 @@
        the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
        Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
        re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
-    if (st.resolution || st.cleanup || st.endCleanup) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
+    /* ONLY WHILE A WINDOW IS ACTUALLY OPEN (`respondFor`). A boundary flag with NOBODY on priority is not a round
+       that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
+       set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
+       it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
+       guard; the stall itself is `[id: cleanup-parks-with-nobody-on-priority]`. */
+    if ((st.resolution || st.cleanup || st.endCleanup) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
@@ -2449,7 +2454,12 @@
        the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
        Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
        re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
-    if (st.resolution || st.cleanup || st.endCleanup) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
+    /* ONLY WHILE A WINDOW IS ACTUALLY OPEN (`respondFor`). A boundary flag with NOBODY on priority is not a round
+       that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
+       set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
+       it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
+       guard; the stall itself is `[id: cleanup-parks-with-nobody-on-priority]`. */
+    if ((st.resolution || st.cleanup || st.endCleanup) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
        LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so

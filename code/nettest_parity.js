@@ -171,7 +171,7 @@ async function runTable(b, N, ok, errs){
   ok(started, `[${tag}] the game started on every seat`);
   for(let i=0;i<N;i++) await pages[i].evaluate(`(${installFilm})(${JSON.stringify(N===2?names[i]:'me')},${JSON.stringify(N===2?names[1-i]:'other')})`);
 
-  const t0=Date.now(); let idle=0;
+  const t0=Date.now(); let idle=0, loopRound=-1, loopActs=0, loopDumped=false;
   while(Date.now()-t0<150000){
     const vs=[]; for(const p of pages) vs.push(await view(p));
     if(vs.some(v=>v.finished) || Math.min(...vs.map(v=>v.round))>ROUNDS){
@@ -189,6 +189,21 @@ async function runTable(b, N, ok, errs){
     for(let i=0;i<N && !did;i++) if(await pages[i].evaluate(()=>!!document.querySelector('#hand > .card'))){ const t=await act(pages[i]); if(t && !/stuck/.test(t)) did=t; }
     for(let i=0;i<N && !did;i++) if(vs[i].myTurn){ did=await act(pages[i]); if(did && !/stuck/.test(did)) await pages[i].evaluate(d=>window.__film.push({t:'ACT:'+d, at:Date.now()}), did); }
     if(did && !/stuck/.test(did)) idle=0; else idle++;
+    /* A LOOP DESCRIBES ITSELF TOO. Twice in nine duel runs the host's driver logged 300+ "successful" presses
+       while the round stood still and the client acted five times — the stall detector above cannot see it,
+       because something IS acting. Once per table, on the 40th press in a round that has not moved: dump the
+       acting seat's board, its last log lines and refusals, and the host's trace and ledger tails. */
+    { const rr=Math.min(...vs.map(v=>v.round)); if(rr!==loopRound){ loopRound=rr; loopActs=0; } else if(did && !/stuck/.test(did)) loopActs++;
+      if(loopActs===40 && !loopDumped){ loopDumped=true; console.log(`   ⚠ [${tag}] 40 presses in round ${rr} and it has not moved — last: "${did}"`);
+        for(let i=0;i<N;i++) console.log('     '+names[i].padEnd(6)+' '+JSON.stringify(await pages[i].evaluate(()=>({
+          turn:window.__cmf?window.__cmf.turn():null, turnTag:((document.getElementById('turnTag')||{}).textContent||'').trim().slice(0,40),
+          msg:((document.getElementById('message')||{}).textContent||'').trim().slice(0,90), hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,70),
+          fight:(()=>{const f=document.getElementById('fightBtn'); return f?(f.textContent+(f.disabled?' (off)':' (on)')):null;})(),
+          pass:(()=>{const f=document.getElementById('passBtn'); return f?(f.disabled?'off':'on'):null;})(),
+          pile:[...document.querySelectorAll('#pile .card')].map(c=>c.getAttribute('data-id')).join(' '), hand:document.querySelectorAll('#hand .card').length,
+          hold:window.__cmf&&window.__cmf.ceremonyHold?window.__cmf.ceremonyHold():null, flags:window.__cmf&&window.__cmf.roundFlags?window.__cmf.roundFlags():null, log:[...document.querySelectorAll('#log > *')].slice(-6).map(e=>(e.textContent||'').trim().slice(0,90)) }))));
+        console.log('     host trace tail: '+JSON.stringify([].concat(await host.evaluate(()=>window.__cmf.trace())).slice(-10)));
+        console.log('     host ledger tail: '+JSON.stringify([].concat(await host.evaluate(()=>window.__cmf.prioLog?window.__cmf.prioLog():[])).slice(-8))); } }
     if(idle>120){ console.log(`   ⚠ [${tag}] no seat could act for ~30s — stopping the drive here`);
       /* A STALL DESCRIBES ITSELF: every seat's turn, status, hint and any open window, plus the host's trace tail
          — "the drive stopped" alone cannot tell a driver that met a state it does not play from a wedged table. */

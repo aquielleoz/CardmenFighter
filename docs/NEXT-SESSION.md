@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**657**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**662**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -718,6 +718,20 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
+- `needs a repro`       · **CLEAN-UP PARKS WITH NOBODY ON PRIORITY, AND THE ROUND NEVER ADVANCES** (found by
+  `nettest_parity` on `fix/one-ceremony`, 2026-10-06, ~1 duel in 7). The host's engine sits with `cleanup` set,
+  `respondFor` null, `pending` false, an empty stack and the round's pile still up (`__cmf.roundFlags()` in the
+  probe's loop dump). The ceremony's wait logs `⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway`
+  (`parked[cleanup] prio=—`, four settle attempts), then `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`
+  and `⚠ ROUND BANNER REPEATED`, so this is very likely the MECHANISM behind `round-ceremony-reruns-with-stale-res`:
+  the round did not advance because its Clean-up go-round opened with nobody to ask and nothing drained it.
+  On `main` the table limps on (plays land in a round still flagged as Clean-up); with the branch's first,
+  unconditional round-over guard it wedged outright, which is how it was found. **Next:** stage it — a duel
+  where the round ends on a pass and Clean-up opens — and read why `openResponseWindow`'s Clean-up branch
+  returns with no `respondFor` and no finish; `phaseWalk` returning a seat that is then skipped is the first
+  place to look. The probe reproduces it in a minute: `PARITY_N=2`, four at a time on distinct `PORT`s.
+  `[id: cleanup-parks-with-nobody-on-priority]`
+
 - `root cause found`    · **⏸ IN PROGRESS ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED
   BY A NEW PROBE AND MOSTLY FIXED.** Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*;
   2026-10-06: *"yes let's try to remove all drifts"*. The old entry's "needs a decision" (collapse the two drivers?)
@@ -740,17 +754,29 @@ never read.*
     fizzled) gets the Beginning tint; a knocked-out seat is not "Deck empty"; the client counts its own draw (fizzle
     style + subtitle); the client's Round card is no longer skipped when `newRound` is missing or the deal was not
     held; the client suppresses the render-diff mill float like the host (`inCeremony`); one shatter-hold predicate
-    `shieldsHeld()` over the engine's boundary flags (mirrored, so both seats hold on the same data); a ceremony
+    `shieldsHeld()` for every seat (its final form is the `stripRound` bullet below); a ceremony
     beat takes the stage back from a waiting notice (`trimwait` left the host's beats dimmed).
+  - **The shatter is held until each seat's OWN ceremony has shown it** (`stripRound`, stamped by the engine on a
+    round strip and carried on the mirror; `presentedStrip` per seat, set at `revealShields`). It replaced the
+    boundary-flags predicate, which left a gap after the engine blew through Resolution and before a seat's
+    ceremony began — a client shattered from the very mirror that carried the strip, and the host queued ROAR
+    ahead of the break. **3-player leg 2/5 → 5/5.** `test.js` +4 (each mutation-tested), fingerprint identical.
+  - `nettest_lobbyback_rtc` (16 red in the 2026-10-06 sweep) was the HARNESS: one Pass click the moment the turn
+    tag flipped, while the client's board was still held for the ceremony. It retries until the click lands.
   **STILL OPEN — the data is in the probe's dumps, re-run it with `PARITY_DUMP=1`:**
-  - 3-player leg green ~2 runs in 5. The remaining shape: just before a ceremony, a short Resolution stretch where
-    CLIENTS shatter and the host does not, then the host shatters on its beat with `TH:ROAR` BEFORE `SHATTER`.
-    So one boundary path still renders the strip outside the predicate's flags, and the host's tier check is paid
-    before its shatter there.
-  - The duel host once looped 328 actions in the latest run (new; the 3-player loop is fixed). Not diagnosed.
-  - Not run since the engine guards landed: the FULL SWEEP (`nettest_lobbyback_rtc` was 10/16 red in an earlier
-    sweep on this branch and was never re-checked), docs, changelog, version bump. `nettest_parkclobber`'s staging
-    was fixed on the branch (it restaged under a running ceremony).
+  - **The duel leg drifted once in 9 runs** after the stamp landed (ceremony 5 onwards; the client's line was cut
+    off by a filter, so the shape is unknown). Re-run `PARITY_N=2` until it recurs and read BOTH lines.
+  - **The duel host's ACTION LOOP is DIAGNOSED: it was this branch's own engine guard meeting a STALLED Clean-up**
+    — see `cleanup-parks-with-nobody-on-priority`. The guard now refuses only while a window is really open
+    (`respondFor` set), so a stall degrades as it does on `main` (0 loops in 4 duels after; the rate was ~1 in 7,
+    so that is weak evidence). The probe dumps the 40th press in an unmoved round, `__cmf.roundFlags()` included.
+  - **A client sometimes films an EXTRA empty `SP:spResolve` segment** just before a ceremony — its strip paints
+    Resolution from a mirror while the host's does not (1 in 4 duels, 1 in 2 three-player runs, 2026-10-06 late).
+    No shatter rides it any more; it is a phase-strip flicker, and the probe is right to call it a drift.
+  - **The duel's final KICK was once not filmed on the client within 4.5s** of the host's. Either the losing
+    client's finisher is late or it never plays — not looked at.
+  - `kicktest`'s `3p-out` leg failed its STAGING once under parallel load (the kick never landed), green 2/2 after.
+    Its setup survives a round-4 deal that can hand seat 2 a higher pair, so it reads deal-dependent; unmeasured.
   **THE STRUCTURAL QUESTION IS STILL OPEN BUT SMALLER:** the two ceremony drivers now share `playPreBeats`,
   `playRoundCardBeat`, the hold predicate and the `cer` stamp, and the probe gates the rest. Collapsing them fully
   is optional once the probe is green.
