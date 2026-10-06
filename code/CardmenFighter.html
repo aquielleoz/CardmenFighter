@@ -2114,6 +2114,17 @@
         return { type: 'trioone', value: tv, size: 4, key: [tv], cards: cards };
       }
     }
+    /* FOUR OF A KIND + ONE — Big Two's shape (2026-10-06), the last of the family pieces. Its [4,1] signature is
+     * unique at size 5 (a full house is [3,2], a straight five distinct values), so it is a toggle, not a mode,
+     * and it must be claimed HERE, ahead of the straight check below, which would otherwise see five cards and
+     * fall through to null. Compared by the QUAD; the spare is baggage. */
+    if (n === 5 && FOUR_ONE) {
+      var f1 = valueCounts(cards), f1c = countsOf(f1);
+      if (f1c.length === 2 && f1c[0] === 4 && f1c[1] === 1) {
+        var q1 = topWithCount(f1, 4);
+        return { type: 'fourone', value: q1, size: 5, key: [q1], cards: cards };
+      }
+    }
     if (n === 6 && FOUR_TWO) {                       // 四带二 — quad + two spares (a pair or two singles)
       var f2 = valueCounts(cards), f2c = countsOf(f2);
       if (f2c[0] === 4 && (f2c.length === 2 || f2c.length === 3)) {
@@ -2304,6 +2315,15 @@
         t.forEach(function (c) { used[c.id] = true; });
         var sp = spares(used, 1);
         if (sp) out.push(t.concat(sp));
+      });
+    }
+    if (FOUR_ONE) {                                                               // four of a kind + one
+      Object.keys(byRank).forEach(function (r) {
+        var g = byRank[r]; if (g.length < 4) return;
+        var q = [g[0], g[1], g[2], g[3]], used = {};
+        q.forEach(function (c) { used[c.id] = true; });
+        var sp = spares(used, 1);
+        if (sp) out.push(q.concat(sp));
       });
     }
     if (FOUR_TWO) {                                                               // 四带二
@@ -4889,7 +4909,7 @@
    * switched off — which stopped the Tiến lên preset from being faithful, since that game has no full house at all.
    * The flag is the NEGATIVE (`NO_FULL_HOUSE`) because every rule in the panel must default off. */
   var NO_FULL_HOUSE = false;
-  var TRIO_ONE = false, FOUR_TWO = false;
+  var TRIO_ONE = false, FOUR_TWO = false, FOUR_ONE = false;
   /* CONSECUTIVE TRIOS as a MODE (Aj, 2026-08-28: "we can give it the double pair treatment"). 'wings' still
    * allows the bare form — allowing the attachment does not forbid going without it — so it is a SUPERSET of
    * 'bare', which is the same relationship that made the four-card slot a mode. 飞机带翅膀 carries one spare per
@@ -4928,6 +4948,8 @@
   function isTrioOne()     { return TRIO_ONE; }
   function setFourTwo(v)   { FOUR_TWO = !!v; }
   function isFourTwo()     { return FOUR_TWO; }
+  function setFourOne(v)   { FOUR_ONE = !!v; }
+  function isFourOne()     { return FOUR_ONE; }
   function setAirplane(m)  { AIRPLANE = (m === 'bare' || m === 'wings') ? m : 'off'; }
   function isAirplane()    { return AIRPLANE; }
   function setStraightMin(m) { STRAIGHT_MIN = (m === '3' || m === '5') ? m : 'off'; }
@@ -5342,7 +5364,7 @@
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     setNoFullHouse: setNoFullHouse, isNoFullHouse: isNoFullHouse,
     setSeqTwos: setSeqTwos, isSeqTwos: function () { return SEQ_TWOS; },
-    setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
+    setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo, setFourOne: setFourOne, isFourOne: isFourOne,
     setAirplane: setAirplane, isAirplane: isAirplane,
     setStraightMin: setStraightMin, isStraightMin: isStraightMin,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
@@ -7085,11 +7107,11 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.15';
+  var GAME_VERSION='v1.32.16';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Consecutive Pairs',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Consecutive Trios'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Consecutive Pairs',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',fourone:'Four + 1',airplane:'Consecutive Trios'};
   /* Consecutive pairs are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and
    * a run of three are different plays. Where the combo object is in hand, say which; the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -7686,6 +7708,11 @@ window.CardFace = {};
       note:'The 2 is the apex as a single, a pair and a trio, and every game in this family agrees. They differ only in longer plays, and there are two answers: bar it, or rank it lowest. This is a third — the 2 keeps its top value inside chains too, so J-Q-K-A-2 is the biggest straight and a trio of 2s makes the biggest full house. It matches no source game; it is the rule this one shipped with before 2026-08-30. Meaningless while the 2 is barred from sequences above, so that row switches this one off.' },
     { key:'trioOne',     duel:true, label:'Trio + one spare card',
       note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
+    /* Big Two's five-card bomb, kept as an ordinary shape: the poker LADDER it sits on is refused on principle
+     * (matching is aikido — the only answer to a shape is that shape, higher), so here it is answered only by a
+     * higher four-plus-one. */
+    { key:'fourOne',     duel:true, label:'Four of a kind + one spare',
+      note:'Big Two\u2019s four of a kind: all four copies of one value plus any single card, compared by the <b>four</b>. In Big Two it beats every straight and full house on a poker ladder; here, as with every shape, it is answered only by a higher four-plus-one. The smaller sibling of the four-plus-two row below.' },
     { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
       note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
     /* A MODE, because "with spares" still allows the bare form — a superset, like the four-card slot. Named for
@@ -7766,7 +7793,7 @@ window.CardFace = {};
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
     { key:'shapes', title:'Shapes',
-      keys:['dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo'] },
+      keys:['dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourOne','fourTwo'] },
     /* CHOPS ARE THEIR OWN SECTION (v1.31.44). They are not one more shape: every other row here adds a play
      * that obeys the matching rule, and these four are the exception to it. Splitting them also lets the three
      * chop rows drop the "The chop:" prefix they all carried, since the heading says it once. */
@@ -7877,6 +7904,7 @@ window.CardFace = {};
       if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
       if(E.setNoFullHouse)      E.setNoFullHouse(!!RULES.noFullHouse);
       if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
+      if(E.setFourOne)          E.setFourOne(!!RULES.fourOne);
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
       if(E.setAirplane)         E.setAirplane(RULES.airplane);
       if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);

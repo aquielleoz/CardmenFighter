@@ -15,6 +15,34 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.16 — four of a kind + one spare, the last family shape
+
+**A new custom rule under Shapes: "Four of a kind + one spare".** This is Big Two's five-card shape: all four
+copies of one value plus any single card. It is compared by the **four**, so 9999+3 beats 7777+K and the
+spare is baggage, the same as in every attachment here. It is the smaller sibling of four-plus-two (四带二),
+and with it the family-shape programme is finished: all eleven pieces that entry listed have now shipped.
+Off by default, like every rule.
+
+- **No poker ladder.** In Big Two this shape beats every straight and full house. Here it never meets either
+  one in either direction: the only answer to a shape is that shape, higher. That is the principle Big Two's
+  ladder breaks.
+- **A toggle, not a mode.** 4+1 is unique at five cards (a full house is 3+2, a straight is five different
+  values), so it is detected ahead of the five-card straight check and collides with nothing.
+- **A quad of 2s ranks as it does in four-plus-two at every "the 2 in sequences" setting.** `test.js` asserts
+  the two shapes **agree** rather than checking each one alone. Mutation-tested: keying the quad by fight
+  value reds the guard.
+- **No preset gets it.** Big Two is not a preset (the reasoning is in CLAUDE.md), and Chikicha, Tiến lên and
+  Dou Dizhu have no such shape. Each preset is an exact state, so it stays off in all three.
+- **Measured: options, not tempo**, the ninth shape rule in a row to show it. Knight self-play over 300 seeded
+  games per cell gave median rounds of 10 / 18 / 27 and jab share of 30 / 12 / 7% at 2 / 4 / 6 players, the
+  same whether the rule is on or off. The shape is offered on 0.3 / 2.0 / 7.8% of turns and played 0.02 /
+  0.09 / 0.12 times a game: close to decorative, as four of a kind is without the chop, because the AI plays
+  the cheapest sufficient Special.
+- **The wide rules panel is now exactly full.** At 1512x945 the 22nd rule fit only with a label short enough
+  not to wrap ("… one spare" rather than "… one spare card"). The next rule needs a structural change, and
+  CLAUDE.md says so.
+- `test.js` 645 (+11), `rulestest` 152 (+2); `mpsim` takes `fourone`.
+
 ### v1.32.15 — on a phone the battle log opens as a sheet
 
 **On a phone, opening the battle log now lifts it over the board as a slightly transparent sheet**, the way

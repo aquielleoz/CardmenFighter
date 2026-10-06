@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**634**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**645**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.15.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.15** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.16** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -961,23 +961,6 @@ never read.*
   state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
   the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
   `[id: narrowest-phones-still-34px]`
-
-- `ready to build`      · **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
-  original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
-  and NOT yet wanted" — trio+single, four+two, airplane and variable-length straights all landed in v1.31.39.
-  Kits v1.31.24-26, Quadro v1.31.29, the chop v1.31.33, chop-strips v1.31.38, tooltips v1.31.35, bulk actions
-  and presets v1.31.30. The changelog carries each.)
-  **What is actually left: four of a kind + ONE spare** — Big Two's shape, distinct from our 四带二's two spares.
-  Named in CLAUDE.md as "the only cheap piece" of a Big Two preset, which was itself considered and declined
-  (that reasoning is in CLAUDE.md, not here: Big Two's identity is the poker ladder and suit tiebreaks, and we
-  refuse both on principle).
-  **The house rules for adding one are settled and live in CLAUDE.md** — group by KIND not by source game, every
-  rule defaults OFF, a shape that shares a size signature with another must be a MODE rather than two toggles,
-  re-read every PRESET afterwards (a preset is an exact state, so a later rule is implicitly off in it), and
-  measure with `mpsim`/`rulesim` expecting **options, not tempo** — eight rules in a row have left pacing
-  untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
-  Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
-  `[id: family-shapes-last-piece]`
 
 - `parked`              · **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
