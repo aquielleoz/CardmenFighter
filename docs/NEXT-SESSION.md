@@ -997,47 +997,28 @@ never read.*
 
 ### Balance and design
 
-- `needs a measurement` · **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
-  decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
-  "without noticing" half is structural rather than careless.
-  - **What thins.** `spendCard` is `(RECYCLE_TECH ? pl.shuffle : pl.removed).push(card)` and **`RECYCLE_TECH`
-    defaults false**, so every normally-resolved Technique leaves the pool for good. So does the Broadway
-    pitch, Counter Spell's own card, Annoint's own card, and anything Sabotage or an equipment-destroy kills.
-  - **What does NOT thin, and is the reason this is easy to miss.** Spent **energy returns to the Shuffle
-    Pile** (`payEnergy` pushes there, both the coloured pips and the generic remainder), and a **countered**
-    card goes there too. So the pile a player watches most closely is the one that cycles perfectly.
-  - **Two escape valves, both narrow:** Ares's Super `reclaim` pulls Shuffle + Discard + hand back into the
-    deck, and Hippolyta's `reclaimDiscard` pulls the Discard back. Nothing else touches `removed`.
-  - **THERE IS NO DISCARD-PILE VIEWER.** `openPileView` is only ever called with `'energy'` and `'shuffle'`
-    (⚡ and ♻). The one zone that only ever grows, and that permanently shrinks your game, is the one zone
-    you cannot open. **That is almost certainly the whole answer to "without me noticing".**
-  - **IT HAS BEEN MEASURED BEFORE — AND THE NUMBER ONLY COVERS DUELS, ON A BUILD FROM BEFORE THE DRAW
-    SCALED.** [`ENERGY-REORDER-DESIGN.md`](ENERGY-REORDER-DESIGN.md) records **154/400 = 39% of games ever
-    reshuffle**, median first reshuffle **round 12**, **0.41 reshuffles per game**. Read straight, that is the
-    answer to *"why did I never notice"*: in ~61% of games the deck never runs dry, so the thinning never
-    bites. **Two reasons not to stop there**, and the doc says the second itself (*"at v1.28.1 and will
-    drift"*):
-    - **`recyclesim` calls `newGame` with no player count, so every one of those games was a DUEL.**
-    - **It predates v1.31.3, which scaled the per-round draw to `numPlayers`.** At six players that is a
-      **6-card draw against the 2 those games ran on** — three times the rate through the deck, and thinning
-      compounds every cycle because `removed` never refills the Shuffle Pile. The duel figure cannot be
-      carried across; **re-measure at 3/4/6p before concluding anything about multiplayer.**
-    - **HYPOTHESIS, UNTESTED, worth one run rather than an argument:** this may be a thread in ♦'s
-      multiplayer dominance, which Aj raised independently (*"the insane win rate in multiplayer"*). Wizard is
-      the **ramp/reclaim** class, and reclaim is worth most exactly when the pool is thin and cycling fast —
-      which is the 6p condition and not the duel one. `CARD-STATS` already shows Pure Wizard middling in a
-      duel and climbing with the table. **This is a lead, not a finding**; the honest test is `analysis.js`
-      with `RECYCLE` on and off at 6p, which needs no new code.
-  - **Two jobs, and they are separable.** (1) Measure the magnitude — how many cards a real game removes, and
-    whether it materially changes deck-out pressure; `recyclesim.js` measures cycling pressure already and
-    `analysis.js` takes `RECYCLE` as an argument, so **option "all Techniques recycle" is measurable today
-    with no new code**. (2) Decide whether the Discard deserves a viewer, which is a UI question independent
-    of the balance one — and cheap, since the pile viewer is already generic over a zone name.
+- `needs a decision`    · **THE DISCARD PILE NOBODY CAN SEE — the thinning is now MEASURED, and what is left is a viewer and
+  one balance lead** (Aj, 2026-09-08: *"so were decks actually getting thinner without me noticing? huh?"*).
+  **They are, and the numbers are in [`DECISIONS.md#deck-cycling`](DECISIONS.md#deck-cycling)** (2026-10-06,
+  every player count): about 4 cards a seat in a duel and about 9 at six players go to the Discard for good;
+  game length is unchanged either way; the only measurable consequence is six-player deck-outs (about one
+  game in 14, down to one in 100 if Techniques recycle).
+  - **What thins, for reference:** `spendCard` sends a resolved Technique to `removed` (`RECYCLE_TECH`
+    defaults false), and so do the Broadway pitch, Counter Spell's and Annoint's own cards, and anything
+    Sabotage or an equipment-destroy kills. Spent ENERGY returns to the Shuffle Pile, and so does a
+    countered card, so the pile a player watches most cycles perfectly. Two narrow escape valves: Ares's
+    Super `reclaim` and Hippolyta's `reclaimDiscard`.
+  - **THE DECISION: a Discard viewer.** `openPileView` is only ever called with `'energy'` and `'shuffle'`
+    (⚡ and ♻). The one zone that only ever grows is the one you cannot open, which is almost certainly the
+    whole answer to "without me noticing". The viewer is already generic over a zone name, so the build is
+    small; WHERE its button goes is the call, and on a phone it competes with the declutter.
+  - **STILL A LEAD, NOT A FINDING: ♦'s multiplayer strength.** Wizard is the ramp/reclaim class, and reclaim
+    is worth most when the pool is thin and cycling fast, which the table above now confirms is the
+    six-player condition (4-5 cycles a seat). The honest test is per-deck win share at 6p with `recycle` on
+    and off. `mpsim` has no recycle flag yet, and one run is noise (Pure Rogue's sd is ~3.3 points), so it
+    wants about 8 runs an arm.
   - **Related, and deliberately NOT bundled:** whether Counter Spell's own card should go to the Shuffle Pile
-    instead. Aj: *"let's leave counter spell alone for now."* It is a **buff** rather than a consistency fix
-    (every Technique goes to the Discard; ♦ is not singled out), and it lands on the class that already
-    scales hardest with player count. The three options are written up on `epic/priority-windows` in
-    `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
+    instead. Aj: *"let's leave counter spell alone for now."*
   `[id: re-check-setrecycletech-discard]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
@@ -1048,13 +1029,11 @@ never read.*
   win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS` scaling **down** with
   player count (the promising re-land direction, PATCHNOTES 0k). Worth a small committed harness for
   median/mean/max rounds by player count, since the original numbers came from a one-off.
-  **RE-MEASURE DECK CYCLING IN THE SAME PASS** (Aj, 2026-09-08: *"maybe we'll retest when we get to fixing
-  shield-loss=all"*). The two are coupled and it is not obvious: the only recorded cycling figure — 39% of
-  games ever reshuffle — is **duel-only and pre-dates the draw scaling to `numPlayers`**, so nobody knows
-  what a six-player deck does. **Anything that changes game LENGTH changes how many times a deck cycles**,
-  and every cycle is lossy because spent Techniques go to `removed` and never refill the Shuffle Pile. So a
-  length fix and a cycling measurement want the same harness and the same runs — see the `setRecycleTech`
-  entry above for the full trace, including the untested ♦-dominance lead.
+  **DECK CYCLING IS MEASURED NOW** ([`DECISIONS.md#deck-cycling`](DECISIONS.md#deck-cycling), 2026-10-06), and
+  `recyclesim.js` is the committed harness this entry asked for: it prints median and max rounds by player
+  count beside the cycling figures, so a length experiment can read both from one run. Current lengths are
+  **11 / 14 / 20 / 31** at 2 / 3 / 4 / 6 players. Thinning does not move them, so it is not the lever, but
+  any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
 
 - `parked`              · **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
