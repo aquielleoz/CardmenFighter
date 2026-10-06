@@ -3201,6 +3201,40 @@ function cards(ids) { return ids.map(card); }
   ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log (' + named + ' of ' + seen + ')');
 })();
 
+/* ============ A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06) ============
+   At 3-6 players under `chosen`, the winner picks whose shield breaks (`pendingLossChoice`) — and meanwhile
+   `st.turn` still names the last seat to pass, with the pile still on the table. A play from that seat was
+   ACCEPTED: found by `nettest_parity` (a remote seat's board was live through another seat's pick), then
+   measured here. Staged so the play is genuinely LEGAL apart from the guard — a higher pair onto the pile —
+   because "a single cannot beat a pair" would refuse it on any build and prove nothing. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  E.setSpecialLossMode('chosen'); E.setLossTargetInteractive(function (st, w) { return w === 2; });
+  var g = E.newGame(null, { numPlayers: 3, starter: 2 });
+  g.round = 3; g.turn = 2; g.pile = null; g.subPhase = 'main'; g.players.forEach(function (p) { p.energy = []; });
+  g.players[2].hand = [mk(9, 'C', 'a9'), mk(9, 'H', 'b9'), mk(4, 'D', 'x4')];
+  g.players[0].hand = [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')];
+  g.players[1].hand = [mk(13, 'S', 'cK'), mk(13, 'D', 'cK2'), mk(6, 'S', 'c6')];
+  var go = function (f) { var r = f(); if (r && r.transition === 'play') { while (g.respondFor != null) E.declineResponse(g, g.respondFor); r = f(); } return r; };
+  var P = g.players;
+  go(function () { return E.play(g, 2, [P[2].hand[0], P[2].hand[1]]); });
+  go(function () { return E.pass(g, 0); });
+  go(function () { return E.pass(g, 1); });
+  ok(!!g.pendingLossChoice && g.pendingLossChoice.winner === 2 && g.turn === 1 && g.pile && g.pile.combo.type === 'pair',
+     'STAGED: seat 2 won with a pair and is choosing a target — turn still names seat 1, the pile still on the table');
+  var kings = P[1].hand.filter(function (c) { return c.rank === 13; });
+  var r = go(function () { return E.play(g, 1, kings); });
+  ok(r.ok === false && g.pile.byPlayer === 2, 'a pair of Kings onto the winner’s 9s is REFUSED while the strike is being chosen' +
+     (r.ok === false ? '' : '  ← REPRODUCED: the play landed in a round that was already won'));
+  ok(/waiting on the winner/.test(r.reason || ''), '…and says why: ' + JSON.stringify(r.reason));
+  ok(E.pass(g, 1).ok === false, '…and so is a pass');
+  var wr = E.play(g, 2, [P[2].hand[0]]);
+  ok(wr.ok === false, 'the winner cannot play past its own pick either  [' + (wr.reason || 'accepted') + ']');   // the turn check answers first ("Not your turn."); its UI is in the pick anyway
+  E.chooseLossTarget(g, 0);
+  ok(!g.pendingLossChoice, 'choosing the target clears the wait — the guard has a way out');
+  E.setLossTargetInteractive(null);
+})();
+
 /* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============
    Staged so a default and a choice are DISTINGUISHABLE: the lowest Broadway card (a 10) is the one worth
    keeping and a higher one (an Ace) is spare — "which card left" is the assertion, never "the hand shrank". */

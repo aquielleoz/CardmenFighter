@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**651**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**657**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -718,32 +718,53 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `needs a decision`   · **THE CLIENT'S CEREMONY IS A SECOND IMPLEMENTATION, AND THAT IS CAUSE 2 OF THE
-  HOST/CLIENT DRIFT** (Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*).
-  The drift has three causes and only one of them could be gated. Cause 1 — `startGame` is the client's
-  missing constructor — is closed: `versiontest` now derives both sets from source and fails on the
-  difference, and nine more names were moved into `resetBoardMemory` on the way. Cause 3 — narration
-  defaulting to `logMsg` instead of `say` — already has the static scan in `nettest_narrate`, with its two
-  known gaps filed. **This entry is cause 2, the one a gate cannot reach.**
-  **`resolveRoundCeremony` (host/solo) and `clientPlayCeremony` (client) are two hand-written
-  presentations of one event**, so anything added to the host's ceremony is invisible on a client until a
-  human plays that seat. Known instances: `uiPhase` (the Resolution and Clean-up tints, fixed 2026-09-29 by
-  copying the host's marks and its 420ms dwell); `buildOppBeats` before it was extracted, where **every**
-  readability feature was missing from the free-for-all driver; and `tutCastRivalTech`, which lost the
-  reveal pairing the real drivers have. Three instances, one shape.
-  **THE DECISION IS WHETHER TO COLLAPSE THE FORK**, and it is genuinely a decision rather than a cleanup,
-  because the two are not the same function wearing different hats: the client has no trim to run, no draw
-  to make and no engine to consult — its ceremony is a REPLAY of an outcome the host already computed. A
-  shared driver would need a "who owns the work" flag threaded through every beat, and the failure mode of
-  getting that wrong is worse than the drift (a client running engine work is the v1.31.56 class).
-  **THE CHEAP HALF, IF THE ANSWER IS NO:** make the host's ceremony emit its phase marks and beat
-  boundaries through ONE named helper that both paths call, so the next addition has an obvious place to
-  go even while the drivers stay separate. That is what `buildOppBeats` did for the opponent beats, and it
-  is why that particular drift stopped.
-  **WHAT WOULD MEASURE IT:** nothing today compares what the two seats RENDER — `nettest_sync` compares
-  state, and state is not the thing that drifts here. A parity probe that samples both strips and both log
-  line-counts through one game is the instrument this cause has never had.
+- `root cause found`    · **⏸ IN PROGRESS ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED
+  BY A NEW PROBE AND MOSTLY FIXED.** Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*;
+  2026-10-06: *"yes let's try to remove all drifts"*. The old entry's "needs a decision" (collapse the two drivers?)
+  was answered by measuring instead: **`nettest_parity` (new) FILMS what host and client RENDER through real duels
+  and 3-player games and diffs the ceremonies** — the instrument this cause never had. Read its header first.
+  **FIXED ON THE BRANCH, each found by the probe and A/B'd against main:**
+  - A client's board went LIVE during its round ceremony (the mirror says "your turn" the moment the engine
+    advances), so a quick player played round N+1 under round N's banner, and the host's board followed early
+    through `hostTakeBack`. Likely the mechanism behind `round-ceremony-reruns-with-stale-res` — unproven. Now: the
+    client holds its board until ITS Round card ends AND the host's mirror says `cer:false` (host `inCeremony`,
+    stamped on every mirror); the host REFUSES board ops mid-ceremony (`CEREMONY_REFUSE`, incl. `toFight`), with
+    a message. A timed release was tried first and measured wrong (two clocks cannot order); the hold is causal.
+  - **ENGINE: a round already won was open for play.** During a 3-player strike choice (`pendingLossChoice`) and
+    during Resolution/Clean-up, `st.turn` still names the last passer: a pair of Kings onto the winner's 9s was
+    ACCEPTED, and a pass under Resolution came back as a Main → Fight transition the host RE-APPLIED in the NEXT
+    round. `play`/`pass`/`activate` refuse now (`test.js` +6, A/B'd); a seeded 600-game fingerprint is
+    byte-identical to main (instrument checked for sensitivity), so no AI game moves. Client locks + "X is
+    choosing a target…" notice to match. This is what made a 3-player seat loop ~400 refused plays.
+  - ROAR after the shatter on both seats (`revealShields` pays the tier debt); a seat dealt nothing (knocked out /
+    fizzled) gets the Beginning tint; a knocked-out seat is not "Deck empty"; the client counts its own draw (fizzle
+    style + subtitle); the client's Round card is no longer skipped when `newRound` is missing or the deal was not
+    held; the client suppresses the render-diff mill float like the host (`inCeremony`); one shatter-hold predicate
+    `shieldsHeld()` over the engine's boundary flags (mirrored, so both seats hold on the same data); a ceremony
+    beat takes the stage back from a waiting notice (`trimwait` left the host's beats dimmed).
+  **STILL OPEN — the data is in the probe's dumps, re-run it with `PARITY_DUMP=1`:**
+  - 3-player leg green ~2 runs in 5. The remaining shape: just before a ceremony, a short Resolution stretch where
+    CLIENTS shatter and the host does not, then the host shatters on its beat with `TH:ROAR` BEFORE `SHATTER`.
+    So one boundary path still renders the strip outside the predicate's flags, and the host's tier check is paid
+    before its shatter there.
+  - The duel host once looped 328 actions in the latest run (new; the 3-player loop is fixed). Not diagnosed.
+  - Not run since the engine guards landed: the FULL SWEEP (`nettest_lobbyback_rtc` was 10/16 red in an earlier
+    sweep on this branch and was never re-checked), docs, changelog, version bump. `nettest_parkclobber`'s staging
+    was fixed on the branch (it restaged under a running ceremony).
+  **THE STRUCTURAL QUESTION IS STILL OPEN BUT SMALLER:** the two ceremony drivers now share `playPreBeats`,
+  `playRoundCardBeat`, the hold predicate and the `cer` stamp, and the probe gates the rest. Collapsing them fully
+  is optional once the probe is green.
   `[id: client-ceremony-is-a-second-impl]`
+
+- `root cause found`    · **AT 3-6 PLAYERS A DECK-OUT SHOWS THE END SCREEN WHILE THE GAME GOES ON** (found 2026-10-06, reading
+  `resolveRoundCeremony` for the ceremony work; NOT yet reproduced in the page). The ceremony does
+  `if(res.deckedOut){ … return endGame(); }` on ANY deck-out — but at 3+ players `roundDraw` eliminates the
+  decked-out seat and the game continues when two or more remain, so the host (and solo) would show the end screen
+  for a game the engine is still playing. `logDeckout` then names `state.winner`, which is not set. Measured rate:
+  six-player deck-outs are ~0.07 per game (`DECISIONS.md#deck-cycling`), so about one six-player game in 14.
+  Next: force one (seat leads its last card — an apex 2 — with an empty deck and shuffle pile; see the forced
+  deck-out in `recyclesim`'s history) and assert the board carries on.
+  `[id: deckout-ends-game-midway]`
 
 
 - `needs a decision`    · **THE REST OF AJ'S PHONE DECLUTTER — NO DEFECT NEEDS IT ANY MORE** (2026-10-05). His

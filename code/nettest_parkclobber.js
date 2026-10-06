@@ -72,6 +72,12 @@ const why=p=>p.evaluate(()=>({
      the round number as the only variable: clobber leg at round 3 → `1 + 0`, at round 6 → `0 + 0`. */
   async function stage(hh,jh,rnd){
     const wH=want(hh), wJ=want(jh);
+    /* ⚠ NEVER RESTAGE UNDER A RUNNING CEREMONY (2026-10-06). The CONTROL leg's round is still being
+       presented when the CLOBBER leg stages, so `forceAll` rewrote the board mid-ceremony and the client's
+       real pass reached the host under the previous round's banner. That used to be applied — the very
+       overlap `nettest_parity` exists to catch — and the host now refuses a board op mid-ceremony, so the
+       leg wedged on its own staging. Wait for the host's ceremony to finish, as a player would. */
+    await until(()=>host.evaluate(()=>!window.__cmf.ceremony()), 120);
     for(let i=0;i<10;i++){
       await host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),
         { hands:[hh,jh], energies:[EN('D','e'),EN('H','f')], shields:[3,3],

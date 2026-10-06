@@ -1253,6 +1253,16 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
 
     /* AND THE SUB-PHASE IS THE OTHER HALF OF "PROACTIVE" (Aj, from a real duel, 2026-09-15: *"i activated a
        card in the fight sub phase... that's not legal"*). `PHASES-AND-PRIORITY.md` §3 is one sentence about
@@ -2343,6 +2353,23 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
+    /* …AND A ROUND THAT IS OVER IS NOT OPEN EITHER (2026-10-06). During the Resolution go-round (and the Clean-up
+       that follows) `st.turn` still names the last seat to pass and `subPhase` is still 'main', so a play or pass
+       from that seat came back as a Main → Fight TRANSITION — and the host's answer to a transition is to settle
+       the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
+       Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
+       re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
+    if (st.resolution || st.cleanup || st.endCleanup) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
@@ -2406,6 +2433,23 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
+    /* …AND A ROUND THAT IS OVER IS NOT OPEN EITHER (2026-10-06). During the Resolution go-round (and the Clean-up
+       that follows) `st.turn` still names the last seat to pass and `subPhase` is still 'main', so a play or pass
+       from that seat came back as a Main → Fight TRANSITION — and the host's answer to a transition is to settle
+       the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
+       Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
+       re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
+    if (st.resolution || st.cleanup || st.endCleanup) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
        LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so
