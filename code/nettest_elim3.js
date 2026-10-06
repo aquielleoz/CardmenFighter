@@ -78,6 +78,16 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
     }).observe(fx, {attributes:true, childList:true, subtree:true, characterData:true});
   });
 
+  /* THE KICK FLASH, ON EVERY SEAT (kick-flash-only-at-game-end). A mid-game kill used to get the words and no
+     flash, and the queued finisher then played at whatever ended the game. `playPreBeats` is the one beat both
+     ceremonies run, so the flash is asserted on the HOST and BOTH CLIENTS — each in its own frame. Recorded by
+     an observer for the same reason the banners are: the flash is one second long. */
+  for(const pg of [host,c1,c2]) await pg.evaluate(()=>{ window.__kicks=[]; var k=document.getElementById('kick'); if(!k) return;
+    new MutationObserver(function(){ var on=/\bshow\b/.test(k.className);
+      if(on && !k.__on) window.__kicks.push({cls:k.className, text:(k.textContent||'').trim()}); k.__on=on; })
+      .observe(k, {attributes:true, childList:true, subtree:true}); });
+  const kicksOf=pg=>pg.evaluate(()=>window.__kicks||[]);
+
   // Host picks client 2 (absolute seat 2) — already at 0 shields → FIGHTER KICK → elimination.
   await host.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="2"]'); if(el)el.click(); });
   await wait(300); await host.evaluate(()=>{ var f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });   // the tap aims; Confirm strikes
@@ -119,6 +129,11 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok((await finishedOf(c2))!==true,'c2 keeps receiving mirrors as a spectator (game not marked finished for it either)');
   ok(await waitFor(async()=>{ var t=await turnOf(host); return t===0||t===1; }, 60, 150),'control returned to a LIVING seat (host or c1), skipping the eliminated one');
   ok(await waitFor(async()=>await roundOf(host)>=3, 80, 150),'the survivors advanced to the next round');
+  for(const [pg,name,want,tone] of [[host,'host',/RIVAL 3 IS OUT/,/\bwin\b/],[c1,'c1 (a bystander — default names are FRAME-relative, so seat 2 is its "Rival 2")',/RIVAL 2 IS OUT/,/\bmid\b/],[c2,'c2 (the one kicked)',/YOU.RE OUT/,/\blose\b/]]){
+    const ks=await kicksOf(pg);
+    ok(ks.length===1 && /mid-game/.test(ks[0].cls) && want.test(ks[0].text) && tone.test(ks[0].cls) && !/YOU WIN|YOU LOSE/.test(ks[0].text),
+       `${name} saw the mid-game Fighter Kick flash once, in its own frame  ${JSON.stringify(ks)}`+(ks.length?'':'  ← REPRODUCED: the words and no flash'));
+  }
   /* Pin it to the round the KICK resolved into (round 2 → "Round 3"). An "any banner ever" flag is vacuous:
      it stays armed, so the NEXT round's ceremony sets it and the assertion passes on the broken build too —
      measured, it did. */
@@ -143,6 +158,12 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(await waitFor(async()=>(await elimSelf(c1))===true, 90, 150),'the final kick eliminates the last opponent (c1)');
   ok(await waitFor(async()=>(await finishedOf(host))===true, 60, 150),'the game is now finished on the host — one Rider left');
   ok(await waitFor(async()=>(await finishedOf(c1))===true, 40, 150) && await waitFor(async()=>(await finishedOf(c2))===true, 40, 150),'both clients (the just-kicked c1 and the earlier-out c2) receive the finished mirror');
+  await wait(2200);                                    // the finisher is 1.65s, and it plays as the end screen arrives
+  for(const [pg,name,want] of [[host,'host',/YOU WIN/],[c1,'c1',/YOU LOSE/],[c2,'c2',/YOU LOSE/]]){
+    const fin=(await kicksOf(pg)).slice(1);
+    ok(fin.length===1 && !/mid-game/.test(fin[0].cls) && want.test(fin[0].text),
+       `${name}: the game-ending kick is ONE full finisher, not a second mid-game flash or a replayed first kill  ${JSON.stringify(fin)}`);
+  }
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

@@ -96,7 +96,7 @@ function writeCounts(runs) {
 const here = __dirname;
 const all = fs.readdirSync(here)
   .filter(f => /\.js$/.test(f))
-  .filter(f => /^(nettest_|lessontest)/.test(f) || ['test.js','netview.test.js','mptest.js','rulestest.js','landscapetest.js','decktest.js','viewtest.js','dragtest.js','piletest.js','revealtest.js','phantasmtest.js','exporttest.js','versiontest.js','sharetest.js','qrtest.js','peektest.js','logtest.js','motiontest.js','phonetest.js','oppbeatstest.js','counterfeittest.js','roartest.js','fightbeattest.js','stackrowtest.js','sorttest.js','quicktest.js','shadowtest.js','prompttest.js','resolutiontest.js','resolutiontest_ui.js','browsertest.js'].includes(f))
+  .filter(f => /^(nettest_|lessontest)/.test(f) || ['test.js','netview.test.js','mptest.js','rulestest.js','landscapetest.js','decktest.js','viewtest.js','dragtest.js','piletest.js','revealtest.js','phantasmtest.js','exporttest.js','versiontest.js','sharetest.js','qrtest.js','peektest.js','logtest.js','motiontest.js','phonetest.js','oppbeatstest.js','counterfeittest.js','roartest.js','fightbeattest.js','stackrowtest.js','sorttest.js','quicktest.js','shadowtest.js','prompttest.js','resolutiontest.js','resolutiontest_ui.js','browsertest.js','kicktest.js'].includes(f))
   .filter(f => !['nettest_lobby.js','nettest.js','lessonlib.js','fightclick.js'].includes(f));   // helpers, and the BroadcastChannel probe that is not a suite
 const TIMES = readTimes();
 const cost = f => (f in TIMES) ? TIMES[f] : 1e9;   // unmeasured sorts first. A FINITE sentinel, not Infinity: on a fresh clone every suite is unmeasured, and `Infinity - Infinity` is NaN — a comparator returning NaN is unspecified behaviour, so the no-data fallback would rest on V8 happening to treat it as 0
