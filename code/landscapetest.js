@@ -334,6 +334,51 @@ const CASES=[
     await p.context().close();
   }
 
+  /* ---- ON A PHONE THE OPEN LOG IS A SHEET OVER THE BOARD (open-battle-log-overlay) ----------------------
+     Expanded in place it rationed the board: a 164px column in portrait, two readable lines at 844x390. Every
+     claim is asserted by what is ON SCREEN — `elementFromPoint`, never `textContent`, because DOM presence is not
+     visibility — and by the board's own boxes, which must not move when the sheet opens. Desktop is the
+     negative half: it keeps the in-place panel, so the play area DOES narrow there. */
+  for(const [w,h,what] of [[360,740,'portrait phone'],[390,780,'portrait phone (tall band)'],[844,390,'landscape phone'],
+                           [568,320,'landscape floor'],[1280,800,'desktop']]){
+    const p=await open(w,h,2); const tag=`log sheet ${w}x${h} (${what})`; const sheet=w<=720||h<=520;
+    const box=()=>p.evaluate(()=>['table','handWrap'].map(id=>{const r=document.getElementById(id).getBoundingClientRect(); return [r.left,r.top,r.width,r.height].map(Math.round).join(',');}).join(' '));
+    const before=await box();
+    await p.evaluate(()=>{ const t=document.getElementById('logToggle'); if(document.getElementById('logWrap').classList.contains('collapsed')) t.click(); });
+    await wait(250);
+    const after=await box();
+    const g=await p.evaluate(()=>{ const lw=document.getElementById('logWrap'), r=lw.getBoundingClientRect();
+      const hit=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2), cb=document.getElementById('logCloseBtn'), cr=cb?cb.getBoundingClientRect():null;
+      const chit=cb&&cb.offsetParent ? document.elementFromPoint(cr.left+cr.width/2, cr.top+cr.height/2) : null;
+      return { fixed:getComputedStyle(lw).position==='fixed', onTop:!!hit && lw.contains(hit), w:Math.round(r.width), h:Math.round(r.height),
+               closeOn:!!cb && !!chit && (chit===cb || cb.contains(chit)), vw:innerWidth, vh:innerHeight }; });
+    if(sheet){
+      ok(g.fixed && g.onTop, `${tag}: the open log is a SHEET, and it is the topmost thing at its own centre (${g.w}x${g.h})`);
+      ok(g.w>=Math.min(g.vw-16,600) && g.h>=g.vh*0.6, `${tag}: …big enough to read — ${g.w}x${g.h} of ${g.vw}x${g.vh} (in place it was a column)`);
+      ok(before===after, `${tag}: …and the board does not move underneath it  ${before===after?'':before+' → '+after}`);
+      // a dialog opened while reading must land ON the sheet, never under it
+      await p.evaluate(()=>document.getElementById('youNrgBtn').click()); await wait(300);
+      const dlg=await p.evaluate(()=>{ const md=document.getElementById('modal'); if(!document.getElementById('overlay').classList.contains('show')) return null;
+        const r=md.getBoundingClientRect(), hit=document.elementFromPoint(r.left+r.width/2, r.top+Math.min(r.height/2,30)); return !!hit && md.contains(hit); });
+      ok(dlg===true, `${tag}: a dialog opened over the sheet is ON TOP of it`);
+      await p.evaluate(()=>{ const b=[...document.querySelectorAll('#modal button')].pop(); if(b) b.click(); document.getElementById('overlay').classList.remove('show'); });
+      ok(g.closeOn, `${tag}: ✕ Close is on screen and on top`);
+      await p.evaluate(()=>{ const c=document.getElementById('logCloseBtn'); if(c) c.click(); }); await wait(250);
+      ok(await p.evaluate(()=>document.getElementById('logWrap').classList.contains('collapsed')) && (await box())===before,
+         `${tag}: …and closing it puts the rail back, board untouched`);
+      // PEEK (the review mode) lifts #logWrap with its own position rule — the sheet must survive it
+      await p.evaluate(()=>{ window.__solo.peek(); const t=document.getElementById('logToggle'); if(document.getElementById('logWrap').classList.contains('collapsed')) t.click(); });
+      await wait(250);
+      const pk=await p.evaluate(()=>{ const lw=document.getElementById('logWrap'), r=lw.getBoundingClientRect(), hit=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2);
+        return { peeking:window.__solo.peeking(), fixed:getComputedStyle(lw).position==='fixed', onTop:!!hit&&lw.contains(hit), w:Math.round(r.width), h:Math.round(r.height) }; });
+      ok(pk.peeking && pk.fixed && pk.onTop && pk.h>=g.h-2, `${tag}: …and it is still the sheet while PEEKING at the table  ${JSON.stringify(pk)}`);
+    } else {
+      ok(!g.fixed && before!==after, `${tag}: desktop keeps the IN-PLACE panel — not a sheet, and the play area narrows as before`);
+      ok(!(await p.evaluate(()=>{ const c=document.getElementById('logCloseBtn'); return !!(c&&c.offsetParent); })), `${tag}: …with no ✕ Close (the caret is the control there)`);
+    }
+    await p.context().close();
+  }
+
   /* ---- "↓ New" MUST BE REACHABLE WHEN THE LOG BARELY OVERFLOWS -------------------------------------------
      `logAtBottom()` decides whether a new entry auto-follows or raises the jump-to-newest button, and its slack
      was a flat 80px. Whenever the log overflowed by LESS than that, every scroll position read as "at the
