@@ -21,7 +21,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const sample=p=>p.evaluate(()=>{ const k=document.getElementById('kick'), rf=document.getElementById('roundfx'), st=window.__solo.st();
     const rr=rf&&rf.querySelector('.rfRound');
+    const wd=k&&k.querySelector('.word'), wr=wd?wd.getBoundingClientRect():null;
     return { kick:!!(k&&/\bshow\b/.test(k.className)), cls:k?k.className:'', text:k?(k.textContent||''):'',
+             rings:k?k.querySelectorAll('.ring').length:0, fs:wd?parseFloat(getComputedStyle(wd).fontSize):0,
+             overflow:wr?Math.round(Math.max(0, wr.right-innerWidth, -wr.left)):0, vw:innerWidth,
              rbanner:!!(rf&&/show/.test(rf.className)&&rr&&/Round/i.test(rr.textContent||'')),
              finished:!!st.finished, out2:!!(st.players[2]&&st.players[2].eliminated), out0:!!st.players[0].eliminated }; });
 
@@ -71,6 +74,13 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       ok(fl.length>0 && fl.some(f=>/YOU WIN/.test(f.text)) && !fl.some(f=>/mid-game/.test(f.cls)),
          tag+' the game-ending kick is still the FULL finisher — "YOU WIN", not the mid-game flash  ['+(fl[0]?fl[0].cls+' · '+fl[0].text:'none')+']');
       ok(edges===1, tag+' …exactly once ('+edges+')');
+      /* THE FINALE IS THE BIG ONE (Aj, 2026-10-06: "that's the only kick the 1v1 sees"): its own class, the
+         shockwave rings, words larger than the mid-game flash — and never wider than the screen in ANY frame,
+         overshoot included, which is what the first cut (150px at 1100 wide) got wrong. */
+      ok(fl.length>0 && /\bfinal\b/.test(fl[0].cls) && fl[0].rings===2, tag+' …in the FINALE form — its own class and the shockwave rings  ['+(fl[0]?fl[0].cls+' · rings '+fl[0].rings:'—')+']');
+      ok(fl.length>0 && fl[0].fs>116, tag+' …with bigger words than the old 116px finisher at this width ('+(fl[0]?fl[0].fs:'—')+'px)');
+      const worst=fl.reduce((m,f)=>Math.max(m,f.overflow),0);
+      ok(fl.length>0 && worst===0, tag+' …and the words never run off the screen, in any sampled frame (worst '+worst+'px past the edge)');
     } else {
       const want = MODE==='3p-kill' ? /TANK IS OUT/ : /YOU.RE OUT/, tone = MODE==='3p-kill' ? /\bwin\b/ : /\blose\b/;
       ok(fl.length>0, tag+' the kill FLASHES while the game goes on'+(fl.length?'':'  ← REPRODUCED: the words and no flash'));
@@ -78,6 +88,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
          tag+' …naming who went out, with no WIN/LOSE (the game is not over)  ["'+(fl[0]?fl[0].text:'—')+'"]');
       ok(fl.length>0 && /mid-game/.test(fl[0].cls) && tone.test(fl[0].cls), tag+' …in the '+(MODE==='3p-kill'?'WIN':'LOSE')+' tone, the shorter mid-game form  ['+(fl[0]?fl[0].cls:'—')+']');
       ok(edges===1, tag+' …exactly once ('+edges+')');
+      ok(fl.length>0 && fl[0].rings===0 && !/\bfinal\b/.test(fl[0].cls), tag+' …and it is NOT the finale — no shockwave, the finale stays its own event');
       const firstFlash=film.findIndex(f=>f.kick), nextRound=film.findIndex((f,i)=>f.rbanner && i>firstFlash && firstFlash>=0);
       ok(firstFlash>=0 && !film.some(f=>f.kick&&f.rbanner), tag+' …and never on top of a round banner'+(nextRound>=0?' (flash @'+film[firstFlash].t+'ms, next round @'+film[nextRound].t+'ms)':''));
       ok(!film[film.length-1].finished, tag+' the game really is still going');
