@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.32.13**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.32.14**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -61,7 +61,7 @@ node dragtest.js                                # DRAGGING MEANS TWO THINGS AND 
                                                 # release will ask and writes the reason while the card is
                                                 # in the air. Asserting a post-release `#message` waits
                                                 # for something that by design never comes
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (203)
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (215)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (26)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
@@ -2001,6 +2001,13 @@ whose collision nothing had recorded. The numbers are in `docs/DECISIONS.md#phon
 part that belongs here. **A filed measurement ages exactly as fast as the thing it measured** — and a stale one
 is worse than none, because it is specific enough to plan against.
 
+**⚠ AND FOR ELEVEN-ODD VERSIONS THOSE DIALOG CHECKS MEASURED THE WRONG DIALOG (found 2026-10-06).** The block
+opened its page with `open()`, which STARTS A GAME, then clicked `#newBtn` — which mid-game is **Concede**
+since v1.31.57 gave it a third state. So "the setup dialog is on screen and its last control reachable" was
+asserted of a 196px "Concede?" box, green every run, and the suite even printed the label it reached:
+*"🏳 Concede"*. Nobody read it. **A UI suite must assert WHICH thing it is measuring before measuring it** —
+one `ok()` on an element only that dialog has — and a label printed in a green line is evidence too.
+
 **Dialogs are covered too, since v1.31.14** — every dialog shares ONE `.overlay`/`.modal` pair, which had no
 `max-height` and no `overflow` while the overlay centres, so a tall modal hung off both edges with nothing to
 scroll (the 812px setup dialog clipped even at desktop 1280×800). `#disconBar` no longer hardcodes `top:54px`:
@@ -2308,7 +2315,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.32.13 — last FULL sweep 2026-10-06, `npm run sweep`, 116/116 in 287s** (115 on the run
+Status as of **v1.32.14 — last FULL sweep 2026-10-06, `npm run sweep`, 116/116 in 308s** (115 on the run
 itself: `versiontest` red on this very line, which is the line's job — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2322,7 +2329,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 634, `netview` 68, `mptest` 120, `rulestest` 150, `landscapetest` 203, `decktest` 42, `viewtest` 26,
+`test` 634, `netview` 68, `mptest` 120, `rulestest` 150, `landscapetest` 215, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 11, `counterfeittest` 12, `roartest` 21, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

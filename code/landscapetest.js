@@ -226,9 +226,17 @@ const CASES=[
    * name editor and the pile viewers all share this fix.
    * Reachability is asserted the way the board cases do it: SCROLL, then re-measure. */
   for(const [w,h,what] of [[568,320,'SE-1st/iPod'],[844,390,'iPhone 14'],[667,375,'iPhone 8'],[390,780,'portrait phone'],[1280,800,'desktop']]){
-    const p=await open(w,h,2);
-    await p.evaluate(()=>{ const n=document.getElementById('newBtn'); if(n)n.click(); }); await wait(400);
+    /* ⚠ A FRESH PAGE, NOT `open()` (2026-10-06). `open()` STARTS A GAME, and mid-game `#newBtn` is CONCEDE —
+       so for every version since it gained that state this block measured the 196px "Concede?" confirm and
+       reported the SETUP dialog on screen and reachable ("last control … 🏳 Concede"). Found only because a
+       new assertion looked for the setup's columns and got none. Assert the dialog IS the setup before
+       measuring it. */
+    const p=await (await b.newContext({viewport:{width:w,height:h}})).newPage(); p.on('pageerror',e=>errs.push(e.message));
+    await p.goto(URL); await poll(p, ()=>!!document.getElementById('newBtn'), 'the page booted');
+    await p.evaluate(()=>document.getElementById('newBtn').click());
+    await poll(p, ()=>{const g=document.getElementById('goFirstBtn'); return !!(g&&g.offsetParent);}, 'the setup dialog opened');
     const tag=`dialog ${w}x${h} (${what})`;
+    ok(await p.evaluate(()=>!!document.querySelector('#modal #rollBtn')), `${tag}: the dialog under test IS New Duel (it once measured the Concede confirm)`);
     const m=await p.evaluate(()=>{
       const ov=document.getElementById('overlay'), md=document.getElementById('modal');
       if(!ov||!ov.classList.contains('show')) return null;
@@ -250,6 +258,24 @@ const CASES=[
         return { on:(r.top>=0 && r.bottom<=window.innerHeight+1), label:last.textContent.trim().slice(0,16) };
       });
       ok(reach && reach.on, `${tag}: its last control is reachable after scrolling ("${reach&&reach.label}")`);
+      /* THREE COLUMNS IN SHORT LANDSCAPE, STACKED EVERYWHERE ELSE (setup-dialog-three-columns). Asserted from the
+         rendered boxes, not the grid property: three side-by-side columns means three distinct lefts on one top,
+         and no column's box overlapping the next. Both directions — a grid that leaked to desktop is as wrong
+         as one that never applied. */
+      const cols=await p.evaluate(()=>{ const md=document.getElementById('modal'); md.scrollTop=0;
+        return [...md.querySelectorAll('.setupCol')].map(c=>{ const r=c.getBoundingClientRect(); return {l:Math.round(r.left), r:Math.round(r.right), t:Math.round(r.top)}; }); });
+      const band=w>h && h<=520;
+      const side=cols.length===3 && cols[0].r<=cols[1].l && cols[1].r<=cols[2].l && Math.abs(cols[0].t-cols[2].t)<=2;
+      const stacked=cols.length===3 && cols[1].t>cols[0].t && cols[2].t>cols[1].t;
+      ok(band ? side : stacked, `${tag}: the dialog is ${band?'THREE COLUMNS side by side':'one stacked column, as before'}  ${JSON.stringify(cols)}`);
+      if(w===844){
+        ok(!m.scrolls, `${tag}: …and all of it fits on one screen, no scrolling`);
+        // 6 players: every opponent's two pickers keep a usable width (stacked, the class one shrank to its chevron)
+        const narrow=await p.evaluate(async()=>{ const s=document.getElementById('setPlayers'); s.value='6'; s.dispatchEvent(new Event('change'));
+          await new Promise(r=>setTimeout(r,250));
+          return [...document.querySelectorAll('#oppList select')].map(e=>Math.round(e.getBoundingClientRect().width)); });
+        ok(narrow.length===10 && narrow.every(x=>x>=70), `${tag}: at 6 players every opponent picker keeps a usable width  [${narrow}]`);
+      }
     }
     await p.context().close();
   }
