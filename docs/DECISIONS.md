@@ -128,6 +128,22 @@ otherwise be re-derived. What is still open is a look at a real device, which is
   Vertical space IS genuinely tight (see the 340px floor and `landscapetest`), but the hand is the thing a card
   player looks at most, so it is the wrong first lever; the secondary chrome is the cheap one.
 
+<a id="narrow-phone-targets"></a>
+### 34px touch targets at 340px and narrower — ACCEPTED, not fixed (Aj, 2026-10-06)
+
+Aj: *"we can also just give up if it's really hard."* It is, relative to what it buys, so it stays.
+**Measured 2026-09-16:** every phone from 360px up has 44px-tall icon buttons. At **340px and below** the
+action row keeps its 34px targets, because the row cannot afford more on either axis. The `max-width:480px`
+block already records it as **2px over budget at 327px**, and applying 44px targets there pushed
+`landscapetest`'s 327x660 expand overflow from 63px to 73px on the first run.
+**The only room is in `sortBtn`** (86-106px against 30-44px for the others), and it keeps a WORD because the
+word IS the sort state it reports ("Straights"); a glyph cannot say that. The two real options, a rotating
+one-word label or moving Sort out of the action row, are both redesigns. For 10px of tap height on a device
+class that is mostly retired (the first-generation iPhone SE and the iPod touch, 320px wide), that was
+judged not worth it.
+**What would reopen it:** a real player on a 320-340px device reporting missed taps, or a Sort redesign
+happening for its own reasons, at which point the targets come along for free.
+
 ## The value-modifier model <a id="value-modifiers"></a>
 
 **Settled long ago, implemented, and written down only in a changelog entry — which is why it got re-asked on
