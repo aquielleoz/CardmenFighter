@@ -15,6 +15,28 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.15 — on a phone the battle log opens as a sheet
+
+**On a phone, opening the battle log now lifts it over the board as a slightly transparent sheet**, the way
+the 🔍 card reader opens (Aj, 2026-08-31: *"open it like how we do the view card? but slightly
+transparent?"*). Expanded in place it competed with the board for room on the screens that have the least.
+Measured on v1.32.14: a 164px column with the play area crushed beside it in portrait, two readable lines at
+844x390, and a **47px** strip at 568x320. As a sheet it takes nearly the whole screen below the header, and
+the board behind it does not move at all. A big **✕ Close** sits at the bottom for the thumb, and the rail
+comes back when you close it. Desktop keeps the in-place panel.
+
+- **It sits under every dialog.** A Respond? window, a pile viewer or a lesson's coach panel opened while you
+  are reading lands on top of the sheet, never under it. That is why the sheet is not in the `--zNetroot`
+  family: mid-game the lobby is hidden, and outranking it would also outrank the dialogs derived from it.
+  The effect flashes still play over it.
+- **It survives peek.** The end-of-game review lifts `#logWrap` with its own higher-specificity position
+  rule, which would have dropped the open sheet back into the column with the sheet's offsets still applied
+  (105px tall at 844x390). Reading the log is half of reviewing a game.
+- `landscapetest` +30. Every claim is checked on screen with `elementFromPoint`: the sheet is on top, big
+  enough to read, the board unmoved, a dialog lands above it, Close works, and peek holds. Desktop is checked
+  as the negative. A/B: **20 red on v1.32.14**; a mutant stacking the sheet over the dialogs reds those 4
+  checks; dropping the peek rule reds 4. 245/0.
+
 ### v1.32.14 — New Duel in three columns on a sideways phone
 
 **The New Duel dialog now fits on one screen on a phone held sideways.** It was one tall column, which needed

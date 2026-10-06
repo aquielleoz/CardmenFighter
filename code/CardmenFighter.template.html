@@ -1756,6 +1756,28 @@
     .oppPanel .oppStats{display:none;}
     .oppPanel .oppTop{flex:1 1 auto; min-width:0;}
   }
+  /* THE BATTLE LOG IS A SHEET ON A PHONE (open-battle-log-overlay; Aj, 2026-08-31: *"open it like how we do the
+   * view card? but slightly transparent?"*). Expanded in place it was a 164px column beside a crushed play area
+   * in portrait and **two readable lines** at 844x390 — the log rationed against the board on exactly the screens
+   * with no room to ration. As a sheet it leaves the vertical stack entirely: the board stays laid out exactly
+   * as it was, and you read it THROUGH the log. Collapsed it is still the rail, so closing puts everything back.
+   * Same bands as the phone layout: a narrow screen, or a short landscape one. Desktop keeps the in-place panel.
+   * STACKING: above the board and the card reader (37), BELOW the effect flashes (40), every dialog (`--zOverlay`)
+   * and the coach panel (`--zTut`) — a Respond? window or a lesson step opening while you read must land ON TOP of
+   * the log, never under it. That is why this is not in the `--zNetroot` family: mid-game the lobby is hidden,
+   * and outranking it would also outrank the dialogs derived from it. */
+  @media (max-width:720px), (orientation:landscape) and (max-height:520px){
+    #leftCol{min-width:40px;}                          /* the rail's width — the board must not reflow when it lifts out */
+    #logWrap:not(.collapsed){position:fixed; z-index:38; top:calc(var(--headerH) + 6px); left:8px; right:8px; bottom:8px; width:auto;
+      max-width:620px; margin:0 auto; background:rgba(20,11,32,.78); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+      border-color:var(--gold); box-shadow:0 14px 44px rgba(0,0,0,.55);}
+    #logWrap:not(.collapsed) #log{font-size:14px;}
+    #logWrap:not(.collapsed) #logCloseBtn{display:block;}
+    /* PEEK lifts `#logWrap` with `position:relative` at a higher specificity, which would drop the open sheet back
+       into the column WITH these offsets applied — and reading the log is half of what reviewing a game is for */
+    body.peeking-board #logWrap:not(.collapsed){position:fixed; z-index:var(--zPeek);}
+  }
+  #logCloseBtn{display:none; flex:0 0 auto; margin:8px; font:inherit; font-weight:800; font-size:15px; color:var(--txt); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:11px 14px; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -1806,6 +1828,7 @@
     <aside id="logWrap" class="collapsed">
       <div id="logHead"><span>Battle Log</span><span class="logBtns"><button id="logNewBtn" title="Jump to the newest entry">↓ New</button><button id="saveLogBtn" title="Download the battle log as a text file">⤓ Save</button><button id="logToggle" title="Expand the log">▸</button></span></div>
       <div id="log"></div>
+      <button id="logCloseBtn" title="Close the battle log">✕ Close</button>
     </aside>
       <div id="railBtns">
         <button type="button" id="promptMode" title="Notifications">🔔<span>AUTO</span></button>
@@ -9266,6 +9289,7 @@ __QR__
     while(t && t!==this){ if(t.tagName==='BUTTON') return; t=t.parentNode; }   // no `closest`: the house style is ES5
     $('logToggle').click();
   });
+  $('logCloseBtn').addEventListener('click', function(){ if(!$('logWrap').classList.contains('collapsed')) $('logToggle').click(); });   // the phone sheet's thumb-reach close — same toggle, so the caret and title stay in step
   $('logNewBtn').addEventListener('click', scrollLogToBottom);
   $('log').addEventListener('scroll', function(){ setLogNewBtn(!logAtBottom()); });   // away from the newest = offer the way back, news or not
   $('youNrgBtn').addEventListener('click', function(){ openPileView('energy'); });     // ⚡ → the ordered energy pile (promote from here)

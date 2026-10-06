@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.14.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.15.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.14** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.15** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -961,20 +961,6 @@ never read.*
   state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
   the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
   `[id: narrowest-phones-still-34px]`
-
-- `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
-  we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
-  tutorial, **never filed; caught 2026-09-01 when he asked what else was missing**).
-  **This is NOT the scrolling bug.** v1.31.59 stopped a long log evicting the hand, which fixed the symptom he
-  hit; the overlay is the design he actually proposed, and it is still open. The case for it is the phone: the
-  log competes with the board for vertical space on exactly the viewport where space is scarcest (see the 340px
-  floor and `landscapetest`), and an overlay removes it from the vertical stack entirely instead of rationing it.
-  Precedent to copy: the 🔍 View card reader is already a phone-only overlay (`#viewCardBtn` exists only inside
-  `@media (max-width:720px) and (max-height:800px)`, which is why `viewtest.js` runs at 390×780).
-  Two things to get right, both already recorded as traps: the overlay must outrank `#netroot` — use the
-  `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
-  `elementFromPoint`, not by reading `textContent`.
-  `[id: open-battle-log-overlay]`
 
 - `ready to build`      · **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
   original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
