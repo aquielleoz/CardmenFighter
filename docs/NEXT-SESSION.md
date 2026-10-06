@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.17.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.16** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.17** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -684,30 +684,15 @@ knows to check whether the epic has already moved the same lines.*
   `settleWindows`); the trace now independently rules the whole clean-up path out as well.
   `[id: round-ceremony-reruns-with-stale-res]`
 
-- `needs a decision`    · **THE FIGHTER KICK FLASH DOES NOT FIRE ON A KILL, ONLY AT THE END OF THE GAME
-  (Aj, 2026-09-24: *"a fighter kick should flash for each kill... but maybe we can upgrade the final
-  fighter kick animations"*, and *"the kick flash can actually be after the epic"*).**
-  **`playFinisher` HAS EXACTLY ONE CALLER — `endGame`.** `announceRoundWin` sets `pendingKick=true` on any
-  `res.kick`, which at 3-6 players is EVERY elimination (CLAUDE.md: *"`kick` IS NOT `finished`"*), and the
-  flag is consumed only when the game ends. So a kill that does not end the game gets the wording — the
-  board message and the log line — and no flash at all.
-  **AND THE DEFERRAL IS A SECOND, LIVE BUG.** Nothing clears `pendingKick` between the kill and the end
-  (`clearBoard`/`startGame` are the only resets, and both are new-game paths), so a free-for-all that ends
-  by DECK-OUT or CONCEDE after an earlier elimination still plays the full FIGHTER KICK flourish, credited
-  to an event several rounds earlier. Fixing the first half removes this one by construction: once the
-  flash fires at the kill, the flag stops being a queue.
-  **THE WIN/LOSE WORDING IS WRONG MID-GAME.** `playFinisher` writes `YOU WIN` / `YOU LOSE` under the words
-  and colours the flash `win`/`lose` — true for the game-ender, false for a kill that leaves two players
-  standing. A mid-game flash wants the VICTIM named instead.
-  **SHAPE OF THE BUILD:** parametrise into `playKick({final, youWin, sub}, done)` with `playFinisher` as a
-  thin wrapper, so the two occasions cannot drift; fire it from the kick branch when `!state.finished`,
-  and set `pendingKick` only when `finished` so the ender still lands with the end screen. A shorter hold
-  for the mid-game one (~1.0s against 1.65s) so a live game is not stalled.
-  **WHY `needs a decision` AND NOT `ready to build`:** the correctness half above is decided, but *"upgrade
-  the final fighter kick animations"* is a visual call nothing can judge from a test — how much bigger,
-  longer, louder. Build the correctness half, screenshot both states, and let Aj size the finale from the
-  picture. That sequencing is the one this repo learned the expensive way on the notification toggle: a
-  measurement says a control is clean, only the person says it reads right.
+- `needs a decision`    · **THE FINAL FIGHTER KICK — HOW MUCH BIGGER? (the correctness half SHIPPED in v1.32.17).** Aj,
+  2026-09-24: *"a fighter kick should flash for each kill... but maybe we can upgrade the final fighter kick
+  animations"*. v1.32.17 built the decided half: every mid-game kill now flashes (1.0s, a size down, naming
+  who went out, no WIN/LOSE) from `playPreBeats`, the one beat host and client ceremonies share, and only the
+  game-ender is queued for the end screen — which also killed the stray finisher a later deck-out or concede
+  used to play. Both forms share `playKick`, so sizing the finale is one place.
+  **WHAT IS LEFT IS THE VISUAL CALL**, and nothing can judge it from a test: how much bigger, longer or louder
+  the game-ender should be now that it is no longer the only kick a 3-6 player game shows. `kicktest`'s
+  staging is the quickest way to put both on screen for a fresh screenshot.
   `[id: kick-flash-only-at-game-end]`
 
 *Defects in the shipped game. Each was verified present on `main` by grepping the symbols its entry

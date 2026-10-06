@@ -15,6 +15,30 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.17 — the Fighter Kick flashes at every kill
+
+**At 3-6 players, knocking someone out now flashes FIGHTER KICK at the moment it happens**, not only at the
+end of the game (Aj, 2026-09-24: *"a fighter kick should flash for each kill"*). Every elimination at those
+counts is a kick, and the flash had exactly one caller, the end screen. So a kill that left the game running
+got its message and its log line and no flash at all.
+
+- **The mid-game flash is the same animation, quicker and a size down** (1.0s against the finale's 1.65s),
+  and it says **who went out** rather than who won: *"TANK IS OUT"*, or *"YOU'RE OUT"* in the red tone when
+  it is you. A kill between two other players gets a neutral tone, since it is neither your win nor your
+  loss. It plays first in the round's ceremony and never over a round banner.
+- **The stray finisher is gone.** A skipped flash stayed queued, so a free-for-all that later ended by
+  deck-out or concede played the full finisher, YOU WIN or YOU LOSE, credited to a kill several rounds old.
+  Measured on v1.32.16: knock a player out, then concede, and the screen says *"FIGHTER KICK — YOU LOSE"*
+  about a kill you made. Only a kick that actually ends the game is queued now.
+- **Every seat sees it, in its own frame.** The flash lives in `playPreBeats`, the one beat both the host's
+  and the client's ceremonies run, so it cannot exist on one seat only. `nettest_elim3` asserts all three
+  seats: the host and a bystander client name the victim, and the victim's client reads "YOU'RE OUT".
+- **The game-ending kick is unchanged** and is still the full finisher. Making it bigger now that it is no
+  longer the only kick is the visual call Aj left open; the backlog entry stays open for that alone.
+- New `kicktest` (22) covers a kill you make, a kill made on you, the concede afterwards, and the duel
+  control; `nettest_elim3` goes 19 → 25. A/B on v1.32.16: **11 red in `kicktest`** (the duel control passes
+  on both builds) and **6 red in `nettest_elim3`**.
+
 ### v1.32.16 — four of a kind + one spare, the last family shape
 
 **A new custom rule under Shapes: "Four of a kind + one spare".** This is Big Two's five-card shape: all four
