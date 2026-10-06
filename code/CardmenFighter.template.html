@@ -2462,6 +2462,7 @@ __QR__
   var announcedThresh={};      // REWORK: which transform tiers have had their unlock ceremony this duel
   var pendingThreshold=null;   // a threshold unlock waiting for its OWN beat (so it doesn't overlap the round-win banner)
   var holdShields=false;       // when a round strips a shield, defer the shatter to the ceremony's "loses a shield" beat
+  var oppShieldEls={};         // seat -> its panel's shield row, kept ACROSS renders so a shatter is not wiped mid-flight (free-for-all)
   /* THE PHASE THE PLAYER IS IN, WHICH IS NOT ALWAYS THE PHASE THE ENGINE IS PARKED IN (2026-09-25).
      `state.resolution` / `state.cleanup` are set only while the engine HOLDS at a boundary waiting for
      priority — so in a lesson, where named timings force a window open, the strip duly turns orange and
@@ -3615,8 +3616,6 @@ __QR__
       var staged=!!(targetPick && targetPick.chosen===i) || !!(lossPick && lossPick.chosen===i);
       el.className='oppPanel'+(isTurn?' turn':'')+(pl.eliminated?' dead':'')+(pickable?' targetable':'')+(staged?' aimed':'');
       el.dataset.seat=i;
-      var sh='', slots=Math.max(E.START_SHIELDS, pl.shields);
-      for(var s=0;s<slots;s++) sh+='<span class="s'+(s<pl.shields?'':' lost')+'"></span>';
       var gear=[];
       (pl.equipment||[]).forEach(function(e){ gear.push('<span class="'+(e.oppDelta?'d':'g')+'">'+(e.name||'gear')+(e.counters?(' ◆'+e.counters):'')+'</span>'); });
       (pl.forms||[]).forEach(function(f){ gear.push('<span class="f">'+(f.name||f.tier)+'</span>'); });
@@ -3624,12 +3623,22 @@ __QR__
       var nrg=E.SUITS.map(function(su){ var n=E.countSuit(pl.energy,su); return n?('<span class="'+(su==='D'||su==='H'?'red':'')+'">'+n+SUIT_SYMBOL[su]+'</span>'):''; }).join('');
       el.innerHTML =
         '<div class="oppTop"><span class="oppName">'+seatName(i)+' <span class="oppSeat">'+deckLabel(seatDecks[i]||'full')+'</span></span></div>'+
-        '<div class="oppShields">'+sh+'</div>'+
+        '<div class="oppShields shields"></div>'+
         '<div class="oppStats"><button type="button" class="statBtn oppNrgBtn" data-seat="'+i+'" title="View '+seatName(i)+'’s energy pile">⚡'+(nrg||'0')+'</button><span>🃏'+pl.hand.length+'</span><span>🂠'+pl.deck.length+'</span><span>♻'+pl.shuffle.length+'</span></div>'+
         '<div class="oppGear'+(gear.length?' tappable':'')+'" title="'+(gear.length?'Tap to open '+seatName(i)+'’s zones':'')+'">'+(gear.join('')||'<span class="none">no gear</span>')+'</div>'+
         '<div class="oppZones"><div class="equipZone oppEquipZone"></div><div class="formZone oppFormZone"></div></div>'+
         (pl.eliminated?'<div class="oppDead">OUT</div>':'')+
         (isTurn?'<div class="oppTag">◆</div>':'');
+      /* AN OPPONENT'S SHIELD BREAK SHATTERS AT 3-6 PLAYERS TOO (opponent-shield-shatter). This row was an HTML
+         string rebuilt on every render, so nothing ever diffed it: the duel's rival panel goes through
+         `animateShields` (shatter, shake, the centre-stage flourish, the break sound) and a free-for-all
+         opponent got none of it — its pip simply went hollow. The row is now ONE element per seat, kept
+         across renders (an innerHTML rebuild would wipe a 660ms shatter mid-flight), driven by the SAME
+         `animateShields` and deferred by the same `holdShields` as every other seat. The `shields` class
+         borrows the duel's shatter rules; `.oppPanel .oppShields` still wins on size. */
+      var ph=el.querySelector('.oppShields'), row=oppShieldEls[i];
+      if(row){ ph.parentNode.replaceChild(row, ph); } else { row=oppShieldEls[i]=ph; shieldsEl(row, pl.shields); }
+      if(!holdShields) animateShields(row, pl.shields, i);
       el.onclick = (lossPick && lossPick.cands.indexOf(i)>=0) ? (function(seat){ return function(){ chooseLossSeat(seat); }; })(i)
                  : (targetPick && !pl.eliminated) ? (function(seat){ return function(){ chooseTargetSeat(seat); }; })(i) : null;
       // ⚡ on a rival panel opens THEIR pile, view-only — energy is open information. Stop the click so it
@@ -6383,7 +6392,7 @@ __QR__
       return playKillKick(res, function(){ if(gk===gen) playPreBeats(res, done); });
     }
     var fx=$('roundfx'), inner=fx&&fx.querySelector('.rfInner'), g=gen, shieldShown=false;
-    function revealShields(){ if(shieldShown) return; shieldShown=true; holdShields=false; if(g===gen && state){ animateShields($('rivalShields'), state.players[RIVAL].shields, RIVAL); animateShields($('youShields'), state.players[YOU].shields, YOU); } }
+    function revealShields(){ if(shieldShown) return; shieldShown=true; holdShields=false; if(g===gen && state){ if(MP()){ for(var oq in oppShieldEls) if(+oq!==YOU && state.players[+oq]) animateShields(oppShieldEls[oq], state.players[+oq].shields, +oq); } else animateShields($('rivalShields'), state.players[RIVAL].shields, RIVAL);   /* MP: the PANELS — the hidden duel panel shares prevShields[1] and would eat seat 1's drop */ animateShields($('youShields'), state.players[YOU].shields, YOU); } }
     if(!fx || reduceMotion()){ revealShields(); setTimeout(function(){ if(g===gen) done(); }, reduceMotion()?200:0); return; }
     var beats=buildPreDrawBeats(res), i=0, timers=[], ended=false;
     function fin(){ if(ended) return; ended=true; timers.forEach(clearTimeout); revealShields(); if(g===gen) done(); }
@@ -7571,7 +7580,7 @@ __QR__
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
-    prevShields={}; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
+    prevShields={}; oppShieldEls={}; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
        (`resetBoardMemory` itself, `handOrder`/`layout`/`sortState`, `PRIO_LOG`, `seatDecks`, `uiPhase`).

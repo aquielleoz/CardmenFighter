@@ -38,11 +38,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       st.players.forEach(pl=>{ pl.energy=[]; });
       if(MODE==='duel'){ st.players[0].shields=3; st.players[1].shields=4;
         st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')]; }
-      else if(MODE==='3p-you'){ st.players[0].shields=3; st.players[1].shields=3; st.players[2].shields=4;
+      else if(MODE==='3p-you' || MODE==='3p-you1'){ st.players[0].shields=3; st.players[1].shields=(MODE==='3p-you1'?4:3); st.players[2].shields=(MODE==='3p-you1'?3:4);   // the struck seat starts FULL, so staging itself shatters nothing there
         st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')]; st.players[2].hand=[mk(3,'S','s3'),mk(6,'S','s6')]; }
       else { st.players[0].shields=3; st.players[1].shields=3; st.players[2].shields=4;   // you jab low, seat 1 takes it, then leads a pair nobody answers
         st.players[0].hand=[mk(3,'C','a3'),mk(4,'D','x4')]; st.players[1].hand=[mk(10,'H','r10'),mk(7,'H','r7a'),mk(7,'S','r7b')]; st.players[2].hand=[mk(3,'S','s3'),mk(4,'S','s4')]; }
       window.__solo.render(); }, MODE);
+    await p.evaluate(m=>{ window.__aimSeat = m==='3p-you1' ? 1 : 2; }, MODE);
     await wait(500);
     const gate0=await p.evaluate(()=>window.CardmenEngine.transformGateStatus(window.__solo.st(),0,'ride'));
     ok(gate0 && !gate0.ok, '['+MODE+'] STAGED: the Ride tier is shut before the round ('+gate0.have+'/'+gate0.need+')');
@@ -51,7 +52,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     // answer whatever the human is asked: the shield pick (aim seat 2, Confirm), a lead to pass on, a window to decline
     const tapper=setInterval(()=>{ p.evaluate(()=>{
         const el=document.querySelector('.oppPanel.targetable'), f=document.getElementById('fightBtn');
-        if(el && !document.querySelector('.oppPanel.aimed')){ (document.querySelector('.oppPanel.targetable[data-seat="2"]')||el).click(); return; }
+        if(el && !document.querySelector('.oppPanel.aimed')){ (document.querySelector('.oppPanel.targetable[data-seat="'+(window.__aimSeat||2)+'"]')||el).click(); return; }
         if(f && /Confirm/.test(f.textContent) && !f.disabled){ f.click(); return; }
         const d=document.getElementById('respDecline'); if(d && d.offsetParent){ d.click(); return; }
         const ps=document.getElementById('passBtn'), st=window.__solo.st();
@@ -65,7 +66,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
         return { roar:!!(fx&&/show/.test(fx.className)&&/ROAR/.test(fx.textContent||'')),
                  rbanner:!!(rf&&/show/.test(rf.className)&&rr&&/Round/i.test(rr.textContent||'')),
                  banner:!!(rf&&/show/.test(rf.className)&&rf.querySelector('.rfBeat, .rfRound')),
-                 gate:window.CardmenEngine.transformGateStatus(st,0,'ride').ok }; });
+                 gate:window.CardmenEngine.transformGateStatus(st,0,'ride').ok,
+                 shatter2:!!document.querySelector('.oppPanel[data-seat="'+(window.__aimSeat||2)+'"] .oppShields .s.shatter'),
+                 hollow2:document.querySelectorAll('.oppPanel[data-seat="'+(window.__aimSeat||2)+'"] .oppShields .s.lost').length }; });
       s.t=Date.now()-t0; film.push(s);
       if(s.gate && gateAt==null) gateAt=s.t;
       if(gateAt!=null && s.t-gateAt>9000) break;                    // well past any ceremony
@@ -81,11 +84,22 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     ok(!film.some(f=>f.roar&&f.banner), '['+MODE+'] …and never on top of the round banner');
     let edges=0; for(let i=0;i<film.length;i++) if(film[i].roar && !(i>0&&film[i-1].roar)) edges++;
     ok(edges===1, '['+MODE+'] …exactly once ('+edges+')');
+    /* …AND THE SHIELD THAT FELL SHATTERS ON ITS OWNER'S PANEL (opponent-shield-shatter). At 3-6 players the
+       opponent row was an HTML string rebuilt every render, so a broken shield just went hollow — no shatter,
+       no shake, no flourish — while the duel's rival panel had all of it. Only the 3p-you case strikes a known
+       seat (2); the shatter must happen, and the pip must end hollow. */
+    /* 3p-you1 STRIKES SEAT 1, which is the seat the hidden duel panel shares `prevShields[1]` with: had the
+       ceremony's reveal still animated that panel, it would record the drop and the real panel would see none. */
+    if(MODE==='3p-you' || MODE==='3p-you1'){
+      const sh=film.findIndex(f=>f.shatter2 && gateAt!=null && f.t>=gateAt-1500);   // the strike's shatter, not anything staging did
+      ok(sh>=0, '['+MODE+'] the struck seat\'s panel PLAYS the shatter when its shield breaks'+(sh>=0?' (@'+film[sh].t+'ms)':'  ← REPRODUCED: the pip just went hollow'));
+      ok(film[film.length-1].hollow2===1, '['+MODE+'] …and ends with exactly one hollow pip ('+film[film.length-1].hollow2+')');
+    }
     ok(errs.length===0, '['+MODE+'] no JS errors'+(errs.length?': '+errs.join(' | '):''));
     await p.context().close();
   }
 
-  for(const m of ['duel','3p-you','3p-ai']) await runCase(m);
+  for(const m of ['duel','3p-you','3p-you1','3p-ai']) await runCase(m);
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR: '+e.message); process.exit(2); });

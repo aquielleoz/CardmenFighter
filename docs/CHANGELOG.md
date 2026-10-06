@@ -15,6 +15,24 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.20 — an opponent's shield shatters at 3-6 players too
+
+**When an opponent loses a shield in a free-for-all, it now shatters on their panel**: the same break,
+shake, centre-stage "shield down" flourish and sound a duel has always had. Until now an opponent's shield
+row at 3-6 players was HTML rebuilt from scratch on every render, so nothing ever compared old with new, and
+the pip just turned hollow. Noted while doing the phone declutter (2026-10-05) and filed inside that entry.
+
+- **One persistent shield row per seat**, kept across renders so a 660ms shatter is not wiped halfway
+  through. It is driven by the same `animateShields` the duel uses, and deferred by the same `holdShields`,
+  so the break lands on the ceremony's "lost a shield" beat rather than the moment the state changes.
+- **The ceremony's reveal now animates the opponent panels in a free-for-all**, not the hidden duel panel.
+  Both were keyed `prevShields[1]`, so the hidden panel recorded seat 1's drop first and the real panel saw
+  no change. Measured with that step reverted: seat 1's panel never even turned hollow (0 hollow pips),
+  which is worse than the bug being fixed.
+- `roartest` 32 (+11). Its real 3-player rounds now strike seat 2 and, in a new case, seat 1. Each struck
+  panel must play the shatter and end with exactly one hollow pip. **Red on v1.32.19** (the pip just went
+  hollow), and the seat-1 case is red with the reveal reverted.
+
 ### v1.32.19 — a targeted cast says who it hit
 
 **A Technique aimed at someone now says who in the battle log** (Aj, live 3-player game 2026-10-02: *"oh
