@@ -217,7 +217,7 @@ async function runTable(b, N, ok, errs){
   ok(started, `[${tag}] the game started on every seat`);
   for(let i=0;i<N;i++) await pages[i].evaluate(`(${installFilm})(${JSON.stringify(N===2?names[i]:'me')},${JSON.stringify(N===2?names[1-i]:'other')})`);
 
-  const t0=Date.now(); let idle=0, loopRound=-1, loopActs=0, loopDumped=false;
+  const t0=Date.now(); let idle=0, loopRound=-1, loopActs=0, loopDumped=false, stalled=false;
   while(Date.now()-t0<150000){
     const vs=[]; for(const p of pages) vs.push(await view(p));
     if(vs.some(v=>v.finished) || Math.min(...vs.map(v=>v.round))>ROUNDS){
@@ -259,12 +259,26 @@ async function runTable(b, N, ok, errs){
         overlay:!!(document.getElementById('overlay')&&document.getElementById('overlay').classList.contains('show')),
         btns:[...document.querySelectorAll('#modal button')].filter(b=>b.offsetParent).map(b=>b.id||b.textContent.trim().slice(0,14)),
         fight:(()=>{const f=document.getElementById('fightBtn'); return f?(f.textContent+(f.disabled?' (off)':' (on)')):null;})(),
-        pickMode:!!document.querySelector('#hand > .card'), hold:window.__cmf&&window.__cmf.ceremonyHold?window.__cmf.ceremonyHold():null }))));
-      const tr=await host.evaluate(()=>window.__cmf.trace()); console.log('     host trace tail: '+JSON.stringify([].concat(tr).slice(-8)));
-      break; }
+        pickMode:!!document.querySelector('#hand > .card'), hold:window.__cmf&&window.__cmf.ceremonyHold?window.__cmf.ceremonyHold():null,
+        /* WHAT THIS SEAT'S OWN BOARD SAYS IT OWES — a client reads its mirror, so this is the window the table is
+           waiting on as THAT seat sees it (seat 0 is itself) */
+        flags:window.__cmf&&window.__cmf.roundFlags?window.__cmf.roundFlags():null,   // the host's own state; a client's mirror
+        owes:(()=>{ const s=window.__cmfNetState||null; if(!s) return null;
+          return { round:s.round, turn:s.turn, rf:s.respondFor, disc:s.discardPending||null, trim:s.trimPending||null, pile:!!s.pile, sub:s.subPhase,
+                   res:!!s.resolution, cln:!!s.cleanup, ecl:!!s.endCleanup, upk:!!s.upkeep, hand:(s.players&&s.players[0]&&s.players[0].hand)?s.players[0].hand.length:null }; })() }))));
+      for(let i=0;i<N;i++){ const tr=await pages[i].evaluate(()=>window.__cmf.trace()); console.log('     '+names[i]+' trace tail: '+JSON.stringify([].concat(tr).slice(i===0?-8:-16))); }
+      /* …and the host's priority ledger: every grant, park and ceremony beat, in order — which window was owed to
+         whom when the ceremony reached its trim, and what nobody answered. */
+      console.log('     host ledger tail: '+JSON.stringify([].concat(await host.evaluate(()=>window.__cmf.prioLog?window.__cmf.prioLog():[])).slice(-24)));
+      stalled=true; break; }
     await wait(250);
   }
   if(Date.now()-t0>=150000) console.log(`   ⓘ [${tag}] drive ended on the 150s WALL CLOCK`);
+  /* A STALL IS A FAILURE, NOT AN EARLY STOP (2026-10-07). It only stopped the drive, and the ceremonies filmed up
+     to it still compared equal — so a duel that wedged about one run in eight passed this probe every time:
+     6 stalls in 48 duel runs, one signature, all green. Two peers can agree perfectly and both be stuck
+     (CLAUDE.md, `nettest_sync`); the dump above says which window the table was waiting on. */
+  ok(!stalled, `[${tag}] the table never stalls — some seat could always act`);
   await wait(4500);                                                   // let the last ceremony finish on every seat
   const films=[]; for(const p of pages) films.push(await p.evaluate(()=>window.__film));
   const cers=films.map(ceremonies), hc=cers[0];
