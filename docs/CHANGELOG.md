@@ -15,6 +15,28 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.21 — a second press at the end of a round no longer freezes it
+
+**In netplay, pressing Fight or Pass again while a round was ending could freeze the game.** The end of a round
+has its own priority windows — Resolution, Clean-up, and the next round's upkeep — and when one of them was
+waiting on a player who could still answer it (someone holding a Quick), a second Fight or Pass press opened
+the "move to the fight" step on top of that window. When the waiting player then passed, the game finished
+the new step instead of the round: the round never advanced, the cards stayed on the table, and nobody could
+act. The likeliest way in was a CLIENT that had just passed to end the round, because its board still read
+"your turn" while the host decided on its window.
+
+- **The engine refuses the move to the fight while a round is ending** (*"The round is over — the next one
+  is about to begin."*), and a round-end window now always outranks a stale transition, whatever opened it.
+- **A round-end window found with nobody holding priority is re-walked** by the round ceremony instead of
+  being waited out until the ceremony gave up, and the saved log's priority ledger records that it happened:
+  `⚠ ROUND BOUNDARY HAD NOBODY ON PRIORITY — re-walked`.
+- **The Fight/Pass funnel honours the refusal**, instead of recording a "go-round opened" that never did.
+- `test.js` 657 (+6): the freeze staged in the engine alone. Each defence removed on its own turns its own
+  assertion red, and both removed — the previous build — reproduces the freeze. The seeded 600-game AI
+  fingerprint is byte-identical, so no AI game changes.
+- Found by a host/client ceremony-parity probe on `fix/one-ceremony`, which is still in progress. The fix
+  ships on its own so it does not wait for that branch.
+
 ### v1.32.20 — an opponent's shield shatters at 3-6 players too
 
 **When an opponent loses a shield in a free-for-all, it now shatters on their panel**: the same break,
