@@ -11850,8 +11850,12 @@ window.CardFace = {};
        VIOLET IS THEREFORE THE OPPONENT'S MAIN/FIGHT — the stretch where the board is genuinely theirs,
        which is what "in between your own turns" means.
        `upkeep` joins `dealingIn` for blue because the Beginning Phase IS Untap/Upkeep/Draw; `dealingIn`
-       alone caught only the deal, so the phase's own priority point rendered as something else. */
-    var ph = (state.cleanup || uiPhase==='cleanup') ? 'spCleanup'
+       alone caught only the deal, so the phase's own priority point rendered as something else.
+       ⚠ `endCleanup` IS CLEAN-UP TOO (2026-10-07). The engine clears `cleanup` before it opens the
+       END-of-Clean-up dance (`finishCleanup`), and `PHASES-AND-PRIORITY.md` files that dance under the
+       Clean-up Phase, with `st.round` still the round that is ending. Tested on `cleanup` alone, a window
+       parked there fell through to the turn and painted Main or Idle, the same miss `upkeep` had. */
+    var ph = (state.cleanup || state.endCleanup || uiPhase==='cleanup') ? 'spCleanup'
            : (state.resolution || uiPhase==='resolve') ? 'spResolve'
            : (state.upkeep || dealingIn) ? 'spBegin'
            : (state.turn !== YOU) ? 'spIdle'
@@ -12206,12 +12210,15 @@ window.CardFace = {};
      IT KEYS ON WHETHER THERE IS AN OBJECT, NOT ON THE TIMING ID, and that distinction is the whole
      function: at Upkeep the stack usually holds a counter TICK, so "which boundary am I in" and "what
      happens if I pass" are different questions. Passing on an object resolves THAT object; passing on an
-     empty stack advances the phase. */
+     empty stack advances the phase.
+     ⚠ AND THE END OF CLEAN-UP IS STILL CLEAN-UP (2026-10-07). `cleanup` is cleared before that dance
+     opens, so it fell through to `subPhase === 'main'` — a boundary's `subPhase` is always 'main' — and
+     a player stopped at the end of a round was offered "Move to the fight". */
   function declineLabel(){
     var pend = state && state.pending;
     if(pend) return pend.trig ? 'Let the counter come off' : 'Let it resolve';
     if(state && state.upkeep)  return 'Start the round';
-    if(state && state.cleanup) return 'End the round';
+    if(state && (state.cleanup || state.endCleanup)) return 'End the round';
     if(state && state.resolution) return 'Let the round resolve';
     if(state && state.subPhase === 'main') return 'Move to the fight';
     return 'Let it resolve';
@@ -17793,6 +17800,7 @@ window.CardFace = {};
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
+    declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
        different answers — which is the invariant worth being able to assert: an unchecked timing still
        EXISTS (the window opens, you pass automatically); it does not make the card uncastable. Wraps
