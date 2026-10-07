@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**668**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**677**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -754,12 +754,33 @@ never read.*
     stranded it. `moveToPlay` refuses during a boundary, the boundary outranks a stale transition, and the ceremony
     re-walks one nobody holds priority on. No loop in 12 parity runs since. The probe's loop dump (40th press in
     an unmoved round, `__cmf.roundFlags()` included) stays, so the next stall explains itself.
+  - **The extra empty `SP:spResolve` segment on a client was the PROBE, not a drift** (2026-10-07). After a
+    Resolution window that somebody sat in, the client's walk to the next round lands as a 0-20ms burst before
+    its ceremony paints Resolve again; `settled()` dropped the burst and left `Resolve Resolve`, and the segmenter
+    opened a ceremony at each one. A repaint of the phase on screen is not a new phase now (never across a Round
+    card). **A/B on one build: 3 drifts in 12 runs without the collapse, all three this shape; 0 in 36 with it.**
+    The duel drift of "unknown shape" from 2026-10-06 was very likely this — every drift captured since was.
+  - **The end of Clean-up read as ordinary play.** Under `st.endCleanup` the strip painted Main/Idle and the pass
+    button offered "Move to the fight": both tested `cleanup` alone, which the engine clears before that dance
+    opens. `paintPhaseStrip`/`declineLabel` fixed, mptest +3 (every window's strip and label, staged). **Main has
+    both lines unchanged**, and the commit is self-contained, so it can go to `main` on its own.
+  - **The next round's leader had a LIVE board under somebody else's Upkeep window.** Found by the probe's
+    controls check once its window covered the boundary walk. The client's `waitingOnRound` and the engine's
+    round-over guard both left Upkeep out on the old "re-applied inside the same round" reasoning, so a press
+    there came back as a transition the host settled and re-applied — a legal press by the leader, made before
+    the Draw. Both include Upkeep now: `test.js` +9 (all four windows, play and pass, plus the stall row),
+    `nettest_roundlock` (9, new), each half mutation-tested, the 600-game fingerprint identical. The controls
+    check also counts a live edge only if it lasts 60ms or its mirror shows a round window open: the host sends
+    its post-boundary mirror, the ceremony and the ceremony's first mirror in one task, so a client is live for
+    5-10ms between them, which nobody can click and the host refuses anyway.
   **STILL OPEN — the data is in the probe's dumps, re-run it with `PARITY_DUMP=1`:**
-  - **The duel leg drifted once in 9 runs** after the stamp landed (ceremony 5 onwards; the client's line was cut
-    off by a filter, so the shape is unknown). Re-run `PARITY_N=2` until it recurs and read BOTH lines.
-  - **A client sometimes films an EXTRA empty `SP:spResolve` segment** just before a ceremony — its strip paints
-    Resolution from a mirror while the host's does not (1 in 4 duels, 1 in 2 three-player runs, 2026-10-06 late).
-    No shatter rides it any more; it is a phase-strip flicker, and the probe is right to call it a drift.
+  - **A DUEL WEDGES ABOUT ONE RUN IN EIGHT, AND THE PROBE STAYED GREEN THROUGH IT** (found 2026-10-07: 6 of 48
+    duel runs, on builds with and without the fixes above). One signature every time: the host is IN its
+    ceremony, parked on the client — for its end-of-round discard (4: *"Rival 2 is discarding to hand size…"*)
+    or a priority window (2: *"Rival 2 is deciding…"*) — and the client is held (`hold:true`, `hostCer:true`)
+    with NO picker and NO modal. The probe only stopped its drive (*"no seat could act for ~30s"*). Lead: a
+    broken shield returns to its owner's hand, so the trim mirror brings a new card id over a cleared pile,
+    which is what `isRoundDeal` reads as the deal; unconfirmed.
   - **The duel's final KICK was once not filmed on the client within 4.5s** of the host's. Either the losing
     client's finisher is late or it never plays — not looked at.
   - `kicktest`'s `3p-out` leg failed its STAGING once under parallel load (the kick never landed), green 2/2 after.

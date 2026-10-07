@@ -3236,6 +3236,41 @@ function cards(ids) { return ids.map(card); }
   E.setLossTargetInteractive(null);
 })();
 
+/* ============ …NOR IS ANY ROUND WINDOW — UPKEEP INCLUDED (2026-10-07) ============
+   The block above tests the strike-choice half of `play`/`pass`'s round-over guard; nothing tested the other
+   half. Each row opens one round window with the RIVAL on priority, on a board where the press is otherwise
+   legal (the seat on turn, leading, a card to lead with), and asks for a play and a pass. Both must be REFUSED
+   with NO transition — a transition is what the host settles and re-applies — and leave the window as it was.
+   Upkeep is the row that was missing: it came back as a transition. The STALL row is the guard's other half: a
+   flag with nobody on priority must not be refused by it, or a stalled boundary is a table nobody can act on. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var board = function (open) {
+    var g = E.newGame(null, { numPlayers: 2, starter: 0 });
+    g.round = 3; g.turn = 0; g.initiative = 0; g.pile = null; g.passes = 0; g.lastPlayer = null; g.subPhase = 'main';
+    g.players.forEach(function (p) { p.energy = []; });
+    g.players[0].hand = [mk(9, 'C', 'a9'), mk(4, 'D', 'x4')]; g.players[1].hand = [mk(3, 'H', 'h3')];
+    open(g); return g;
+  };
+  var shown = function (r) { return (r.reason || (r.ok ? 'accepted' : '?')) + (r.transition ? ', transition ' + r.transition : ''); };
+  [['Resolution', function (g) { g.resolution = { origin: 1, winner: 1, wonWithCombo: false, strikeTargets: [], winSize: 1 }; }],
+   ['Clean-up', function (g) { g.cleanup = { origin: 1 }; }],
+   ['the end of Clean-up', function (g) { g.endCleanup = { origin: 1 }; }],
+   ['Upkeep', function (g) { g.upkeep = { origin: 1 }; }]].forEach(function (row) {
+    var open = function (g) { row[1](g); g.respondFor = 1; };
+    var g = board(open), pr = E.play(g, 0, [g.players[0].hand[0]]);
+    ok(pr.ok === false && !pr.transition && !g.toPlay && g.respondFor === 1 && !g.pile && g.players[0].hand.length === 2,
+       'a PLAY into an open ' + row[0] + ' window is refused outright, the window untouched  [' + shown(pr) + ']' +
+       (pr.transition ? '  ← REPRODUCED: a transition the host would settle and re-apply' : ''));
+    var g2 = board(open), ps = E.pass(g2, 0);
+    ok(ps.ok === false && !ps.transition && !g2.toPlay && g2.respondFor === 1,
+       '…and so is a PASS  [' + shown(ps) + ']' + (ps.transition ? '  ← REPRODUCED: a transition the host would settle and re-apply' : ''));
+  });
+  var gs = board(function (g) { g.upkeep = { origin: 1 }; g.respondFor = null; }), rs = E.pass(gs, 0);
+  ok(!/round is over/.test(rs.reason || ''),
+     'a STALLED Upkeep (nobody on priority) is not refused by the round-over guard — a boundary nobody holds must not lock the table  [' + shown(rs) + ']');
+})();
+
 /* ============ THE ROUND THAT LAST STRIPPED A SHIELD (one-ceremony, 2026-10-06) ============
    The UI holds a round's shatter until each seat's own ceremony has shown it, keyed on `stripRound` — so the
    stamp must be set by a ROUND strip, by nothing else, and carried on every round-win result (a jab round's

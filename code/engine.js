@@ -2399,8 +2399,15 @@
        that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
        set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
        it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
-       guard; the stall itself is `[id: cleanup-parks-with-nobody-on-priority]`. */
-    if ((st.resolution || st.cleanup || st.endCleanup) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
+       guard. The stall itself was the round-end freeze, fixed in v1.32.21 (`resumeBoundary`).
+       ⚠ AND UPKEEP, SINCE v1.32.21 (2026-10-07). It was left out because a press there came back as a transition
+       re-applied inside the same round. v1.32.21's `moveToPlay` refuses over any open boundary, Upkeep included,
+       but the check after it cannot tell that refusal from a window worth waiting out, so this still reported a
+       transition, and the host settles a transition and RE-APPLIES the press. At Upkeep the turn already belongs
+       to the new round's leader, so that was a legal press, made before the Draw. `nettest_parity` filmed the
+       leader's board live under the host's Upkeep window, which is how one gets sent (the client's
+       `waitingOnRound` is the courtesy copy). Refused outright now, like the other three. */
+    if ((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
@@ -2484,8 +2491,15 @@
        that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
        set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
        it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
-       guard; the stall itself is `[id: cleanup-parks-with-nobody-on-priority]`. */
-    if ((st.resolution || st.cleanup || st.endCleanup) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
+       guard. The stall itself was the round-end freeze, fixed in v1.32.21 (`resumeBoundary`).
+       ⚠ AND UPKEEP, SINCE v1.32.21 (2026-10-07). It was left out because a press there came back as a transition
+       re-applied inside the same round. v1.32.21's `moveToPlay` refuses over any open boundary, Upkeep included,
+       but the check after it cannot tell that refusal from a window worth waiting out, so this still reported a
+       transition, and the host settles a transition and RE-APPLIES the press. At Upkeep the turn already belongs
+       to the new round's leader, so that was a legal press, made before the Draw. `nettest_parity` filmed the
+       leader's board live under the host's Upkeep window, which is how one gets sent (the client's
+       `waitingOnRound` is the courtesy copy). Refused outright now, like the other three. */
+    if ((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
        LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so

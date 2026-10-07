@@ -11919,8 +11919,15 @@ __QR__
          that seat read "your turn" through somebody else's Resolution window, and a play or pass sent then came
          back to the host as a Main → Fight transition that it settled and RE-APPLIED — in the next round. The
          engine refuses those outright now; this is the courtesy copy, and the window the seat IS owed (a modal,
-         a discard) is untouched by it. Not `upkeep`: an intent re-applied there stays inside the same round. */
-      var waitingOnRound = !!((st.resolution || st.cleanup || st.endCleanup) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
+         a discard) is untouched by it.
+         ⚠ AND `upkeep` (2026-10-07). It was left out because an intent pressed there came back as a transition
+         the host re-applied inside the same round. Since v1.32.21's `moveToPlay` refuses over any open boundary,
+         that transition was meaningless, and the engine now refuses a play or pass into an open Upkeep window
+         outright, like the other three (`play`/`pass`). Meanwhile the NEW round's leader, whose turn it already
+         is, read a live board for as long as somebody else's Upkeep window stayed open. `nettest_parity` filmed
+         it: a Resolution window the host sat in, then the host's Upkeep window, with the next leader's controls
+         going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
+      var waitingOnRound = !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
       busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
       /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
          says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
