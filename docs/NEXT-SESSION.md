@@ -773,16 +773,30 @@ never read.*
     check also counts a live edge only if it lasts 60ms or its mirror shows a round window open: the host sends
     its post-boundary mirror, the ceremony and the ceremony's first mirror in one task, so a client is live for
     5-10ms between them, which nobody can click and the host refuses anyway.
-  **STILL OPEN — the data is in the probe's dumps, re-run it with `PARITY_DUMP=1`:**
-  - **A DUEL WEDGES ABOUT ONE RUN IN EIGHT, AND THE PROBE STAYED GREEN THROUGH IT** (found 2026-10-07: 6 of 48
-    duel runs, on builds with and without the fixes above). One signature every time: the host is IN its
-    ceremony, parked on the client — for its end-of-round discard (4: *"Rival 2 is discarding to hand size…"*)
-    or a priority window (2: *"Rival 2 is deciding…"*) — and the client is held (`hold:true`, `hostCer:true`)
-    with NO picker and NO modal. The probe only stopped its drive (*"no seat could act for ~30s"*). Lead: a
-    broken shield returns to its owner's hand, so the trim mirror brings a new card id over a cleared pile,
-    which is what `isRoundDeal` reads as the deal; unconfirmed.
-  - **The duel's final KICK was once not filmed on the client within 4.5s** of the host's. Either the losing
-    client's finisher is late or it never plays — not looked at.
+  - **A DUEL WEDGED ABOUT ONE RUN IN TEN, AND THE PROBE STAYED GREEN THROUGH IT** (2026-10-07: 7 stalls in 72
+    duel runs before the fix). One signature every time: the host IN its ceremony, parked on the client — for
+    its end-of-round trim (*"Rival 2 is discarding to hand size…"*) or the Clean-up window (*"…is deciding…"*)
+    — and the client showing neither a picker nor a modal. **The mechanism, read off the host's ledger:** a
+    round that ends with no Resolution window goes straight to the ceremony, but the engine has already opened
+    the Clean-up go-round with priority on the client (it holds a castable Quick). The client prompts from its
+    mirror at once and auto-passes; the duel host drains that window only inside its ceremony (`boundaryThen`,
+    after the beats and the trim), so the answer reached `hostApplyMove` with no park and was dropped
+    (`answer IGNORED … pg=1 prioGen=1 respondFor=1`). Its signature for that grant was spent, so it never
+    answered again; and with a trim also owed, `clientCheckWindow` kept picking the priority window over the
+    discard the host was actually waiting for. **Fixed:** a window answer names its grant (`pg`), the duel host
+    holds one that beats its park and applies it when it parks on that grant (`heldAnswer`), drops one for an
+    earlier grant, and a seat's own trim comes first on the client (`clientCheckWindow`, `applyMirrorNow`).
+    **0 stalls in 63 duel runs after; the A/B with only this reverted stalled again (1 in 24).** The probe now FAILS on
+    a stall instead of stopping its drive, and its stall dump carries both seats' state, traces and the
+    host's ledger. N-player cannot hit it: `hostSettleRoundThenCeremony` drains every window before its
+    ceremony.
+  - **The duel's final Fighter Kick did not play on a client when the game ended inside a drained window.**
+    `hostSettle`'s fall-through renders (broadcasting the finished state) before `done` → `hostFinishRound`
+    sends the ceremony, so the client's latched `endGame()` ran with no `pendingKick`. 2 of 31 duels once the
+    stalls were gone, because games now reached their end. **Fixed on the client:** a finished mirror waits up
+    to 700ms for the final ceremony, which ends the game itself (`finalCerSeen`); a concede or a deck-out sends
+    none and ends after the wait. **10 of 10 finished duels filmed the kick on both seats after.**
+  **STILL OPEN:**
   - `kicktest`'s `3p-out` leg failed its STAGING once under parallel load (the kick never landed), green 2/2 after.
     Its setup survives a round-4 deal that can hand seat 2 a higher pair, so it reads deal-dependent; unmeasured.
   **THE STRUCTURAL QUESTION IS STILL OPEN BUT SMALLER:** the two ceremony drivers now share `playPreBeats`,

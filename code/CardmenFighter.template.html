@@ -11104,7 +11104,7 @@ __QR__
         else say(netStarter, '🎲 {who} rolled highest ('+hiRoll+') — {who} will lead round 1.', 'round');
       }
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
-      hostState=state;                                  // `state` is what startGame creates, so this one stays below it
+      hostState=state; heldAnswer=null;                 // `state` is what startGame creates, so this one stays below it
       // (`seatNames[0]` + `t:'setup'` moved ABOVE `startGame` — see the note there: names before narration)eir own label
       broadcastMirror();
       });
@@ -11136,7 +11136,7 @@ __QR__
       noteResult();
       hostTakeBack();                                      // busy, "Waiting for opponent…" and the park beat go together (v1.31.49)
       hostState=null;                                      // BEFORE any send or render: broadcastMirror, onRender, the beat and hostApplyMove* all return on it, and in-order delivery then puts every game-one mirror AHEAD of the lobby message
-      netSettle=null; netDiscard=null; netParked=null; netReact=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
+      netSettle=null; netDiscard=null; netParked=null; netReact=null; heldAnswer=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
       for(var rs=0;rs<6;rs++) try{ E.takeReveal(rs); }catch(e){}   // drain an Outbalance read the finished game never flushed: it is module-level in the engine, newGame does not touch it, and hostFlushReveals would push a dead hand to that seat in game two
       lastMirror={}; clearDiscon(); try{ relayDropRoom(); }catch(e){}   // all idempotent: game two's first mirror is never deduped against game one; discon is empty since endGame; the room was dropped at Start, and a publish in flight then could have re-set it
       hostSeatOf={}; seatDeckMap={}; nextSeat=1; seatRuleGen={}; seatSuggest={}; oppDeck=null; oppReady=false;
@@ -11311,6 +11311,16 @@ __QR__
     function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); stopParkBeat(); busy=false; duelWait=false; $('rivalStatus').textContent=''; }
     var duelWait=false;   // parked in `awaitRival`: the duel host is waiting on seat 1's TURN (the 2p twin of `netParked`)
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
+    /* AN ANSWER THAT ARRIVES BEFORE ITS PARK IS HELD, NOT DROPPED (2026-10-07). When a duel round ends, the
+       engine opens the Clean-up go-round at once, but this host drains it only inside its ceremony
+       (`boundaryThen`, after the beats and the trim). A client prompts from its mirror the moment the window is
+       owed, so its answer, usually an auto-pass, landed while `netSettle` was still null and was dropped
+       silently. Its signature for that grant was then spent, so it never answered again, and the host parked on
+       a window that would never be answered. `nettest_parity` found it: about 1 duel run in 8, one signature
+       every time (`[id: client-ceremony-is-a-second-impl]`). Held only when stamped with the CURRENT grant
+       (`pg` = `prioGen`, which bumps on every grant), applied when `hostSettle` parks on that same grant, and
+       dropped if anything was granted in between — the park then asks again, through the new `prioGen`. */
+    var heldAnswer=null;
     /* ONE DEFINITION, called by both host drivers. The duel handler and the N-player one differed only in the
      * seat and the continuation they run afterwards, and two near-identical blocks 400 lines apart drift — the
      * same reason `isChopOf` and `phantasmSolveFor` each have exactly one definition. Returns true when the
@@ -11344,7 +11354,16 @@ __QR__
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
       if(it.op==='respond' || it.op==='decline'){
-        if(!netSettle) return;                                  // no open window — stale/duplicate reply, ignore
+        var curPg=hostState.prioGen||0;
+        if(!netSettle){                                         // not parked on it yet — see `heldAnswer`
+          if(it.pg!=null && it.pg===curPg && hostState.respondFor===1){ heldAnswer={ it:it, pg:curPg }; trace('answer HELD — its window is not parked yet', 'op='+it.op+' prioGen='+curPg); }
+          else trace('answer IGNORED — no open window', 'op='+it.op+' pg='+(it.pg!=null?it.pg:'-')+' prioGen='+curPg+' respondFor='+hostState.respondFor);
+          return;
+        }
+        /* AN ANSWER IS FOR ONE GRANT. A client that answered an earlier grant (a duplicate, or the re-answer a
+           trim provokes) must not decline the window the host is parked on now; the new grant's mirror asks it
+           again. Unstamped answers (an older client) apply as they always did. */
+        if(it.pg!=null && it.pg!==curPg){ trace('answer DROPPED — it was for an earlier grant', 'op='+it.op+' pg='+it.pg+' prioGen='+curPg); return; }
         try{
           if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
           else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
@@ -11448,6 +11467,11 @@ __QR__
       if(!hostState){ return done && done(); }
       if(hostState.respondFor===RIVAL){
         netSettle={ g:g, done:done };
+        if(heldAnswer){                                        // the seat answered before this park — see `heldAnswer`
+          var ha=heldAnswer; heldAnswer=null;
+          if(ha.pg===(hostState.prioGen||0)){ trace('held answer APPLIED at the park', 'op='+ha.it.op+' prioGen='+ha.pg); return hostApplyMove(ha.it); }
+          trace('held answer DROPPED — the window was granted again', 'held '+ha.pg+', now '+(hostState.prioGen||0));
+        }
         var _mp=maybePasso;                                    // hoisted read: the park below returns, so call it last
       /* A PARKED HOST MUST KEEP SAYING SO — and only TWO of the seven parks did (v1.31.116). v1.31.75 added
          `reassertMirror` and v1.31.80 the beat, both wired into `awaitRival` and `hostParkTrim` BY NAME, and
@@ -11894,8 +11918,12 @@ __QR__
       syncClear();                             // a mirror is the host's confirmation: whatever we sent has landed or been judged
       if(st && !st.finished) endShown=false;   // a client never runs startGame, so this is where a fresh game re-arms its end screen
       started=true; state=st; hostState=null; window.__cmfNetState=st;
-      var owedModal = !!(st.respondFor===YOU);   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
+      /* …AND WHILE THIS SEAT'S OWN TRIM IS WHAT THE HOST WAITS ON, a priority window owed at the same time locks
+         nothing: the trim comes first (see `clientCheckWindow`), and `owedModal` / `waitingOnRound` would set
+         `busy` on every mirror and freeze the picker that `promptHumanDiscard` just opened. */
+      var trimFirst = !!(owedDiscard && st.trimPending && st.trimPending.player===YOU);
+      var owedModal = !!(st.respondFor===YOU) && !trimFirst;   // overlay windows — keep them up (don't flicker away)
       var owedLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner===YOU);                                 // panel-pick: whose shield to strip
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
       /* THE END SCREEN IS NOT A TRANSIENT WINDOW, and it was not on this list — so every mirror arriving after
@@ -11927,7 +11955,7 @@ __QR__
          is, read a live board for as long as somebody else's Upkeep window stayed open. `nettest_parity` filmed
          it: a Resolution window the host sat in, then the host's Upkeep window, with the next leader's controls
          going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
-      var waitingOnRound = !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
+      var waitingOnRound = !trimFirst && !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
       busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
       /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
          says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
@@ -11940,7 +11968,11 @@ __QR__
       ceremonyLocked = false;
       if(ceremonyHold && !owedDiscard && !busy){ busy = true; ceremonyLocked = true; }   // remember it was the CEREMONY, so its release undoes only this lock
       render();
-      if(state.finished){ endGame(); return; }
+      if(state.finished){
+        if(finalCerSeen) return endGame();
+        if(!endWaitT) endWaitT=setTimeout(function(){ endWaitT=null; trace('end screen without a final ceremony', 'none arrived within 700ms'); if(state && state.finished) endGame(); }, 700);   // see `finalCerSeen`
+        return;
+      }
       clientCheckWindow();
     }
     // The mirror can show a window owed to us (seat rotated to index 0). Pop the SAME modal/picker the single-player
@@ -11957,7 +11989,15 @@ __QR__
          returned early, the modal never re-opened, and the table waited forever on a window nobody was shown.
          `prioGen` bumps on every GRANT, so a re-offer always reads as new; it does NOT bump per render, so a
          client applying fifty identical mirrors still de-dupes down to one modal. */
-      if(state.respondFor===YOU) sig='resp:'+((state.pending&&state.pending.oid)||'-')+':'+(state.prioGen||0);
+      /* ⚠ THIS SEAT'S END-OF-ROUND TRIM COMES FIRST (2026-10-07). The Clean-up go-round opens the moment a round
+         ends, and the host's ceremony takes the trim BEFORE it drains that go-round — so a seat can owe both at
+         once, and the host is parked on the trim. Answering the priority window first gave the host an answer
+         it was not waiting for and never showed the picker it WAS waiting for: `nettest_parity` measured that
+         as a permanent stall with *"Choose your discards first."* on screen and no picker. Once the discard is
+         sent the signature changes, so the go-round is asked again when the host gets to it. */
+      var trimMine=!!(state.trimPending && state.trimPending.player===YOU && state.discardPending && state.discardPending.player===YOU);
+      if(trimMine) sig='disc:'+(state.discardPending.count||1);
+      else if(state.respondFor===YOU) sig='resp:'+((state.pending&&state.pending.oid)||'-')+':'+(state.prioGen||0);
       else if(state.discardPending && state.discardPending.player===YOU) sig='disc:'+(state.discardPending.count||1);
       else if(state.pendingLossChoice && state.pendingLossChoice.winner===YOU) sig='loss:'+(state.pendingLossChoice.cands||[]).join(',');
       if(sig===clientWinSig) return;                    // already handling this exact window
@@ -12039,7 +12079,16 @@ __QR__
       }
       releaseCeremony(tok);
     }
-    function dropCeremonyHold(){ ceremonyHold=false; ceremonyLocked=false; roundCardShowing=false; hostCer=false; presentedStrip=0; clearTimeout(ceremonyWatch); ceremonyWatch=null; ceremonySeq++; }   // a new game or the lobby: nothing owed
+    /* THE FINAL CEREMONY CAN ARRIVE AFTER THE FINISHED MIRROR, AND THE FIGHTER KICK WENT WITH IT (2026-10-07).
+       The host's rule is ceremony first, then the finished mirror, so `announceRoundWin` sets `pendingKick`
+       before `endGame` consumes it. But when the game ends inside a drained window (the loser's last Resolution
+       answer), `hostSettle` falls through to `render(); done()` — the render broadcasts the finished state, and
+       only `done` → `hostFinishRound` sends the ceremony. `endGame` is latched, so it ran with no kick and the
+       late ceremony set `pendingKick` for nothing: `nettest_parity` filmed KICK on the host and none on the
+       client. So a finished mirror waits a moment for that ceremony (which ends the game itself, kick and all),
+       and ends the game anyway if none comes: a concede or a deck-out sends none. */
+    var finalCerSeen=false, endWaitT=null;
+    function dropCeremonyHold(){ ceremonyHold=false; ceremonyLocked=false; roundCardShowing=false; hostCer=false; presentedStrip=0; clearTimeout(ceremonyWatch); ceremonyWatch=null; ceremonySeq++; finalCerSeen=false; clearTimeout(endWaitT); endWaitT=null; }   // a new game or the lobby: nothing owed
     function clientPlayCeremony(res){
       if(isHost() || !res || lobbyHold) return;   // lobbyHold: a ceremony for a game this seat has left (v1.31.95)
       /* A HELD MIRROR DISCARDED HERE IS THE LEADING CANDIDATE FOR THE `nettest_sync` FORK, and this is the
@@ -12071,7 +12120,10 @@ __QR__
        * GATED ON `finished`, NOT ON `kick`. At 3-6 players every elimination is a kick and the game continues,
        * so keying this off `kick` would skip the beats the host DOES play on a mid-game elimination — and leave
        * `pendingKick` set on a client that never reaches endGame(), firing a stray finisher later. */
-      if(res.finished){ clientCeremonyActive=false; inCeremony=false; holdShields=false; uiPhase=null; releaseCeremony(); return; }
+      if(res.finished){ clientCeremonyActive=false; inCeremony=false; holdShields=false; uiPhase=null; releaseCeremony();
+        finalCerSeen=true;                                       // see `finalCerSeen`: the finished mirror may already be here
+        if(state && state.finished){ clearTimeout(endWaitT); endWaitT=null; endGame(); }
+        return; }
       /* AND CLEAN-UP NEEDS ITS OWN DWELL HERE FOR THE REASON IT NEEDS ONE ON THE HOST: the client has no
          trim to show — the host owns it — so without a beat the phase exists for less than a frame and the
          strip never paints red, which is exactly the bug being fixed. `paintPhaseStrip` REPAINTS rather
@@ -12187,7 +12239,10 @@ __QR__
      * of which change the board, so no mirror ever answers them. The rematch ask from a FINISHED game is the case
      * that made it visible: the banner sat under the end screen and showed plainly during Review. The same trio
      * the stamp check already exempts (v1.31.57), for the same reason. */
-    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
+    /* A WINDOW ANSWER NAMES THE GRANT IT ANSWERS (`pg`, 2026-10-07) — the `prioGen` this seat's mirror showed,
+       so the host can hold an answer that beat its park and drop one meant for an earlier grant (`heldAnswer`). */
+    function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline') && it.pg==null && state) it.pg=state.prioGen||0;
+      trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')+(it&&it.pg!=null?' pg='+it.pg:'')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -12705,7 +12760,7 @@ __QR__
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
-    ceremony:function(){ return !!inCeremony; }, ceremonyHold:function(){ return NET.dbgCeremonyHold ? NET.dbgCeremonyHold() : null; }, roundFlags:function(){ return state ? { round:state.round, sub:state.subPhase, turn:state.turn, resolution:!!state.resolution, cleanup:!!state.cleanup, endCleanup:!!state.endCleanup, upkeep:!!state.upkeep, loss:!!state.pendingLossChoice, respondFor:state.respondFor, pending:!!state.pending, stack:(state.stack||[]).length, passes:state.passes, lastPlayer:state.lastPlayer, stripRound:state.stripRound||0 } : null; }, /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
+    ceremony:function(){ return !!inCeremony; }, ceremonyHold:function(){ return NET.dbgCeremonyHold ? NET.dbgCeremonyHold() : null; }, roundFlags:function(){ return state ? { round:state.round, sub:state.subPhase, turn:state.turn, resolution:!!state.resolution, cleanup:!!state.cleanup, endCleanup:!!state.endCleanup, upkeep:!!state.upkeep, loss:!!state.pendingLossChoice, respondFor:state.respondFor, pending:!!state.pending, stack:(state.stack||[]).length, passes:state.passes, lastPlayer:state.lastPlayer, stripRound:state.stripRound||0, disc:state.discardPending||null, trim:state.trimPending||null } : null; }, /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
        header is the one place a client's deck names are read back, and nothing could see it.
        Checked for a duplicate key first (a brace-walk of this literal, not the crude grep: that
        one reports six hits here and all six are NESTED keys, so it is a lead, never a verdict). */

@@ -185,7 +185,7 @@ node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRI
                                                 # (`handPresetN`), never the order: a fair shuffle reproduces
                                                 # the engine's order 1 time in 720, so an order assertion is a
                                                 # mystery red waiting to happen
-node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME CEREMONY (19). FILMS what each
+node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME CEREMONY (21). FILMS what each
                                                 # seat RENDERS through a real duel and a 3-player game and diffs
                                                 # the round ceremonies. `PARITY_DUMP=1` prints every ceremony,
                                                 # `PARITY_RAW=1` every strip change with that seat's flags.
@@ -1563,6 +1563,19 @@ new window through it inherits `reassertMirror`, the park beat, `maybePasso` and
 for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift rather than after it. The
 grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
 
+**AN ANSWER CAN BEAT ITS PARK (2026-10-07).** A client is SHOWN a window the moment its mirror says it is
+owed; a host LISTENS only once its driver parks on that window. In the duel those two moments differ: the
+engine opens the Clean-up go-round as the round ends, and the host drains it only inside its ceremony
+(`boundaryThen`, after the beats and the trim). So a client's auto-pass reached `hostApplyMove` with nothing
+parked and was dropped in silence, its signature for that grant spent, and the table waited forever —
+**about one duel run in ten**, found only once `nettest_parity` counted a stall as a failure rather than an
+early stop (the `nettest_sync` liveness rule, again). A window answer now names its grant (`pg`, the
+`prioGen` it saw), and the duel host holds an early one until it parks on that grant (`heldAnswer`).
+**When you add a window, ask when the client is SHOWN it versus when the host PARKS on it**; if they
+differ, the answer can arrive first. **The same shape ended games without a kick:** `hostSettle`'s
+fall-through renders before `done`, so the finished mirror beat the final ceremony and the client's latched
+`endGame()` ran with no `pendingKick`; a client now waits briefly for that ceremony (`finalCerSeen`).
+
 **A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterResolution`
 opens the Resolution go-round and returns `{resolution:true}` with **no `roundWinner`**, so every UI site that
 tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
@@ -2361,7 +2374,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 74 netplay suites: `nettest_3p` 7, `parity` 19, `roundlock` 9, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 74 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
