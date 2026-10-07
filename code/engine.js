@@ -1823,13 +1823,14 @@
        rather than a copy in each of the two host handlers: that split is what let the duel and the N-player
        paths drift apart over `guard`/`netGuard` and over `discard`/`netDiscard`. */
     if (p != null && p !== st.turn) return { ok: false, reason: 'Not your turn.' };
-    /* NOT WHILE THE ROUND IS ENDING (cleanup-parks-with-nobody-on-priority, 2026-10-07). During Resolution,
+    /* NOT WHILE THE ROUND IS ENDING (the round-end freeze, v1.32.21). During Resolution,
        Clean-up, the Beginning's upkeep or a strike choice, `st.turn` still names the last seat to pass and
        `subPhase` is 'main', so this used to open a transition right over the boundary — and
        `openResponseWindow` checks `toPlay` FIRST: the boundary's own seat passed, the walk found nobody for
        the TRANSITION, flipped `subPhase` to 'play' and returned before the boundary branch was reached. The
        round never advanced: boundary flag set, nobody on priority, the pile still up. Reproduced in the engine
-       alone, and identically on `main`. It also reset `prioPassed`, wiping the boundary's own passes. */
+       alone (`test.js`, "A TRANSITION OPENED OVER A ROUND BOUNDARY"). It also reset `prioPassed`, wiping the
+       boundary's own passes. */
     if (roundBoundaryOpen(st)) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
     st.toPlay = { origin: st.turn };
     st.prioPassed = {};

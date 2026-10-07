@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.20.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.21.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.20** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.21** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -718,25 +718,6 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `root cause found`    · **A ROUND BOUNDARY STRANDED BY A TRANSITION OPENED OVER IT — THE ROUND NEVER ADVANCES.
-  FIXED ON `fix/one-ceremony` (2026-10-07), NOT YET ON `main`, WHICH HAS IT TOO** (found by `nettest_parity`,
-  ~1 duel in 7). A pass ends the round and its Resolution / Clean-up go-round parks on a seat holding a Quick; a
-  second Fight/Pass press reaches `moveToPlay`, which opened a Main → Fight transition right over the boundary
-  (`st.turn` still names the last passer, `subPhase` is still 'main') and reset `prioPassed`; the parked seat
-  passes, and `openResponseWindow` walks `toPlay` FIRST, finds nobody, flips to the Fight sub-phase and returns
-  before the boundary branch. Boundary flag set, nobody on priority, the pile up, the round never advances.
-  **Staged in the engine alone and identical on `main`** (`test.js`, "A TRANSITION OPENED OVER A ROUND BOUNDARY").
-  On `main` a real player reaches it from a CLIENT: one that just passed to end the round still reads "your
-  turn" with a live board while the host decides on its window, and a Fight press sends `toFight` — reasoned
-  from `main`'s client lock, not reproduced in `main`'s page.
-  **THE FIX:** `moveToPlay` refuses while any round boundary is open; `openResponseWindow` drops a stale transition
-  over an open boundary (the ORDER can never strand one again); `resumeBoundary` re-walks a boundary nobody holds
-  priority on, called from the ceremony's drain and `drainResolution`; `moveToPlayThen` honours the refusal.
-  Each defence mutation-tested alone; both removed (= `main`) reproduces the stall. AI fingerprint identical.
-  **NOT** the mechanism behind `round-ceremony-reruns-with-stale-res`, which the 2026-10-06 version of this entry
-  claimed: that trace shows its boundary COMPLETING in full, and this one never completes.
-  `[id: cleanup-parks-with-nobody-on-priority]`
-
 - `root cause found`    · **⏸ IN PROGRESS ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED
   BY A NEW PROBE AND MOSTLY FIXED.** Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*;
   2026-10-06: *"yes let's try to remove all drifts"*. The old entry's "needs a decision" (collapse the two drivers?)
@@ -768,13 +749,14 @@ never read.*
     ahead of the break. **3-player leg 2/5 → 5/5.** `test.js` +4 (each mutation-tested), fingerprint identical.
   - `nettest_lobbyback_rtc` (16 red in the 2026-10-06 sweep) was the HARNESS: one Pass click the moment the turn
     tag flipped, while the client's board was still held for the ceremony. It retries until the click lands.
+  - **The duel host's ACTION LOOP was the round-end freeze, and that fix SHIPPED TO `main` AS v1.32.21** (PR #380):
+    a second Fight/Pass press opened a Main → Fight transition over an open Resolution/Clean-up window and
+    stranded it. `moveToPlay` refuses during a boundary, the boundary outranks a stale transition, and the ceremony
+    re-walks one nobody holds priority on. No loop in 12 parity runs since. The probe's loop dump (40th press in
+    an unmoved round, `__cmf.roundFlags()` included) stays, so the next stall explains itself.
   **STILL OPEN — the data is in the probe's dumps, re-run it with `PARITY_DUMP=1`:**
   - **The duel leg drifted once in 9 runs** after the stamp landed (ceremony 5 onwards; the client's line was cut
     off by a filter, so the shape is unknown). Re-run `PARITY_N=2` until it recurs and read BOTH lines.
-  - **The duel host's ACTION LOOP is DIAGNOSED AND ITS CAUSE FIXED (2026-10-07): this branch's engine guard meeting a STALLED boundary**
-    — see `cleanup-parks-with-nobody-on-priority`. The guard now refuses only while a window is really open
-    (`respondFor` set), so a stall degrades as it does on `main` (0 loops in 4 duels after; the rate was ~1 in 7,
-    so that is weak evidence). The probe dumps the 40th press in an unmoved round, `__cmf.roundFlags()` included.
   - **A client sometimes films an EXTRA empty `SP:spResolve` segment** just before a ceremony — its strip paints
     Resolution from a mirror while the host's does not (1 in 4 duels, 1 in 2 three-player runs, 2026-10-06 late).
     No shatter rides it any more; it is a phase-strip flicker, and the probe is right to call it a drift.

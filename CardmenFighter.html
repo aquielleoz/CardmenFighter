@@ -3738,13 +3738,14 @@
        rather than a copy in each of the two host handlers: that split is what let the duel and the N-player
        paths drift apart over `guard`/`netGuard` and over `discard`/`netDiscard`. */
     if (p != null && p !== st.turn) return { ok: false, reason: 'Not your turn.' };
-    /* NOT WHILE THE ROUND IS ENDING (cleanup-parks-with-nobody-on-priority, 2026-10-07). During Resolution,
+    /* NOT WHILE THE ROUND IS ENDING (the round-end freeze, v1.32.21). During Resolution,
        Clean-up, the Beginning's upkeep or a strike choice, `st.turn` still names the last seat to pass and
        `subPhase` is 'main', so this used to open a transition right over the boundary — and
        `openResponseWindow` checks `toPlay` FIRST: the boundary's own seat passed, the walk found nobody for
        the TRANSITION, flipped `subPhase` to 'play' and returned before the boundary branch was reached. The
        round never advanced: boundary flag set, nobody on priority, the pile still up. Reproduced in the engine
-       alone, and identically on `main`. It also reset `prioPassed`, wiping the boundary's own passes. */
+       alone (`test.js`, "A TRANSITION OPENED OVER A ROUND BOUNDARY"). It also reset `prioPassed`, wiping the
+       boundary's own passes. */
     if (roundBoundaryOpen(st)) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
     st.toPlay = { origin: st.turn };
     st.prioPassed = {};
@@ -7223,7 +7224,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.20';
+  var GAME_VERSION='v1.32.21';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -11913,8 +11914,8 @@ window.CardFace = {};
       if(tries===1) prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · driving the drain');
       /* …AND A BOUNDARY OWED TO NOBODY IS RE-WALKED, NOT WAITED OUT (2026-10-07). `settleWindows` answers the
          seat that holds priority; with nobody holding it there is nothing to answer, so every attempt above
-         returned at once and the give-up fired — `parked[cleanup] prio=—` in `nettest_parity`'s dump, and the
-         round never advanced. The stranding itself is closed in the engine (a Main → Fight transition can no
+         returned at once and the give-up fired — `parked[cleanup] prio=—` in a host/client parity probe's dump,
+         and the round never advanced. The stranding itself is closed in the engine (a Main → Fight transition can no
          longer open over a boundary); this is the floor under any path that strands one next. */
       if(state && state.respondFor==null && E.resumeBoundary){
         var rw=E.resumeBoundary(state);
@@ -12673,7 +12674,7 @@ window.CardFace = {};
      the wrong events. Defaults to YOU, which is right for solo and for the host's own turn. */
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
-    /* A REFUSED TRANSITION STOPS HERE (cleanup-parks-with-nobody-on-priority). This read `E.moveToPlay(state);`
+    /* A REFUSED TRANSITION STOPS HERE (the round-end freeze, v1.32.21). This read `E.moveToPlay(state);`
        and then judged the outcome from `respondFor` alone — so a press refused while the round was ending
        found the BOUNDARY's window open, logged a "MAIN → FIGHT go-round opened" that never happened, and
        waited on that window as if it were its own. */

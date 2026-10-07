@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.32.20**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.32.21**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -2329,12 +2329,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.32.20 — last FULL sweep 2026-10-06, `npm run sweep`, 117/117 in 307s** (115 on the run
-itself: `versiontest` red on this very line, which is the line's job — the sweep is what it records). On
+Status as of **v1.32.21 — last FULL sweep 2026-10-07, `npm run sweep`, 117/117 in 305s** (this line was
+bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 11, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 9, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and

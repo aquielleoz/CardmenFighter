@@ -6626,8 +6626,8 @@ __QR__
       if(tries===1) prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · driving the drain');
       /* …AND A BOUNDARY OWED TO NOBODY IS RE-WALKED, NOT WAITED OUT (2026-10-07). `settleWindows` answers the
          seat that holds priority; with nobody holding it there is nothing to answer, so every attempt above
-         returned at once and the give-up fired — `parked[cleanup] prio=—` in `nettest_parity`'s dump, and the
-         round never advanced. The stranding itself is closed in the engine (a Main → Fight transition can no
+         returned at once and the give-up fired — `parked[cleanup] prio=—` in a host/client parity probe's dump,
+         and the round never advanced. The stranding itself is closed in the engine (a Main → Fight transition can no
          longer open over a boundary); this is the floor under any path that strands one next. */
       if(state && state.respondFor==null && E.resumeBoundary){
         var rw=E.resumeBoundary(state);
@@ -7386,7 +7386,7 @@ __QR__
      the wrong events. Defaults to YOU, which is right for solo and for the host's own turn. */
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
-    /* A REFUSED TRANSITION STOPS HERE (cleanup-parks-with-nobody-on-priority). This read `E.moveToPlay(state);`
+    /* A REFUSED TRANSITION STOPS HERE (the round-end freeze, v1.32.21). This read `E.moveToPlay(state);`
        and then judged the outcome from `respondFor` alone — so a press refused while the round was ending
        found the BOUNDARY's window open, logged a "MAIN → FIGHT go-round opened" that never happened, and
        waited on that window as if it were its own. */
