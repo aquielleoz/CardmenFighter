@@ -51,8 +51,13 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
 
   /* Record WHEN each line first appears, and whether the card reader ever lit up. `revealEffect` adds
      `.reveal` to #cardView and pops #artFlash; both are transient, so they are sampled, not read at the end. */
-  const seen={}; let sawReveal=false;
-  for(let i=0;i<180;i++){
+  /* ⚠ BOUNDED BY THE CLOCK, NOT BY 180 ITERATIONS (2026-10-07). 180 x (40ms + an evaluate) is about 9s, and a
+     quiet run measured the round at 4.7s, 4.7s and 7.3s — the 7.3s deal had the Rival cast twice, one more
+     `revealDwell` (2650ms). So a green run used 80% of the budget and a loaded sweep went red at
+     "(at undefinedms)". What this waits for is beats, which load does not shrink; the ceiling is a hang
+     guard and returns the moment the round line lands. */
+  const seen={}; let sawReveal=false; const pollEnd=Date.now()+30000;
+  while(Date.now()<pollEnd){
     const s = await p.evaluate(()=>({
       log:[...document.querySelectorAll('#log .le')].map(e=>e.textContent.trim()),
       reveal:!!document.querySelector('#cardView.reveal') || !!document.querySelector('#artFlash.show') }));
@@ -67,7 +72,8 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   }
 
   ok(seen.eff!=null, `STAGED: the Rival cast an effect before its round-ending pass (at ${seen.eff}ms)`);
-  ok(seen.round!=null, `  → and the pass really did resolve the round (at ${seen.round}ms)`);
+  ok(seen.round!=null, `  → and the pass really did resolve the round (at ${seen.round}ms)`+
+     (seen.round!=null ? '' : `  ← no round line within ${Date.now()-t0}ms of the lead`));
 
   /* THE BUG, AND THE ONLY ASSERTION THAT DISCRIMINATES. On the broken build the cast, the pass and the round
      announcement were all logged in ONE frame — measured at a 0ms gap — so the player never saw the card.
