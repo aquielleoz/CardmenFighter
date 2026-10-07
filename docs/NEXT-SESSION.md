@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**662**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**668**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -718,18 +718,23 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `needs a repro`       · **CLEAN-UP PARKS WITH NOBODY ON PRIORITY, AND THE ROUND NEVER ADVANCES** (found by
-  `nettest_parity` on `fix/one-ceremony`, 2026-10-06, ~1 duel in 7). The host's engine sits with `cleanup` set,
-  `respondFor` null, `pending` false, an empty stack and the round's pile still up (`__cmf.roundFlags()` in the
-  probe's loop dump). The ceremony's wait logs `⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway`
-  (`parked[cleanup] prio=—`, four settle attempts), then `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`
-  and `⚠ ROUND BANNER REPEATED`, so this is very likely the MECHANISM behind `round-ceremony-reruns-with-stale-res`:
-  the round did not advance because its Clean-up go-round opened with nobody to ask and nothing drained it.
-  On `main` the table limps on (plays land in a round still flagged as Clean-up); with the branch's first,
-  unconditional round-over guard it wedged outright, which is how it was found. **Next:** stage it — a duel
-  where the round ends on a pass and Clean-up opens — and read why `openResponseWindow`'s Clean-up branch
-  returns with no `respondFor` and no finish; `phaseWalk` returning a seat that is then skipped is the first
-  place to look. The probe reproduces it in a minute: `PARITY_N=2`, four at a time on distinct `PORT`s.
+- `root cause found`    · **A ROUND BOUNDARY STRANDED BY A TRANSITION OPENED OVER IT — THE ROUND NEVER ADVANCES.
+  FIXED ON `fix/one-ceremony` (2026-10-07), NOT YET ON `main`, WHICH HAS IT TOO** (found by `nettest_parity`,
+  ~1 duel in 7). A pass ends the round and its Resolution / Clean-up go-round parks on a seat holding a Quick; a
+  second Fight/Pass press reaches `moveToPlay`, which opened a Main → Fight transition right over the boundary
+  (`st.turn` still names the last passer, `subPhase` is still 'main') and reset `prioPassed`; the parked seat
+  passes, and `openResponseWindow` walks `toPlay` FIRST, finds nobody, flips to the Fight sub-phase and returns
+  before the boundary branch. Boundary flag set, nobody on priority, the pile up, the round never advances.
+  **Staged in the engine alone and identical on `main`** (`test.js`, "A TRANSITION OPENED OVER A ROUND BOUNDARY").
+  On `main` a real player reaches it from a CLIENT: one that just passed to end the round still reads "your
+  turn" with a live board while the host decides on its window, and a Fight press sends `toFight` — reasoned
+  from `main`'s client lock, not reproduced in `main`'s page.
+  **THE FIX:** `moveToPlay` refuses while any round boundary is open; `openResponseWindow` drops a stale transition
+  over an open boundary (the ORDER can never strand one again); `resumeBoundary` re-walks a boundary nobody holds
+  priority on, called from the ceremony's drain and `drainResolution`; `moveToPlayThen` honours the refusal.
+  Each defence mutation-tested alone; both removed (= `main`) reproduces the stall. AI fingerprint identical.
+  **NOT** the mechanism behind `round-ceremony-reruns-with-stale-res`, which the 2026-10-06 version of this entry
+  claimed: that trace shows its boundary COMPLETING in full, and this one never completes.
   `[id: cleanup-parks-with-nobody-on-priority]`
 
 - `root cause found`    · **⏸ IN PROGRESS ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED
@@ -766,7 +771,7 @@ never read.*
   **STILL OPEN — the data is in the probe's dumps, re-run it with `PARITY_DUMP=1`:**
   - **The duel leg drifted once in 9 runs** after the stamp landed (ceremony 5 onwards; the client's line was cut
     off by a filter, so the shape is unknown). Re-run `PARITY_N=2` until it recurs and read BOTH lines.
-  - **The duel host's ACTION LOOP is DIAGNOSED: it was this branch's own engine guard meeting a STALLED Clean-up**
+  - **The duel host's ACTION LOOP is DIAGNOSED AND ITS CAUSE FIXED (2026-10-07): this branch's engine guard meeting a STALLED boundary**
     — see `cleanup-parks-with-nobody-on-priority`. The guard now refuses only while a window is really open
     (`respondFor` set), so a stall degrades as it does on `main` (0 loops in 4 duels after; the rate was ~1 in 7,
     so that is weak evidence). The probe dumps the 40th press in an unmoved round, `__cmf.roundFlags()` included.

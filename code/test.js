@@ -3270,6 +3270,50 @@ function cards(ids) { return ids.map(card); }
   ok(P[1].shields === sh - 1 && g.stripRound === 4, 'a mid-turn Critical Hit breaks a shield and stamps NOTHING — it has no ceremony and must shatter at once (shields ' + sh + '→' + P[1].shields + ', stripRound=' + g.stripRound + ')');
 })();
 
+/* ============ A TRANSITION OPENED OVER A ROUND BOUNDARY STRANDED IT (cleanup-parks-with-nobody-on-priority) ============
+   `nettest_parity` caught a duel host whose round never advanced: Clean-up set, NOBODY on priority, the pile still
+   up. The mechanism, staged here in the engine alone: a pass ends the round and its Resolution go-round parks on
+   the rival (who holds Leyline, an untargeted Quick); a SECOND Main → Fight press lands on top; the rival passes;
+   `openResponseWindow` walked the transition FIRST, found nobody, flipped to the Fight sub-phase and returned
+   before the boundary branch. Identical on `main`. Three legs, one per defence — each would pass vacuously if the
+   staging missed, so the staging is asserted first. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  function stage() {
+    var g = E.newGame(null, { numPlayers: 2, starter: 1 }), P = g.players;
+    g.round = 4; g.turn = 1; g.initiative = 1; g.pile = null; g.lastPlayer = null; g.passes = 0; g.subPhase = 'main';
+    P.forEach(function (p) { p.energy = []; });
+    P[1].hand = [mk(13, 'H', 'cK'), mk(9, 'D', 'ley'), mk(4, 'S', 'c4')];
+    P[1].energy = [1,2,3,4,5,6,7,8,9,10,11,12].map(function (n) { return mk(n, 'D', 'e' + n); });
+    P[0].hand = [mk(3, 'C', 'h3'), mk(5, 'S', 'h5')];
+    var all = function () { while (g.respondFor != null) E.declineResponse(g, g.respondFor); };
+    var r = E.play(g, 1, [P[1].hand[0]]); if (r && r.transition === 'play') { all(); r = E.play(g, 1, [P[1].hand[0]]); }
+    all();
+    r = E.pass(g, 0); if (r && r.transition === 'play') { all(); r = E.pass(g, 0); }
+    return g;
+  }
+  var stranded = function (g) { return !!((g.resolution || g.cleanup || g.endCleanup || g.upkeep) && g.respondFor == null && !g.finished); };
+  var g = stage();
+  ok(!!g.resolution && g.respondFor === 1 && g.pile && g.round === 4,
+     'STAGED: the round is won and its Resolution go-round is parked on the rival holding Leyline (respondFor=' + g.respondFor + ')');
+  var mv = E.moveToPlay(g, 0);
+  ok(mv.ok === false && /round is over/.test(mv.reason || '') && !g.toPlay,
+     'a Main → Fight press while the round is ending is REFUSED and opens nothing  [' + (mv.reason || ('ok=' + mv.ok + ' transition=' + mv.transition)) + ']');
+  E.declineResponse(g, 1);
+  ok(!stranded(g), '…so the rival’s pass walks the BOUNDARY on, never strands it' + (stranded(g) ? '  ← REPRODUCED: boundary open, nobody on priority' : ''));
+  /* THE ORDERING DEFENCE, on its own: force the bad state the guard now prevents, and require the boundary to win. */
+  var g2 = stage();
+  g2.toPlay = { origin: 0 };
+  E.declineResponse(g2, 1);
+  ok(!g2.toPlay && !stranded(g2), 'a stale transition over an open boundary is DROPPED — the boundary branch is reached, whatever set it');
+  /* THE FLOOR: a boundary stranded by any path is re-walked to completion or to a seat, never left. */
+  var g3 = E.newGame(null, { numPlayers: 2, starter: 0 });
+  g3.round = 4; g3.subPhase = 'main'; g3.cleanup = { origin: 1 }; g3.respondFor = null; g3.stack = []; g3.cleanupResult = { ok: true, state: g3, roundWinner: 1 };
+  var rw = E.resumeBoundary(g3);
+  ok(!!rw && !g3.cleanup && g3.round === 5, 'resumeBoundary re-walks a stranded Clean-up to completion (round ' + g3.round + ')');
+  ok(E.resumeBoundary(E.newGame(null, { numPlayers: 2 })) === null, '…and does nothing on a board with no boundary open');
+})();
+
 /* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============
    Staged so a default and a choice are DISTINGUISHABLE: the lowest Broadway card (a 10) is the one worth
    keeping and a higher one (an Ace) is spare — "which card left" is the assertion, never "the hand shrank". */

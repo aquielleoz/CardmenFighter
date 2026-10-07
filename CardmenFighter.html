@@ -3572,6 +3572,13 @@
        — which `nextPrioHolder` walks through — already requires `e.quick`. No special case was needed.
        IT IS CHECKED BEFORE FIGHT END because the two can never both be parked (different phases), and
        reading them in a fixed order costs nothing while leaving the invariant obvious. */
+    /* A ROUND BOUNDARY OUTRANKS A TRANSITION, STRUCTURALLY. `moveToPlay` refuses while one is open, which closes
+       the one path that set both; this keeps the ORDER from ever stranding a boundary again, whatever sets
+       `toPlay` next. A transition over a round that is ending has no meaning, so it is dropped, loudly. */
+    if (st.toPlay && (st.resolution || st.cleanup || st.endCleanup || st.upkeep)) {
+      bnote('⚠ A MAIN → FIGHT TRANSITION WAS OPEN OVER A ROUND BOUNDARY — dropped', st, 'origin=p' + st.toPlay.origin + ' · the boundary is walked instead');
+      st.toPlay = null;
+    }
     if (st.toPlay && !st.stack.length && !st.finished) {
       var tq = phaseWalk(st, st.toPlay.origin);
       if (tq >= 0) return { ok: true, state: st, pending: true, transition: 'play', respondFor: tq };
@@ -3731,8 +3738,26 @@
        rather than a copy in each of the two host handlers: that split is what let the duel and the N-player
        paths drift apart over `guard`/`netGuard` and over `discard`/`netDiscard`. */
     if (p != null && p !== st.turn) return { ok: false, reason: 'Not your turn.' };
+    /* NOT WHILE THE ROUND IS ENDING (cleanup-parks-with-nobody-on-priority, 2026-10-07). During Resolution,
+       Clean-up, the Beginning's upkeep or a strike choice, `st.turn` still names the last seat to pass and
+       `subPhase` is 'main', so this used to open a transition right over the boundary — and
+       `openResponseWindow` checks `toPlay` FIRST: the boundary's own seat passed, the walk found nobody for
+       the TRANSITION, flipped `subPhase` to 'play' and returned before the boundary branch was reached. The
+       round never advanced: boundary flag set, nobody on priority, the pile still up. Reproduced in the engine
+       alone, and identically on `main`. It also reset `prioPassed`, wiping the boundary's own passes. */
+    if (roundBoundaryOpen(st)) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
     st.toPlay = { origin: st.turn };
     st.prioPassed = {};
+    return openResponseWindow(st);
+  }
+  function roundBoundaryOpen(st) { return !!(st.resolution || st.cleanup || st.endCleanup || st.upkeep || st.pendingLossChoice); }
+  /* RE-WALK A ROUND BOUNDARY THAT NOBODY HOLDS PRIORITY ON. The state is a defect, never a rule — every boundary
+     branch either grants priority to a seat or finishes — so finding it means some path stranded the window.
+     The ceremony's drain calls this instead of waiting out its give-up: the walk either parks on a seat (and
+     the settle loop prompts them) or completes the boundary. Returns null when there is nothing to re-walk. */
+  function resumeBoundary(st) {
+    if (st.finished || st.respondFor != null || !(st.resolution || st.cleanup || st.endCleanup || st.upkeep)) return null;
+    bnote('⚠ ROUND BOUNDARY HAD NOBODY ON PRIORITY — re-walked', st, 'a stranded window, not a rule: every boundary either grants priority or finishes');
     return openResponseWindow(st);
   }
   /* Open the Fight End priority window: park the outcomes, then run the first go-round from the winner.
@@ -5415,7 +5440,7 @@
     isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
     setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
-    moveToPlay: moveToPlay,
+    moveToPlay: moveToPlay, resumeBoundary: resumeBoundary, roundBoundaryOpen: roundBoundaryOpen,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     stackTargetOf: stackTargetOf,
     pitchCands: pitchCands,
@@ -11863,7 +11888,7 @@ window.CardFace = {};
         return setTimeout(go, 40);
       }
       if(res && res.newRound != null) return then();                       // stamped: CLEANUP and BEGIN are done
-      if(!(state && (state.cleanup || state.endCleanup || state.upkeep))) return then();   // nothing parked
+      if(!(state && (state.resolution || state.cleanup || state.endCleanup || state.upkeep))) return then();   // nothing parked (Resolution included: a stranded one is re-walked below, not stepped over)
       if(tries++ >= 3){
         prioNote('⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway',
           ceremonyParks()+' · after '+tries+' settle attempts · the round number below will be WRONG, and that is the lesser evil');
@@ -11886,6 +11911,15 @@ window.CardFace = {};
          nor the player can close must not take the game with it, and the 400s stall this function already
          caused came from removing the drain, not from bounding it. */
       if(tries===1) prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · driving the drain');
+      /* …AND A BOUNDARY OWED TO NOBODY IS RE-WALKED, NOT WAITED OUT (2026-10-07). `settleWindows` answers the
+         seat that holds priority; with nobody holding it there is nothing to answer, so every attempt above
+         returned at once and the give-up fired — `parked[cleanup] prio=—` in `nettest_parity`'s dump, and the
+         round never advanced. The stranding itself is closed in the engine (a Main → Fight transition can no
+         longer open over a boundary); this is the floor under any path that strands one next. */
+      if(state && state.respondFor==null && E.resumeBoundary){
+        var rw=E.resumeBoundary(state);
+        if(rw) prioNote('⚠ ROUND BOUNDARY HAD NOBODY ON PRIORITY — re-walked', ceremonyParks()+' · attempt '+tries);
+      }
       return settleWindows(g, go);
     }
     go();
@@ -12258,6 +12292,10 @@ window.CardFace = {};
        `busy=false` BEFORE `then`, mirroring `moveToPlayThen`'s callback, because what follows is the
        ceremony and it manages `busy` itself. */
     busy=true; render();
+    /* A GO-ROUND THAT OPENED OWED TO NOBODY IS RE-WALKED FIRST — the same floor as `boundaryThen`'s. Settling
+       it as found returns at once with no `resolutionResult`, and the round-win falls through as if nothing
+       had been won. */
+    if(state.respondFor==null && E.resumeBoundary && E.resumeBoundary(state)) prioNote('⚠ ROUND BOUNDARY HAD NOBODY ON PRIORITY — re-walked', 'at the Resolution drain');
     settleWindows(g, function(){
       if(g!==gen) return;
       busy=false;
@@ -12635,7 +12673,12 @@ window.CardFace = {};
      the wrong events. Defaults to YOU, which is right for solo and for the host's own turn. */
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
-    E.moveToPlay(state);
+    /* A REFUSED TRANSITION STOPS HERE (cleanup-parks-with-nobody-on-priority). This read `E.moveToPlay(state);`
+       and then judged the outcome from `respondFor` alone — so a press refused while the round was ending
+       found the BOUNDARY's window open, logged a "MAIN → FIGHT go-round opened" that never happened, and
+       waited on that window as if it were its own. */
+    var mv=E.moveToPlay(state);
+    if(mv && mv.ok===false){ if(me===YOU) setMessage(mv.reason); render(); return; }
     /* THE TRANSITION IS A TAUGHT BEAT AND HAD NO EVENT (2026-09-25). `TUT.note` carried play/pass/activate/
        respond and nothing for Main → Fight, so a lesson could not gate on *"press Fight and watch nothing
        get played"* — which is the single thing players most misread about that button, and which the phases

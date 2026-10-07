@@ -1657,6 +1657,13 @@
        — which `nextPrioHolder` walks through — already requires `e.quick`. No special case was needed.
        IT IS CHECKED BEFORE FIGHT END because the two can never both be parked (different phases), and
        reading them in a fixed order costs nothing while leaving the invariant obvious. */
+    /* A ROUND BOUNDARY OUTRANKS A TRANSITION, STRUCTURALLY. `moveToPlay` refuses while one is open, which closes
+       the one path that set both; this keeps the ORDER from ever stranding a boundary again, whatever sets
+       `toPlay` next. A transition over a round that is ending has no meaning, so it is dropped, loudly. */
+    if (st.toPlay && (st.resolution || st.cleanup || st.endCleanup || st.upkeep)) {
+      bnote('⚠ A MAIN → FIGHT TRANSITION WAS OPEN OVER A ROUND BOUNDARY — dropped', st, 'origin=p' + st.toPlay.origin + ' · the boundary is walked instead');
+      st.toPlay = null;
+    }
     if (st.toPlay && !st.stack.length && !st.finished) {
       var tq = phaseWalk(st, st.toPlay.origin);
       if (tq >= 0) return { ok: true, state: st, pending: true, transition: 'play', respondFor: tq };
@@ -1816,8 +1823,26 @@
        rather than a copy in each of the two host handlers: that split is what let the duel and the N-player
        paths drift apart over `guard`/`netGuard` and over `discard`/`netDiscard`. */
     if (p != null && p !== st.turn) return { ok: false, reason: 'Not your turn.' };
+    /* NOT WHILE THE ROUND IS ENDING (cleanup-parks-with-nobody-on-priority, 2026-10-07). During Resolution,
+       Clean-up, the Beginning's upkeep or a strike choice, `st.turn` still names the last seat to pass and
+       `subPhase` is 'main', so this used to open a transition right over the boundary — and
+       `openResponseWindow` checks `toPlay` FIRST: the boundary's own seat passed, the walk found nobody for
+       the TRANSITION, flipped `subPhase` to 'play' and returned before the boundary branch was reached. The
+       round never advanced: boundary flag set, nobody on priority, the pile still up. Reproduced in the engine
+       alone, and identically on `main`. It also reset `prioPassed`, wiping the boundary's own passes. */
+    if (roundBoundaryOpen(st)) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
     st.toPlay = { origin: st.turn };
     st.prioPassed = {};
+    return openResponseWindow(st);
+  }
+  function roundBoundaryOpen(st) { return !!(st.resolution || st.cleanup || st.endCleanup || st.upkeep || st.pendingLossChoice); }
+  /* RE-WALK A ROUND BOUNDARY THAT NOBODY HOLDS PRIORITY ON. The state is a defect, never a rule — every boundary
+     branch either grants priority to a seat or finishes — so finding it means some path stranded the window.
+     The ceremony's drain calls this instead of waiting out its give-up: the walk either parks on a seat (and
+     the settle loop prompts them) or completes the boundary. Returns null when there is nothing to re-walk. */
+  function resumeBoundary(st) {
+    if (st.finished || st.respondFor != null || !(st.resolution || st.cleanup || st.endCleanup || st.upkeep)) return null;
+    bnote('⚠ ROUND BOUNDARY HAD NOBODY ON PRIORITY — re-walked', st, 'a stranded window, not a rule: every boundary either grants priority or finishes');
     return openResponseWindow(st);
   }
   /* Open the Fight End priority window: park the outcomes, then run the first go-round from the winner.
@@ -3500,7 +3525,7 @@
     isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
     setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
-    moveToPlay: moveToPlay,
+    moveToPlay: moveToPlay, resumeBoundary: resumeBoundary, roundBoundaryOpen: roundBoundaryOpen,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     stackTargetOf: stackTargetOf,
     pitchCands: pitchCands,
