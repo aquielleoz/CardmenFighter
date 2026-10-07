@@ -20,7 +20,8 @@
  * its Round card), and the host never has to REFUSE a current client's board op as "mid-ceremony" — the
  * client's hold releases on the host's own `cer:false`, so it is causally later than the host's.
  *
- * Run: node nettest_parity.js       (ROUNDS=n to play longer; PARITY_DUMP=1 to print every ceremony) */
+ * Run: node nettest_parity.js       (ROUNDS=n to play longer; PARITY_DUMP=1 to print every ceremony;
+ *                                   PARITY_RAW=1 to print, on a drift, every strip change with its flags) */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const { installPageHelpers, FIGHT_BUDGET } = require('./fightclick');
 const autoAnswerWindows=require('./netwindows.js');
@@ -37,7 +38,10 @@ function installFilm(me, them){
   window.__film=[];
   const push=t=>{ window.__film.push({t:t, at:Date.now()}); };
   const hw=document.getElementById('handWrap'); let lastSp=null;
-  new MutationObserver(()=>{ const m=(hw.className.match(/\bsp[A-Z][a-zA-Z]*/)||[])[0]||null; if(m!==lastSp){ lastSp=m; if(m) push('SP:'+m); } })
+  /* EACH STRIP CHANGE CARRIES THE ENGINE FLAGS THIS SEAT HELD AT THAT MOMENT (`fl`), so a phase drift can say
+     which state painted it. Not compared — `ceremonies()` reads `t` only; PARITY_RAW=1 prints them. */
+  new MutationObserver(()=>{ const m=(hw.className.match(/\bsp[A-Z][a-zA-Z]*/)||[])[0]||null; if(m!==lastSp){ lastSp=m; if(m)
+      window.__film.push({t:'SP:'+m, at:Date.now(), fl:snap()}); } })   // `snap` is defined below; the observer only fires after this function returns
     .observe(hw,{attributes:true, attributeFilter:['class']});
   const rf=document.getElementById('roundfx'), inner=rf.querySelector('.rfInner'); let lastRf='';
   /* THE WAITING NOTICE IS NOT A CEREMONY BEAT. "Rival 2 is deciding…" / "…is discarding to hand size…" shares
@@ -59,7 +63,11 @@ function installFilm(me, them){
      own ceremony is the bug this suite found first; the timestamps are checked against the ceremony windows. */
   const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn'); let ctl=null;
   const live=()=>!!((fb && !fb.disabled && fb.offsetParent) || (pb && !pb.disabled && pb.offsetParent));
-  const ctlCheck=()=>{ const l=live(); if(l!==ctl){ ctl=l; push(l?'CTRL:live':'CTRL:dead'); } };
+  /* …AND SO DOES EACH CONTROLS EDGE, plus this seat's ceremony hold, so a board that goes live under a ceremony
+     says which mirror let it: printed by the controls check when it fails. */
+  const snap=()=>{ let fl=null; try{ fl=window.__cmf&&window.__cmf.roundFlags?window.__cmf.roundFlags():null;
+      const h=window.__cmf&&window.__cmf.ceremonyHold?window.__cmf.ceremonyHold():null; if(fl&&h){ fl.hold=h.hold; fl.cerActive=h.active; fl.hostCer=h.hostCer; } if(fl&&window.__cmf.ceremony) fl.inCer=window.__cmf.ceremony(); }catch(e){} return fl; };
+  const ctlCheck=()=>{ const l=live(); if(l!==ctl){ ctl=l; window.__film.push({t:l?'CTRL:live':'CTRL:dead', at:Date.now(), fl:snap()}); } };
   new MutationObserver(ctlCheck).observe(document.getElementById('actions')||document.body,{attributes:true, subtree:true, childList:true});
   setInterval(ctlCheck, 40);                                         // a style flip on a parent is not always an attribute on the button
   const k=document.getElementById('kick'); let kOn=false;
@@ -77,11 +85,27 @@ function installFilm(me, them){
    Resolution -> Clean-up -> Beginning burst on the client alone, plus 12ms of "Rival 2 is deciding…", right
    before a ceremony that was otherwise identical to the frame. Not a drift; a property of the transport. */
 function settled(film){
-  return film.filter((f,i)=>{
+  const seen=film.filter((f,i)=>{
     const kind=f.t.slice(0,3);
     if(kind!=='SP:' && kind!=='RF:') return true;
     for(let j=i+1;j<film.length;j++){ if(film[j].t.slice(0,3)===kind) return film[j].at-f.at>=60; }
     return true; });
+  /* ⚠ AND WHAT IS LEFT CAN REPEAT, WHICH SPLIT ONE CEREMONY INTO TWO (the phase-strip flicker, 2026-10-07). A
+     Resolution window owed to somebody paints Resolve on both seats for seconds; on the client the walk's end
+     then lands as a 0-20ms burst (Idle, or Cleanup → Main → Begin → Main) before its own ceremony paints
+     Resolve AGAIN. The filter above drops the burst and leaves `Resolve Resolve`, and `ceremonies()` opens a
+     segment at every Resolve — so the client filmed an extra EMPTY ceremony and every later one compared
+     against the wrong host ceremony — about one run in four, and all three drifts captured with PARITY_RAW
+     (two 3-player, one duel) had exactly this shape.
+     A repaint of the phase already on screen is not a new phase. NEVER ACROSS A BANNER: `RF:round` closes a
+     ceremony, so a Resolve after one is the next ceremony however soon it comes. */
+  let last=null;
+  return seen.filter(f=>{
+    const kind=f.t.slice(0,3);
+    if(kind!=='SP:' && kind!=='RF:') return true;
+    const repaint = kind==='SP:' && f.t===last;
+    last=f.t;
+    return !repaint; });
 }
 /* One ceremony = from a Resolution tint to the Round card that ends it (or to the next Resolution). */
 function ceremonies(film){
@@ -143,15 +167,37 @@ const view=p=>p.evaluate(()=>({ round:parseInt(((document.getElementById('roundT
    client's board went live within milliseconds of the ceremony starting (the very mirror that starts it says
    "your turn") and simply STAYED live, so no edge ever fell inside. +150ms of grace at the start: the press that
    ENDED the round is still settling then, and that is not the ceremony's doing. */
-function liveUnder(f){ const bad=[]; bad.windows=0;
+function liveUnder(f){ const bad=[]; bad.windows=0; bad.at=[];   // `at`: each live edge's absolute time, for the dump
   const wins=[]; let open=null;
   f.forEach(x=>{ if(x.t==='SP:spResolve'){ open={from:x.at+150, to:Infinity}; wins.push(open); }
                  else if(open && /^RF:round/.test(x.t) && open.to===Infinity){ open.to=x.at+1100; } });
+  /* WHICH LIVE EDGES COUNT (2026-10-07). Once a Resolution window parks, the window above opens at THAT Resolve
+     and spans the boundary walk before the ceremony, which the old segmentation never checked. Two things were
+     live in that stretch, and they are not the same finding:
+     - a board live while ITS OWN MIRROR shows a round window open, somebody on priority — the engine refuses
+       every board op there, so it is a defect however brief. The client's Upkeep exclusion was this: 12ms here,
+       only because the host passed its Upkeep window at once; seconds when that window is prompted.
+     - a board live for 5-10ms with nothing open: the host sends its post-boundary mirror, the ceremony and the
+       ceremony's first mirror in ONE task, so the client is live between the first and the third. Nobody can
+       click that, and anything sent in it reaches a host already in its ceremony, which refuses it. So outside
+       an open window a live edge must LAST 60ms to count, the `settled()` rule for controls. */
+  const roundOpen=x=>!!(x.fl && x.fl.respondFor!=null && (x.fl.resolution||x.fl.cleanup||x.fl.endCleanup||x.fl.upkeep));
+  const counts=i=>{ if(roundOpen(f[i])) return true;
+    for(let j=i+1;j<f.length;j++) if(f[j].t==='CTRL:dead') return f[j].at-f[i].at>=60;
+    return true; };
   wins.forEach(w=>{ if(w.to===Infinity) return; bad.windows++;
-    let st=false; f.forEach(x=>{ if(x.at<=w.from && /^CTRL:/.test(x.t)) st=(x.t==='CTRL:live'); });   // the state as the window opens
-    if(st){ bad.push(0); return; }
-    const e=f.find(x=>x.t==='CTRL:live' && x.at>w.from && x.at<w.to); if(e) bad.push(e.at-w.from+150); });
+    let li=-1; f.forEach((x,i)=>{ if(x.at<=w.from && /^CTRL:/.test(x.t)) li=i; });   // the state as the window opens
+    if(li>=0 && f[li].t==='CTRL:live' && counts(li)){ bad.push(0); bad.at.push(w.from); return; }
+    const ei=f.findIndex((x,i)=>x.t==='CTRL:live' && x.at>w.from && x.at<w.to && counts(i)); if(ei>=0){ bad.push(f[ei].at-w.from+150); bad.at.push(f[ei].at); } });
   return bad; }
+/* A LIVE BOARD UNDER A CEREMONY EXPLAINS ITSELF: every token from 1.5s before each live edge to 0.6s after, with
+   the flags and the ceremony hold that seat held at that moment — which mirror let it, and for how long. */
+function liveDump(f, at){
+  const z=f.length?f[0].at:0;
+  const fmt=x=>{ const g=x.fl; if(!g) return ''; return ' [r'+g.round+(g.resolution?' RES':'')+(g.cleanup?' CLN':'')+(g.endCleanup?' ECL':'')+(g.upkeep?' UPK':'')+
+    ' rf='+g.respondFor+' t='+g.turn+' '+g.sub+(g.hold?' HOLD':'')+(g.cerActive?' CER':'')+(g.hostCer?' hostCer':'')+(g.inCer?' inCer':'')+']'; };
+  return at.map(a=>f.filter(x=>x.at>=a-1500 && x.at<=a+600).map(x=>((x.at-z)/1000).toFixed(3)+' '+x.t+fmt(x)).join(' | '));
+}
 
 async function runTable(b, N, ok, errs){
   const tag=N===2?'duel':N+'p', room='PY'+N+STAMP;
@@ -229,7 +275,11 @@ async function runTable(b, N, ok, errs){
     if(process.env.PARITY_DUMP || firstDiff>=0){ for(let i=0;i<n;i++){ console.log(`   [${tag}] ceremony ${i+1}`+(JSON.stringify(hc[i])===JSON.stringify(jc[i])?'  same':'  DIFFERS')); console.log('     host   '+hc[i].join(' ')); console.log('     '+names[k].padEnd(6)+' '+jc[i].join(' ')); } }
     if(firstDiff>=0){ const bt=await Promise.all([host,pages[k]].map(p=>p.evaluate(()=>(window.__beatTexts||[]).slice(-12))));
       console.log('     beat texts host:  '+JSON.stringify(bt[0])); console.log('     beat texts '+names[k]+': '+JSON.stringify(bt[1]));
-      console.log('     '+names[k]+' eliminated: '+(await pages[k].evaluate(()=>window.__cmf.eliminated(0)))); }
+      console.log('     '+names[k]+' eliminated: '+(await pages[k].evaluate(()=>window.__cmf.eliminated(0))));
+      /* PARITY_RAW=1: every strip change on both seats, with its time and the engine flags that seat held. */
+      if(process.env.PARITY_RAW){ const z=Math.min(...[films[0],films[k]].filter(f=>f.length).map(f=>f[0].at));
+        const fmt=x=>x.fl?(' r'+x.fl.round+(x.fl.resolution?' RES':'')+(x.fl.cleanup?' CLN':'')+(x.fl.endCleanup?' ECL':'')+(x.fl.upkeep?' UPK':'')+' rf='+x.fl.respondFor+' t='+x.fl.turn+' '+x.fl.sub):'';
+        [[names[0],films[0]],[names[k],films[k]]].forEach(([nm,f])=>console.log('     RAW '+nm+': '+f.filter(x=>/^(SP:|RF:round)/.test(x.t)).map(x=>((x.at-z)/1000).toFixed(2)+' '+x.t.replace('SP:sp','')+fmt(x)).join(' | '))); } }
     ok(firstDiff<0, `[${tag}] every filmed ceremony is the SAME SEQUENCE on the host and ${names[k]} (${n} compared)`+(firstDiff<0?'':'  ← DRIFT at ceremony '+(firstDiff+1)));
   }
   const kinds=f=>{ const o={}; f.forEach(x=>{ const k=x.t.replace(/:.*/,''); o[k]=(o[k]||0)+1; }); return o; };
@@ -253,6 +303,7 @@ async function runTable(b, N, ok, errs){
   for(let i=0;i<N;i++){
     const lb=liveUnder(settled(films[i]));
     ok(lb.length===0 && lb.windows>=2, `[${tag}] ${names[i]}'s controls never go live under its own ceremony (${lb.windows} windows checked)`+(lb.length?'  ← live '+lb.length+'x, at +'+lb.slice(0,4).join('/')+'ms into a ceremony':''));
+    if(lb.length) liveDump(films[i], lb.at.slice(0,3)).forEach((s,j)=>console.log('     '+names[i]+' live edge '+(j+1)+' (raw film): '+s));
   }
   /* AND THE HOST NEVER HAS TO REFUSE ONE. The host turns a board op away while its ceremony is on screen; a
      CURRENT client's hold is causally later than the host's (it waits for the host's own `cer:false`), so a
