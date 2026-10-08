@@ -606,7 +606,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   /* ============ EVERY WINDOW NAMES ITSELF — THE STRIP AND THE PASS BUTTON (2026-10-07) ============
      The END-of-Clean-up dance (`st.endCleanup`) is a Clean-up Phase priority point, and both of these read
      it as ordinary play: the strip painted Main or Idle, and the Respond? button offered "Move to the fight"
-     to a player stopped at the end of a round. `nettest_parity`'s client filmed the strip under it.
+     to a player stopped at the end of a round. Found by a probe filming a netplay client's strip under it.
      NOTHING ASSERTED THE PASS BUTTON'S LABEL AT ANY WINDOW BEFORE THIS, so the table covers every window
      the button has a word for, not just the one that was wrong.
      STAGED on the board the Main-hint check just left (your turn, nothing in flight); the phase-strip block
