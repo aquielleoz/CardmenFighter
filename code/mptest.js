@@ -603,6 +603,51 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(/drag a card to use it/i.test(mainHint.live),
      `  …and a LIVE one still invites you in — the control  ["${mainHint.live.slice(0,64)}"]`);
 
+  /* ============ EVERY WINDOW NAMES ITSELF — THE STRIP AND THE PASS BUTTON (2026-10-07) ============
+     The END-of-Clean-up dance (`st.endCleanup`) is a Clean-up Phase priority point, and both of these read
+     it as ordinary play: the strip painted Main or Idle, and the Respond? button offered "Move to the fight"
+     to a player stopped at the end of a round. Found by a probe filming a netplay client's strip under it.
+     NOTHING ASSERTED THE PASS BUTTON'S LABEL AT ANY WINDOW BEFORE THIS, so the table covers every window
+     the button has a word for, not just the one that was wrong.
+     STAGED on the board the Main-hint check just left (your turn, nothing in flight); the phase-strip block
+     below reloads the page, so nothing staged here outlives this block.
+     ⚠ WAIT OUT THE DEAL-IN HOLD FIRST. That check dealt fresh cards, and `dealingIn` paints Beginning on its
+     own for about a second — measured, the baseline read `spBegin` — which would let the Upkeep row pass on
+     a build where Upkeep paints nothing. */
+  await waitFor(()=>p.evaluate(()=>{ window.__solo.render(); return !/\bspBegin\b/.test((document.getElementById('handWrap')||{}).className||''); }), 40);
+  const named = await p.evaluate(()=>{
+    const st=window.__solo.st(), hw=document.getElementById('handWrap');
+    const clear=()=>{ st.pending=null; st.resolution=null; st.cleanup=null; st.endCleanup=null; st.upkeep=null; st.subPhase='main'; };
+    const paint=()=>{ window.__solo.render(); return ((hw&&hw.className.match(/\bsp[A-Z][a-zA-Z]*/))||['(none)'])[0]; };
+    const resol=()=>({ origin:0, winner:0, wonWithCombo:false, strikeTargets:[] });
+    clear(); const base=paint();
+    const strip=[['Resolution',()=>{ st.resolution=resol(); },'spResolve'],
+                 ['Clean-up',()=>{ st.cleanup={origin:0}; },'spCleanup'],
+                 ['the END of Clean-up',()=>{ st.endCleanup={origin:0}; },'spCleanup'],
+                 ['Upkeep',()=>{ st.upkeep={origin:0}; },'spBegin']]
+      .map(([name,set,want])=>{ clear(); set(); return { name, want, got:paint() }; });
+    const label=[['an object on the stack',()=>{ st.pending={p:1}; },'Let it resolve'],
+                 ['an upkeep counter tick',()=>{ st.pending={p:0, trig:true}; },'Let the counter come off'],
+                 ['Upkeep',()=>{ st.upkeep={origin:0}; },'Start the round'],
+                 ['Clean-up',()=>{ st.cleanup={origin:0}; },'End the round'],
+                 ['the END of Clean-up',()=>{ st.endCleanup={origin:0}; },'End the round'],
+                 ['Resolution',()=>{ st.resolution=resol(); },'Let the round resolve'],
+                 ['Main → Fight',()=>{},'Move to the fight'],
+                 ['a Quick cast into the end of Clean-up',()=>{ st.endCleanup={origin:0}; st.pending={p:1}; },'Let it resolve']]
+      .map(([name,set,want])=>{ clear(); set(); return { name, want, got:window.__solo.declineLabel() }; });
+    clear(); paint();
+    return { base, strip, label };
+  });
+  const wrongRows = rows=>rows.filter(r=>r.got!==r.want).map(r=>r.name+' read "'+r.got+'", not "'+r.want+'"');
+  ok(/^sp(Main|Idle|Fight)$/.test(named.base), 'STAGED: the strip shows ordinary play before any window is staged  ['+named.base+']');
+  const stripBad=wrongRows(named.strip), labelBad=wrongRows(named.label);
+  ok(!stripBad.length,
+     'the phase strip names every round boundary, the end of Clean-up included  ['+named.strip.map(r=>r.name+' '+r.got).join(', ')+']'+
+     (stripBad.length ? '  ← '+stripBad.join('; ') : ''));
+  ok(!labelBad.length,
+     'the Respond? pass button names what passing does at every window  ['+named.label.map(r=>r.got).join(' / ')+']'+
+     (labelBad.length ? '  ← '+labelBad.join('; ') : ''));
+
   /* ============ THE PHASE STRIP RUNS THE WHOLE RAMP IN A REAL GAME (2026-09-25) ============
      Aj played a 3-player game and reported three things that were one feature failing: the strip never
      glowed for the Beginning phase, the drawn cards never flew in, and *"after yellow the hand directly
