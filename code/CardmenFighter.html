@@ -7238,7 +7238,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.23';
+  var GAME_VERSION='v1.32.24';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -11983,6 +11983,43 @@ window.CardFace = {};
     ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
   }
   }
+  /* THE CEREMONY'S OPENING IS ONE DEFINITION FOR EVERY SEAT (2026-10-08): the Resolution tint, the beats, the
+     Clean-up tint and its dwell, the threshold beat. Solo and the netplay host reach it through
+     `resolveRoundCeremony`, a netplay client through `clientPlayCeremony`. It used to be written out in both,
+     and the client drifted off the host's copy twice in exactly these lines, each time by missing one: the
+     Resolution and Clean-up tints never showed on a client (Aj, 2026-09-29: *"the colors for resolution and
+     clean up never show on the client"*), and a client-only −N deck float sat under every Round card until
+     v1.32.23 gave the client `inCeremony` too.
+     WHAT FOLLOWS IT IS STILL TWO PATHS, AND THEY ARE NEXT (`ceremony-drivers-collapse`): solo and the host run
+     the round boundary themselves, while a client waits for it and still INFERS which mirror is the deal
+     (`isRoundDeal`). DECISIONS.md's netplay-architecture entry names that inference as the bug: *"a client may
+     sequence, but never infer."* */
+  function playCeremonyOpening(res, g, then){
+    inCeremony=true;                                            // suppress the render-diff deck-mill float here; the catch-up mill fires its own explicit −N
+    holdShields = !reduceMotion() && !!res.shieldStripped;      // defer the shatter to its beat
+    uiPhase='resolve';                                          // ← the shatter and the banner ARE Resolution, from the player's side
+    render();                                                   // settle board; no fresh cards yet (draw deferred)
+    ceremonyBeat('resolve', g, function(){
+    playPreBeats(res, function(){
+      if(g!==gen) return;
+      /* ← …and the hand-limit trim is Clean-up. IT NEEDS A BEAT OF ITS OWN, because unlike Resolution it
+         usually has no work to show: when nobody is over the hand limit `endOfRoundTrimThen` calls straight
+         back, so the phase existed for less than a frame and the strip never painted red once. Measured on
+         a real 3-player game — the sequence went `spFight → spResolve → spBegin`, skipping Clean-up
+         entirely, which is the same "a state nothing can reach" bug `spBegin` had. A CLIENT never has a trim
+         to show at all (the host runs it), so on that seat this dwell is the whole phase.
+         The dwell is what makes the colour honest rather than theoretical, and it is skipped under reduced
+         motion like every other beat here. */
+      uiPhase='cleanup'; paintPhaseStrip();   // ← repaint ONLY — a render here displaces the client's beat; see paintPhaseStrip
+      ceremonyBeat('cleanup', g, function(){
+      setTimeout(function(){
+        if(g!==gen) return;
+        flushThreshold(function(){ if(g===gen) then(); });      // a transform tier that just unlocked gets its OWN beat here
+      }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
+      });
+    });
+    });
+  }
   function resolveRoundCeremony(res, g, continuation){
     /* ⚠ AND THE CEREMONY ITSELF IS ENTERED ONCE PER RESULT. The guard above catches a stale resume inside
        the trim queue; this catches the other shape — the same `res` orchestrated twice — which would look
@@ -11995,26 +12032,7 @@ window.CardFace = {};
       return;
     }
     if(res) res.__ceremonyRan=true;
-    inCeremony=true;                                            // suppress the render-diff deck-mill float here; the catch-up mill fires its own explicit −N
-    holdShields = !reduceMotion() && !!res.shieldStripped;      // defer the shatter to its beat
-    uiPhase='resolve';                                          // ← the shatter and the banner ARE Resolution, from the player's side
-    render();                                                   // settle board; no fresh cards yet (draw deferred)
-    ceremonyBeat('resolve', g, function(){
-    playPreBeats(res, function(){
-      if(g!==gen) return;
-      /* ← …and the hand-limit trim is Clean-up. IT NEEDS A BEAT OF ITS OWN, because unlike Resolution it
-         usually has no work to show: when nobody is over the hand limit `endOfRoundTrimThen` calls straight
-         back, so the phase existed for less than a frame and the strip never painted red once. Measured on
-         a real 3-player game — the sequence went `spFight → spResolve → spBegin`, skipping Clean-up
-         entirely, which is the same "a state nothing can reach" bug `spBegin` had.
-         The dwell is what makes the colour honest rather than theoretical, and it is skipped under reduced
-         motion like every other beat here. */
-      uiPhase='cleanup'; paintPhaseStrip();   // ← repaint ONLY — a render here displaces the client's beat; see paintPhaseStrip
-      ceremonyBeat('cleanup', g, function(){
-      setTimeout(function(){
-      if(g!==gen) return;
-      flushThreshold(function(){                                // a transform tier that just unlocked gets its OWN beat here
-      if(g!==gen) return;
+    playCeremonyOpening(res, g, function(){
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
         boundaryThen(res, g, function(){
@@ -12045,10 +12063,6 @@ window.CardFace = {};
         playRoundCardBeat(res, function(){ inCeremony=false; if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && NET.broadcastMirror) NET.broadcastMirror(); if(g===gen) continuation(); });   // tell the clients the ceremony is OVER before anything else moves — their boards release on it
         });
       });
-      });
-      }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
-      });
-    });
     });
   }
 
@@ -17314,7 +17328,8 @@ window.CardFace = {};
     function dbgForceAll(hands, energies, shields, opts){ if(!hostState) return false; for(var s=0;s<hostState.numPlayers;s++){ if(hands&&hands[s]) hostState.players[s].hand=hands[s].slice(); if(energies&&energies[s]) hostState.players[s].energy=energies[s].slice(); if(shields&&shields[s]!=null) hostState.players[s].shields=shields[s]; if(opts&&opts.forms&&opts.forms[s]) hostState.players[s].forms=opts.forms[s].map(function(f){ return { rank:f.rank, suit:f.suit, tier:f.tier||'queen', name:f.name||'', card:{ rank:f.rank, suit:f.suit, id:'form'+f.rank+f.suit+'#'+s } }; });
         if(opts&&opts.equip&&opts.equip[s]) hostState.players[s].equipment=opts.equip[s].map(function(e){ return { id:e.id||'dbg', name:e.name||'Equipment', delta:e.delta||0, oppDelta:e.oppDelta||0, counters:e.counters!=null?e.counters:3, decay:true, card:{ rank:e.rank, suit:e.suit, id:'eq'+e.rank+e.suit+'#'+s } }; });
         if(opts&&opts.deck&&opts.deck[s]) hostState.players[s].deck=opts.deck[s].slice(); if(opts&&opts.shuffle&&opts.shuffle[s]) hostState.players[s].shuffle=opts.shuffle[s].slice(); } if(opts){ if(opts.round!=null) hostState.round=opts.round; if(opts.turn!=null){ hostState.turn=opts.turn; hostState.initiative=opts.turn; hostState.pile=null; hostState.passes=0; hostState.lastPlayer=null; hostState.preFightHandled=false; for(var q=0;q<hostState.numPlayers;q++){ hostState.players[q].lockSkip=false; hostState.players[q].lockRound=false; } } } busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
-    // Client replays the round ceremony from the host's event: reuse the real (purely-visual) beat players.
+    // Client replays the round ceremony from the host's event. Its opening — the tints, the beats, the Clean-up
+    // dwell, the threshold beat — is the host's own `playCeremonyOpening`; only what follows is this seat's.
     // holdShields freezes the shield pips so playPreBeats can shatter them ON the "loses a shield" beat (matching
     // the host); flushThreshold shows OUR own tier unlock (queued by render()→animateShields when our shield fell).
     // The NEW-ROUND deal mirror is held (see applyMirror) until the beats finish, so the "Round N" banner and the
@@ -17401,42 +17416,21 @@ window.CardFace = {};
       if(pendingRoundMirror) trace('mirror HELD -> DISCARDED', 'a new ceremony arrived first; the client loses that round\'s deal');
       clientCeremonyRes=res; clientCeremonyActive=true; pendingRoundMirror=null; awaitingRoundReveal=false;
       holdCeremony();
-      inCeremony=true;   // the host's flag, on this seat too: the render-diff deck-mill float is suppressed for the ceremony on BOTH (`nettest_parity` filmed a client-only −N under every Round banner)
-      holdShields = !reduceMotion() && !!res.shieldStripped;
-      /* ⚠ THE PHASE STRIP NEVER WENT ORANGE OR RED ON A CLIENT (Aj, 2026-09-29: *"the colors for resolution
-         and clean up never show on the client"*). `uiPhase` was assigned in exactly ONE place —
-         `resolveRoundCeremony` — and a client never runs it: this function is a SECOND, hand-rolled
-         presentation path. The MIRROR is not the gap (`netview` carries `resolution` and `cleanup` fine);
-         the gap is that a client's strip could only catch those flags if a mirror happened to land inside
-         the window, and the deal mirror is deliberately HELD so the banner and the fly-in arrive together.
-         So the client went spFight -> spIdle -> spBegin and skipped both colours every round.
-         THIS IS THE DOCUMENTED CLASS, not a new one: *"a bespoke presentation path silently misses features
-         the shared one gained"*. The marks below are the host's, at the host's points, with the host's
-         420ms Clean-up dwell — do not invent a number here and do not re-derive the sequence. */
-      uiPhase='resolve';                                       // ← the shatter and the banner ARE Resolution, on this seat too
       announceRoundWin(res);                                   // message + log, already rotated to our seat — sets pendingKick when res.kick
-      render();
       /* A TERMINAL round plays no beats, matching the host: when the game ends the host goes straight from
        * announceRoundWin to endGame with no pre-draw beats and no Round card. The client does the same and lets
        * the finished mirror drive endGame(), which consumes pendingKick and plays the finisher.
        * GATED ON `finished`, NOT ON `kick`. At 3-6 players every elimination is a kick and the game continues,
        * so keying this off `kick` would skip the beats the host DOES play on a mid-game elimination — and leave
-       * `pendingKick` set on a client that never reaches endGame(), firing a stray finisher later. */
-      if(res.finished){ clientCeremonyActive=false; inCeremony=false; holdShields=false; uiPhase=null; releaseCeremony();
+       * `pendingKick` set on a client that never reaches endGame(), firing a stray finisher later.
+       * AND IT RENDERS AS THE HOST'S DOES, under no ceremony flags (2026-10-08). It used to set the opening's
+       * three — the Resolution tint, the shatter hold, the deck-float mute — render under them and clear them
+       * again, which the host's terminal branch never does. */
+      if(res.finished){ render(); clientCeremonyActive=false; releaseCeremony();
         finalCerSeen=true;                                       // see `finalCerSeen`: the finished mirror may already be here
         if(state && state.finished){ clearTimeout(endWaitT); endWaitT=null; endGame(); }
         return; }
-      /* AND CLEAN-UP NEEDS ITS OWN DWELL HERE FOR THE REASON IT NEEDS ONE ON THE HOST: the client has no
-         trim to show — the host owns it — so without a beat the phase exists for less than a frame and the
-         strip never paints red, which is exactly the bug being fixed. `paintPhaseStrip` REPAINTS rather
-         than renders: a `render()` here runs the shield diff, queues `pendingThreshold` and displaces this
-         seat's own beat (`nettest_ceremony` measured that once as the client landing 260ms late). */
-      playPreBeats(res, function(){
-        uiPhase='cleanup'; paintPhaseStrip();
-        setTimeout(function(){
-          flushThreshold(function(){ holdShields=false; finishClientCeremony(); });
-        }, reduceMotion()?0:420);
-      });
+      playCeremonyOpening(res, gen, function(){ holdShields=false; finishClientCeremony(); });   // the host's opening, line for line — see `playCeremonyOpening`
     }
     function finishClientCeremony(){
       clientCeremonyActive=false; inCeremony=false;
