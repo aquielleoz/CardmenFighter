@@ -6280,6 +6280,14 @@ __QR__
     var elim = (res && res.eliminated && res.eliminated.length) ? res.eliminated[res.eliminated.length-1] : null;
     var loserSeat = (elim!=null) ? elim : (MP() ? null : (state.winner===YOU ? RIVAL : YOU));
     var loser = (loserSeat!=null) ? logName(loserSeat) : 'A rival';
+    /* MID-GAME (3-6 players, two or more left), one seat is OUT and nobody has won: name the seat and nothing
+       else. `state.winner` is not set (this used to print "Lefty decked out — Rival 1 wins." over a game still
+       being played), and `lastEndType` belongs to the real ending. `res.eliminated` always carries the seat here. */
+    if(!state.finished){
+      setMessage('<b>'+loser+'</b> decked out — out of the game.');
+      say(loserSeat, '{who} decked out!', 'warn');
+      return;
+    }
     var youWin = state.winner===YOU;
     lastEndType='deckout';
     setMessage('<b>'+loser+'</b> decked out — '+(youWin?'you win!':(logName(state.winner)+' wins.')));
@@ -6747,7 +6755,14 @@ __QR__
             ' · the banner is about to announce '+((res&&res.newRound)||(state&&state.round))+
             ' — if that is the round that just ended, this is the cause');
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
-        if(res.deckedOut){ uiPhase=null; inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
+        /* A DECK-OUT ENDS THE GAME ONLY WHEN THE ENGINE SAYS SO (deckout-ends-game-midway). In a duel the
+           decked-out seat loses; at 3-6 players `roundDraw` ELIMINATES it and the game goes on while two or more
+           remain. This ran `endGame()` on ANY deck-out, so a free-for-all got the END SCREEN for a game still
+           being played, under a message naming a winner the engine had not set, and the table stopped there:
+           the ceremony never reached its continuation, so whoever led next never did. `deckouttest` (solo) and
+           `nettest_deckout3` (the netplay host) stage it. */
+        if(res.deckedOut && state.finished){ uiPhase=null; inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
+        if(res.deckedOut) logDeckout(res);                      // one seat is out; the new round still begins below
         logRoundDraw(res);
         present(render);                                        // the dealt board, drawn under the fly-in delay
         });

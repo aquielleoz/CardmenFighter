@@ -15,6 +15,24 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.2 — a deck-out at 3-6 players knocks one player out, not the game
+
+**What you'll see:** in a 3-6 player game, when one player runs out of cards, that player is out and the others
+play on. Before, everyone got the END SCREEN with a message naming a winner ("Lefty decked out — Rival 1
+wins."), and in solo the game froze there: the next player never led. It happened in about one six-player game
+in fourteen. A deck-out that does end the game (in a duel, or the last two players) still ends it as before.
+
+- **Why:** the end of a round ended the game on ANY deck-out. At 3+ players the engine knocks out the seat that
+  cannot lead and carries on, so the screen and the engine disagreed, and the end-of-round sequence stopped at
+  the end screen instead of handing the turn on. Now it ends the game only when the engine has, and otherwise
+  says "Lefty decked out — out of the game." and goes on to the next round.
+- **How to see it:** `node deckouttest.js` stages it in solo (an AI decks out, the next AI must lead), and
+  `nettest_deckout3` on a netplay host.
+- **Testing.** `deckouttest` (new, 11; added to the sweep): the solo leg was red on v1.33.1 (the end screen,
+  the winner message, nobody led) and is green now; the duel leg pins the half that must still end the game,
+  and goes red with that branch disabled. `nettest_deckout3` 12 (+4): the host's screen, the message, and the
+  next fight played through. Its old checks read the engine only, which is why it was green on the bug.
+
 ### v1.33.1 — one round ceremony for every seat
 
 **What you'll see: nothing.** The end of a round looks and times exactly as it did. What changed is that a
