@@ -41,6 +41,11 @@ Nothing here was paraphrased on the way over — the text is as it was written w
   deal inference with the host's count (`dealSeq`) and shipped as v1.33.0, so the handshake refuses
   v1.32.x peers. A fallback for older copies would have kept the second path alive, which is the thing this
   merge exists to remove.
+  **AND IT IS DONE (v1.33.1).** Every seat runs `resolveRoundCeremony`: the opening, the deal, the Round
+  card. The only seat-specific code is the `side` that says where the deal comes from: `LOCAL_CEREMONY`
+  (solo and the host) draws it, and a client's side waits for the host's. The client's old driver
+  (`finishClientCeremony`, `revealRound`, `showRoundCard` and four flags) is deleted. The shipped history is
+  in `CHANGELOG.md` v1.32.24, v1.33.0 and v1.33.1.
 
 - **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
   (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided
