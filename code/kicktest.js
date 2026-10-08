@@ -10,7 +10,8 @@
  *   duel     the CONTROL — a game-ending kick is still the full finisher, "YOU WIN", not the mid-game one
  * Sampled from the screen (`#kick`'s class and text) every 60ms, because the flash is a 1-second event.
  *
- * Run: node kicktest.js */
+ * Run: node kicktest.js          (KICK_CASES=3p-out to run one leg; KICK_HOSTILE_DRAW=1 stacks the AIs' decks
+ *                                with the draw that once made 3p-out miss — it must stay green, nothing is drawn first) */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const { selectAndFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
@@ -32,9 +33,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     const p=await (await b.newContext({viewport:{width:1100,height:900}})).newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
     await p.goto(URL); await wait(700);
     await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
-    if(MODE!=='duel'){ await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350); }
+    if(MODE!=='duel'){ await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350);
+      /* PIN THE TIER: a Minion strikes at random instead of taking the kill (`chooseTarget`), and this leg's kill
+         is an AI's choice. The default happens to be Fighter; a suite that depends on a mode should set it. */
+      await p.evaluate(()=>{ document.querySelectorAll('#oppList select.strength').forEach(s=>{ s.value='fighter'; s.dispatchEvent(new Event('change')); }); }); await wait(200); }
     await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1500);
-    await p.evaluate((MODE)=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+    await p.evaluate(({MODE,HOSTILE})=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
       st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main';
       st.players.forEach(pl=>{ pl.energy=[]; });
       window.__solo.setName(1,'Lefty'); if(st.players[2]) window.__solo.setName(2,'Tank');
@@ -42,12 +46,22 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
         st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')]; }
       else if(MODE==='3p-kill'){ st.players[0].shields=3; st.players[1].shields=3; st.players[2].shields=0;
         st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')]; st.players[2].hand=[mk(3,'S','s3'),mk(6,'S','s6')]; }
-      else { st.players[0].shields=0; st.players[1].shields=3; st.players[2].shields=3;   // you jab low; seat 1 takes it and leads a pair nobody answers
-        st.players[0].hand=[mk(3,'C','a3'),mk(4,'D','x4')]; st.players[1].hand=[mk(10,'H','r10'),mk(7,'H','r7a'),mk(7,'S','r7b')]; st.players[2].hand=[mk(3,'S','s3'),mk(4,'S','s4')];
-        st.turn=0; }
-      window.__solo.render(); }, MODE);
+      /* ⚠ THE KILL LANDS IN ROUND 3, BEFORE ANY DRAW (2026-10-08). It used to be "you jab low, seat 1 takes it and
+         leads a pair in round 4", so it crossed a round's draw of THREE cards a seat, from the real shuffle — and
+         every J/Q/K an AI drew there was a Ride or Form it played first, each a ~2.65s reveal beat. Measured: the
+         kick landed at 14.5-19.6s against this leg's 20s budget, in clusters one beat apart, and missed it 1 run
+         in 16 (Lefty drew J♣ Q♣ 7♠, Tank a Q♠). Forcing that draw (KICK_HOSTILE_DRAW=1) missed it 4 of 4.
+         Now you lead a pair of 3s, seat 1 answers with its 7s (a non-Minion AI always plays the cheapest beating
+         Special), seat 2 cannot, and seat 1's strike goes to the seat on 0 shields — so nothing is drawn first. */
+      else { st.players[0].shields=0; st.players[1].shields=3; st.players[2].shields=3;
+        st.players[0].hand=[mk(3,'C','a3'),mk(3,'D','b3')]; st.players[1].hand=[mk(10,'H','r10'),mk(7,'H','r7a'),mk(7,'S','r7b')]; st.players[2].hand=[mk(3,'S','s3'),mk(4,'S','s4')];
+        st.turn=0;
+        if(HOSTILE){ st.players[1].deck.unshift(mk(11,'C','hj1'),mk(12,'C','hq1'),mk(7,'D','h71')); st.players[2].deck.unshift(mk(12,'S','hq2'),mk(13,'S','hk2'),mk(11,'S','hj2')); } }
+      window.__solo.render(); }, {MODE, HOSTILE:!!process.env.KICK_HOSTILE_DRAW});
+    if(MODE!=='duel'){ const tiers=await p.evaluate(()=>{ const d=window.__solo.st()._diff||{}; return [d[1],d[2]]; });
+      ok(tiers.every(t=>t && t!=='minion'), '['+MODE+'] STAGED: both opponents play a tier that takes a kill  ['+tiers.join(', ')+']'); }
     await wait(500);
-    if(MODE==='3p-out') await selectAndFight(p, ['a3']); else await selectAndFight(p, ['a9','b9']);
+    if(MODE==='3p-out') await selectAndFight(p, ['a3','b3']); else await selectAndFight(p, ['a9','b9']);
     // answer whatever the human is asked: aim the kick at seat 2 and Confirm, decline windows, pass on a lead
     const tapper=setInterval(()=>{ p.evaluate(()=>{
         const el=document.querySelector('.oppPanel.targetable'), f=document.getElementById('fightBtn');
@@ -67,7 +81,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     }
     clearInterval(tapper);
     const tag='['+MODE+']';
-    ok(killAt!=null, tag+' STAGED: the kick landed'+(killAt!=null?'':' (nothing below means anything)'));
+    ok(killAt!=null, tag+' STAGED: the kick landed'+(killAt!=null?' (at '+killAt+'ms)':' (nothing below means anything)'));
+    /* A MISSED KICK EXPLAINS ITSELF: how each round was won, and where the board stood when the budget ran out. */
+    if(killAt==null) console.log('   WHY: '+JSON.stringify(await p.evaluate(()=>{ const st=window.__solo.st();
+      return { round:st.round, turn:st.turn, pile:st.pile?st.pile.combo.type+'@'+st.pile.byPlayer:null, finished:!!st.finished,
+               shields:st.players.map(pl=>pl.shields), hands:st.players.map(pl=>pl.hand.length), out:st.players.map(pl=>!!pl.eliminated),
+               log:[...document.querySelectorAll('#log .le')].map(e=>e.textContent.trim()).filter(t=>/won|played|passed|round|kick|out/i.test(t)).slice(-14) }; })));
     const fl=film.filter(f=>f.kick);
     let edges=0; for(let i=0;i<film.length;i++) if(film[i].kick && !(i>0&&film[i-1].kick)) edges++;
     if(MODE==='duel'){
@@ -105,7 +124,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     await p.context().close();
   }
 
-  for(const m of ['3p-kill','3p-out','duel']) await runCase(m);
+  for(const m of (process.env.KICK_CASES||'3p-kill,3p-out,duel').split(',')) await runCase(m);   // KICK_CASES=3p-out runs one leg alone
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR: '+e.message); process.exit(2); });

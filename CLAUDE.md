@@ -86,11 +86,14 @@ node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's es
 #                                       # `answerWindow()`'s pick escape are not untested code
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
-node kicktest.js                                # THE FIGHTER KICK FLASHES AT EVERY KILL (27). At 3-6 players every
+node kicktest.js                                # THE FIGHTER KICK FLASHES AT EVERY KILL (29). At 3-6 players every
                                                 # elimination is a kick; a MID-GAME one gets the shorter flash naming
                                                 # who went out (no WIN/LOSE), and only the game-ender is the finisher.
                                                 # Its concede leg is the other half: the old queue replayed a
-                                                # finisher at the next game end. `nettest_elim3` owns all three seats
+                                                # finisher at the next game end. `nettest_elim3` owns all three seats.
+                                                # EVERY LEG KILLS BEFORE ANY DRAW: `3p-out` used to cross one, and
+                                                # each Ride/Form an AI drew was a ~2.65s beat — it missed its 20s
+                                                # budget 1 run in 16. `KICK_HOSTILE_DRAW=1` forces that draw
 node roartest.js                                # THE ROAR BANNER ON THE HOST/SOLO CEREMONY (32). Duel (the
                                                 # CONTROL), a 3-player round YOU win, and one an AI wins: it
                                                 # must SHOW, show INSIDE the ceremony (before the next round's
@@ -2345,7 +2348,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 657, `netview` 68, `mptest` 123, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 14, `counterfeittest` 12, `roartest` 32, `kicktest` 27, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 14, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
