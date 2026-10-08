@@ -15,6 +15,25 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.1 — one round ceremony for every seat
+
+**What you'll see: nothing.** The end of a round looks and times exactly as it did. What changed is that a
+netplay guest now runs the same end-of-round code as the host and solo: the opening (colours, shatter,
+banners), then the deal, then the Round card. Before, the guest had its own hand-written copy of that
+sequence, and every "the guest looks different from the host" bug of the last few weeks was a line one copy had
+and the other didn't. A fix to the end of a round now reaches every screen, because there's one copy.
+
+- **What would look wrong if it broke:** the guest's new cards flying in before the Round banner, a Round card
+  that never shows, or a guest's board staying locked after a round. The suites that compare the two screens
+  check all three.
+- **How:** `resolveRoundCeremony` takes a `side` that says where the deal comes from. Solo and the host draw it
+  (`LOCAL_CEREMONY`); a guest waits for the host's (`clientCeremonySide`). The guest's old driver is deleted:
+  `finishClientCeremony`, `revealRound`, `showRoundCard`, and four flags replaced by one state object. The
+  last of the three steps of `ceremony-drivers-collapse`, after v1.32.24 and v1.33.0.
+- **One rare case now comes out right:** a deal that arrives together with a broken shield is applied at once
+  so the shatter can play. It used to show its Round card late, after the host's ceremony had ended; it now
+  shows at the guest's deal step like any other.
+
 ### v1.33.0 — a guest who draws nothing gets the right Round card, on time
 
 **What you'll see:** in netplay, a guest whose deck and shuffle pile are both empty now reads **"Deck empty —

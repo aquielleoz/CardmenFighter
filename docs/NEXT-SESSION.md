@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.0** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.33.1** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -608,6 +608,20 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
+- `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
+  SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen
+  in a game. After its Clean-up dwell, the ceremony holds the strip on Clean-up with a UI flag (`uiPhase`),
+  and the seats let go of it at different moments: a guest at the end of its beats, the host only at its
+  deal. Two predicted symptoms:
+  - while a human host picks end-of-round discards with no Clean-up window open, a guest's strip shows the
+    turn colour (Idle or Main) instead of Clean-up;
+  - an Upkeep window that parks inside the host's ceremony paints Clean-up on the host, because
+    `uiPhase==='cleanup'` outranks `state.upkeep` in `paintPhaseStrip`.
+  The likely fix is to clear `uiPhase` after the dwell on every seat, inside `resolveRoundCeremony`, and let
+  `paintPhaseStrip` read `state.trimPending` as Clean-up. Both symptoms are visible, so reproduce them (and
+  give `nettest_parity` a way to see them) before changing anything.
+  `[id: strip-from-state-after-cleanup]`
+
 - `needs a repro`       · **⚠ ITS NAMED ROOT WAS FIXED 2026-09-30 — RE-CHECK BEFORE INVESTIGATING FURTHER.**
   The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
   well… treat them as one investigation"*, and that root is now closed: `playCards` captures `flipFrom`
@@ -722,25 +736,6 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `ready to build`      · **UNITE THE TWO ROUND-CEREMONY DRIVERS: STEPS 1 AND 2 OF 3 SHIPPED (v1.32.24, v1.33.0)**.
-  This was filed as optional and then proposed for decline, and Aj refused (2026-10-08): *"i've always
-  campaigned to unite solo and netplay even at the start."* It is the direction; see
-  [`DECISIONS.md` netplay architecture](DECISIONS.md#netplay-architecture). Solo and the netplay host present a
-  round's end through `resolveRoundCeremony`, a client through `clientPlayCeremony`, and `nettest_parity` fails
-  on any difference between the two screens, so it is the guard for every step.
-  - **Step 1, shipped (v1.32.24):** the opening (tints, beats, Clean-up dwell, threshold beat) is one function
-    both call, `playCeremonyOpening`.
-  - **Step 2, shipped (v1.33.0):** the engine counts every deal (`dealSeq`), the host sends it, and the client
-    holds and reveals the deal by it. `isRoundDeal` no longer guesses; only its shield-drop guard is left.
-    Older copies are refused (Aj's call), so there is no fallback path.
-  - **Step 3, next:** the client runs `resolveRoundCeremony` itself, with the trim/drain/draw step swapped for
-    "wait for the host's deal". `clientPlayCeremony`, `finishClientCeremony` and `revealRound` are deleted.
-    This is the structural one. The client's flow is event-driven (the deal can land before or after its
-    beats end) and the host's is a chain of continuations, so the deal has to become something the shared
-    driver can wait on. It needs long `nettest_parity` and `nettest_sync` series, and the stall and fork
-    history says not to trust one green run.
-  `[id: ceremony-drivers-collapse]`
-
 - `root cause found`    · **AT 3-6 PLAYERS A DECK-OUT SHOWS THE END SCREEN WHILE THE GAME GOES ON** (found 2026-10-06, reading
   `resolveRoundCeremony` for the ceremony work; NOT yet reproduced in the page). The ceremony does
   `if(res.deckedOut){ … return endGame(); }` on ANY deck-out — but at 3+ players `roundDraw` eliminates the
@@ -765,12 +760,12 @@ never read.*
 
 ### Tooling
 
-- `needs a measurement` · **`nettest_sync` SOMETIMES NEVER STARTS ITS GAME UNDER `-j 4` (2026-10-08).** One run
-  in 24 at four lanes timed out in `startDuel` (*"waited for both boards to finish dealing, and they did not"*):
-  round 0, no moves, both traces empty. So the room-code connection or the deal never completed and no game
-  code ran. The suite's later checks then fail as a consequence, not as findings. Measure the rate solo and at
-  `-j 4`, and on a build before v1.33.0, before reading anything into it: one sighting cannot say whether it
-  is load, the relay mock, or new.
+- `needs a measurement` · **`nettest_sync` SOMETIMES NEVER STARTS ITS GAME UNDER `-j 4` (2026-10-08).** Two runs
+  in 54 at four lanes, on v1.33.0 and v1.33.1 builds, timed out in `startDuel` (*"waited for both boards to
+  finish dealing, and they did not"*): round 0, no moves, both traces empty. So the room-code connection or
+  the opening deal never completed, and no game code ran. The suite's later checks then fail as a
+  consequence, not as findings. Measure the rate solo and at `-j 4`, and on a build before v1.33.0, before
+  reading anything into it: two sightings cannot say whether it is load, the relay mock, or new.
   `[id: nettest-sync-never-deals]`
 
 - `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
