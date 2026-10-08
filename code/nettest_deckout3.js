@@ -62,6 +62,27 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(await waitFor(async()=>(await spectating(c2))===true, 60, 150),'the decked-out client (c2) drops into spectator mode');
   ok(await waitFor(async()=>{ var t=await turnOf(host); return t===0||t===1; }, 60, 150),'control rests on a living seat (host or c1) — the empty seat is skipped');
   ok((await elim(host,0))!==true && (await elim(host,1))!==true,'the two survivors are still in');
+
+  /* …AND THE HOST'S SCREEN AGREES THE GAME GOES ON (deckout-ends-game-midway). The checks above read the
+     ENGINE, which eliminates the decked-out seat and plays on, so they passed on a build whose host ran
+     `endGame()` on ANY deck-out: the END SCREEN for a game two Riders were still playing, under a message
+     naming a winner the engine had not set. These read the host's screen once its ceremony has had time to
+     end, then play the next fight through. (A click-driven suite can press a hand UNDER the end screen, so the
+     fight alone proves nothing about the screen; the screen is asserted on its own.) */
+  const endUp=p=>p.evaluate(()=>!!document.getElementById('againBtn'));
+  const msgOf=p=>p.evaluate(()=>((document.getElementById('message')||{}).textContent||'').trim());
+  await waitFor(async()=>(await turnOf(host))===0, 60, 150);   // the seat after the decked-out one leads: the host
+  await wait(2500);                                            // past the Round card; the old build's end screen was up long before
+  ok(!(await endUp(host)), 'the HOST shows no end screen while two Riders play on'+((await endUp(host))?'  ← REPRODUCED: "'+(await host.evaluate(()=>((document.querySelector('#modal h2')||{}).textContent||'').trim()))+'"':''));
+  const hm=await msgOf(host);
+  ok(!/\bwins?\b|you win/i.test(hm), 'and its message names no winner  ["'+hm+'"]');
+  const r0=await roundOf(host);
+  await lead(host, '4D');
+  await waitFor(async()=>(await turnOf(c1))===0); await passT(c1);
+  ok(await waitFor(async()=>(await roundOf(host))>r0 && (await roundOf(c1))>r0, 80, 150),
+     'and the next fight plays through to the next round on both seats (round '+r0+' → '+(await roundOf(host))+')');
+  ok(!(await endUp(host)) && !(await endUp(c1)), 'with no end screen on either seat afterwards');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

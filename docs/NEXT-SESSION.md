@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.1** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.33.2** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -735,16 +735,6 @@ never read.*
   beat was genuinely skipped on that run. Telling them apart needs the sampler to record what it DID see
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
-
-- `root cause found`    · **AT 3-6 PLAYERS A DECK-OUT SHOWS THE END SCREEN WHILE THE GAME GOES ON** (found 2026-10-06, reading
-  `resolveRoundCeremony` for the ceremony work; NOT yet reproduced in the page). The ceremony does
-  `if(res.deckedOut){ … return endGame(); }` on ANY deck-out — but at 3+ players `roundDraw` eliminates the
-  decked-out seat and the game continues when two or more remain, so the host (and solo) would show the end screen
-  for a game the engine is still playing. `logDeckout` then names `state.winner`, which is not set. Measured rate:
-  six-player deck-outs are ~0.07 per game (`DECISIONS.md#deck-cycling`), so about one six-player game in 14.
-  Next: force one (seat leads its last card — an apex 2 — with an empty deck and shuffle pile; see the forced
-  deck-out in `recyclesim`'s history) and assert the board carries on.
-  `[id: deckout-ends-game-midway]`
 
 
 - `needs a decision`    · **THE REST OF AJ'S PHONE DECLUTTER — NO DEFECT NEEDS IT ANY MORE** (2026-10-05). His
