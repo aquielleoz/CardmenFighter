@@ -15,6 +15,23 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.22 — the end of Clean-up looks like Clean-up
+
+**At the very end of a round, the board said the wrong thing.** The end of Clean-up is its own priority window
+— the last moment to cast a Quick before the next round's Upkeep and Draw — and a player stopped there was
+offered **"Move to the fight"** on the Respond? pass button, while the phase strip behind it could show Main or
+the idle tint instead of Clean-up. Nothing about passing there moves to a fight: it ends the round. The engine
+clears its Clean-up flag before it opens that last window, and both the strip and the button looked only at
+that flag.
+
+- **The strip paints Clean-up for the whole Clean-up Phase**, its end included.
+- **The pass button reads "End the round"**, as it already did at the start of Clean-up.
+- `mptest` 123 (+3): every window the strip and the button have a word for is staged on one board and must name
+  itself. Nothing checked the button's label at any window before. Each fix removed on its own turns its own
+  check red.
+- Found by a host/client ceremony-parity probe on `fix/one-ceremony`. Main had the same two lines, so the fix
+  ships on its own.
+
 ### v1.32.21 — a second press at the end of a round no longer freezes it
 
 **In netplay, pressing Fight or Pass again while a round was ending could freeze the game.** The end of a round
