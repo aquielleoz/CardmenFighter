@@ -283,6 +283,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
   var PUBLIC = {
     'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1, 'prioGen': 1, 'stripRound': 1,
+    'dealSeq': 1,   // a COUNT of round deals, the same for every reader — the client's deal marker (v1.33.0)
     'resolution.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
 
     'pile.mod': 1, 'pile.combo.size': 1,
@@ -345,6 +346,16 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      'counterOid travels to every seat, UNROTATED (an oid, not a seat)  [' + all.map(function (m) { return JSON.stringify(m.stack[1].opts); }).join(' ') + ']');
   ok(all.every(function (m) { return m.stack[0].opts.target === 'eqB'; }), '…and an Equipment-id target passes through untouched');
   ok(!('counterOid' in (all[0].stack[0].opts || {})), '…and an object with no counterOid does not grow one');
+})();
+
+/* ---- THE DEAL MARKER TRAVELS (v1.33.0). A client recognises the new round's deal as the mirror whose
+   `dealSeq` is ahead of its board, so the count has to reach every seat, and reach it with the deal itself
+   rather than a mirror later. Absent, the client never holds a deal at all. */
+(function () {
+  var gd = E.newGame(null, { numPlayers: 3 });
+  ok([0, 1, 2].every(function (s) { return NV.mirrorFor(gd, s).dealSeq === 0; }), 'a new game\'s mirror carries dealSeq 0 to every seat');
+  E.roundDraw(gd, {});
+  ok([0, 1, 2].every(function (s) { return NV.mirrorFor(gd, s).dealSeq === 1; }), '…and the mirror built right after a deal carries 1, unrotated (a count, not a seat)');
 })();
 
 console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);

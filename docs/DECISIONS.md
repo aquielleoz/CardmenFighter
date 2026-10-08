@@ -37,6 +37,10 @@ Nothing here was paraphrased on the way over — the text is as it was written w
   That difference is real, but it is a difference of SOURCE. What makes it a second code path is the client's
   inference, which is the bug this entry already names. The merge is staged in the BACKLOG as
   `ceremony-drivers-collapse`. **Do not re-propose declining it.**
+  **AND THE GUESS WAS DELETED, NOT KEPT AS A FALLBACK (Aj, 2026-10-08).** Step 2 replaced the client's
+  deal inference with the host's count (`dealSeq`) and shipped as v1.33.0, so the handshake refuses
+  v1.32.x peers. A fallback for older copies would have kept the second path alive, which is the thing this
+  merge exists to remove.
 
 - **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
   (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided

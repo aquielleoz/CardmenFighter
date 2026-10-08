@@ -613,7 +613,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, endCleanup: null, beginQueue: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, dealSeq: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, endCleanup: null, beginQueue: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -3258,6 +3258,11 @@
     var perRound = drawCountFor(st);
     for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], perRound);
     result.drawn = true;
+    /* THE DEAL IS COUNTED, SO A NETPLAY CLIENT NEVER HAS TO INFER IT (v1.33.0). A client holds the new round's
+       deal until its own ceremony reaches the Round card, and it used to find the deal by looking for a card
+       it did not hold. A seat whose draw fizzled, or a knocked-out seat, is dealt no card, so its deal was
+       never found and its Round card came late and wrong. Once per result, like the draw itself. */
+    st.dealSeq = (st.dealSeq || 0) + 1;
     // deck-out: the new leader has no card to lead with. Duel → they lose; N-player → they're eliminated.
     if (st.players[st.turn].hand.length === 0) {
       if (st.numPlayers === 2) { st.finished = true; st.winner = nextPlayer(st, st.turn); result.deckedOut = true; }
