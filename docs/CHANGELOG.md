@@ -15,6 +15,29 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.0 — a guest who draws nothing gets the right Round card, on time
+
+**What you'll see:** in netplay, a guest whose deck and shuffle pile are both empty now reads **"Deck empty —
+spend energy to recycle"** on their Round card, as the host always has, and the card shows with the deal. It
+used to read "Specials unlocked!" or "Each player draws 2 cards" to a player who drew nothing, and it came late,
+after the host's ceremony had ended. A guest knocked out of a 3-6 player game gets their Round card on time too.
+
+**Both players need v1.33.** An older copy is refused when it connects, and both players are told to download
+the same version.
+
+- **Why it was wrong:** the guest's game guessed which update from the host was the new round's deal, by
+  looking for a card it did not already hold. A seat dealt nothing has no such card, so its deal was never
+  recognised and its draw never counted. That guess had already been rewritten three times for other holes.
+- **What changed:** the engine counts every deal (`dealSeq`) and the host sends the count, so the guest knows
+  which update is the deal. The guess is deleted, not kept as a fallback for older copies, which is why the
+  version check refuses them (Aj's call). This is step 2 of 3 toward one round-ceremony driver for solo and
+  netplay; step 3 is in the BACKLOG (`ceremony-drivers-collapse`).
+- **Testing.** `test.js` 681 (+4: one count per deal in every path, mutation-tested both ways), `netview` 70
+  (+2: the count reaches every seat), `nettest_drawfizzle` 12 (+4: the guest's Round card reads "Deck empty"
+  and arrives with the deal, both red on v1.32.24). `nettest_sync`'s end checks now wait for the two sides to
+  agree, as its loop always did; one run in eight had read the guest mid-update after the last move.
+  `SYNC_FREEZE_END=1` stages a guest that never catches up, and it still fails.
+
 ### v1.32.24 — every seat opens the round ceremony with the same code
 
 **A round ends exactly as it did before; this is the first of three steps to one round-ceremony driver for solo

@@ -3480,5 +3480,37 @@ function cards(ids) { return ids.map(card); }
   ok(E.resumeBoundary(E.newGame(null, { numPlayers: 2 })) === null, '…and does nothing on a board with no boundary open');
 })();
 
+/* ---- THE DEAL IS COUNTED ONCE PER ROUND, IN EVERY PATH (v1.33.0). A netplay client recognises the new
+   round's deal by `dealSeq` running ahead of its board, so the count has to be exact: one per deal, never two
+   for one result (a re-entered ceremony must not mint a second deal), and in the headless path too, where the
+   engine draws for itself. A seat dealt nothing still counts, because the deal is the table's — and that seat
+   is exactly the case the client's old card-id guess could not see. */
+(function () {
+  var g = E.newGame(null, { numPlayers: 2 });
+  ok(g.dealSeq === 0, 'a new game starts at dealSeq 0 (the opening hand is not a round deal)');
+  var res = {};
+  E.roundDraw(g, res); E.roundDraw(g, res);
+  ok(g.dealSeq === 1, 'one result deals once: roundDraw twice on the same result counts 1 (dealSeq=' + g.dealSeq + ')');
+  g.players[1].deck = []; g.players[1].shuffle = [];
+  var res2 = E.roundDraw(g, {});
+  ok(g.dealSeq === 2 && res2.draws[1] === 0, 'a deal that gives a seat nothing still counts — the deal is the table\'s (dealSeq=' + g.dealSeq + ', seat 1 drew ' + res2.draws[1] + ')');
+  /* HEADLESS: whenever no round window is parked, every round after the first has been dealt exactly once.
+     A parked Upkeep window defers the draw, so those observation points are skipped, not excused. */
+  var AI = require('./ai.js'), checked = 0, bad = null, rounds = 0;
+  [2, 3].forEach(function (np) {
+    for (var gi = 0; gi < 3; gi++) {
+      var h = E.newGame(null, { numPlayers: np, starter: 0 }), guard = 0, prev = 0;
+      while (!h.finished && guard++ < 600) {
+        AI.takeTurn(h, h.turn);
+        if (h.dealSeq < prev || h.dealSeq > prev + 1) bad = bad || ('dealSeq jumped ' + prev + '→' + h.dealSeq + ' at round ' + h.round);
+        prev = h.dealSeq;
+        if (!h.finished && !h.upkeep && !h.cleanup && !h.endCleanup && !h.resolution) { checked++; if (h.dealSeq !== h.round - 1) bad = bad || ('round ' + h.round + ' with dealSeq ' + h.dealSeq + ' (' + np + 'p)'); }
+      }
+      rounds += h.round;
+    }
+  });
+  ok(checked > 100 && !bad, 'headless games deal exactly once per round after the first (dealSeq = round − 1 at ' + checked + ' quiet points over ' + rounds + ' rounds, 2p and 3p)' + (bad ? '  ← ' + bad : ''));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

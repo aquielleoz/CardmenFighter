@@ -186,7 +186,7 @@ let mock=null;
    * conclusions like "no HELD events" could not be re-checked nine versions later. Now a failure dumps both
    * hands' card IDS (the gap names the round's deal outright) and the tail of BOTH peers' traces, where the
    * `mirror IN` / `mirror HELD` / `mirror HELD -> DISCARDED` / `mirror APPLIED` sequence lives. */
-  if(drift || stall){
+  async function dumpDetail(kind){
     /* `__cmf.hand()` / `handOf()` ALREADY RETURN ID STRINGS — they map `c.id` internally. The first draft here
      * mapped `c=>c.id` again, so every id came out `undefined`: the dump printed blank hands AND the "missing
      * ids" line then confidently reported "the gap is elsewhere". A diagnostic that states a wrong conclusion
@@ -207,7 +207,7 @@ let mock=null;
       .map(id=>id+'="'+(((document.getElementById(id)||{}).textContent)||'').trim().slice(0,60)+'"').join('  '));
     const hi=await ids(host), ji=await ids(join), ht=await tr(host), jt=await tr(join);
     const hu=await ui(host), ju=await ui(join);
-    console.log('\n--- '+(drift?'DIVERGENCE':'STALL')+' DETAIL ------------------------------------------------');
+    console.log('\n--- '+kind+' DETAIL ------------------------------------------------');
     console.log('HOST   ui: '+hu);
     console.log('CLIENT ui: '+ju);
     console.log('HOST   own hand   ('+hi.mine.length+'): '+hi.mine.join(' '));
@@ -222,6 +222,7 @@ let mock=null;
     console.log('--- CLIENT trace (last 40) ---'); jt.forEach(l=>console.log('   '+l));
     console.log('----------------------------------------------------------------------\n');
   }
+  if(drift || stall) await dumpDetail(drift?'DIVERGENCE':'STALL');
   ok(drift===null, 'the two sides never diverge while a real game is played over the relay'+(drift?'  ← DIVERGED: '+drift:''));
   ok(stall===null, 'and the table never deadlocks — both sides keep being able to act'+(stall?'  ← STALLED: '+stall:''));
   ok(worst>=2, 'and the game got past round 1 legally — round '+worst+' reached, '+acted+' actions, '+picks+' clean-up picks, '+windows+' windows answered');
@@ -242,7 +243,24 @@ let mock=null;
     const k=t=>L.filter(x=>t.test(x)).length;
     return { roundwin:k(/won the round|won with a/), catchup:k(/catch-up/), banner:k(/^Round \d+ begins/), total:L.length };
   });
-  const lh=await lines(host), lj=await lines(join);
+  /* SYNC_FREEZE_END=1 STAGES THE FAILURE THE END CHECKS EXIST FOR (v1.33.0): the host moves a round on and
+     swallows every later mirror to the client, so the two sides disagree and nothing will reconcile them.
+     The end checks wait for agreement now, and this is what proves the wait did not make them blind. */
+  if(process.env.SYNC_FREEZE_END) await host.evaluate(()=>{ window.__cmf.dropMirrors(1, 1e6);
+    const r=parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0;
+    window.__cmf.forceAll(null, null, null, { round: r+1 }); });
+  /* THE END CHECKS SETTLE TOO (v1.33.0), BY THE RULE THE LOOP ALREADY KEEPS: divergence must persist to
+     count. The drive stops on its 60th action, and when that action ends a round the client is still in
+     that round's ceremony as the end checks read it. One run in eight read host 9 / client 8 and the
+     round-result count one short, with the loop's own drift and stall checks green. So the end checks wait
+     the loop's 6s, the narration counts with them, and the run says how long agreement took. A client that
+     never catches up still fails, and dumps its trace. */
+  const endT0=Date.now(), fin=await settle(6000);
+  let lh=await lines(host), lj=await lines(join);
+  while(Date.now()-endT0<6000 && (lj.roundwin!==lh.roundwin || lj.catchup!==lh.catchup)){ await wait(250); lh=await lines(host); lj=await lines(join); }
+  const endLag=Date.now()-endT0;
+  console.log('   ↳ end of run: '+(fin.ok ? 'the two sides agreed after '+endLag+'ms' : 'they still disagree after '+endLag+'ms — '+fin.why));
+  if(!fin.ok) await dumpDetail('END-OF-RUN DISAGREEMENT');
   ok(lh.roundwin>0 && lj.roundwin===lh.roundwin,
      'the client narrates each round result ONCE, like the host ('+lh.roundwin+' vs '+lj.roundwin+')');
   ok(lj.catchup===lh.catchup,

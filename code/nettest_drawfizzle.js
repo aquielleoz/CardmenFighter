@@ -40,6 +40,12 @@ const logOf=p=>p.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>
   await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h13D"]'); if(c) c.click(); });
   await clickFight(host);
   ok(await until(()=>join.evaluate(()=>window.__cmf.turn()===0), 80), 'the host led a King and the turn reached the client');
+  /* FILM EACH SEAT'S ROUND CARD (v1.33.0): its title and subtitle, as shown. */
+  const filmRoundCards=()=>{ window.__rf=[]; const fx=document.getElementById('roundfx');
+    new MutationObserver(()=>{ const r=fx.querySelector('.rfRound'), s=fx.querySelector('.rfSub');
+      if(r&&s){ const t=r.textContent+' | '+s.textContent; if(window.__rf[window.__rf.length-1]!==t) window.__rf.push(t); } })
+      .observe(fx,{subtree:true,childList:true,characterData:true}); };
+  await host.evaluate(filmRoundCards); await join.evaluate(filmRoundCards);
   await clickPass(join);
   const told=await until(async()=>/Draw fizzled for You/.test(await logOf(join)), 120);
   const jl=await logOf(join), hl=await logOf(host);
@@ -48,6 +54,21 @@ const logOf=p=>p.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>
   ok(/Draw fizzled for Rival 2/.test(hl), 'the HOST reads the public line about the client ("Draw fizzled for Rival 2 — …")');
   ok(!/Spend energy on effects to recycle/.test(hl), '…and NOT the advice, which is the client\'s alone');
   ok(!/Draw fizzled for You/.test(hl), 'the host did not fizzle — no line about itself');
+
+  /* …AND THE CLIENT'S ROUND CARD SAYS SO (v1.33.0). A seat that draws nothing gets "Deck empty" on its Round
+     card; the host's own fizzle always did. The client's never could: it found the new round's deal by
+     looking for a card it did not hold, and a fizzled draw deals it none, so the deal was never recognised,
+     its draw never counted, and its Round card came LATE, read "Specials unlocked!" or "Each player draws N",
+     after the host's ceremony had ended. The host now marks the deal (`dealSeq`), so the client holds and
+     reveals it like any other. The host drew normally and is the control: a round-2 card that unlocks
+     Specials. */
+  const rfDone=await until(async()=>(await join.evaluate(()=>(window.__rf||[]).length))>0 && (await host.evaluate(()=>(window.__rf||[]).length))>0, 80);
+  const jrf=await join.evaluate(()=>window.__rf||[]), hrf=await host.evaluate(()=>window.__rf||[]);
+  const jtr=JSON.stringify(await join.evaluate(()=>window.__cmf.trace()));
+  ok(rfDone, 'STAGED: both seats showed a Round card  [host '+JSON.stringify(hrf)+' · client '+JSON.stringify(jrf)+']');
+  ok(hrf.some(t=>/Round 2 \| Specials unlocked!/.test(t)), 'the host, which drew, reads "Round 2 | Specials unlocked!" (the control)  '+JSON.stringify(hrf));
+  ok(jrf.some(t=>/Deck empty/.test(t)), 'the CLIENT, which drew nothing, reads "Deck empty" on its Round card  '+JSON.stringify(jrf)+(jrf.some(t=>/Deck empty/.test(t))?'':'  ← REPRODUCED: the fizzled draw was never counted'));
+  ok(!/Round card shown LATE/.test(jtr), 'the client showed its Round card WITH the deal, not late after the host\'s ceremony'+(/Round card shown LATE/.test(jtr)?'  ← REPRODUCED: the deal was not recognised':''));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

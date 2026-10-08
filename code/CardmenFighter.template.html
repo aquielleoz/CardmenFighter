@@ -11906,8 +11906,9 @@ __QR__
     // ---- CLIENT: render the real board from each mirror; send inputs as intents. ----
     function applyMirror(st){
       if(iConceded) return;   // we forfeited — stay on our concede screen, ignore the ongoing game
-      // During the round ceremony, hold the NEW-ROUND deal (hand grew) so its card fly-in waits for the banner;
-      // intermediate mirrors (shield drop, pile clear) still apply so the shatter animates on the beat.
+      // During the round ceremony, hold the NEW-ROUND deal (the mirror the host's deal count names — see
+      // `isRoundDeal`) so its card fly-in waits for the banner; every other mirror (shield drop, pile clear,
+      // trims) still applies, so the shatter animates on the beat.
       /* THE HOLD IS NOW TRACED, because the fork investigation stalled for want of exactly this. The entry
        * recorded "no `mirror HELD` events at all during a failure" from instrumentation that was then removed,
        * so the conclusion could not be re-checked — and `isRoundDeal` has been rewritten twice since. A
@@ -12149,58 +12150,29 @@ __QR__
              }, 2500);
              maybeReleaseCeremony(tok); }                         // the host may already be done, with the deal already landed
     }
-    /* "IS THIS THE NEW ROUND'S DEAL?" — ANSWERED FROM THE ROUND NUMBER, NOT FROM HAND SIZE.
-     * It used to be `handGrew`: the incoming hand is bigger than the one on screen. That is a PROXY, and it is
-     * false exactly when the end-of-round trim is at least as big as the draw — `discardToLimit` runs BEFORE
-     * `roundDraw`, so a client at the cap trims 11 to 10 and draws back to 10, equal rather than greater. A
-     * player is on turn holding more than ten cards on 78% of turns, so this was common, not an edge case.
-     * The round number is authoritative and the ceremony already carries it. Same lesson as the drag guard and
-     * the narration audit: **a client may sequence, but never infer.** */
-    /* "IS THIS THE NEW ROUND'S DEAL?" — ANSWERED FROM THE CARD IDS, NOT FROM THE HAND COUNT.
-     * It used to be `handGrew`: the incoming hand is LONGER than the one on screen. That is a proxy, and it is
-     * false exactly when the end-of-round trim matches the draw — `discardToLimit` runs BEFORE `roundDraw`, so
-     * a client that passed while holding 12 trims to 10 and draws back to 12: equal, never greater. A player is
-     * on turn holding more than ten cards on 78% of turns, so this was common rather than an edge case, and it
-     * left the "seizes the initiative" banner up permanently (`nettest_dim`).
-     * THE ROUND NUMBER IS NOT THE ANSWER EITHER, and that was tried: it advances at RESOLUTION, not at the
-     * draw, so the intermediate mirrors (shield drop, pile clear) already carry it and got held too — which
-     * broke the shatter animation and the threshold beat in three suites. Cards ARRIVING is the actual event,
-     * so look for an id the client does not already hold. */
+    /* "IS THIS THE NEW ROUND'S DEAL?" — THE HOST SAYS SO (v1.33.0). The engine counts every round deal
+     * (`dealSeq`, bumped once per result in `roundDraw`), so the deal is the mirror whose count is ahead of the
+     * board on this screen. This seat used to INFER it, and each inference had a hole, which is why it was
+     * rewritten four times: a LONGER hand (`handGrew`) is false whenever the trim matches the draw; the ROUND
+     * NUMBER advances at Resolution, so the mirrors before the draw carry it too; a CARD ID this seat did not
+     * hold also matched a broken shield returning to hand, and needed an empty-pile clause. And no card-based
+     * test can see a seat that is dealt NOTHING: a fizzled or knocked-out seat's deal was never recognised, so
+     * its draw was never counted and its Round card came late, after the host's ceremony, reading
+     * "Specials unlocked!" to a player who drew nothing (`nettest_drawfizzle`).
+     * DECISIONS.md, netplay architecture: *"a client may sequence, but never infer."* */
     function isRoundDeal(st){
-      if(!st || !st.players || !st.players[0] || !state || !state.players || !state.players[0]) return false;
-      var have={}, mine=state.players[0].hand, i;
-      for(i=0;i<mine.length;i++) if(mine[i]) have[mine[i].id]=1;
-      /* A MIRROR THAT BREAKS A SHIELD IS NEVER THE DEAL (2026-09-18). `applyMirror`'s own comment three
-         hundred lines up already states this as the rule — *"intermediate mirrors (shield drop, pile
-         clear) still apply so the shatter animates on the beat"* — and nothing enforced it, so the one
-         mirror that carries BOTH a shield drop and a card arrival was held as a deal and its shatter never
-         ran. `checkThresholds()` fires off `renderShields`' diff, so the ROAR beat went with it and landed
-         a round late. Aj, from a live duel: *"the roar is late for the client. overdrive seemed to have
-         fired at the same time for both… i'm sensing a pattern here."*
-         WHY THAT MIRROR EXISTS AT ALL, and why the empty-pile clause below does not catch it: a broken
-         shield returns to its owner's HAND, so the client sees an id it does not hold; the clause assumed
-         that arrival always comes while the pile is still on the table, and when clean-up coalesces into
-         the same mirror it does not. The asymmetry Aj spotted is the proof — ROAR crossed on the round HE
-         lost a shield (a card enters his hand), OVERDRIVE on the round the HOST did (nothing enters his,
-         nothing is held, beat on time).
-         THIS IS NOT `land-it-first`, WHICH IS A RECORDED DEAD END (*"tried and made the suite WORSE, 5
-         failures in 8"*). That changed what happens to a mirror already held; this changes whether it is
-         held at all, and it leaves `clientPlayCeremony`'s discard untouched.
-         THE FAILURE DIRECTION IS THE SAFE ONE. If a genuine deal ever coalesces with a shield loss, this
-         refuses to hold it: the Round-N banner and the card fly-in desync, which is cosmetic, instead of
-         the shatter and the threshold beat vanishing, which is information. */
-      for(i=0;i<st.players.length;i++){
-        var was=state.players[i], now=st.players[i];
+      if(!st || !state || typeof st.dealSeq!=='number' || !(st.dealSeq > (state.dealSeq||0))) return false;
+      /* …BUT A MIRROR THAT BREAKS A SHIELD IS NEVER HELD, EVEN AS THE DEAL (2026-09-18). Holding it stops the
+         shatter rendering on its beat, and the threshold beat (ROAR, OVERDRIVE) goes with it — Aj, from a live
+         duel: *"the roar is late for the client."* The deal only carries a shield drop when every mirror between
+         the strip and the deal was lost, and THE FAILURE DIRECTION IS THE SAFE ONE: applied at once, the deal's
+         fly-in misses the Round banner, which is cosmetic, where a held shatter loses information. That deal
+         then gets the late Round card (`maybeReleaseCeremony`). */
+      for(var i=0;i<(st.players||[]).length;i++){
+        var was=state.players&&state.players[i], now=st.players[i];
         if(was && now && typeof now.shields==='number' && typeof was.shields==='number' && now.shields < was.shields) return false;
       }
-      /* AND the pile must be CLEAR. A broken shield returning to hand also brings an id the client does not
-       * hold, and that mirror arrives mid-resolution with the pile still on the table — holding it stopped the
-       * shatter rendering, so `checkThresholds` never queued and the ROAR/OVERDRIVE beat never played. The
-       * deal is the only card arrival that happens with an empty pile. */
-      if(st.pile) return false;
-      var inc=st.players[0].hand;
-      for(i=0;i<inc.length;i++) if(inc[i] && !have[inc[i].id]) return true;   // a card the client does not hold = it was dealt
-      return false;
+      return true;
     }
     function revealRound(m){                                   // apply the new-round state + show the "Round N" banner as the cards fly in
       awaitingRoundReveal=false;
