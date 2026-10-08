@@ -3201,6 +3201,110 @@ function cards(ids) { return ids.map(card); }
   ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log (' + named + ' of ' + seen + ')');
 })();
 
+/* ============ A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06) ============
+   At 3-6 players under `chosen`, the winner picks whose shield breaks (`pendingLossChoice`) — and meanwhile
+   `st.turn` still names the last seat to pass, with the pile still on the table. A play from that seat was
+   ACCEPTED: found by `nettest_parity` (a remote seat's board was live through another seat's pick), then
+   measured here. Staged so the play is genuinely LEGAL apart from the guard — a higher pair onto the pile —
+   because "a single cannot beat a pair" would refuse it on any build and prove nothing. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  E.setSpecialLossMode('chosen'); E.setLossTargetInteractive(function (st, w) { return w === 2; });
+  var g = E.newGame(null, { numPlayers: 3, starter: 2 });
+  g.round = 3; g.turn = 2; g.pile = null; g.subPhase = 'main'; g.players.forEach(function (p) { p.energy = []; });
+  g.players[2].hand = [mk(9, 'C', 'a9'), mk(9, 'H', 'b9'), mk(4, 'D', 'x4')];
+  g.players[0].hand = [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')];
+  g.players[1].hand = [mk(13, 'S', 'cK'), mk(13, 'D', 'cK2'), mk(6, 'S', 'c6')];
+  var go = function (f) { var r = f(); if (r && r.transition === 'play') { while (g.respondFor != null) E.declineResponse(g, g.respondFor); r = f(); } return r; };
+  var P = g.players;
+  go(function () { return E.play(g, 2, [P[2].hand[0], P[2].hand[1]]); });
+  go(function () { return E.pass(g, 0); });
+  go(function () { return E.pass(g, 1); });
+  ok(!!g.pendingLossChoice && g.pendingLossChoice.winner === 2 && g.turn === 1 && g.pile && g.pile.combo.type === 'pair',
+     'STAGED: seat 2 won with a pair and is choosing a target — turn still names seat 1, the pile still on the table');
+  var kings = P[1].hand.filter(function (c) { return c.rank === 13; });
+  var r = go(function () { return E.play(g, 1, kings); });
+  ok(r.ok === false && g.pile.byPlayer === 2, 'a pair of Kings onto the winner’s 9s is REFUSED while the strike is being chosen' +
+     (r.ok === false ? '' : '  ← REPRODUCED: the play landed in a round that was already won'));
+  ok(/waiting on the winner/.test(r.reason || ''), '…and says why: ' + JSON.stringify(r.reason));
+  ok(E.pass(g, 1).ok === false, '…and so is a pass');
+  var wr = E.play(g, 2, [P[2].hand[0]]);
+  ok(wr.ok === false, 'the winner cannot play past its own pick either  [' + (wr.reason || 'accepted') + ']');   // the turn check answers first ("Not your turn."); its UI is in the pick anyway
+  E.chooseLossTarget(g, 0);
+  ok(!g.pendingLossChoice, 'choosing the target clears the wait — the guard has a way out');
+  ok(g.stripRound === 3, 'the chosen strike STAMPS the round it stripped in (stripRound=' + g.stripRound + ')');
+  E.setLossTargetInteractive(null);
+})();
+
+/* ============ …NOR IS ANY ROUND WINDOW — UPKEEP INCLUDED (2026-10-07) ============
+   The block above tests the strike-choice half of `play`/`pass`'s round-over guard; nothing tested the other
+   half. Each row opens one round window with the RIVAL on priority, on a board where the press is otherwise
+   legal (the seat on turn, leading, a card to lead with), and asks for a play and a pass. Both must be REFUSED
+   with NO transition — a transition is what the host settles and re-applies — and leave the window as it was.
+   Upkeep is the row that was missing: it came back as a transition. The STALL row is the guard's other half: a
+   flag with nobody on priority must not be refused by it, or a stalled boundary is a table nobody can act on. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var board = function (open) {
+    var g = E.newGame(null, { numPlayers: 2, starter: 0 });
+    g.round = 3; g.turn = 0; g.initiative = 0; g.pile = null; g.passes = 0; g.lastPlayer = null; g.subPhase = 'main';
+    g.players.forEach(function (p) { p.energy = []; });
+    g.players[0].hand = [mk(9, 'C', 'a9'), mk(4, 'D', 'x4')]; g.players[1].hand = [mk(3, 'H', 'h3')];
+    open(g); return g;
+  };
+  var shown = function (r) { return (r.reason || (r.ok ? 'accepted' : '?')) + (r.transition ? ', transition ' + r.transition : ''); };
+  [['Resolution', function (g) { g.resolution = { origin: 1, winner: 1, wonWithCombo: false, strikeTargets: [], winSize: 1 }; }],
+   ['Clean-up', function (g) { g.cleanup = { origin: 1 }; }],
+   ['the end of Clean-up', function (g) { g.endCleanup = { origin: 1 }; }],
+   ['Upkeep', function (g) { g.upkeep = { origin: 1 }; }]].forEach(function (row) {
+    var open = function (g) { row[1](g); g.respondFor = 1; };
+    var g = board(open), pr = E.play(g, 0, [g.players[0].hand[0]]);
+    ok(pr.ok === false && !pr.transition && !g.toPlay && g.respondFor === 1 && !g.pile && g.players[0].hand.length === 2,
+       'a PLAY into an open ' + row[0] + ' window is refused outright, the window untouched  [' + shown(pr) + ']' +
+       (pr.transition ? '  ← REPRODUCED: a transition the host would settle and re-apply' : ''));
+    var g2 = board(open), ps = E.pass(g2, 0);
+    ok(ps.ok === false && !ps.transition && !g2.toPlay && g2.respondFor === 1,
+       '…and so is a PASS  [' + shown(ps) + ']' + (ps.transition ? '  ← REPRODUCED: a transition the host would settle and re-apply' : ''));
+  });
+  var gs = board(function (g) { g.upkeep = { origin: 1 }; g.respondFor = null; }), rs = E.pass(gs, 0);
+  ok(!/round is over/.test(rs.reason || ''),
+     'a STALLED Upkeep (nobody on priority) is not refused by the round-over guard — a boundary nobody holds must not lock the table  [' + shown(rs) + ']');
+})();
+
+/* ============ THE ROUND THAT LAST STRIPPED A SHIELD (one-ceremony, 2026-10-06) ============
+   The UI holds a round's shatter until each seat's own ceremony has shown it, keyed on `stripRound` — so the
+   stamp must be set by a ROUND strip, by nothing else, and carried on every round-win result (a jab round's
+   ceremony is what releases a strip some earlier ceremony failed to present). Each leg is a stamp that a
+   plausible wrong implementation would get wrong: stamping on any shield drop (the Critical Hit leg), on any
+   strike attempt (the Leyline leg), or only on stripping rounds (the jab leg). */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var g = E.newGame(null, { numPlayers: 2, starter: 0 }), P = g.players;
+  var go = function (f) { var r = f(); if (r && r.transition === 'play') { while (g.respondFor != null) E.declineResponse(g, g.respondFor); r = f(); } while (g.respondFor != null) E.declineResponse(g, g.respondFor); return r; };
+  var deal = function (rnd, h0, h1) { g.round = rnd; g.turn = 0; g.initiative = 0; g.pile = null; g.lastPlayer = null; g.passes = 0; g.subPhase = 'main';
+    P.forEach(function (p) { p.energy = []; }); P[0].hand = h0; P[1].hand = h1; };
+  deal(4, [mk(9, 'C', 'a9'), mk(9, 'H', 'b9'), mk(4, 'D', 'x4')], [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')]);
+  var sh = P[1].shields;
+  go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); });
+  go(function () { return E.pass(g, 1); });
+  ok(P[1].shields === sh - 1 && g.stripRound === 4, 'a pair that strips a shield stamps ITS round (shields ' + sh + '→' + P[1].shields + ', stripRound=' + g.stripRound + ')');
+  deal(6, [mk(8, 'C', 'j8'), mk(4, 'D', 'j4')], [mk(3, 'H', 'k3'), mk(5, 'S', 'k5')]);
+  go(function () { return E.play(g, 0, [P[0].hand[0]]); });
+  var jr = go(function () { return E.pass(g, 1); });
+  ok(g.stripRound === 4 && jr && jr.stripRound === 4, 'a JAB round strips nothing and stamps nothing — and its result still CARRIES the last strip (' + (jr && jr.stripRound) + '), so its ceremony can release a missed one');
+  deal(8, [mk(10, 'C', 'p10'), mk(10, 'H', 'q10'), mk(4, 'D', 'p4')], [mk(3, 'H', 'm3'), mk(5, 'S', 'm5')]);
+  P[1].cantLoseRound = true; sh = P[1].shields;
+  go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); });
+  go(function () { return E.pass(g, 1); });
+  ok(P[1].shields === sh && g.stripRound === 4, 'a strike Leyline SPARES is not a strip — no stamp (stripRound=' + g.stripRound + ')');
+  var cs = E.SUITS.filter(function (s) { var e = E.effectOf({ rank: 9, suit: s }); return e && e.kind === 'destroyShield'; })[0];
+  deal(10, [mk(9, cs, 'crit'), mk(10, 'D', 'z10'), mk(4, 'D', 'z4')], [mk(3, 'H', 'n3')]);   // a 10 pays the Broadway pitch this suit's 9 carries (an Ace is rank 1 here, not 14)
+  P[0].energy = [1,2,3,4,5,6,7,8,9,10,11,12].map(function (n) { return mk(n, cs, 'e' + n); });
+  sh = P[1].shields;
+  go(function () { return E.activate(g, 0, 'crit', { target: 1 }); });
+  ok(P[1].shields === sh - 1 && g.stripRound === 4, 'a mid-turn Critical Hit breaks a shield and stamps NOTHING — it has no ceremony and must shatter at once (shields ' + sh + '→' + P[1].shields + ', stripRound=' + g.stripRound + ')');
+})();
+
 /* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============
    Staged so a default and a choice are DISTINGUISHABLE: the lowest Broadway card (a 10) is the one worth
    keeping and a higher one (an Ace) is spare — "which card left" is the assertion, never "the hand shrank". */

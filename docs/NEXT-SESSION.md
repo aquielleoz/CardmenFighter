@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**657**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**677**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.22.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.23.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.22** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.23** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -664,6 +664,10 @@ knows to check whether the epic has already moved the same lines.*
   **DO NOT RE-KILL THE FIVE DEAD HYPOTHESES.** The comment above the detector lists them (the untap move,
   `pileClear` generally, the hand-limit trim, a falsy `cleanupResult`, a falsy return breaking
   `settleWindows`); the trace now independently rules the whole clean-up path out as well.
+  **v1.32.23 CLOSED ONE CANDIDATE PATH, UNPROVEN AS THIS ONE'S CAUSE.** A client's board used to go live under
+  its own round ceremony, so a play could reach the host mid-ceremony and hand it its board back early through
+  `hostTakeBack`. The client now holds its board through its ceremony, and the host refuses a board op that
+  arrives mid-ceremony (`CEREMONY_REFUSE`). If this recurs on v1.32.23 or later, that path is ruled out.
   `[id: round-ceremony-reruns-with-stale-res]`
 
 *Defects in the shipped game. Each was verified present on `main` by grepping the symbols its entry
@@ -718,32 +722,23 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `needs a decision`   · **THE CLIENT'S CEREMONY IS A SECOND IMPLEMENTATION, AND THAT IS CAUSE 2 OF THE
-  HOST/CLIENT DRIFT** (Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*).
-  The drift has three causes and only one of them could be gated. Cause 1 — `startGame` is the client's
-  missing constructor — is closed: `versiontest` now derives both sets from source and fails on the
-  difference, and nine more names were moved into `resetBoardMemory` on the way. Cause 3 — narration
-  defaulting to `logMsg` instead of `say` — already has the static scan in `nettest_narrate`, with its two
-  known gaps filed. **This entry is cause 2, the one a gate cannot reach.**
-  **`resolveRoundCeremony` (host/solo) and `clientPlayCeremony` (client) are two hand-written
-  presentations of one event**, so anything added to the host's ceremony is invisible on a client until a
-  human plays that seat. Known instances: `uiPhase` (the Resolution and Clean-up tints, fixed 2026-09-29 by
-  copying the host's marks and its 420ms dwell); `buildOppBeats` before it was extracted, where **every**
-  readability feature was missing from the free-for-all driver; and `tutCastRivalTech`, which lost the
-  reveal pairing the real drivers have. Three instances, one shape.
-  **THE DECISION IS WHETHER TO COLLAPSE THE FORK**, and it is genuinely a decision rather than a cleanup,
-  because the two are not the same function wearing different hats: the client has no trim to run, no draw
-  to make and no engine to consult — its ceremony is a REPLAY of an outcome the host already computed. A
-  shared driver would need a "who owns the work" flag threaded through every beat, and the failure mode of
-  getting that wrong is worse than the drift (a client running engine work is the v1.31.56 class).
-  **THE CHEAP HALF, IF THE ANSWER IS NO:** make the host's ceremony emit its phase marks and beat
-  boundaries through ONE named helper that both paths call, so the next addition has an obvious place to
-  go even while the drivers stay separate. That is what `buildOppBeats` did for the opponent beats, and it
-  is why that particular drift stopped.
-  **WHAT WOULD MEASURE IT:** nothing today compares what the two seats RENDER — `nettest_sync` compares
-  state, and state is not the thing that drifts here. A parity probe that samples both strips and both log
-  line-counts through one game is the instrument this cause has never had.
-  `[id: client-ceremony-is-a-second-impl]`
+- `needs a decision`    · **COLLAPSE THE TWO ROUND-CEREMONY DRIVERS INTO ONE? OPTIONAL NOW** (2026-10-08). The host's
+  `resolveRoundCeremony` and the client's `clientPlayCeremony` are still two hand-written presentations of one
+  event, which is how the drifts v1.32.23 fixed came about. They now share `playPreBeats`,
+  `playRoundCardBeat`, the shatter hold (`shieldsHeld`) and the `cer` stamp, and `nettest_parity` fails on any
+  difference between the two screens, so the duplication is no longer silent. Collapsing them is a refactor with
+  no known defect behind it; the parity probe is the guard to keep green while doing it.
+  `[id: ceremony-drivers-collapse]`
+
+- `root cause found`    · **AT 3-6 PLAYERS A DECK-OUT SHOWS THE END SCREEN WHILE THE GAME GOES ON** (found 2026-10-06, reading
+  `resolveRoundCeremony` for the ceremony work; NOT yet reproduced in the page). The ceremony does
+  `if(res.deckedOut){ … return endGame(); }` on ANY deck-out — but at 3+ players `roundDraw` eliminates the
+  decked-out seat and the game continues when two or more remain, so the host (and solo) would show the end screen
+  for a game the engine is still playing. `logDeckout` then names `state.winner`, which is not set. Measured rate:
+  six-player deck-outs are ~0.07 per game (`DECISIONS.md#deck-cycling`), so about one six-player game in 14.
+  Next: force one (seat leads its last card — an apex 2 — with an empty deck and shuffle pile; see the forced
+  deck-out in `recyclesim`'s history) and assert the board carries on.
+  `[id: deckout-ends-game-midway]`
 
 
 - `needs a decision`    · **THE REST OF AJ'S PHONE DECLUTTER — NO DEFECT NEEDS IT ANY MORE** (2026-10-05). His

@@ -1253,6 +1253,16 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
 
     /* AND THE SUB-PHASE IS THE OTHER HALF OF "PROACTIVE" (Aj, from a real duel, 2026-09-15: *"i activated a
        card in the fight sub phase... that's not legal"*). `PHASES-AND-PRIORITY.md` §3 is one sentence about
@@ -2369,6 +2379,35 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
+    /* …AND A ROUND THAT IS OVER IS NOT OPEN EITHER (2026-10-06). During the Resolution go-round (and the Clean-up
+       that follows) `st.turn` still names the last seat to pass and `subPhase` is still 'main', so a play or pass
+       from that seat came back as a Main → Fight TRANSITION — and the host's answer to a transition is to settle
+       the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
+       Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
+       re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
+    /* ONLY WHILE A WINDOW IS ACTUALLY OPEN (`respondFor`). A boundary flag with NOBODY on priority is not a round
+       that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
+       set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
+       it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
+       guard. The stall itself was the round-end freeze, fixed in v1.32.21 (`resumeBoundary`).
+       ⚠ AND UPKEEP, SINCE v1.32.21 (2026-10-07). It was left out because a press there came back as a transition
+       re-applied inside the same round. v1.32.21's `moveToPlay` refuses over any open boundary, Upkeep included,
+       but the check after it cannot tell that refusal from a window worth waiting out, so this still reported a
+       transition, and the host settles a transition and RE-APPLIES the press. At Upkeep the turn already belongs
+       to the new round's leader, so that was a legal press, made before the Draw. `nettest_parity` filmed the
+       leader's board live under the host's Upkeep window, which is how one gets sent (the client's
+       `waitingOnRound` is the courtesy copy). Refused outright now, like the other three. */
+    if ((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
@@ -2432,6 +2471,35 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
+    /* …AND A ROUND THAT IS OVER IS NOT OPEN EITHER (2026-10-06). During the Resolution go-round (and the Clean-up
+       that follows) `st.turn` still names the last seat to pass and `subPhase` is still 'main', so a play or pass
+       from that seat came back as a Main → Fight TRANSITION — and the host's answer to a transition is to settle
+       the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
+       Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
+       re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
+    /* ONLY WHILE A WINDOW IS ACTUALLY OPEN (`respondFor`). A boundary flag with NOBODY on priority is not a round
+       that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
+       set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
+       it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
+       guard. The stall itself was the round-end freeze, fixed in v1.32.21 (`resumeBoundary`).
+       ⚠ AND UPKEEP, SINCE v1.32.21 (2026-10-07). It was left out because a press there came back as a transition
+       re-applied inside the same round. v1.32.21's `moveToPlay` refuses over any open boundary, Upkeep included,
+       but the check after it cannot tell that refusal from a window worth waiting out, so this still reported a
+       transition, and the host settles a transition and RE-APPLIES the press. At Upkeep the turn already belongs
+       to the new round's leader, so that was a legal press, made before the Draw. `nettest_parity` filmed the
+       leader's board live under the host's Upkeep window, which is how one gets sent (the client's
+       `waitingOnRound` is the courtesy copy). Refused outright now, like the other three. */
+    if ((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
        LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so
@@ -2742,6 +2810,13 @@
       st.losses.pop();
       resolveShieldLossObj(st, top, result);
     }
+    /* THE ROUND THAT LAST STRIPPED A SHIELD, so every seat can hold the shatter until ITS ceremony has shown it
+       (one-ceremony, 2026-10-06). A round's strip lands BEFORE the ceremony that presents it — in the Resolution
+       go-round, or after a strike choice — and the UI's old proxies (its own ceremony flag, then the engine's
+       boundary flags) each left a gap in which a render or a mirror showed the break early, on one seat and
+       not another. A round number is exact: a seat holds while the stripped round is one it has not presented.
+       ROUND strips only — a mid-turn `destroyShield` (Critical Hit) has no ceremony and must shatter at once. */
+    if (roundWin && result.shieldStripped) st.stripRound = st.round;
     if (roundWin) return finishRoundWin(st, result);
     return result;
   }
@@ -3227,6 +3302,7 @@
      populated, and the round boundary must not carry it into the next round. */
   function finishRoundWin(st, result) {
     st.losses = []; st.roundWinResult = null;
+    result.stripRound = st.stripRound || 0;   // EVERY round-win result, jabs included: its ceremony marks every strip up to here as shown, so one missed presentation cannot hold a seat's shields forever
     if (st.finished) return result;
     /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
        and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`

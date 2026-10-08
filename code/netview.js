@@ -172,6 +172,7 @@
        were both the bug. */
     return {
       numPlayers: n, players: players, round: st.round, basics: !!st.basics,
+      stripRound: st.stripRound || 0,   // a ROUND NUMBER, not a seat — public; a client holds the shatter on the same data the host does
       turn: rot(st.turn), initiative: rot(st.initiative), lastPlayer: (st.lastPlayer == null ? null : rot(st.lastPlayer)),
       pile: remapPile(st.pile), passes: st.passes || 0,
       finished: !!st.finished, winner: (typeof st.winner === 'number') ? rot(st.winner) : null,

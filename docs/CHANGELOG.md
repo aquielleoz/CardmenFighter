@@ -15,6 +15,40 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.23 — host and client end a round the same way
+
+**In netplay, the end of a round now plays the same on both screens, and the ways it could go wrong are
+fixed.** The host and the client each present a round's ending (the shatter, the banners, the deal), and
+they had drifted apart in ways only a side-by-side comparison could see. A new probe films what both seats
+render and compares them, and everything below is something it found.
+
+- **A duel could freeze at the end of a round** — about one in ten of the probe's random duels. When the
+  client held a Quick it could cast at Clean-up, its automatic pass reached the host before the host was
+  listening for it and was lost, and the table waited forever; if the client also owed an end-of-round
+  discard, it never showed the picker. The host now holds an answer that arrives early and applies it when
+  it gets to that window, and a seat's own discard comes first.
+- **The losing client sometimes missed the final Fighter Kick.** When the game ended inside a response window,
+  the end screen reached the client before the kick did. The client now waits a moment for it.
+- **A client's board went live during its own round ceremony**, so a quick player could play the next round
+  under the last one's banner, and the host got its board back early too. The client now holds its board
+  until its own Round card has played and the host's ceremony is over, and the host turns away a move that
+  arrives mid-ceremony, saying why.
+- **A round that was already won was still open for play.** While the winner was choosing whose shield to
+  strike, or while the Resolution, Clean-up or Upkeep windows were open, the last player to pass could still
+  play or pass, and a pass could even land in the next round. Those are refused now, and the waiting seats
+  see who is choosing. The next round's leader no longer has a live board under somebody else's Upkeep
+  window.
+- **The ceremony itself matches now:** ROAR comes after the shatter on both seats; a shield shatters when each
+  seat's own ceremony shows it, not from the update that carried it; a seat dealt nothing still gets the
+  Beginning tint and its Round card; a knocked-out seat no longer reads "Deck empty"; the client counts its
+  own draw; no stray deck-mill float under the client's Round banner; and a ceremony beat takes the stage back
+  from a waiting notice.
+- **Testing.** `nettest_parity` (new, 21) plays real duels and 3-player games and requires every round
+  ceremony to be the same sequence on both seats, no seat's board to go live under its own ceremony, and no
+  table to stall. `nettest_roundlock` (new, 9) stages every round window against the client's board lock.
+  `test.js` 677 (+20), each new guard mutation-tested; the seeded 600-game AI fingerprint is byte-identical,
+  so no AI game changes. Measured on the freeze: 7 stalls in 72 duel runs before, 0 in 63 after.
+
 ### v1.32.22 — the end of Clean-up looks like Clean-up
 
 **At the very end of a round, the board said the wrong thing.** The end of Clean-up is its own priority window

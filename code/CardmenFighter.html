@@ -3168,6 +3168,16 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
 
     /* AND THE SUB-PHASE IS THE OTHER HALF OF "PROACTIVE" (Aj, from a real duel, 2026-09-15: *"i activated a
        card in the fight sub phase... that's not legal"*). `PHASES-AND-PRIORITY.md` §3 is one sentence about
@@ -4284,6 +4294,35 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
+    /* …AND A ROUND THAT IS OVER IS NOT OPEN EITHER (2026-10-06). During the Resolution go-round (and the Clean-up
+       that follows) `st.turn` still names the last seat to pass and `subPhase` is still 'main', so a play or pass
+       from that seat came back as a Main → Fight TRANSITION — and the host's answer to a transition is to settle
+       the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
+       Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
+       re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
+    /* ONLY WHILE A WINDOW IS ACTUALLY OPEN (`respondFor`). A boundary flag with NOBODY on priority is not a round
+       that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
+       set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
+       it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
+       guard. The stall itself was the round-end freeze, fixed in v1.32.21 (`resumeBoundary`).
+       ⚠ AND UPKEEP, SINCE v1.32.21 (2026-10-07). It was left out because a press there came back as a transition
+       re-applied inside the same round. v1.32.21's `moveToPlay` refuses over any open boundary, Upkeep included,
+       but the check after it cannot tell that refusal from a window worth waiting out, so this still reported a
+       transition, and the host settles a transition and RE-APPLIES the press. At Upkeep the turn already belongs
+       to the new round's leader, so that was a legal press, made before the Draw. `nettest_parity` filmed the
+       leader's board live under the host's Upkeep window, which is how one gets sent (the client's
+       `waitingOnRound` is the courtesy copy). Refused outright now, like the other three. */
+    if ((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
@@ -4347,6 +4386,35 @@
     if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
       ? 'Choose your discards first.'
       : 'A player is still discarding — the table is waiting on them.' };
+    /* A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06). While the winner chooses whose shield to strike
+       (`pendingLossChoice`: 3-6 players under `chosen`), `st.turn` still names the last seat to pass and the
+       pile is still on the table — so a play from that seat was ACCEPTED, beating a pile in a round that had
+       already been decided. Measured: a pair of Kings onto the winner's 9s, `ok:true`, the choice still
+       pending. Netplay reached it (a remote seat's board was live during another seat's pick; `nettest_parity`
+       filmed one firing ~400 refused-or-accepted plays into those windows). Same shape and same place as the
+       pending-discard guard above; the choice itself is `chooseLossTarget`, which never comes through here. */
+    if (st.pendingLossChoice) return { ok: false, reason: st.pendingLossChoice.winner === p
+      ? 'Choose whose shield to strike first.'
+      : 'The round is won — the table is waiting on the winner\u2019s strike.' };
+    /* …AND A ROUND THAT IS OVER IS NOT OPEN EITHER (2026-10-06). During the Resolution go-round (and the Clean-up
+       that follows) `st.turn` still names the last seat to pass and `subPhase` is still 'main', so a play or pass
+       from that seat came back as a Main → Fight TRANSITION — and the host's answer to a transition is to settle
+       the window and RE-APPLY the intent, which here lands it in the NEXT round: a pass pressed under the
+       Resolution became that seat's first pass of the new round. Refused outright now, with no transition to
+       re-apply. The AI never acts here (`takeTurn` returns on an open window), and a seeded fingerprint says so. */
+    /* ONLY WHILE A WINDOW IS ACTUALLY OPEN (`respondFor`). A boundary flag with NOBODY on priority is not a round
+       that is closing, it is a boundary that STALLED — `nettest_parity` caught Clean-up parked that way (`cleanup`
+       set, `respondFor` null, the pile still up, ~1 duel in 7) and the unconditional form of this guard turned
+       it into a table nobody could ever act on. Narrowed so the stall degrades exactly as it did before the
+       guard. The stall itself was the round-end freeze, fixed in v1.32.21 (`resumeBoundary`).
+       ⚠ AND UPKEEP, SINCE v1.32.21 (2026-10-07). It was left out because a press there came back as a transition
+       re-applied inside the same round. v1.32.21's `moveToPlay` refuses over any open boundary, Upkeep included,
+       but the check after it cannot tell that refusal from a window worth waiting out, so this still reported a
+       transition, and the host settles a transition and RE-APPLIES the press. At Upkeep the turn already belongs
+       to the new round's leader, so that was a legal press, made before the Draw. `nettest_parity` filmed the
+       leader's board live under the host's Upkeep window, which is how one gets sent (the client's
+       `waitingOnRound` is the courtesy copy). Refused outright now, like the other three. */
+    if ((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
 
     /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
        LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so
@@ -4657,6 +4725,13 @@
       st.losses.pop();
       resolveShieldLossObj(st, top, result);
     }
+    /* THE ROUND THAT LAST STRIPPED A SHIELD, so every seat can hold the shatter until ITS ceremony has shown it
+       (one-ceremony, 2026-10-06). A round's strip lands BEFORE the ceremony that presents it — in the Resolution
+       go-round, or after a strike choice — and the UI's old proxies (its own ceremony flag, then the engine's
+       boundary flags) each left a gap in which a render or a mirror showed the break early, on one seat and
+       not another. A round number is exact: a seat holds while the stripped round is one it has not presented.
+       ROUND strips only — a mid-turn `destroyShield` (Critical Hit) has no ceremony and must shatter at once. */
+    if (roundWin && result.shieldStripped) st.stripRound = st.round;
     if (roundWin) return finishRoundWin(st, result);
     return result;
   }
@@ -5142,6 +5217,7 @@
      populated, and the round boundary must not carry it into the next round. */
   function finishRoundWin(st, result) {
     st.losses = []; st.roundWinResult = null;
+    result.stripRound = st.stripRound || 0;   // EVERY round-win result, jabs included: its ceremony marks every strip up to here as shown, so one missed presentation cannot hold a seat's shields forever
     if (st.finished) return result;
     /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
        and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`
@@ -6776,6 +6852,7 @@ window.CardFace = {};
        were both the bug. */
     return {
       numPlayers: n, players: players, round: st.round, basics: !!st.basics,
+      stripRound: st.stripRound || 0,   // a ROUND NUMBER, not a seat — public; a client holds the shatter on the same data the host does
       turn: rot(st.turn), initiative: rot(st.initiative), lastPlayer: (st.lastPlayer == null ? null : rot(st.lastPlayer)),
       pile: remapPile(st.pile), passes: st.passes || 0,
       finished: !!st.finished, winner: (typeof st.winner === 'number') ? rot(st.winner) : null,
@@ -7161,7 +7238,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.22';
+  var GAME_VERSION='v1.32.23';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7687,6 +7764,25 @@ window.CardFace = {};
   var announcedThresh={};      // REWORK: which transform tiers have had their unlock ceremony this duel
   var pendingThreshold=null;   // a threshold unlock waiting for its OWN beat (so it doesn't overlap the round-win banner)
   var holdShields=false;       // when a round strips a shield, defer the shatter to the ceremony's "loses a shield" beat
+  var presentedStrip=0;        // the last round whose strip THIS seat's ceremony has shown, at its `revealShields`
+  /* IS A SHIELD DROP RIGHT NOW THE ROUND'S STRIP — which a ceremony will present on its shield beat? (one-ceremony,
+     2026-10-06). `holdShields` answered only from the ceremony's first line, and the engine strips BEFORE that: a
+     3-player chosen strike resolves in the Resolution go-round, and an automatic one after a knock-out goes
+     through the N-player settle, and anything that rendered in between shattered the shield on the spot —
+     on every seat, ~30ms before the ceremony (`nettest_parity`). The duel never saw it: there the strip happens
+     inside the ceremony's own call.
+     THE FIRST REPAIR READ THE ENGINE'S BOUNDARY FLAGS (Resolution, Clean-up, upkeep, a pending strike) AND STILL
+     LEFT A GAP: once the engine has blown through the boundary and before a seat's ceremony begins, none of them
+     is set — so a CLIENT shattered from the very mirror that carried the strip, a whole beat ahead of its own
+     ceremony, and the host queued ROAR ahead of the break it announces (`nettest_parity`, 3 of 5 three-player
+     runs). Both proxies asked "is something happening?" when the question is "has THIS seat shown it yet?".
+     So the engine stamps the round it stripped in (`stripRound`, carried on the mirror) and a seat holds while
+     that round is one its own ceremony has not presented — exact on every seat, whatever the timing. A
+     mid-turn `destroyShield` is not a round strip and still shatters at once. Two releases mean a missed
+     presentation can never hold a seat's shields for good: the game ending, and the table moving two rounds
+     past the strip. */
+  function shieldsHeld(){ return holdShields || !!(state && !state.finished && (state.stripRound||0) > presentedStrip && state.round <= (state.stripRound||0)+1); }
+  function markStripShown(res){ var sr=(res && res.stripRound!=null) ? res.stripRound : ((state && state.stripRound) || 0); if(sr>presentedStrip) presentedStrip=sr; }
   var oppShieldEls={};         // seat -> its panel's shield row, kept ACROSS renders so a shatter is not wiped mid-flight (free-for-all)
   /* THE PHASE THE PLAYER IS IN, WHICH IS NOT ALWAYS THE PHASE THE ENGINE IS PARKED IN (2026-09-25).
      `state.resolution` / `state.cleanup` are set only while the engine HOLDS at a boundary waiting for
@@ -8591,7 +8687,7 @@ window.CardFace = {};
     var g=gen; setTimeout(function(){ if(g!==gen) return; fx.className=''; fx.innerHTML=''; }, 2000);
   }
   // The one place the owed check is paid — `noteShieldChanges` on a render, and `flushThreshold` at the beat.
-  function payThresholdDebt(){ if(thresholdOwed && !holdShields){ thresholdOwed=false; checkThresholds(); } }
+  function payThresholdDebt(){ if(thresholdOwed && !shieldsHeld()){ thresholdOwed=false; checkThresholds(); } }   // the same predicate as the shatter, or ROAR plays BEFORE the break it announces
   // Called after any shield loss. Announces the highest tier that just crossed its unlock line (once each).
   function checkThresholds(){
     if(!state || !E.transformGateStatus) return;
@@ -8863,7 +8959,7 @@ window.CardFace = {};
          borrows the duel's shatter rules; `.oppPanel .oppShields` still wins on size. */
       var ph=el.querySelector('.oppShields'), row=oppShieldEls[i];
       if(row){ ph.parentNode.replaceChild(row, ph); } else { row=oppShieldEls[i]=ph; shieldsEl(row, pl.shields); }
-      if(!holdShields) animateShields(row, pl.shields, i);
+      if(!shieldsHeld()) animateShields(row, pl.shields, i);
       el.onclick = (lossPick && lossPick.cands.indexOf(i)>=0) ? (function(seat){ return function(){ chooseLossSeat(seat); }; })(i)
                  : (targetPick && !pl.eliminated) ? (function(seat){ return function(){ chooseTargetSeat(seat); }; })(i) : null;
       // ⚡ on a rival panel opens THEIR pile, view-only — energy is open information. Stop the click so it
@@ -9694,17 +9790,20 @@ window.CardFace = {};
      * mirror so every screen could name it. The response window had its half the whole time.
      * CHECKED LAST of the three, because a discard is the more specific state: a seat that owes a discard
      * may also hold priority, and "is discarding…" is the more useful of the two sentences. */
+    var lossOn = (state && state.pendingLossChoice && state.pendingLossChoice.winner!==YOU && !state.finished) ? state.pendingLossChoice.winner : null;   // a winner choosing whose shield breaks — the table waits on them too
     var waitOn = (state && state.trimPending && state.trimPending.player!==YOU) ? state.trimPending.player
                : (state && state.discardPending && state.discardPending.player!=null
                   && state.discardPending.player!==YOU) ? state.discardPending.player
-               : (state && state.respondFor!=null && state.respondFor!==YOU && !state.finished) ? state.respondFor : null;
+               : (state && state.respondFor!=null && state.respondFor!==YOU && !state.finished) ? state.respondFor
+               : lossOn;
     if(waitOn!==null){
       /* `logName`, not `seatName`: names are READER-RELATIVE here as everywhere else — a duel opponent reads as
        * "Rival", not "P2". Every other label in the game goes through this funnel for the same reason. */
       var deciding = !(state.trimPending && state.trimPending.player!==YOU)
                   && !(state.discardPending && state.discardPending.player!=null && state.discardPending.player!==YOU);
       var forced = !(state.trimPending && state.trimPending.player!==YOU);
-      var txt = deciding ? (logName(waitOn)+' is deciding…')
+      var txt = (lossOn!==null && waitOn===lossOn && !(state.respondFor!=null && state.respondFor!==YOU)) ? (logName(waitOn)+' is choosing a target…')   // the host's own wording (`hostResolveWin`)
+              : deciding ? (logName(waitOn)+' is deciding…')
                          : (logName(waitOn)+(forced ? ' is discarding…' : ' is discarding to hand size…'));
       var tp=$('rivalStatus'); if(tp) tp.textContent=txt;
       /* AND ON THE STAGE, dimmed — Aj: "maybe we can dim the play area too (might as well put the announcement
@@ -9714,14 +9813,14 @@ window.CardFace = {};
       showTrimWait(txt);
     } else {
       var tp2=$('rivalStatus');
-      if(tp2 && /is discarding|is deciding/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR messages
+      if(tp2 && /is discarding|is deciding|is choosing a target/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR messages
       clearTrimWait();
     }
     /* BEFORE the seat panels, and NOT gated on `holdShields`: that flag defers the SHATTER, which is
        presentation. The tally and the threshold are bookkeeping and must land when the state changes. */
     noteShieldChanges();
     var you=state.players[YOU];
-    if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
+    if(!shieldsHeld()){ animateShields($('youShields'), you.shields, YOU); }
     paintWhoLabels();
     var yb=$('youNrgSuits'); if(yb){ yb.innerHTML=energyChips(you); yb.title=energyBreakdown(you); energyPulse(yb, YOU, you); }
     $('youDeck').textContent=you.deck.length; $('youShuf').textContent=you.shuffle.length;
@@ -9732,7 +9831,7 @@ window.CardFace = {};
     } else {
       $('rival').style.display=''; $('rivalEquipZone').style.display=''; $('rivalFormZone').style.display=''; $('opponents').className='';
       var riv=state.players[RIVAL];
-      if(!holdShields){ animateShields($('rivalShields'), riv.shields, RIVAL); }
+      if(!shieldsHeld()){ animateShields($('rivalShields'), riv.shields, RIVAL); }
       var rb=$('rivalNrgSuits'); if(rb){ rb.innerHTML=energyChips(riv); rb.title=energyBreakdown(riv); energyPulse(rb, RIVAL, riv); }
       $('rivalHand').textContent=riv.hand.length;
       $('rivalDeck').textContent=riv.deck.length;
@@ -11495,7 +11594,7 @@ window.CardFace = {};
      "Round N" card flies them in. Terminal rounds (Fighter Kick) never reach here — they finish on the win. */
   function roundSubtitle(res){
     if(res.opening) return 'Jabs only';
-    if(res.draws && res.draws[YOU]===0) return 'Deck empty — spend energy to recycle';
+    if(res.draws && res.draws[YOU]===0 && !(state && state.players[YOU] && state.players[YOU].eliminated)) return 'Deck empty — spend energy to recycle';   // a knocked-out seat is watching, not out of cards
     if(res.newRound===2) return 'Specials unlocked!';
     var nDraw=(E.drawCountFor&&state)?E.drawCountFor(state):2;   // scales with the table — never hardcode it
     return 'Each player draws '+nDraw+(nDraw===1?' card':' cards');
@@ -11617,7 +11716,7 @@ window.CardFace = {};
       return playKillKick(res, function(){ if(gk===gen) playPreBeats(res, done); });
     }
     var fx=$('roundfx'), inner=fx&&fx.querySelector('.rfInner'), g=gen, shieldShown=false;
-    function revealShields(){ if(shieldShown) return; shieldShown=true; holdShields=false; if(g===gen && state){ if(MP()){ for(var oq in oppShieldEls) if(+oq!==YOU && state.players[+oq]) animateShields(oppShieldEls[oq], state.players[+oq].shields, +oq); } else animateShields($('rivalShields'), state.players[RIVAL].shields, RIVAL);   /* MP: the PANELS — the hidden duel panel shares prevShields[1] and would eat seat 1's drop */ animateShields($('youShields'), state.players[YOU].shields, YOU); } }
+    function revealShields(){ if(shieldShown) return; shieldShown=true; holdShields=false; markStripShown(res); if(g===gen && state){ if(MP()){ for(var oq in oppShieldEls) if(+oq!==YOU && state.players[+oq]) animateShields(oppShieldEls[oq], state.players[+oq].shields, +oq); } else animateShields($('rivalShields'), state.players[RIVAL].shields, RIVAL);   /* MP: the PANELS — the hidden duel panel shares prevShields[1] and would eat seat 1's drop */ animateShields($('youShields'), state.players[YOU].shields, YOU); if(thresholdOwed){ thresholdOwed=false; checkThresholds(); } } }   /* …and PAY THE TIER CHECK NOW, unconditionally (the shatter it follows has just been SHOWN, whatever the engine's flags say), on the shatter's own beat (one-ceremony, 2026-10-06): a debt left for a render was paid mid-beats on a CLIENT (a mirror renders) and only at `flushThreshold` on the HOST (nothing renders between beats), so ROAR came right after the shatter on one seat and after Clean-up on the other — filmed by `nettest_parity`. Paid here, on both, the next beat step shows it: cause, then effect. */
     if(!fx || reduceMotion()){ revealShields(); setTimeout(function(){ if(g===gen) done(); }, reduceMotion()?200:0); return; }
     var beats=buildPreDrawBeats(res), i=0, timers=[], ended=false;
     function fin(){ if(ended) return; ended=true; timers.forEach(clearTimeout); revealShields(); if(g===gen) done(); }
@@ -11634,6 +11733,11 @@ window.CardFace = {};
       var b=beats[i++];
       if(b.shield) revealShields();                                    // shatter → checkThresholds() queues pendingThreshold for the next step()
       inner.className='rfInner'+(b.cls?' '+b.cls:''); inner.innerHTML='<div class="rfBeat">'+b.html+'</div>';
+      /* …AND TAKE THE WHOLE STAGE BACK. `showTrimWait` says a ceremony "wins the race back on its next step", and the
+         step only ever rewrote the TEXT: a waiting notice shown as the ceremony began ("Rival 2 is deciding…") left
+         `trimwait` on the stage, so every later beat played in the dimmed waiting style on that seat alone — the
+         host here, filmed by `nettest_parity`. */
+      fx.className='show'; inner.removeAttribute('data-trim');
       void inner.offsetWidth; inner.classList.add('in');
       timers.push(setTimeout(step, ROUND_BEAT));
     }
@@ -11645,7 +11749,23 @@ window.CardFace = {};
     var fx=$('roundfx'), inner=fx&&fx.querySelector('.rfInner'), g=gen, ended=false, t;
     if(!fx || reduceMotion()){ setTimeout(function(){ if(g===gen) done(); }, reduceMotion()?200:0); return; }
     function fin(){ if(ended) return; ended=true; clearTimeout(t); fx.className=''; fx.onclick=null; inner.className='rfInner'; inner.innerHTML=''; snapDrawnCards(); if(g===gen) done(); }
-    var fizzle=!!(res.draws && res.draws[YOU]===0);
+    /* A KNOCKED-OUT SEAT IS NOT "OUT OF CARDS". `roundDraw` gives an eliminated seat 0, so it read as a fizzled
+       draw: the fizzle style and "Deck empty — spend energy to recycle" on the Round card of a player who is
+       only watching. */
+    var meOut=!!(state && state.players && state.players[YOU] && state.players[YOU].eliminated);
+    var fizzle=!meOut && !!(res.draws && res.draws[YOU]===0);
+    var undealt=meOut || fizzle;
+    /* THE TABLE IS DEALING EVEN WHEN THIS SEAT IS NOT (one-ceremony, 2026-10-06). The Beginning tint is held by
+       THIS seat's own fly-in (`dealHoldUntil`, stamped in `renderHand`), so a seat dealt nothing — knocked out
+       and spectating, or a draw that fizzled — never showed Beginning while every other seat did:
+       `nettest_parity` filmed the knocked-out seat's strip skipping it on every 3-player kick, host and client
+       alike. Beginning belongs to the TABLE (`paintPhaseStrip` says so), so a seat with nothing dealt holds it
+       for as long as the table's deal takes, from `renderHand`'s own arithmetic: 340 + (n-1)*55 + 420. */
+    if(undealt && state){
+      var dealMs=340 + (Math.max(1, E.drawCountFor(state))-1)*55 + 420;
+      dealHoldUntil=Math.max(dealHoldUntil, Date.now()+dealMs); paintPhaseStrip();
+      setTimeout(function(){ if(g===gen) paintPhaseStrip(); }, dealMs+40);
+    }
     inner.className='rfInner rfCard'+(fizzle?' fizzle':''); inner.innerHTML='<div class="rfRound">Round '+roundNumberFor(res)+'</div><div class="rfSub">'+roundSubtitle(res)+'</div>';
     void inner.offsetWidth; inner.classList.add('in');
     fx.className='show'; fx.onclick=fin;
@@ -11922,7 +12042,7 @@ window.CardFace = {};
         logRoundDraw(res);
         enterDelayBase = reduceMotion()?0:340;                  // Round banner appears FIRST (round start), THEN the new cards fly in
         render(); enterDelayBase = 0;
-        playRoundCardBeat(res, function(){ inCeremony=false; if(g===gen) continuation(); });
+        playRoundCardBeat(res, function(){ inCeremony=false; if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && NET.broadcastMirror) NET.broadcastMirror(); if(g===gen) continuation(); });   // tell the clients the ceremony is OVER before anything else moves — their boards release on it
         });
       });
       });
@@ -12830,7 +12950,7 @@ window.CardFace = {};
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
-    prevShields={}; oppShieldEls={}; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
+    prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
        (`resetBoardMemory` itself, `handOrder`/`layout`/`sortState`, `PRIO_LOG`, `seatDecks`, `uiPhase`).
@@ -15843,6 +15963,7 @@ window.CardFace = {};
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
     // ---------- messages ----------
+    var CEREMONY_REFUSE={ play:1, pass:1, activate:1, phantasm:1, toFight:1 };   // board ops refused while the host's ceremony is on screen — see the move dispatch
     function onMsg(m, srcChan){
       if(!m) return;
       if(isHost()){
@@ -15938,6 +16059,26 @@ window.CardFace = {};
              lobby) and on `hostState.finished` (the end screen), and a player is as entitled to rename at
              either as mid-game. It is board-independent, so it never touches a turn gate. */
           if(sseat!=null && m.intent && m.intent.op==='rename'){ hostRename(sseat, m.intent.name); return; }
+          /* A BOARD INTENT THAT ARRIVES MID-CEREMONY IS REFUSED, AND SAYS SO (one-ceremony, 2026-10-06). The round
+             has resolved in the engine but is still being PRESENTED; applying a play now plays the next round
+             under the last one's banner and hands the host its board back early through `hostTakeBack` —
+             `nettest_parity` filmed exactly that. A current client cannot send one (its own ceremony locks its
+             board, and it ends AFTER the host's, because it waits for the deal mirror the host sends at the end
+             of its own), so what arrives here is a DUPLICATE or an older build.
+             ⚠ REFUSED, NOT HELD — and holding was built first and measured wrong: a held duplicate pass was
+             replayed after the ceremony as a real pass in the NEXT round (`nettest_parkclobber`: a second
+             resolution). Refusal is right for a duplicate, and an older client is told why, the way the
+             stale-play refusal above tells it. Only the BOARD ops (`toFight` is the Next/Fight advance): a respond/decline/discard answers a
+             window the ceremony itself can open (the clean-up go-round, the remote trim). */
+          /* …AND WHILE THE ROUND IS OVER BUT ITS CEREMONY HAS NOT STARTED: the Resolution go-round, Clean-up and a
+             pending strike choice. The engine refuses these too (no transition, so nothing to re-apply into the
+             next round); refusing HERE says why instead of the generic "Illegal move." */
+          var roundOver = !!(hostState && (hostState.resolution || hostState.cleanup || hostState.endCleanup || hostState.pendingLossChoice));
+          if(sseat!=null && (inCeremony || roundOver) && hostState && !hostState.finished && m.intent && CEREMONY_REFUSE[m.intent.op]){
+            trace('move REFUSED — the round ceremony is still on screen', 'seat '+sseat+' op='+m.intent.op);
+            sendTo(sseat, {t:'refused', why:'The round is still wrapping up — play again once the new round starts.'});
+            broadcastMirror(); return;
+          }
           if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
@@ -16001,6 +16142,7 @@ window.CardFace = {};
            * lobby, where Ready still works for the next game. */
           if(!mySeat){ trace('setup IGNORED', 'not seated'); return; }
           lobbyHold=false; lobbyBack=false; lobbyNote='';        // the game the lobby return was waiting for has begun
+          dropCeremonyHold();                                     // a hold from the last game's final ceremony is owed to nobody
           /* THIS IS THE CLIENT'S `startGame`, and it is the only place a client learns a new game began.
              Without it the hand arrives in the engine's own SORTED order and nothing is ever reset between
              games on this seat — handOrder, layout and the Sort label all lived in `startGame` alone. */
@@ -16040,8 +16182,9 @@ window.CardFace = {};
           if(m.q!=null && lastSeq!=null && m.q<lastSeq){ trace('mirror STALE — ignored', 'q='+m.q+' < '+lastSeq); return; }
           if(m.q!=null) lastSeq=m.q;
           if(m.bs!=null) lastBS=m.bs;                         // the board this seat is now looking at — sent back with a play
-          
-          applyMirror(m.st); }
+          if(m.cer!=null){ hostCerKnown=true; hostCer=!!m.cer; }   // the host's own ceremony, on or over — what the hold's release waits for
+          applyMirror(m.st);
+          maybeReleaseCeremony(); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='refused'){                             // the host threw a play away — say so, or it reads as a dropped click
           /* THE LEDGER GETS IT TOO, or a client's record shows "you CAST X — sent" with nothing after it
@@ -16263,7 +16406,7 @@ window.CardFace = {};
         else say(netStarter, '🎲 {who} rolled highest ('+hiRoll+') — {who} will lead round 1.', 'round');
       }
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
-      hostState=state;                                  // `state` is what startGame creates, so this one stays below it
+      hostState=state; heldAnswer=null;                 // `state` is what startGame creates, so this one stays below it
       // (`seatNames[0]` + `t:'setup'` moved ABOVE `startGame` — see the note there: names before narration)eir own label
       broadcastMirror();
       });
@@ -16295,7 +16438,7 @@ window.CardFace = {};
       noteResult();
       hostTakeBack();                                      // busy, "Waiting for opponent…" and the park beat go together (v1.31.49)
       hostState=null;                                      // BEFORE any send or render: broadcastMirror, onRender, the beat and hostApplyMove* all return on it, and in-order delivery then puts every game-one mirror AHEAD of the lobby message
-      netSettle=null; netDiscard=null; netParked=null; netReact=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
+      netSettle=null; netDiscard=null; netParked=null; netReact=null; heldAnswer=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
       for(var rs=0;rs<6;rs++) try{ E.takeReveal(rs); }catch(e){}   // drain an Outbalance read the finished game never flushed: it is module-level in the engine, newGame does not touch it, and hostFlushReveals would push a dead hand to that seat in game two
       lastMirror={}; clearDiscon(); try{ relayDropRoom(); }catch(e){}   // all idempotent: game two's first mirror is never deduped against game one; discon is empty since endGame; the room was dropped at Start, and a publish in flight then could have re-set it
       hostSeatOf={}; seatDeckMap={}; nextSeat=1; seatRuleGen={}; seatSuggest={}; oppDeck=null; oppReady=false;
@@ -16315,6 +16458,7 @@ window.CardFace = {};
       noteResult();
       lobbyHold=true;                                      // until the next t:'setup'
       stopJoinRetry(); iReady=false; iConceded=false; mySeat=0;   // mySeat back to its pre-welcome value: no mirror is ever addressed to seat 0, so nothing can match until the host re-welcomes this seat. iConceded: applyMirror ignores EVERY mirror while it is set — a client that conceded game one would be blind for game two
+      dropCeremonyHold();
       clientCeremonyActive=false; clientCeremonyRes=null; pendingRoundMirror=null; awaitingRoundReveal=false; clientWinSig=null; lastBS=null;   // a HELD deal snapshot released later would re-apply game one; a stale window signature would silently skip game two's first identical window
       clearDiscon(); window.__cmfNetState=null;
       trace('started: true -> FALSE', 'lobby from host'); started=false;
@@ -16392,7 +16536,7 @@ window.CardFace = {};
       /* The version is bumped AFTER the content compare, never before: if `q` were part of the compared body a
        * fresh number would make every mirror look different and defeat the dedupe that killed the 97%-duplicate
        * render storm (v1.31.65). Content decides whether to send; the version only labels what is sent. */
-      var body={seat:s, bs:boardStamp(hostState), st:NetView.mirrorFor(hostState, s)}, j;
+      var body={seat:s, bs:boardStamp(hostState), cer:!!inCeremony, st:NetView.mirrorFor(hostState, s)}, j;   // `cer`: the host's ceremony is on screen — part of the COMPARED body, so its flip is always sent
       /* LOUD, NOT SILENT (v1.31.115). This catch used to swallow the failure entirely, which is how a mirror
        * that could not be serialised went unnoticed for as long as it did: the host believed it had sent, the
        * client received nothing, and the only symptom was a table that stopped. The trace ring is the one
@@ -16409,7 +16553,7 @@ window.CardFace = {};
        * CHANGED mirror (~29 a game, measured in v1.31.65) and makes both transports carry identical bytes.
        * Anything BC would have tolerated is now equally absent on BC, where a suite can see it. */
       if(j!==null) body=JSON.parse(j);
-      var msg={t:'mirror', seat:s, q:++mirrorSeq, bs:body.bs, st:body.st};
+      var msg={t:'mirror', seat:s, q:++mirrorSeq, bs:body.bs, cer:body.cer, st:body.st};
       /* dbg only, and PERMANENT ON PURPOSE. A lost mirror is the whole mechanism behind the host/client fork,
        * and it has now been investigated three times with bespoke probes that were thrown away each time —
        * which is exactly why "no HELD events during a failure" could not be re-checked nine versions later.
@@ -16469,6 +16613,16 @@ window.CardFace = {};
     function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); stopParkBeat(); busy=false; duelWait=false; $('rivalStatus').textContent=''; }
     var duelWait=false;   // parked in `awaitRival`: the duel host is waiting on seat 1's TURN (the 2p twin of `netParked`)
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
+    /* AN ANSWER THAT ARRIVES BEFORE ITS PARK IS HELD, NOT DROPPED (2026-10-07). When a duel round ends, the
+       engine opens the Clean-up go-round at once, but this host drains it only inside its ceremony
+       (`boundaryThen`, after the beats and the trim). A client prompts from its mirror the moment the window is
+       owed, so its answer, usually an auto-pass, landed while `netSettle` was still null and was dropped
+       silently. Its signature for that grant was then spent, so it never answered again, and the host parked on
+       a window that would never be answered. `nettest_parity` found it: about 1 duel run in 8, one signature
+       every time (`[id: client-ceremony-is-a-second-impl]`). Held only when stamped with the CURRENT grant
+       (`pg` = `prioGen`, which bumps on every grant), applied when `hostSettle` parks on that same grant, and
+       dropped if anything was granted in between — the park then asks again, through the new `prioGen`. */
+    var heldAnswer=null;
     /* ONE DEFINITION, called by both host drivers. The duel handler and the N-player one differed only in the
      * seat and the continuation they run afterwards, and two near-identical blocks 400 lines apart drift — the
      * same reason `isChopOf` and `phantasmSolveFor` each have exactly one definition. Returns true when the
@@ -16502,7 +16656,16 @@ window.CardFace = {};
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
       if(it.op==='respond' || it.op==='decline'){
-        if(!netSettle) return;                                  // no open window — stale/duplicate reply, ignore
+        var curPg=hostState.prioGen||0;
+        if(!netSettle){                                         // not parked on it yet — see `heldAnswer`
+          if(it.pg!=null && it.pg===curPg && hostState.respondFor===1){ heldAnswer={ it:it, pg:curPg }; trace('answer HELD — its window is not parked yet', 'op='+it.op+' prioGen='+curPg); }
+          else trace('answer IGNORED — no open window', 'op='+it.op+' pg='+(it.pg!=null?it.pg:'-')+' prioGen='+curPg+' respondFor='+hostState.respondFor);
+          return;
+        }
+        /* AN ANSWER IS FOR ONE GRANT. A client that answered an earlier grant (a duplicate, or the re-answer a
+           trim provokes) must not decline the window the host is parked on now; the new grant's mirror asks it
+           again. Unstamped answers (an older client) apply as they always did. */
+        if(it.pg!=null && it.pg!==curPg){ trace('answer DROPPED — it was for an earlier grant', 'op='+it.op+' pg='+it.pg+' prioGen='+curPg); return; }
         try{
           if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
           else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
@@ -16606,6 +16769,11 @@ window.CardFace = {};
       if(!hostState){ return done && done(); }
       if(hostState.respondFor===RIVAL){
         netSettle={ g:g, done:done };
+        if(heldAnswer){                                        // the seat answered before this park — see `heldAnswer`
+          var ha=heldAnswer; heldAnswer=null;
+          if(ha.pg===(hostState.prioGen||0)){ trace('held answer APPLIED at the park', 'op='+ha.it.op+' prioGen='+ha.pg); return hostApplyMove(ha.it); }
+          trace('held answer DROPPED — the window was granted again', 'held '+ha.pg+', now '+(hostState.prioGen||0));
+        }
         var _mp=maybePasso;                                    // hoisted read: the park below returns, so call it last
       /* A PARKED HOST MUST KEEP SAYING SO — and only TWO of the seven parks did (v1.31.116). v1.31.75 added
          `reassertMirror` and v1.31.80 the beat, both wired into `awaitRival` and `hostParkTrim` BY NAME, and
@@ -16730,7 +16898,7 @@ window.CardFace = {};
        * if (aliveCount(st) <= 1) st.finished = true; }`), so the client needs to be told which one this is. */
       var o={ roundWinner:rot(res.roundWinner), comboType:res.comboType, kick:!!res.kick, prevented:!!res.prevented,
         finished:!!(hostState && hostState.finished),
-        shieldStripped:!!res.shieldStripped, opening:!!res.opening, newRound:res.newRound, shieldToHand:!!res.shieldToHand };
+        shieldStripped:!!res.shieldStripped, opening:!!res.opening, newRound:res.newRound, shieldToHand:!!res.shieldToHand, stripRound:res.stripRound||0 };
       if(res.milled){ o.milled={}; for(var k in res.milled){ if(res.milled[k]!=null) o.milled[rot(+k)]=res.milled[k]; } }
       /* WHO LOST THE SHIELD HAD TO BE ON THE WIRE, and the announcement's own comment said so (v1.31.118).
          `announceRoundWin` reads `res.struck`; a client's ceremony result never carried it, so `struck` was
@@ -17035,7 +17203,7 @@ window.CardFace = {};
       if(clientCeremonyActive && st && !st.finished && isRoundDeal(st)){
         trace('mirror HELD', 'round='+(st.round||'?')+' myHand='+((st.players&&st.players[0])?st.players[0].hand.length:'?')+' (ceremony active)');
         pendingRoundMirror=st; return; }
-      if(awaitingRoundReveal && st && !st.finished && isRoundDeal(st)){
+      if((awaitingRoundReveal || (ceremonyHold && roundCardTok!==ceremonySeq)) && st && !st.finished && isRoundDeal(st)){
         trace('mirror HELD -> revealRound', 'round='+(st.round||'?')+' myHand='+((st.players&&st.players[0])?st.players[0].hand.length:'?'));
         return revealRound(st); }
       applyMirrorNow(st);
@@ -17052,8 +17220,12 @@ window.CardFace = {};
       syncClear();                             // a mirror is the host's confirmation: whatever we sent has landed or been judged
       if(st && !st.finished) endShown=false;   // a client never runs startGame, so this is where a fresh game re-arms its end screen
       started=true; state=st; hostState=null; window.__cmfNetState=st;
-      var owedModal = !!(st.respondFor===YOU);   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
+      /* …AND WHILE THIS SEAT'S OWN TRIM IS WHAT THE HOST WAITS ON, a priority window owed at the same time locks
+         nothing: the trim comes first (see `clientCheckWindow`), and `owedModal` / `waitingOnRound` would set
+         `busy` on every mirror and freeze the picker that `promptHumanDiscard` just opened. */
+      var trimFirst = !!(owedDiscard && st.trimPending && st.trimPending.player===YOU);
+      var owedModal = !!(st.respondFor===YOU) && !trimFirst;   // overlay windows — keep them up (don't flicker away)
       var owedLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner===YOU);                                 // panel-pick: whose shield to strip
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
       /* THE END SCREEN IS NOT A TRANSIENT WINDOW, and it was not on this list — so every mirror arriving after
@@ -17068,9 +17240,41 @@ window.CardFace = {};
        * won could act on a live board while the host was still picking, playing into a round whose cards had
        * not been dealt. Aj spotted it from the symptom: "it should also block the action buttons for others". */
       var waitingOnTrim = !!(st.trimPending && st.trimPending.player!==YOU);
-      busy = owedModal || owedLoss || waitingOnTrim || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
+      /* …AND SOMEONE ELSE'S STRIKE CHOICE LOCKS IT THE SAME WAY (2026-10-06). While a round's winner chooses whose
+         shield breaks, `turn` still names the last seat to pass — so that seat read "your turn" with a live board
+         through the whole pick, and `nettest_parity` filmed one firing plays into it for a hundred seconds. The
+         engine now refuses those (`pendingLossChoice`); this is the courtesy copy, and `render` says who is choosing. */
+      var waitingOnLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner!==YOU);
+      /* …AND THE ROUND IS OVER WHILE ITS RESOLUTION AND CLEAN-UP RUN. `turn` still names the last seat to pass, so
+         that seat read "your turn" through somebody else's Resolution window, and a play or pass sent then came
+         back to the host as a Main → Fight transition that it settled and RE-APPLIED — in the next round. The
+         engine refuses those outright now; this is the courtesy copy, and the window the seat IS owed (a modal,
+         a discard) is untouched by it.
+         ⚠ AND `upkeep` (2026-10-07). It was left out because an intent pressed there came back as a transition
+         the host re-applied inside the same round. Since v1.32.21's `moveToPlay` refuses over any open boundary,
+         that transition was meaningless, and the engine now refuses a play or pass into an open Upkeep window
+         outright, like the other three (`play`/`pass`). Meanwhile the NEW round's leader, whose turn it already
+         is, read a live board for as long as somebody else's Upkeep window stayed open. `nettest_parity` filmed
+         it: a Resolution window the host sat in, then the host's Upkeep window, with the next leader's controls
+         going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
+      var waitingOnRound = !trimFirst && !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
+      busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
+      /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
+         says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
+         went live under its own Round banner and a quick player could play round N+1 before round N had finished
+         presenting — on the host as well, because the play reached it mid-ceremony and `hostTakeBack` handed
+         the host its board back early. `nettest_parity` filmed both seats playing a whole round under the
+         previous one's banner. A discard owed to the host's end-of-round trim stays answerable, or the trim
+         that runs inside that same ceremony could never finish. The HOST refuses a board op that arrives
+         mid-ceremony too (`CEREMONY_REFUSE`); this is the courtesy copy of that gate. */
+      ceremonyLocked = false;
+      if(ceremonyHold && !owedDiscard && !busy){ busy = true; ceremonyLocked = true; }   // remember it was the CEREMONY, so its release undoes only this lock
       render();
-      if(state.finished){ endGame(); return; }
+      if(state.finished){
+        if(finalCerSeen) return endGame();
+        if(!endWaitT) endWaitT=setTimeout(function(){ endWaitT=null; trace('end screen without a final ceremony', 'none arrived within 700ms'); if(state && state.finished) endGame(); }, 700);   // see `finalCerSeen`
+        return;
+      }
       clientCheckWindow();
     }
     // The mirror can show a window owed to us (seat rotated to index 0). Pop the SAME modal/picker the single-player
@@ -17087,7 +17291,15 @@ window.CardFace = {};
          returned early, the modal never re-opened, and the table waited forever on a window nobody was shown.
          `prioGen` bumps on every GRANT, so a re-offer always reads as new; it does NOT bump per render, so a
          client applying fifty identical mirrors still de-dupes down to one modal. */
-      if(state.respondFor===YOU) sig='resp:'+((state.pending&&state.pending.oid)||'-')+':'+(state.prioGen||0);
+      /* ⚠ THIS SEAT'S END-OF-ROUND TRIM COMES FIRST (2026-10-07). The Clean-up go-round opens the moment a round
+         ends, and the host's ceremony takes the trim BEFORE it drains that go-round — so a seat can owe both at
+         once, and the host is parked on the trim. Answering the priority window first gave the host an answer
+         it was not waiting for and never showed the picker it WAS waiting for: `nettest_parity` measured that
+         as a permanent stall with *"Choose your discards first."* on screen and no picker. Once the discard is
+         sent the signature changes, so the go-round is asked again when the host gets to it. */
+      var trimMine=!!(state.trimPending && state.trimPending.player===YOU && state.discardPending && state.discardPending.player===YOU);
+      if(trimMine) sig='disc:'+(state.discardPending.count||1);
+      else if(state.respondFor===YOU) sig='resp:'+((state.pending&&state.pending.oid)||'-')+':'+(state.prioGen||0);
       else if(state.discardPending && state.discardPending.player===YOU) sig='disc:'+(state.discardPending.count||1);
       else if(state.pendingLossChoice && state.pendingLossChoice.winner===YOU) sig='loss:'+(state.pendingLossChoice.cands||[]).join(',');
       if(sig===clientWinSig) return;                    // already handling this exact window
@@ -17108,6 +17320,77 @@ window.CardFace = {};
     // The NEW-ROUND deal mirror is held (see applyMirror) until the beats finish, so the "Round N" banner and the
     // card fly-in land together — mirroring the host's deferred draw.
     var clientCeremonyActive=false, clientCeremonyRes=null, pendingRoundMirror=null, awaitingRoundReveal=false;
+    /* THE CLIENT'S BOARD IS HELD FOR AS LONG AS THE HOST'S IS (one-ceremony, 2026-10-06): from the start of its
+       round ceremony to the END OF ITS OWN ROUND CARD. The host clears `inCeremony` only after
+       `playRoundCardBeat`, so that is the window in which it refuses a board op (`CEREMONY_REFUSE`); this is
+       the same window on this seat. It is longer than `clientCeremonyActive`, which ends when the beats do and
+       BEFORE the deal — measured the hard way: released there, a player who clicked a card as it flew in acted
+       ~1.35s (`ROUND_HOLD`) before the host's ceremony ended, and the host turned a legal play away.
+       `ceremonyHold` is the window; `ceremonyLocked` says the last mirror's `busy` was forced BY the hold, so a
+       release undoes only that — a seat locked because it sent an intent stays locked (`nettest_desync`).
+       `ceremonySeq` stops a late timer from releasing a NEWER ceremony's hold, and the watchdog makes a hold
+       that never ends explain itself instead of freezing the board silently. */
+    var ceremonyHold=false, ceremonyLocked=false, ceremonySeq=0, ceremonyWatch=null, holdStart=0, roundCardTok=0, roundCardShowing=false;
+    /* THE RELEASE IS CAUSAL, NOT TIMED. The first cut released on a 2.5s fallback, and two clocks on two
+       machines cannot promise an order: a host still busy in clean-up (picking its own discards over the hand
+       limit) let that timer expire, the deal then landed with the board already live, and a play sent during
+       the host's Round card was refused. So the host STAMPS every mirror with its own `inCeremony` (`cer`),
+       and this seat releases only when (a) its own beats are done, (b) its own Round card is done, and (c) the
+       host's latest mirror says the host's ceremony is over. A legal play can then never reach a host that is
+       still presenting. An older host sends no `cer` (`hostCerKnown` stays false): fall back to (a)+(b). */
+    var hostCer=false, hostCerKnown=false;
+    function holdCeremony(){
+      ceremonyHold=true; holdStart=Date.now(); var tok=++ceremonySeq; clearTimeout(ceremonyWatch);
+      (function watch(){ ceremonyWatch=setTimeout(function(){
+        if(!ceremonyHold || tok!==ceremonySeq) return;
+        var held=Date.now()-holdStart;
+        /* Fires only on a hold that has stopped making sense: this seat is done presenting and the host says
+           it is done too (so nothing will ever release it), or a minute has passed whatever anyone says. A host
+           that is slow on purpose — a human picking discards — keeps `cer` true and is waited for. */
+        if((held>15000 && !hostCer && !roundCardShowing) || held>60000){
+          prioNote('⚠ CLIENT CEREMONY HOLD RELEASED BY ITS WATCHDOG', 'held '+Math.round(held/1000)+'s · beats '+(clientCeremonyActive?'STILL RUNNING':'done')+
+                   ' · round card '+(roundCardTok===tok?'shown':'never shown')+' · host ceremony '+(hostCer?'STILL ON':'over')+' · pending deal '+(pendingRoundMirror?'yes':'no'));
+          trace('⚠ ceremony hold WATCHDOG', 'released after '+Math.round(held/1000)+'s'); releaseCeremony(tok); return;
+        }
+        watch(); }, 5000); })();
+      return tok;
+    }
+    function releaseCeremony(tok){
+      if(!ceremonyHold || (tok!=null && tok!==ceremonySeq)) return;   // a stale release — a newer ceremony owns the hold now
+      ceremonyHold=false; clearTimeout(ceremonyWatch); ceremonyWatch=null;
+      if(ceremonyLocked){ ceremonyLocked=false; if(state && !state.finished){ busy=false; render(); } }
+    }
+    function showRoundCard(tok){                                // THIS seat's Round card, once per ceremony; the release waits for it
+      if(roundCardTok===tok) return;
+      roundCardTok=tok; roundCardShowing=true;
+      playRoundCardBeat(clientCeremonyRes, function(){ roundCardShowing=false; maybeReleaseCeremony(tok); });
+    }
+    function maybeReleaseCeremony(tok){
+      if(tok==null) tok=ceremonySeq;
+      if(!ceremonyHold || tok!==ceremonySeq) return;
+      if(clientCeremonyActive || roundCardShowing) return;      // this seat is still presenting
+      if(hostCerKnown && hostCer) return;                        // …or the host still is
+      /* THE HOST IS DONE AND THIS SEAT NEVER SHOWED ITS ROUND CARD: the deal reached it in a mirror that was not
+         held (`isRoundDeal` refuses one that also carries a shield drop, so the shatter can play), so no reveal
+         ever came. The host showed a Round card, so this seat shows one too — late by the host's own, which is
+         the safe direction — and releases after it. Only with a host that stamps `cer`: without it this seat
+         cannot know the deal has happened at all. */
+      if(hostCerKnown && roundCardTok!==tok && state && !state.finished && clientCeremonyRes){
+        trace('Round card shown LATE', 'the host\'s ceremony ended with no reveal on this seat');
+        return showRoundCard(tok);
+      }
+      releaseCeremony(tok);
+    }
+    /* THE FINAL CEREMONY CAN ARRIVE AFTER THE FINISHED MIRROR, AND THE FIGHTER KICK WENT WITH IT (2026-10-07).
+       The host's rule is ceremony first, then the finished mirror, so `announceRoundWin` sets `pendingKick`
+       before `endGame` consumes it. But when the game ends inside a drained window (the loser's last Resolution
+       answer), `hostSettle` falls through to `render(); done()` — the render broadcasts the finished state, and
+       only `done` → `hostFinishRound` sends the ceremony. `endGame` is latched, so it ran with no kick and the
+       late ceremony set `pendingKick` for nothing: `nettest_parity` filmed KICK on the host and none on the
+       client. So a finished mirror waits a moment for that ceremony (which ends the game itself, kick and all),
+       and ends the game anyway if none comes: a concede or a deck-out sends none. */
+    var finalCerSeen=false, endWaitT=null;
+    function dropCeremonyHold(){ ceremonyHold=false; ceremonyLocked=false; roundCardShowing=false; hostCer=false; presentedStrip=0; clearTimeout(ceremonyWatch); ceremonyWatch=null; ceremonySeq++; finalCerSeen=false; clearTimeout(endWaitT); endWaitT=null; }   // a new game or the lobby: nothing owed
     function clientPlayCeremony(res){
       if(isHost() || !res || lobbyHold) return;   // lobbyHold: a ceremony for a game this seat has left (v1.31.95)
       /* A HELD MIRROR DISCARDED HERE IS THE LEADING CANDIDATE FOR THE `nettest_sync` FORK, and this is the
@@ -17117,6 +17400,8 @@ window.CardFace = {};
        * WORSE (5 failures in 8). Traced instead, so the next occurrence names itself. */
       if(pendingRoundMirror) trace('mirror HELD -> DISCARDED', 'a new ceremony arrived first; the client loses that round\'s deal');
       clientCeremonyRes=res; clientCeremonyActive=true; pendingRoundMirror=null; awaitingRoundReveal=false;
+      holdCeremony();
+      inCeremony=true;   // the host's flag, on this seat too: the render-diff deck-mill float is suppressed for the ceremony on BOTH (`nettest_parity` filmed a client-only −N under every Round banner)
       holdShields = !reduceMotion() && !!res.shieldStripped;
       /* ⚠ THE PHASE STRIP NEVER WENT ORANGE OR RED ON A CLIENT (Aj, 2026-09-29: *"the colors for resolution
          and clean up never show on the client"*). `uiPhase` was assigned in exactly ONE place —
@@ -17137,7 +17422,10 @@ window.CardFace = {};
        * GATED ON `finished`, NOT ON `kick`. At 3-6 players every elimination is a kick and the game continues,
        * so keying this off `kick` would skip the beats the host DOES play on a mid-game elimination — and leave
        * `pendingKick` set on a client that never reaches endGame(), firing a stray finisher later. */
-      if(res.finished){ clientCeremonyActive=false; holdShields=false; uiPhase=null; return; }
+      if(res.finished){ clientCeremonyActive=false; inCeremony=false; holdShields=false; uiPhase=null; releaseCeremony();
+        finalCerSeen=true;                                       // see `finalCerSeen`: the finished mirror may already be here
+        if(state && state.finished){ clearTimeout(endWaitT); endWaitT=null; endGame(); }
+        return; }
       /* AND CLEAN-UP NEEDS ITS OWN DWELL HERE FOR THE REASON IT NEEDS ONE ON THE HOST: the client has no
          trim to show — the host owns it — so without a beat the phase exists for less than a frame and the
          strip never paints red, which is exactly the bug being fixed. `paintPhaseStrip` REPAINTS rather
@@ -17151,8 +17439,9 @@ window.CardFace = {};
       });
     }
     function finishClientCeremony(){
-      clientCeremonyActive=false;
+      clientCeremonyActive=false; inCeremony=false;
       uiPhase=null;                                            // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
+      var tok=ceremonySeq;                                     // the hold is NOT released here: the beats end before the deal — see `ceremonyHold`
       if(pendingRoundMirror){ var m=pendingRoundMirror; pendingRoundMirror=null; revealRound(m); }
       /* THE TEARDOWN MUST BE UNCONDITIONAL. This branch used to arm `awaitingRoundReveal` and, when the timer
        * expired, clear only that flag — its own comment claimed it would "drop the banner after a beat" and it
@@ -17160,11 +17449,13 @@ window.CardFace = {};
        * swap into it, so if the deal mirror never arrived in a shape this code recognised, nothing ever called
        * `clearRoundfx()` and the dim was permanent: the board unreadable and unclickable while the hand below
        * kept working. Aj hit it twice in one game, and it hid other bugs from him — he could not see a counter
-       * resolve because the play area was dimmed at the time. */
+       * resolve because the play area was dimmed at the time.
+       * The timer takes the DIM down and nothing else: the board's release is `maybeReleaseCeremony`'s. */
       else { awaitingRoundReveal=true; setTimeout(function(){
                awaitingRoundReveal=false;
-               if(!clientCeremonyActive && !pendingRoundMirror) clearRoundfx();   // nothing is coming — take the banner down
-             }, 2500); }
+               if(!clientCeremonyActive && !pendingRoundMirror && !roundCardShowing) clearRoundfx();   // nothing is coming — take the banner down
+             }, 2500);
+             maybeReleaseCeremony(tok); }                         // the host may already be done, with the deal already landed
     }
     /* "IS THIS THE NEW ROUND'S DEAL?" — ANSWERED FROM THE ROUND NUMBER, NOT FROM HAND SIZE.
      * It used to be `handGrew`: the incoming hand is bigger than the one on screen. That is a PROXY, and it is
@@ -17221,10 +17512,23 @@ window.CardFace = {};
     }
     function revealRound(m){                                   // apply the new-round state + show the "Round N" banner as the cards fly in
       awaitingRoundReveal=false;
+      var tok=ceremonySeq;
+      var had={}; if(state && state.players && state.players[0]) state.players[0].hand.forEach(function(c){ if(c) had[c.id]=1; });
       enterDelayBase = reduceMotion()?0:340;                   // banner first, then the freshly-drawn cards deal in
-      applyMirrorNow(m);
+      applyMirrorNow(m);                                       // …still under the hold, so the board stays locked through the card
       enterDelayBase = 0;
-      if(clientCeremonyRes && clientCeremonyRes.newRound && !m.finished) playRoundCardBeat(clientCeremonyRes, function(){});
+      /* THIS SEAT'S DRAW, COUNTED. The ceremony result leaves the host at ANNOUNCE time, before its draw, so
+         `res.draws` never reached a client — its Round card could not show the fizzle style, and its subtitle
+         said "Each player draws N" where the host's said "Deck empty". The deal mirror is the draw: count the
+         cards that are new. (Only this seat's: nobody else's hand is visible here, and nothing needs it.) */
+      if(clientCeremonyRes && state && state.players && state.players[0]){
+        clientCeremonyRes.draws=[]; clientCeremonyRes.draws[0]=state.players[0].hand.filter(function(c){ return c && !had[c.id]; }).length;
+      }
+      /* NOT GATED ON `newRound` ANY MORE: the host plays its Round card whether or not the result was stamped
+         (`roundNumberFor` falls back to the board's round, which on this seat is now the deal's), so a client
+         that skipped it when `newRound` was missing showed one ceremony fewer than the host. */
+      if(clientCeremonyRes && !m.finished) showRoundCard(tok);
+      else maybeReleaseCeremony(tok);
     }
     var lastSeq=null;   // the stamp of the newest mirror this client has applied
     var lastBS=null;
@@ -17237,7 +17541,10 @@ window.CardFace = {};
      * of which change the board, so no mirror ever answers them. The rematch ask from a FINISHED game is the case
      * that made it visible: the banner sat under the end screen and showed plainly during Review. The same trio
      * the stamp check already exempts (v1.31.57), for the same reason. */
-    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
+    /* A WINDOW ANSWER NAMES THE GRANT IT ANSWERS (`pg`, 2026-10-07) — the `prioGen` this seat's mirror showed,
+       so the host can hold an answer that beat its park and drop one meant for an earlier grant (`heldAnswer`). */
+    function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline') && it.pg==null && state) it.pg=state.prioGen||0;
+      trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')+(it&&it.pg!=null?' pg='+it.pg:'')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -17717,7 +18024,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:clientCeremonyActive, roundCard:roundCardShowing, hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!pendingRoundMirror, awaiting:awaitingRoundReveal }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -17755,7 +18062,7 @@ window.CardFace = {};
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
-    ceremony:function(){ return !!inCeremony; }, /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
+    ceremony:function(){ return !!inCeremony; }, ceremonyHold:function(){ return NET.dbgCeremonyHold ? NET.dbgCeremonyHold() : null; }, roundFlags:function(){ return state ? { round:state.round, sub:state.subPhase, turn:state.turn, resolution:!!state.resolution, cleanup:!!state.cleanup, endCleanup:!!state.endCleanup, upkeep:!!state.upkeep, loss:!!state.pendingLossChoice, respondFor:state.respondFor, pending:!!state.pending, stack:(state.stack||[]).length, passes:state.passes, lastPlayer:state.lastPlayer, stripRound:state.stripRound||0, disc:state.discardPending||null, trim:state.trimPending||null } : null; }, /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
        header is the one place a client's deck names are read back, and nothing could see it.
        Checked for a duplicate key first (a brace-walk of this literal, not the crude grep: that
        one reports six hits here and all six are NESTED keys, so it is a lead, never a verdict). */
