@@ -718,8 +718,8 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `root cause found`    · **⏸ IN PROGRESS ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED
-  BY A NEW PROBE AND MOSTLY FIXED.** Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*;
+- `needs a decision`    · **⏸ ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED BY A NEW
+  PROBE; EVERY DRIFT IT FOUND IS FIXED AND IT IS GREEN (2026-10-08). NEXT IS SHIPPING THE BRANCH.** Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*;
   2026-10-06: *"yes let's try to remove all drifts"*. The old entry's "needs a decision" (collapse the two drivers?)
   was answered by measuring instead: **`nettest_parity` (new) FILMS what host and client RENDER through real duels
   and 3-player games and diffs the ceremonies** — the instrument this cause never had. Read its header first.
@@ -796,9 +796,10 @@ never read.*
     stalls were gone, because games now reached their end. **Fixed on the client:** a finished mirror waits up
     to 700ms for the final ceremony, which ends the game itself (`finalCerSeen`); a concede or a deck-out sends
     none and ends after the wait. **10 of 10 finished duels filmed the kick on both seats after.**
-  **STILL OPEN:**
-  - `kicktest`'s `3p-out` leg failed its STAGING once under parallel load (the kick never landed), green 2/2 after.
-    Its setup survives a round-4 deal that can hand seat 2 a higher pair, so it reads deal-dependent; unmeasured.
+  - **`kicktest`'s `3p-out` flake was its staging crossing a round's draw**, not a higher pair: each Ride or Form
+    an AI drew there was a ~2.65s beat, so the kick landed at 14.5-19.6s against a 20s budget (1 miss in 16;
+    forcing that draw, 4 of 4). It kills in round 3 now, before any draw: 4.5s, 16 of 16. `kicktest` is not this
+    branch's, so it ships to main on its own.
   **THE STRUCTURAL QUESTION IS STILL OPEN BUT SMALLER:** the two ceremony drivers now share `playPreBeats`,
   `playRoundCardBeat`, the hold predicate and the `cer` stamp, and the probe gates the rest. Collapsing them fully
   is optional once the probe is green.
