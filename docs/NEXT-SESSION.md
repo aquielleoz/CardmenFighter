@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.23.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.24.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.23** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.24** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -722,12 +722,23 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `needs a decision`    · **COLLAPSE THE TWO ROUND-CEREMONY DRIVERS INTO ONE? OPTIONAL NOW** (2026-10-08). The host's
-  `resolveRoundCeremony` and the client's `clientPlayCeremony` are still two hand-written presentations of one
-  event, which is how the drifts v1.32.23 fixed came about. They now share `playPreBeats`,
-  `playRoundCardBeat`, the shatter hold (`shieldsHeld`) and the `cer` stamp, and `nettest_parity` fails on any
-  difference between the two screens, so the duplication is no longer silent. Collapsing them is a refactor with
-  no known defect behind it; the parity probe is the guard to keep green while doing it.
+- `needs a decision`    · **UNITE THE TWO ROUND-CEREMONY DRIVERS: STEP 1 OF 3 SHIPPED (v1.32.24)**. This was filed
+  as optional and then proposed for decline, and Aj refused (2026-10-08): *"i've always campaigned to unite solo
+  and netplay even at the start."* It is the direction; see
+  [`DECISIONS.md` netplay architecture](DECISIONS.md#netplay-architecture). Solo and the netplay host present a
+  round's end through `resolveRoundCeremony`, a client through `clientPlayCeremony`, and `nettest_parity` fails
+  on any difference between the two screens, so it is the guard for every step.
+  - **Step 1, shipped:** the opening (tints, beats, Clean-up dwell, threshold beat) is one function both call,
+    `playCeremonyOpening`.
+  - **Step 2:** the host marks the deal mirror explicitly, the way it stamps `cer`, and the client holds and
+    reveals the deal by that mark. `isRoundDeal` goes, with the four rewrites its guessing has cost. This is the
+    risky step, because the stalls and the old `nettest_sync` fork lived here, so it needs long
+    `nettest_parity` and `nettest_sync` run series.
+  - **Step 3:** the client runs `resolveRoundCeremony` itself, with the trim/drain/draw step swapped for "wait for
+    the host's deal". `clientPlayCeremony`, `finishClientCeremony` and `revealRound` are deleted.
+  - **The decision step 2 needs:** an older peer sends no mark. Either keep `isRoundDeal` as its fallback
+    (patch-level peers still play), or ship step 2 as v1.33.0 so the handshake refuses older builds and the
+    guess is deleted outright.
   `[id: ceremony-drivers-collapse]`
 
 - `root cause found`    · **AT 3-6 PLAYERS A DECK-OUT SHOWS THE END SCREEN WHILE THE GAME GOES ON** (found 2026-10-06, reading

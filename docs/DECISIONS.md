@@ -31,6 +31,12 @@ Nothing here was paraphrased on the way over — the text is as it was written w
   leaves only the event SOURCE different. Precedent that it works: `buildOppBeats` was extracted for exactly
   this reason — the free-for-all driver only logged, so every readability feature was silently missing at 3-6
   players.
+  **AND THE FULL MERGE IS THE DIRECTION, NOT AN OPTION (Aj, 2026-10-08).** It was proposed for decline that
+  day, on the argument that what follows the beats differs by design (the host runs the round boundary, the
+  client waits for it), and refused: *"i've always campaigned to unite solo and netplay even at the start."*
+  That difference is real, but it is a difference of SOURCE. What makes it a second code path is the client's
+  inference, which is the bug this entry already names. The merge is staged in the BACKLOG as
+  `ceremony-drivers-collapse`. **Do not re-propose declining it.**
 
 - **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
   (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided

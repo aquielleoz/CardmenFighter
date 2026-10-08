@@ -15,7 +15,25 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
-### v1.32.23 — host and client end a round the same way
+### v1.32.24 — every seat opens the round ceremony with the same code
+
+**A round ends exactly as it did before; this is the first of three steps to one round-ceremony driver for solo
+and netplay.** The opening of the ceremony (the Resolution tint, the beats, the Clean-up tint and its dwell,
+the threshold beat) was written out twice: once for solo and the netplay host, and once for a netplay client.
+The client had drifted off the host's copy twice in exactly those lines, each time by missing one: the
+Resolution and Clean-up tints never showed on a client, and a client-only deck float sat under every Round
+card. Every seat now plays it from one function, `playCeremonyOpening`.
+
+- **The last round of a game renders the same way on both seats.** For the one frame before the end screen, a
+  client used to paint the Resolution tint and render under the ceremony's flags. The host never did, and now
+  neither does the client.
+- **A client's saved log records its ceremony beats** (`ceremony beat · resolve`, `· cleanup`), as the host's
+  always has, so the two logs of one game line up when diffed.
+- **Next:** what follows the opening is still two paths. The host runs the round boundary itself; the client
+  waits for it and still guesses which update is the new round's deal (`isRoundDeal`). Steps 2 and 3 are in
+  the BACKLOG (`ceremony-drivers-collapse`).
+- **Testing.** Full sweep 119/119; `nettest_parity`, which compares the two screens' ceremonies, 21/0 on 8
+  more runs of the shipped build. No suite count changed.
 
 **In netplay, the end of a round now plays the same on both screens, and the ways it could go wrong are
 fixed.** The host and the client each present a round's ending (the shatter, the banners, the deal), and
