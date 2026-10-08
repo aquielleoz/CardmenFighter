@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.22.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.23.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.22** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.23** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -664,6 +664,10 @@ knows to check whether the epic has already moved the same lines.*
   **DO NOT RE-KILL THE FIVE DEAD HYPOTHESES.** The comment above the detector lists them (the untap move,
   `pileClear` generally, the hand-limit trim, a falsy `cleanupResult`, a falsy return breaking
   `settleWindows`); the trace now independently rules the whole clean-up path out as well.
+  **v1.32.23 CLOSED ONE CANDIDATE PATH, UNPROVEN AS THIS ONE'S CAUSE.** A client's board used to go live under
+  its own round ceremony, so a play could reach the host mid-ceremony and hand it its board back early through
+  `hostTakeBack`. The client now holds its board through its ceremony, and the host refuses a board op that
+  arrives mid-ceremony (`CEREMONY_REFUSE`). If this recurs on v1.32.23 or later, that path is ruled out.
   `[id: round-ceremony-reruns-with-stale-res]`
 
 *Defects in the shipped game. Each was verified present on `main` by grepping the symbols its entry
@@ -718,92 +722,13 @@ never read.*
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
 
-- `needs a decision`    · **⏸ ON `fix/one-ceremony` (pushed, NO PR, 2026-10-06) — HOST/CLIENT CEREMONY DRIFT, MEASURED BY A NEW
-  PROBE; EVERY DRIFT IT FOUND IS FIXED AND IT IS GREEN (2026-10-08). NEXT IS SHIPPING THE BRANCH.** Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*;
-  2026-10-06: *"yes let's try to remove all drifts"*. The old entry's "needs a decision" (collapse the two drivers?)
-  was answered by measuring instead: **`nettest_parity` (new) FILMS what host and client RENDER through real duels
-  and 3-player games and diffs the ceremonies** — the instrument this cause never had. Read its header first.
-  **FIXED ON THE BRANCH, each found by the probe and A/B'd against main:**
-  - A client's board went LIVE during its round ceremony (the mirror says "your turn" the moment the engine
-    advances), so a quick player played round N+1 under round N's banner, and the host's board followed early
-    through `hostTakeBack`. Likely the mechanism behind `round-ceremony-reruns-with-stale-res` — unproven. Now: the
-    client holds its board until ITS Round card ends AND the host's mirror says `cer:false` (host `inCeremony`,
-    stamped on every mirror); the host REFUSES board ops mid-ceremony (`CEREMONY_REFUSE`, incl. `toFight`), with
-    a message. A timed release was tried first and measured wrong (two clocks cannot order); the hold is causal.
-  - **ENGINE: a round already won was open for play.** During a 3-player strike choice (`pendingLossChoice`) and
-    during Resolution/Clean-up, `st.turn` still names the last passer: a pair of Kings onto the winner's 9s was
-    ACCEPTED, and a pass under Resolution came back as a Main → Fight transition the host RE-APPLIED in the NEXT
-    round. `play`/`pass`/`activate` refuse now (`test.js` +6, A/B'd); a seeded 600-game fingerprint is
-    byte-identical to main (instrument checked for sensitivity), so no AI game moves. Client locks + "X is
-    choosing a target…" notice to match. This is what made a 3-player seat loop ~400 refused plays.
-  - ROAR after the shatter on both seats (`revealShields` pays the tier debt); a seat dealt nothing (knocked out /
-    fizzled) gets the Beginning tint; a knocked-out seat is not "Deck empty"; the client counts its own draw (fizzle
-    style + subtitle); the client's Round card is no longer skipped when `newRound` is missing or the deal was not
-    held; the client suppresses the render-diff mill float like the host (`inCeremony`); one shatter-hold predicate
-    `shieldsHeld()` for every seat (its final form is the `stripRound` bullet below); a ceremony
-    beat takes the stage back from a waiting notice (`trimwait` left the host's beats dimmed).
-  - **The shatter is held until each seat's OWN ceremony has shown it** (`stripRound`, stamped by the engine on a
-    round strip and carried on the mirror; `presentedStrip` per seat, set at `revealShields`). It replaced the
-    boundary-flags predicate, which left a gap after the engine blew through Resolution and before a seat's
-    ceremony began — a client shattered from the very mirror that carried the strip, and the host queued ROAR
-    ahead of the break. **3-player leg 2/5 → 5/5.** `test.js` +4 (each mutation-tested), fingerprint identical.
-  - `nettest_lobbyback_rtc` (16 red in the 2026-10-06 sweep) was the HARNESS: one Pass click the moment the turn
-    tag flipped, while the client's board was still held for the ceremony. It retries until the click lands.
-  - **The duel host's ACTION LOOP was the round-end freeze, and that fix SHIPPED TO `main` AS v1.32.21** (PR #380):
-    a second Fight/Pass press opened a Main → Fight transition over an open Resolution/Clean-up window and
-    stranded it. `moveToPlay` refuses during a boundary, the boundary outranks a stale transition, and the ceremony
-    re-walks one nobody holds priority on. No loop in 12 parity runs since. The probe's loop dump (40th press in
-    an unmoved round, `__cmf.roundFlags()` included) stays, so the next stall explains itself.
-  - **The extra empty `SP:spResolve` segment on a client was the PROBE, not a drift** (2026-10-07). After a
-    Resolution window that somebody sat in, the client's walk to the next round lands as a 0-20ms burst before
-    its ceremony paints Resolve again; `settled()` dropped the burst and left `Resolve Resolve`, and the segmenter
-    opened a ceremony at each one. A repaint of the phase on screen is not a new phase now (never across a Round
-    card). **A/B on one build: 3 drifts in 12 runs without the collapse, all three this shape; 0 in 36 with it.**
-    The duel drift of "unknown shape" from 2026-10-06 was very likely this — every drift captured since was.
-  - **The end of Clean-up read as ordinary play.** Under `st.endCleanup` the strip painted Main/Idle and the pass
-    button offered "Move to the fight": both tested `cleanup` alone, which the engine clears before that dance
-    opens. `paintPhaseStrip`/`declineLabel` fixed, mptest +3 (every window's strip and label, staged). **Main has
-    both lines unchanged**, and the commit is self-contained, so it can go to `main` on its own.
-  - **The next round's leader had a LIVE board under somebody else's Upkeep window.** Found by the probe's
-    controls check once its window covered the boundary walk. The client's `waitingOnRound` and the engine's
-    round-over guard both left Upkeep out on the old "re-applied inside the same round" reasoning, so a press
-    there came back as a transition the host settled and re-applied — a legal press by the leader, made before
-    the Draw. Both include Upkeep now: `test.js` +9 (all four windows, play and pass, plus the stall row),
-    `nettest_roundlock` (9, new), each half mutation-tested, the 600-game fingerprint identical. The controls
-    check also counts a live edge only if it lasts 60ms or its mirror shows a round window open: the host sends
-    its post-boundary mirror, the ceremony and the ceremony's first mirror in one task, so a client is live for
-    5-10ms between them, which nobody can click and the host refuses anyway.
-  - **A DUEL WEDGED ABOUT ONE RUN IN TEN, AND THE PROBE STAYED GREEN THROUGH IT** (2026-10-07: 7 stalls in 72
-    duel runs before the fix). One signature every time: the host IN its ceremony, parked on the client — for
-    its end-of-round trim (*"Rival 2 is discarding to hand size…"*) or the Clean-up window (*"…is deciding…"*)
-    — and the client showing neither a picker nor a modal. **The mechanism, read off the host's ledger:** a
-    round that ends with no Resolution window goes straight to the ceremony, but the engine has already opened
-    the Clean-up go-round with priority on the client (it holds a castable Quick). The client prompts from its
-    mirror at once and auto-passes; the duel host drains that window only inside its ceremony (`boundaryThen`,
-    after the beats and the trim), so the answer reached `hostApplyMove` with no park and was dropped
-    (`answer IGNORED … pg=1 prioGen=1 respondFor=1`). Its signature for that grant was spent, so it never
-    answered again; and with a trim also owed, `clientCheckWindow` kept picking the priority window over the
-    discard the host was actually waiting for. **Fixed:** a window answer names its grant (`pg`), the duel host
-    holds one that beats its park and applies it when it parks on that grant (`heldAnswer`), drops one for an
-    earlier grant, and a seat's own trim comes first on the client (`clientCheckWindow`, `applyMirrorNow`).
-    **0 stalls in 63 duel runs after; the A/B with only this reverted stalled again (1 in 24).** The probe now FAILS on
-    a stall instead of stopping its drive, and its stall dump carries both seats' state, traces and the
-    host's ledger. N-player cannot hit it: `hostSettleRoundThenCeremony` drains every window before its
-    ceremony.
-  - **The duel's final Fighter Kick did not play on a client when the game ended inside a drained window.**
-    `hostSettle`'s fall-through renders (broadcasting the finished state) before `done` → `hostFinishRound`
-    sends the ceremony, so the client's latched `endGame()` ran with no `pendingKick`. 2 of 31 duels once the
-    stalls were gone, because games now reached their end. **Fixed on the client:** a finished mirror waits up
-    to 700ms for the final ceremony, which ends the game itself (`finalCerSeen`); a concede or a deck-out sends
-    none and ends after the wait. **10 of 10 finished duels filmed the kick on both seats after.**
-  - **`kicktest`'s `3p-out` flake was its staging crossing a round's draw**, not a higher pair: each Ride or Form
-    an AI drew there was a ~2.65s beat, so the kick landed at 14.5-19.6s against a 20s budget (1 miss in 16;
-    forcing that draw, 4 of 4). It kills in round 3 now, before any draw: 4.5s, 16 of 16. `kicktest` is not this
-    branch's, so it ships to main on its own.
-  **THE STRUCTURAL QUESTION IS STILL OPEN BUT SMALLER:** the two ceremony drivers now share `playPreBeats`,
-  `playRoundCardBeat`, the hold predicate and the `cer` stamp, and the probe gates the rest. Collapsing them fully
-  is optional once the probe is green.
-  `[id: client-ceremony-is-a-second-impl]`
+- `needs a decision`    · **COLLAPSE THE TWO ROUND-CEREMONY DRIVERS INTO ONE? OPTIONAL NOW** (2026-10-08). The host's
+  `resolveRoundCeremony` and the client's `clientPlayCeremony` are still two hand-written presentations of one
+  event, which is how the drifts v1.32.23 fixed came about. They now share `playPreBeats`,
+  `playRoundCardBeat`, the shatter hold (`shieldsHeld`) and the `cer` stamp, and `nettest_parity` fails on any
+  difference between the two screens, so the duplication is no longer silent. Collapsing them is a refactor with
+  no known defect behind it; the parity probe is the guard to keep green while doing it.
+  `[id: ceremony-drivers-collapse]`
 
 - `root cause found`    · **AT 3-6 PLAYERS A DECK-OUT SHOWS THE END SCREEN WHILE THE GAME GOES ON** (found 2026-10-06, reading
   `resolveRoundCeremony` for the ceremony work; NOT yet reproduced in the page). The ceremony does
