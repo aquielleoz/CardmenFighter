@@ -895,9 +895,14 @@
   function resolveAIWindows(st, humans, log) {
     var guard = 0;
     while (st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
-      var q = st.respondFor, rr = respondDecision(st, q);
+      /* SAMPLED BEFORE THE ANSWER, which goes on the stack and changes both (the page's `settleWindows` does the
+         same): whether this is the Main → Fight transition, which the narration words differently, and the round
+         the ledger stamps. The page reads the entry only when it replays the turn, after the turn has moved on. */
+      var q = st.respondFor, atTransition = !st.pending && st.subPhase === 'main';
+      var roundAt = (st.resolvedRound != null && st.resolution) ? st.resolvedRound : st.round;
+      var rr = respondDecision(st, q);
       if (!rr) break;
-      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered });
+      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt });
     }
   }
 

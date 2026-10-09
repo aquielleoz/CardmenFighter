@@ -15,6 +15,31 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.6 — the battle log shows a computer answering another computer's card
+
+**What you'll see:** at a 3-6 player table, when one computer player answers another's card during that player's
+turn, the battle log now says so, with the same caption and flash as an answer during your own turn: "Tank
+countered with Counter Spell!", "Tank answered at instant speed with Leyline Ascension.", or "Tank sprang Back
+Stab before the fight." Before, you saw "Lefty played Telekinesis — aimed at Tank." and then nothing, so the card
+simply seemed not to happen. In a headless count it happened in 16 of 60 three-player games; it never happens in
+a duel, where the only other seat is you.
+
+- **Why it was missing:** the computer resolves the windows that open inside its own turn itself, and records
+  each answer as an entry the page never had a branch for. The page now narrates that entry, using the same
+  helper as the answers made on your side of the table, so the two cannot drift apart. `ai.js` records the two
+  facts the line needs (whether it was the Main → Fight transition, and the round), taken before the answer
+  changes them.
+- **The saved log's priority ledger records these answers too**, and gets the round right on the ones it already
+  recorded: since 2026-10-02 the line kept the screen's round in front and carried the game's round as a
+  trailing number. Diagnostic only.
+- **Found on the way, filed:** the computer sometimes counters its OWN card, casting a Telekinesis and then its
+  own Counter Spell on it (`ai-counters-own-cast`). Measured in 89 of 200 six-player games. It always happened;
+  this version makes it visible in the log.
+- **Testing.** `test.js` 696 (+4): an answer inside another seat's turn is recorded with who answered, the
+  timing, and the round, for a counter and for a Back Stab at the transition. `oppbeatstest` 22 (+4): the three
+  wordings, naming the seat that answered, and the ledger line stamped with the right round and nothing
+  trailing. On the old code exactly the new checks fail.
+
 ### v1.33.5 — the saved game record counts every card cast, once
 
 **What you'll see:** nothing during play. This is the ⤓ export of your games, the file playtesters send. From this

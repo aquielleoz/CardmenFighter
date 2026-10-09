@@ -166,6 +166,29 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   await p.evaluate(e=>window.__solo.oppBeats([e], 2), await pairEntry()); await wait(1900);
   const f2 = await fightsOf();
   ok(f2[2]-f1[2]===1 && f2[1]===f1[1], `  …and another seat's fight goes to THAT seat, not seat 1  (seat 1: ${f1[1]} → ${f2[1]}, seat 2: ${f1[2]} → ${f2[2]})`);
+
+  /* AN AI'S ANSWER INSIDE ANOTHER AI'S TURN REACHES THE BATTLE LOG (ai-answer-in-ai-turn-unnarrated). `ai.js` drains
+     a window that opens mid-turn and leaves a `respond` entry, and this renderer had no branch for it: at 3-6
+     players one AI countering another's cast was never said. Fed the entry ai.js produces (test.js asserts it
+     does), from seat 1's turn with seat 2 answering, so a line naming the turn's seat is caught. All three
+     timings, because the wording turns on them, and the LEDGER line: its round must come from the entry and land
+     in the stamp, which `settleWindows`' copy of this line got wrong (it went in as trailing detail). */
+  const R = await p.evaluate(()=>window.__solo.st().round+5);   // a round the page is NOT on, so the stamp can only come from the entry
+  const answerLine = async (e)=>{ const n0=await p.evaluate(()=>document.querySelectorAll('#log .le').length);
+    await p.evaluate(x=>window.__solo.oppBeats([x], 1), Object.assign({ respBy:2, round:R }, e)); await wait(1700);
+    return p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(x=>x.textContent.trim()).filter(t=>/Victim|Caster/.test(t))[0]||'', n0); };
+  const aCounter=await answerLine({ respond:'counter', respName:'Counter Spell', countered:true, transition:false });
+  ok(aCounter==='Victim countered with Counter Spell!', `an AI's counter inside another AI's turn is said, naming the seat that answered  ["${aCounter}"]`+(aCounter?'':'  ← REPRODUCED: nothing in the log'));
+  const aCast=await answerLine({ respond:'ward', respName:'Leyline Ascension', countered:false, transition:false });
+  ok(aCast==='Victim answered at instant speed with Leyline Ascension.', `  …an answer to a cast says "at instant speed"  ["${aCast}"]`);
+  const aMove=await answerLine({ respond:'lockout', respName:'Back Stab', countered:false, transition:true });
+  ok(aMove==='Victim sprang Back Stab before the fight.', `  …and one at the Main → Fight transition says "before the fight"  ["${aMove}"]`);
+  const ledger=await p.evaluate(()=>window.__solo.prioLog());
+  const cLine=ledger.filter(l=>/→ Victim CAST Counter Spell/.test(l)).pop()||'';
+  /* Anchored at BOTH ends: the stamp in front must be the entry's round, and nothing may trail the line — the old
+     slot bug kept the page's round in front and appended the engine's as `  7`. The arrow lines are indented under
+     their window, hence `\s+`. */
+  ok(new RegExp('^r'+R+'\\s+→ Victim CAST Counter Spell  \\(a counter\\)$').test(cLine), `the ledger records it, stamped with the entry's round and nothing trailing  ["${cLine}"]`);
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
