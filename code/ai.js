@@ -137,9 +137,9 @@
      apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
      are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
      confident zero — it did, on the first attempt, and the zero was believed for a minute. */
-  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0, ownCast: 0 };
-  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts, ownCast: POLICY_STATS.ownCast }; }
-  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; POLICY_STATS.ownCast = 0; }
+  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0, ownCast: 0, aimed: 0 };
+  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts, ownCast: POLICY_STATS.ownCast, aimed: POLICY_STATS.aimed }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; POLICY_STATS.ownCast = 0; POLICY_STATS.aimed = 0; }
   /* THE DEMON LORD PITCHES THE BROADWAY CARD IT CAN SPARE (broadway-pitch-chooses-itself; Aj: *"the ai should
      absolutely smart pitch as well... especially for the ones who are smarter"*). The engine's default takes
      the LOWEST Broadway card, which is exactly the card a 10-high straight or a pair of 10s is built from.
@@ -872,7 +872,7 @@
        answers are for an OPPONENT'S cast; this is the AI catching up with it. A policy (`ownCast`, default on)
        so `strengthsim` can put the old behaviour on one side of a head-to-head; `heldBack` counts the answers it
        stopped, which is what tells "worth nothing" from "never fired". */
-    var ownCast = (pend.p === q) && policyOn(q, 'ownCast'), heldBack = false;
+    var ownCast = (pend.p === q) && policyOn(q, 'ownCast'), heldBack = false, heldAimed = false;
     // Annoint: save our own equipment from a removal aimed at it.
     if (eff.kind === 'removeEquip' && qp.equipment.length > 0) {
       var prot = bestQuick('protect');
@@ -883,10 +883,23 @@
        `immune || shieldImmune` since v1.31.112 and the second was never carried across. So an AI in Apollo
        Mode holding Sanctuary took the hit, then would have sprung the very same card against a fight-win
        strip a moment later. Call the ENGINE's predicate instead of restating it: one definition, and the next
-       spelling added there reaches the AI for free. Same rule as `isChopOf` and `resolveIds`. */
+       spelling added there reaches the AI for free. Same rule as `isChopOf` and `resolveIds`.
+       AND "AIMED AT US" WAS ONLY EVER THE COMMENT (ai-answers-others-casts, 2026-10-09). The go-round offers
+       priority to every seat, so an AI on two shields sprang Leyline at a Critical Hit aimed at SOMEONE ELSE —
+       answering a strike that could not touch it (30 of 446 immunity answers in 1600 six-player games; none
+       after). Not a dead card — Leyline still ramps and wards the rest of the round — but spent on a trigger the
+       engine says carries no stake, where holding it keeps the answer for a strike that does. The
+       Resolution branch already asks (`resolutionGuardCard`: not struck this round, nothing to guard); this is
+       the same question at the respond timing, answered by the engine's `stakeFor`, which knows who a strike
+       hits — `hostileTargets`, so a strike landing on every rival still counts as aimed at us. A policy
+       (`aimed`, default on) like `ownCast`, and the two are DISJOINT: an own cast is never aimed at its
+       caster, so it stays `ownCast`'s to hold back and each switch restores exactly its own old behaviour.
+       Holding Leyline back does not end the decision: the counter branch below runs as it would for a seat
+       that never held Leyline. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
       var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
-      if (immuneQ) { if (ownCast) heldBack = true; else { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; } }
+      var elsewhere = !!immuneQ && pend.p !== q && policyOn(q, 'aimed') && !E.stakeFor(st, q, immuneQ, 'respond');
+      if (immuneQ) { if (ownCast) heldBack = true; else if (elsewhere) heldAimed = true; else { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; } }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
     var threat = !!THREAT_KIND[eff.kind] && !(eff.kind === 'removeEquip' && qp.equipment.length === 0);
@@ -895,6 +908,7 @@
       if (cs) { if (ownCast) heldBack = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
     }
     if (heldBack) POLICY_STATS.ownCast++;
+    if (heldAimed) POLICY_STATS.aimed++;
     return E.declineResponse(st, q);
   }
 

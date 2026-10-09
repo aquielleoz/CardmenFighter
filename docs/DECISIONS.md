@@ -540,6 +540,35 @@ was added: an unexercised branch is not a safeguard, it is untested code.
 <a id="ai-strength"></a>
 ## AI strength
 
+### Leyline only against a strike aimed at you changes no win rate — measured 2026-10-09
+
+**Asked:** v1.33.8 stops the AI springing an immunity Quick (Leyline, Leyline under Athena, Sanctuary under
+Apollo) at a `destroyShield` aimed at another seat. Does that make it stronger? The case needs three seats or more
+(in a duel a strike always targets the one seat that could answer) and is uncommon even at six: on v1.33.7, **30 of
+446** immunity answers in 1,600 six-player games had no stake by the engine's rule (`E.stakeFor`, 'respond'),
+against **0 of 429** after. The backlog entry's earlier 7 of 37 was measured before v1.33.7, on a build where the AI
+also countered its own casts; the number moved with the build.
+
+**Answer: no measurable change.** Arm A = the shipped AI, arm B = the same tier with `aimed` off — every other
+shipped policy named (`:push,pitch,ownCast`), which needed this version's case fix to type at all:
+
+| players | tier | games | A's share | vs fair | σ | `aimed` fired |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2 | knight | 4,000 | 50.00% | +0.00 | +0.00 | 0 |
+| 3 | knight | 9,000 | 33.32% | −0.01 | −0.02 | 6 |
+| 4 | knight | 12,000 | 25.00% | +0.00 | +0.00 | 36 |
+| 6 | knight | 18,000 | 16.66% | −0.01 | −0.04 | 92 |
+| 6 | demon | 18,000 | 16.67% | +0.01 | +0.02 | 94 |
+
+**The exact ties are real nulls, and the tally is what says so.** The duel's 50.00 is by construction: the policy
+cannot fire there, and its tally reads 0. The four-player 25.00 has a live counter, so it is 36 divergences in
+12,000 games that netted to nothing — not a policy that never ran. Name the comparison: the duel knight→demon step
+is **+7.63** points.
+
+**Why so little:** an early Leyline is not a dead card — it ramps half the deck into Energy and wards the rest of
+the round — so the AI loses only the timing. The epic step 21 entry below measured that trade directly ("hold the
+guard for the window": +0.13 at knight) and found it cancels against the ramp.
+
 ### Not answering its own cast changes no win rate, and at six players the tiers barely differ — measured 2026-10-09
 
 **Asked:** v1.33.7 stops the AI answering its own cast (Counter Spell on its own Telekinesis, Annoint against its

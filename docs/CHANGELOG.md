@@ -15,6 +15,37 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.8 — the computer only plays Leyline when it is the one being struck
+
+**What you'll see:** at a table of three or more, the computer no longer plays Leyline in reaction to a strike card
+aimed at someone else. Before, a computer on two shields or fewer answered any Critical Hit or Ultima Attack on the
+table with Leyline, whoever it hit. The card still did something (it ramps and protects for the rest of the
+round), but it was spent on a strike that could not touch that computer instead of being kept for one that could.
+Leyline under Athena and Sanctuary under Apollo did the same. On v1.33.7, 30 of 446 such answers in 1,600
+six-player games were aimed at someone else, about one every 53 games; on this build, none. Duels are unaffected:
+there a strike always targets the other player.
+
+**Difficulty does not change.** Head to head against the old behaviour: −0.01 points at three players, +0.00 at
+four and −0.01 at six for the Knight, +0.01 for the Demon Lord at six, all noise. For scale, the gap between Knight
+and Demon Lord in a duel is +7.63.
+
+- **Why:** the go-round offers priority to every seat, and the computer's answer to a strike checked only that a
+  strike was on the table, never who it hit. The end-of-round window already asked whether the computer was the
+  one being struck; the moment a strike card is cast now asks the same thing, through the engine's own stake rule.
+- **Holding Leyline back changes nothing else:** a computer that also holds Counter Spell decides exactly as one
+  that never held Leyline would.
+- **`strengthsim` can name `ownCast` now.** The harness lowercases its arguments, so the policy added in v1.33.7
+  could not be typed at all; it stopped with "unknown policy". Policy names now match without case. v1.33.7's
+  own runs never named it, so its measurement stands.
+- **Testing.** `test.js` 707 (+6): the computer keeps Leyline when the strike is aimed at another seat; the control
+  (aimed at it) still answers; with Counter Spell as well it decides as if it had no Leyline; the tally counts what
+  it held back; and each switch restores exactly its own old behaviour. On the old code exactly the three checks
+  that describe the bug fail. Measurements: [`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength).
+- **Filed:** the computer's answer to a strike aimed at it ignores Sanctuary under Hector, which the end-of-round
+  window does use (`ai-strike-answer-asks-immunity`). And the open question of whether it should Counter Spell a
+  threat aimed at a rival now covers Annoint, which saves a rival's equipment from another rival
+  (`ai-answers-others-casts`).
+
 ### v1.33.7 — the computer stops countering its own cards
 
 **What you'll see:** the computer no longer answers its own card. Before, a computer holding Counter Spell could

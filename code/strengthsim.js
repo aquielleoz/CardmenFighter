@@ -63,16 +63,23 @@ var TIERS = { minion: 1, fighter: 1, knight: 1, demon: 1 };
 /* AN ARM IS `tier` OR `tier:policies` (epic step 21). `knight` alone is the shipped game — every step-21
    policy on. `knight:none` turns them all off, `knight:hold` / `knight:push` enable exactly one. That is
    what makes two changes shipped together still ATTRIBUTABLE: measure each against `:none`, then both. */
-var POLICIES = ['push', 'pitch', 'ownCast'];   // `pitch`: the Demon Lord's smart Broadway pitch (2026-10-05) — demon-gated, so it is a no-op on a knight arm.
-                                               // `ownCast`: never answer your own cast (ai-counters-own-cast, 2026-10-09) — every tier; it bites at 3-6 players
+var POLICIES = ['push', 'pitch', 'ownCast', 'aimed'];   // `pitch`: the Demon Lord's smart Broadway pitch (2026-10-05) — demon-gated, so it is a no-op on a knight arm.
+                                                        // `ownCast`: never answer your own cast (ai-counters-own-cast, 2026-10-09) — every tier; it bites at 3-6 players
+                                                        // `aimed`: spring Leyline only at a strike aimed at you (ai-answers-others-casts, 2026-10-09) — 3-6 players only
 function parseArm(spec) {
   var bits = spec.split(':'), tier = bits[0], sel = bits[1];
   if (!TIERS[tier]) { console.error('arms must be tier[:policies] — tiers: ' + Object.keys(TIERS).join(' | ')); process.exit(1); }
   var on = {};
   if (sel === undefined || sel === 'all') POLICIES.forEach(function (k) { on[k] = 1; });
   else if (sel !== 'none') sel.split(',').forEach(function (k) {
-    if (POLICIES.indexOf(k) < 0) { console.error('unknown policy: ' + k + '  (' + POLICIES.join(', ') + ', all, none)'); process.exit(1); }
-    on[k] = 1;
+    /* MATCHED WITHOUT CASE, AND KEYED BY THE CANONICAL NAME. The whole arm is lowercased above (so `Knight`
+       works), and `ownCast` is camelCase — so from v1.33.7 it could not be NAMED in an arm at all. It failed
+       loudly ("unknown policy"), and v1.33.7's own runs never named it (`knight:push,pitch` turns it off by
+       leaving it out), so no measurement was wrong; turning ON `ownCast` while another policy is off was
+       simply impossible. The key must be the canonical spelling: `policyOn` asks for `ownCast`. */
+    var name = POLICIES.filter(function (p) { return p.toLowerCase() === k.toLowerCase(); })[0];
+    if (!name) { console.error('unknown policy: ' + k + '  (' + POLICIES.join(', ') + ', all, none)'); process.exit(1); }
+    on[name] = 1;
   });
   return { tier: tier, on: on, label: spec };
 }
