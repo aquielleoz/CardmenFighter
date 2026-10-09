@@ -15,6 +15,27 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.9 — the phase strip shows the right phase during the round wrap-up, on every screen
+
+**What you'll see:** the coloured phase strip under your hand now stays correct through the end of a round in two
+spots where it used to go wrong.
+- **Online, while the host picks its end-of-round discards,** the guest's strip shows Clean-up (red) for the whole
+  pick. It used to drop to the turn colour (Idle or Main) as soon as the guest's own animation finished, so the
+  guest saw a "normal turn" colour while the table was waiting on the host.
+- **When an Upkeep window opens in the middle of the round wrap-up,** your strip shows Beginning (blue), not
+  Clean-up. This happens when a broken shield hands you a Quick (say Leyline) and you have the energy to cast it:
+  the Clean-up and Upkeep windows then open during the wrap-up, and the Upkeep one used to sit under a red strip.
+
+- **Why:** during the round wrap-up the strip followed the ceremony's own "this is Clean-up" flag, and that flag
+  outranked the game's Upkeep phase; nothing at all told it that a discard pick is Clean-up. And the two screens
+  let go of the flag at different moments, so one table showed two phases. Now every phase the game is in
+  outranks the ceremony's flag, a discard pick counts as Clean-up, and every screen drops the flag at the same
+  point, the end of the Clean-up pause. That is the rule the code's own comment always stated.
+- **Testing.** New suite `nettest_strip` (16): it stages both cases online — the host over the hand limit, and a
+  broken shield that turns out to be Leyline — and films both screens. On the old code exactly the two strip
+  checks fail, each printing what was on screen. It also checks the round still opens on Resolution: the first
+  version of this fix flashed Beginning over it, and that check is what caught it.
+
 ### v1.33.8 — the computer only plays Leyline when it is the one being struck
 
 **What you'll see:** at a table of three or more, the computer no longer plays Leyline in reaction to a strike card

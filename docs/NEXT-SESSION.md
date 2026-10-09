@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.8.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.9.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.8**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.9**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -520,20 +520,6 @@ knows to check whether the epic has already moved the same lines.*
   players=6`, control first, naming every other shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did
   ([`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength)).
   `[id: ai-answers-others-casts]`
-
-- `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
-  SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen
-  in a game. After its Clean-up dwell, the ceremony holds the strip on Clean-up with a UI flag (`uiPhase`),
-  and the seats let go of it at different moments: a guest at the end of its beats, the host only at its
-  deal. Two predicted symptoms:
-  - while a human host picks end-of-round discards with no Clean-up window open, a guest's strip shows the
-    turn colour (Idle or Main) instead of Clean-up;
-  - an Upkeep window that parks inside the host's ceremony paints Clean-up on the host, because
-    `uiPhase==='cleanup'` outranks `state.upkeep` in `paintPhaseStrip`.
-  The likely fix is to clear `uiPhase` after the dwell on every seat, inside `resolveRoundCeremony`, and let
-  `paintPhaseStrip` read `state.trimPending` as Clean-up. Both symptoms are visible, so reproduce them (and
-  give `nettest_parity` a way to see them) before changing anything.
-  `[id: strip-from-state-after-cleanup]`
 
 - `needs a repro`       · **⚠ ITS NAMED ROOT WAS FIXED 2026-09-30 — RE-CHECK BEFORE INVESTIGATING FURTHER.**
   The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
