@@ -505,18 +505,19 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
-- `needs a decision`    · **SHOULD THE AI ANSWER A THREAT AIMED AT SOMEONE ELSE? (2026-10-09)** Leyline against a
-  strike aimed at another seat was the one case the engine's stake rule calls stakeless, and v1.33.8 stopped it
-  (`aimed`). What is left is a POLICY question, because the engine's rule counts both of these as stakes:
-  - **Counter Spell** counters any `THREAT_KIND` cast that is not the AI's own, whoever it targets. At a full
-    table that can help a rival.
-  - **Annoint** saves a RIVAL'S Equipment from another rival. Measured headless: a computer holding Annoint and
-    its own Equipment answered a Sabotage aimed at seat 0's sword, and the sword survived. The branch's own
-    comment says "save our own equipment from a removal aimed at it" and the code checks only that it HAS
-    Equipment, which is the Leyline shape; but `stakeFor`'s `protect` branch counts any opponent's removal on
-    the stack, so it is the same decision as Counter Spell rather than a bug.
-  Both change how the AI plays: decide, then measure with `strengthsim … players=6`, control first, naming every
-  other shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did
+- `parked`              · **PARKED 2026-10-09 — THE ANSWER IS NO, AND IT WAITS FOR THE `loss=all` WORK.** Should the
+  AI spend a Quick protecting a RIVAL from a threat aimed at someone else? Aj: *"no, but i'm gonna hold off on this
+  because it will change when we do loss=all"*. So the direction is decided and the build waits for that work
+  (`loss=all` is the custom rule where a Special win strikes every other seat —
+  [`DECISIONS.md#balance`](DECISIONS.md#balance)). What the AI does today, both counted as stakes by the engine's
+  rule (`stakeFor`):
+  - **Counter Spell** counters any `THREAT_KIND` cast that is not the AI's own, whoever it targets.
+  - **Annoint** saves a rival's Equipment from another rival. Measured headless: a computer holding Annoint and its
+    own Equipment answered a Sabotage aimed at seat 0's sword, and the sword survived. The branch's own comment
+    says "save our own equipment from a removal aimed at it"; the code checks only that it HAS Equipment.
+  (Leyline against a strike aimed at another seat was the stakeless case, and v1.33.8 stopped it: `aimed`.)
+  **Revives with the `loss=all` work.** Then build "no" behind a policy and measure it with `strengthsim …
+  players=6`, control first, naming every other shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did
   ([`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength)).
   `[id: ai-answers-others-casts]`
 - `ready to build`      · **THE AI'S ANSWER TO A STRIKE STILL ASKS "IS IT IMMUNITY?" (2026-10-09).** Found while
