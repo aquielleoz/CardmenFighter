@@ -1982,12 +1982,19 @@ __QR__
    * own frame, so the target reads "You" on the target's screen and its name everywhere else. And NO
    * POSSESSIVE on it — `{foe}’s Spiked Armor` renders "You’s" for the owner, the catalogued sender-baked
    * grammar bug — so a card target reads "aimed at Spiked Armor (owned by {foe})". */
+  /* AN OPPONENT'S INCARNATION IS ANNOUNCED TOO (opponent-incarnation-unannounced, from Bibong's 2026-10-09 export:
+   * the Demon completed J + Q + K in three of four games and the log showed only the Form that did it). Your own
+   * transform line in `activate` always ended with this; every other seat's cast comes through `sayCast` — the
+   * AI's beat and a netplay client's cast on the host — which never did. `r.isSuper` is the engine's transform
+   * result (the AI's log entry carries it from `ai.js`'s `act`), so a non-transform cast never has it. One
+   * string, so the two lines cannot drift apart. */
+  var SUPER_LINE='Transformation Requirements Complete! JQK — INCARNATION!';
   function sayCast(actor, card, r, cls, tail){
     var t=r&&r.target, aim='', foes;
     if(t && typeof t.seat==='number'){ aim=' — aimed at {foe}'; foes=[t.seat]; }
     else if(t){ var o=t.equip||t.zone||t.effect;
       if(o && typeof o.owner==='number'){ aim=' — aimed at <b>'+esc(o.name||'a card')+'</b> (owned by {foe})'; foes=[o.owner]; } }
-    say(actor, '{who} played '+effPhrase(card)+aim+(tail||'')+'.', cls, foes);
+    say(actor, '{who} played '+effPhrase(card)+aim+(tail||'')+'.'+(r&&r.isSuper?' <b>'+SUPER_LINE+'</b>':''), cls, foes);
   }
   var state=null, selected={}, busy=false, gen=0, fullLog=[];
   /* ---- THE FIGHT END LEDGER (epic step 18) ----
@@ -5628,8 +5635,8 @@ __QR__
       var logTxt=(isRide ? ('{who} called a Ride — <b>'+eff.name+'</b> entered the Zone.')
                          : ('{who} transformed — <b>'+eff.name+'</b> activated.'))+((E.transformDraw&&E.transformDraw())?' Drew '+E.transformDraw()+'.':'');
       if(r.isSuper){
-        msg+='<span class="superLine">Transformation Requirements Complete! JQK — INCARNATION!</span>';
-        logTxt+=' <b>Transformation Requirements Complete! JQK — INCARNATION!</b>';
+        msg+='<span class="superLine">'+SUPER_LINE+'</span>';
+        logTxt+=' <b>'+SUPER_LINE+'</b>';   // the same tail `sayCast` gives every other seat's transform
       }
       setMessage(msg); say(YOU, logTxt, 'you');   // say(), not logMsg: a Ride/transform is public and every seat needs it
       if(typeof TUT!=='undefined' && TUT.note) TUT.note('activate', eff);   // Rides lesson: the transform step gates here (eff.kind==='transform')
@@ -5701,7 +5708,7 @@ __QR__
     return showRevealModal(rv.seat, rv.cards, next);
   }
   // After one of YOUR actions resolves, deal with any forced discard it created:
-  // your own (draw-and-pitch) opens the picker; the Rival's (you played a discard on them) auto-resolves.
+  // your own (draw-and-pitch) opens the picker; an opponent's (you played a discard on them) auto-resolves.
   function handleDiscardAfterAction(){
     var dp=state.discardPending; if(!dp) return false;
     if(dp.player===YOU){
@@ -5710,8 +5717,12 @@ __QR__
       render();
       return true;
     }
-    var d=E.resolveDiscard(state);   // Rival is the one discarding — auto-pick (avoids breaking its Specials)
-    if(d.ok) logMsg('<b>Rival</b> discarded '+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+'.', 'rival');
+    /* THE LINE NAMES THE SEAT THAT DISCARDED (discard-line-hardcodes-rival). It was `logMsg('<b>Rival</b> …')`:
+       wrong for a named persona in a duel, nobody in particular at 3-6 players (Bibong's v1.33.1 log: a
+       Telekinesis "aimed at Rozalin", then "Rival discarded 2 cards."). A 2026-09-30 fix to the AI's twin of this
+       line closed the entry by mistake, so this one stayed. `d.player` is the engine's own answer. */
+    var d=E.resolveDiscard(state);   // an AI seat is the one discarding — auto-pick (avoids breaking its Specials)
+    if(d.ok) say(d.player, '{who} discarded '+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+'.', 'rival');
     return false;
   }
   /* STAGE ONLY — the removeEquip twin of `chooseTargetSeat`. Tapping an Equipment / Ride / Form target used

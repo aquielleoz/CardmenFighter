@@ -256,16 +256,18 @@ undefined overtakes the pile"*, the missing build stamp, and the host narrating 
 in the 08-29 netplay game, the human-counter `logMsg` fixed in v1.31.58. **Not a bug:** Outbalance discarding
 two cards under Penelope is the Queen boost working.
 
-**Bugs the second export surfaced** (2026-10-09), all three live on v1.33.1 and filed:
+**Bugs the second export surfaced** (2026-10-09), all live on v1.33.1; the two battle-log lines are fixed in
+v1.33.4:
 - *"You played a Technique - 3♦ Telekinesis — aimed at Rozalin."* then *"Rival discarded 2 cards."* — the line
-  after your own discard effect names nobody. It was seen in the first export too and filed as
-  `discard-line-hardcodes-rival`, which a 2026-09-30 fix to a **different** line (the AI's cast) closed by
-  mistake. Re-filed under the same id.
-- **The opponent's INCARNATION is never announced** (`opponent-incarnation-unannounced`). In three of the four
-  newer games the Demon completed J + Q + K, and the log shows only the Form card that finished it; your own
-  transform line ends *"JQK — INCARNATION!"*.
-- **The records skip your own Rides and Forms** (`record-skips-own-transforms`, above), and the same audit
-  found that a netplay host never counts a client's Quick answers.
+  after your own discard effect named nobody. It was seen in the first export too and filed, and a 2026-09-30
+  fix to a **different** line (the AI's cast) closed it by mistake. **Fixed in v1.33.4.**
+- **The opponent's INCARNATION was never announced.** In three of the four newer games the Demon completed
+  J + Q + K, and the log showed only the Form card that finished it; your own transform line ends *"JQK —
+  INCARNATION!"*. **Fixed in v1.33.4**, for a netplay opponent too.
+- **The records miscount** (`record-skips-own-transforms`, still open): they skip your own Rides and Forms
+  (above), a netplay host never counts a client's Quick answers, and **every AI fight is counted twice in a
+  duel** (found while fixing the two lines above: the 09-20 log shows the AI playing 3 jabs and 6 Specials,
+  the record says 6 and 12). **Never read an opponent's jab or Special counts from these records.**
 
 One more, historical, so nobody re-derives it: **a Leyline sprung in the old shield window was never
 counted.** Every *"You sprang Leyline Ascension in response — the shield held."* line in both exports (two on

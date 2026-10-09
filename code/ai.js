@@ -793,7 +793,9 @@
     }
     var r = E.activate(st, p, id, opts);
     if (!r.ok) return false;
-    if (log) log.push({ play: tag, card: card, target: r.target || null });   // what it was aimed at, for the cast line
+    if (log) { var ent = { play: tag, card: card, target: r.target || null };   // what it was aimed at, for the cast line
+      if (r.transformed && r.isSuper) ent.isSuper = true;                       // ...and that this transform completed J + Q + K, so the line can say INCARNATION
+      log.push(ent); }
     if (r.pending) {
       if (isHuman(humans, st.respondFor)) return true;        // human decides — leave st.pending for the UI
       resolveAIWindows(st, humans, log);                      // AI opponent answers recursively (Counter-a-Counter)
