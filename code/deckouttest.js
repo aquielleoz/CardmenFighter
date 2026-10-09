@@ -104,6 +104,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(fin2.finished && fin2.winner===1, '[duel] STAGED: you decked out and the engine ended the game, Lefty the winner  '+JSON.stringify(fin2));
   ok(!!done2, '[duel] the END SCREEN came up for it'+(done2?'  ["'+done2.title+'"]':'  ← the deck-out that ends a duel no longer ends it on screen'));
   ok(!!done2 && /decked out — Lefty wins/.test(done2.msg), '[duel] and the message names the winner  ["'+(done2?done2.msg:'—')+'"]');
+  /* …AND THE TITLE NAMES THEM THE SAME WAY (v1.33.3). A duel's end screen said the constant "Rival Wins" over a
+     message naming Lefty; the title now reads the winner's name, as the 3-6 player one always did. */
+  ok(!!done2 && done2.title==='Lefty Wins', '[duel] and the end screen\'s TITLE names the same winner  ["'+(done2?done2.title:'—')+'"]');
   ok(errs2.length===0, '[duel] no JS errors'+(errs2.length?': '+errs2.join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

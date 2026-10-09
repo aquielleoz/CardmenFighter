@@ -7761,9 +7761,13 @@ __QR__
   function paintEndScreen(){
     if(!state) return;
     var online=(typeof NET!=='undefined' && NET.active && NET.active()), host=online && NET.isHost();
-    var youWin=state.winner===YOU, winnerName=MP()?seatName(state.winner):'Rival';
+    /* THE WINNER IS NAMED AT EVERY TABLE SIZE (v1.33.3). A duel's title was the constant "Rival Wins" while the
+       message under it named the opponent ("You decked out — Lefty wins."), so a duel lost to Lefty said two
+       different things about who beat you. `seatName` is the one rule the battle log uses too: the opponent's
+       name, or "Rival 2" for one that has none, the same default as every other line. */
+    var youWin=state.winner===YOU, winnerName=seatName(state.winner);
     var again = !online ? (MP()?'New Game':'New Duel') : (host ? '↩ Back to the lobby' : '🔄 Ask for a rematch');
-    showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(MP()?(winnerName+' Wins'):'Rival Wins'))+'</h2>'+
+    showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(winnerName+' Wins'))+'</h2>'+
       '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
       '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+again+'</button>'+
       (online ? '<p class="endNote" id="rematchAsk">'+(host ? 'Everyone keeps their connection — each player picks a deck and hits Ready to take a seat.' : 'Only the host can reopen the lobby; when they do, you land there automatically.')+'</p>' : '')+

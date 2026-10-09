@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -94,7 +94,7 @@ node kicktest.js                                # THE FIGHTER KICK FLASHES AT EV
                                                 # EVERY LEG KILLS BEFORE ANY DRAW: `3p-out` used to cross one, and
                                                 # each Ride/Form an AI drew was a ~2.65s beat — it missed its 20s
                                                 # budget 1 run in 16. `KICK_HOSTILE_DRAW=1` forces that draw
-node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS ONE SEAT, NOT THE GAME (11).
+node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS ONE SEAT, NOT THE GAME (12).
                                                 # Solo, three seats: an AI wins a round with its last cards and
                                                 # an empty deck, decks out, and the NEXT AI must lead — the
                                                 # ceremony ran `endGame()` on ANY deck-out, so the human got an
@@ -2370,7 +2370,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.2 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 344s** (this line was
+Status as of **v1.33.3 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 347s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2386,7 +2386,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 681, `netview` 70, `mptest` 123, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 14, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 11, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 14, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
