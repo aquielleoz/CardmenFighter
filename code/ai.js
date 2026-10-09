@@ -895,7 +895,14 @@
        (`aimed`, default on) like `ownCast`, and the two are DISJOINT: an own cast is never aimed at its
        caster, so it stays `ownCast`'s to hold back and each switch restores exactly its own old behaviour.
        Holding Leyline back does not end the decision: the counter branch below runs as it would for a seat
-       that never held Leyline. */
+       that never held Leyline.
+       ⚠ AND `immunityEffFor` STAYS HERE ON PURPOSE — DO NOT WIDEN IT TO `lossAnswerFor` (measured 2026-10-09,
+       `ai-strike-answer-asks-immunity`). It looks like the Resolution branch's old mistake: it refuses Sanctuary
+       under HECTOR, which `lossAnswerFor` admits. But a strike card can never take a seat past 0 (`noKick`)
+       while the round-win strike can, the live Sanctuary gives EVERY player a shield, and this branch runs
+       before the Counter Spell one — so widening it spends Sanctuary where the seat would have countered, or
+       held the card for the Resolution window, where `resolutionGuardCard` plays it. A forced-board A/B
+       (`forcesim.js`) says that loses at 2-4 players and is a wash at 6; numbers in DECISIONS.md#ai-strength. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
       var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       var elsewhere = !!immuneQ && pend.p !== q && policyOn(q, 'aimed') && !E.stakeFor(st, q, immuneQ, 'respond');

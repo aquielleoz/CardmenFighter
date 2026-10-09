@@ -520,16 +520,6 @@ knows to check whether the epic has already moved the same lines.*
   players=6`, control first, naming every other shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did
   ([`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength)).
   `[id: ai-answers-others-casts]`
-- `ready to build`      · **THE AI'S ANSWER TO A STRIKE STILL ASKS "IS IT IMMUNITY?" (2026-10-09).** Found while
-  fixing Leyline against strikes aimed elsewhere (v1.33.8). `respondDecision`'s respond-timing branch picks its
-  card with `E.immunityEffFor`, which refuses Sanctuary under HECTOR (`{quick:true}` on a `kind:'shield'` base, no
-  immunity flag). So a computer holding Sanctuary with Hector in its zone declines a Critical Hit aimed at it,
-  measured headless on 2 shields and on 1, though `E.stakeFor(…, 'respond')` says the card answers that strike,
-  AUTO stops a human for it, and the Resolution branch (`resolutionGuardCard`) has used `E.lossAnswerFor` since
-  the epic for exactly this reason. The fix is one predicate for both timings: pick the cheapest card `stakeFor`
-  admits, as `resolutionGuardCard` does. It makes the AI defend more, so ship it behind a policy and measure it
-  with `strengthsim` first.
-  `[id: ai-strike-answer-asks-immunity]`
 
 - `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
   SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen

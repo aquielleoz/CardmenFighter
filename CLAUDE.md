@@ -519,6 +519,12 @@ node strengthsim.js 4000 demon knight   # IS THIS CHANGE STRONGER? — the ONLY 
                              # To isolate ONE shipped policy, name all the others: `knight:push,pitch,ownCast`
                              # is the shipped game minus `aimed`. Names match without case (v1.33.8) — the
                              # arm is lowercased, so `ownCast` could not be named in v1.33.7 at all.
+node forcesim.js 2 20000     # A FORCED-POSITION A/B for one AI decision real games never reach (2026-10-09): plays to
+                             # the board, puts the missing cards on the deciding seat, then plays the same game twice —
+                             # the decision taken, and the shipped AI — randomness pinned, with control replays. The
+                             # substituted play lives in the HARNESS, so `ai.js` carries no switch for an unshipped
+                             # behaviour. Built for Sanctuary under Hector against a strike card; it loses
+                             # (DECISIONS.md#ai-strength). Re-run it if Sanctuary's text changes
 node passsim.js 200 6 knight   # strategic-pass study + initiative concentration. `drawplayers` is a NAMED
                              # flag now, valid in any position, and stripped before the positional slots are
                              # read — it used to be argv[7] and a typo silently ran the default. Prints CONFIG.
@@ -3112,6 +3118,16 @@ cannot tell *worth nothing* from *never ran*, which is why `policyStats()` exist
 non-identical arms as a broken measurement until a COUNTER says otherwise — here the counter turned an
 apparent tie into the actual answer (139 first casts, 0 second casts, 900 games). Full write-up:
 [`DECISIONS.md#ai-strength`](docs/DECISIONS.md#ai-strength).
+**AND A POLICY THAT NEVER FIRES CAN STILL BE MEASURED — FORCE THE BOARD (2026-10-09).** Deleting a never-firing
+policy is right when that is the whole question. It was not the whole question for Sanctuary under Hector against a
+strike card: it never arose in ~9,600 AI games, but it had been filed as a BUG, because the engine's `stakeFor`
+admits the card the AI refused. Aj: *"can we force the conditions?"* — `forcesim.js` plays to the board, puts the
+missing cards on the seat and plays the same game both ways, and the AI's refusal turned out to be the better play.
+**`stakeFor` decides whether a human is INTERRUPTED, never whether a cast is good play**, so an AI decision that
+disagrees with it is a question to measure, not a defect to align.
+**AND SUBSTITUTE AT THE SEAT'S FIRST ACTION ON THE WINDOW, NOT ONLY WHERE IT WOULD PASS.** The first cut compared
+"Sanctuary vs nothing" and so dropped three duel positions in four — the ones where the widened branch, which runs
+before the Counter Spell one, would spend Sanctuary instead of a counter. That is where all of the duel loss is.
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in
