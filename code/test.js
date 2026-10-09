@@ -3665,5 +3665,51 @@ function cards(ids) { return ids.map(card); }
   ok(sOff.ok && rOff && rOff.respondedWith === 'D4', 'own cast: with `ownCast` switched off the caster counters itself again — the arm strengthsim compares against  ' + JSON.stringify(rOff && rOff.respondedWith || null));
 })();
 
+// ===== THE AI SPRINGS LEYLINE ONLY AT A STRIKE AIMED AT IT (ai-answers-others-casts) =====
+/* The go-round offers priority to every seat, and `respondDecision`'s immunity branch asked only whether a
+ * `destroyShield` was on the stack — so at three players and up an AI on two shields sprang Leyline at a Critical
+ * Hit aimed at SOMEONE ELSE. Three seats: seat 1 casts at seat 0 (the case) or at seat 2 (the control — a seat that
+ * still defends itself is what proves the branch can fire at all), and seat 2, holding Leyline, is asked once
+ * priority reaches it. Then both switches: `aimed` off brings the old answer back, and `ownCast` off must NOT be
+ * swallowed by `aimed` — an own cast is never aimed at its caster, so a careless gate would hold it back too. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  var holds = function (g, p, id) { return g.players[p].hand.some(function (c) { return c.id === id; }); };
+  var answered = function (r) { return !!(r && r.respondedWith); };
+  var said = function (r) { return JSON.stringify(r && r.respondedWith || null); };
+  function stage(target, hand2) {                                   // seat 1 casts Critical Hit at `target`; seat 2 holds `hand2`
+    var g = E.newGame(null, { numPlayers: 3 }); g.round = 4; g.turn = 1; g.passes = 0; g.pile = null; g.lastPlayer = null;
+    g.players.forEach(function (p) { p.hand = [mk(9, 'C', 'x'), mk(6, 'S', 'x')]; p.energy = []; p.equipment = []; p.shields = 3; });
+    g.players[1].hand = [mk(9, 'S'), mk(10, 'C', 'pk'), mk(6, 'S', 'y')]; g.players[1].energy = nrg(10, 'S');   // Critical Hit, and a 10 to pitch
+    g.players[2].shields = 2; g.players[2].hand = hand2 || [mk(9, 'D'), mk(6, 'C', 'y')]; g.players[2].energy = nrg(12, 'D');   // on two shields: the branch's own condition
+    var c = E.activate(g, 1, '9S', { target: target });
+    for (var k = 0; c.ok && g.respondFor != null && g.respondFor !== 2 && k < 5; k++) E.declineResponse(g, g.respondFor);   // the go-round starts at the caster
+    return { g: g, ok: c.ok && g.respondFor === 2, why: c.ok ? 'priority at ' + g.respondFor : c.reason };
+  }
+  AI.resetPolicyStats();
+  var sE = stage(0), rE = sE.ok ? AI.respondDecision(sE.g, 2) : null;
+  ok(sE.ok && !answered(rE) && holds(sE.g, 2, '9D'), 'aimed elsewhere: seat 2 does NOT spring Leyline at a Critical Hit aimed at seat 0, and keeps the card  ' + (sE.ok ? said(rE) : sE.why));
+  ok(AI.policyStats().aimed >= 1, 'aimed elsewhere: …and the policy tally records the answer it held back (' + AI.policyStats().aimed + ')');
+  var sM = stage(2), rM = sM.ok ? AI.respondDecision(sM.g, 2) : null;
+  ok(sM.ok && rM && rM.respondedWith === 'D9', 'aimed at it: the same seat DOES spring Leyline when the Critical Hit is aimed at it — the control  ' + (sM.ok ? said(rM) : sM.why));
+  // holding Leyline back does not end the decision: with Counter Spell too, seat 2 answers exactly as a seat without Leyline would
+  var sB = stage(0, [mk(9, 'D'), mk(4, 'D'), mk(6, 'C', 'y')]), rB = sB.ok ? AI.respondDecision(sB.g, 2) : null;
+  var sC = stage(0, [mk(4, 'D'), mk(6, 'C', 'y')]), rC = sC.ok ? AI.respondDecision(sC.g, 2) : null;
+  ok(sB.ok && sC.ok && said(rB) === said(rC) && holds(sB.g, 2, '9D'), 'aimed elsewhere: …a seat also holding Counter Spell decides as if it never held Leyline (' + said(rB) + ' vs ' + said(rC) + ')');
+  // the switches: `aimed` off restores the old answer; `ownCast` off restores ITS old answer, which `aimed` must not swallow
+  AI.setArmPolicy(function (p, name) { return name !== 'aimed'; });
+  var sOff = stage(0), rOff = sOff.ok ? AI.respondDecision(sOff.g, 2) : null;
+  AI.setArmPolicy(function (p, name) { return name !== 'ownCast'; });
+  var gO = E.newGame(null, { numPlayers: 2 }); gO.round = 4; gO.turn = 1; gO.passes = 0; gO.pile = null; gO.lastPlayer = null;
+  gO.players.forEach(function (p) { p.hand = [mk(9, 'C', 'x'), mk(6, 'S', 'x')]; p.energy = []; p.equipment = []; });
+  gO.players[1].shields = 2; gO.players[0].shields = 3;
+  gO.players[1].hand = [mk(9, 'S'), mk(9, 'D'), mk(10, 'C', 'pk'), mk(6, 'S', 'y')]; gO.players[1].energy = nrg(10, 'S').concat(nrg(10, 'D'));
+  var cO = E.activate(gO, 1, '9S', { target: 0 }), pO = gO.respondFor, rO = (cO.ok && pO === 1) ? AI.respondDecision(gO, 1) : null;
+  AI.setArmPolicy(null);
+  ok(sOff.ok && rOff && rOff.respondedWith === 'D9', 'aimed elsewhere: with `aimed` switched off it springs Leyline at the other seat\'s strike again — the arm strengthsim compares against  ' + said(rOff));
+  ok(cO.ok && pO === 1 && rO && rO.respondedWith === 'D9', 'aimed elsewhere: with only `ownCast` switched off the caster answers its own Critical Hit again — `aimed` does not swallow it  ' + (cO.ok ? said(rO) : cO.reason));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

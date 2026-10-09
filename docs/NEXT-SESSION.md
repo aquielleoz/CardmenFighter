@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**701**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**707**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.7.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.8.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.7**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.8**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -505,20 +505,30 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
-- `needs a measurement` · **THE AI ANSWERS CASTS AIMED AT SOMEONE ELSE (2026-10-09).** Found while stopping it answering
-  its own cast (v1.33.7). Two different things in the same branches of `respondDecision`:
-  - **Leyline against a strike aimed at another seat is a pure waste.** The immunity branch fires on any
-    `destroyShield` while the seat is on two shields or fewer. Its own comment says "aimed at us", and the code
-    never checks. Measured headless: 7 of 37 Leyline answers in 200 six-player games had no stake by the
-    engine's rule (`E.stakeFor`, 'respond'), and none at two or three players. Gating the branch on `stakeFor`,
-    which already knows who a strike hits, is the fix.
-  - **Counter Spell against a threat aimed at someone else is a policy question, not a waste.** The counter
-    branch counters any `THREAT_KIND` cast that is not the AI's own, whoever it targets. At a full table that
-    can help a rival, but the engine's stake rule counts any opponent's cast as a stake, so nothing says it is
-    wrong.
-  Both change how the AI plays: measure with `strengthsim … players=6`, control first, as v1.33.7 did
+- `needs a decision`    · **SHOULD THE AI ANSWER A THREAT AIMED AT SOMEONE ELSE? (2026-10-09)** Leyline against a
+  strike aimed at another seat was the one case the engine's stake rule calls stakeless, and v1.33.8 stopped it
+  (`aimed`). What is left is a POLICY question, because the engine's rule counts both of these as stakes:
+  - **Counter Spell** counters any `THREAT_KIND` cast that is not the AI's own, whoever it targets. At a full
+    table that can help a rival.
+  - **Annoint** saves a RIVAL'S Equipment from another rival. Measured headless: a computer holding Annoint and
+    its own Equipment answered a Sabotage aimed at seat 0's sword, and the sword survived. The branch's own
+    comment says "save our own equipment from a removal aimed at it" and the code checks only that it HAS
+    Equipment, which is the Leyline shape; but `stakeFor`'s `protect` branch counts any opponent's removal on
+    the stack, so it is the same decision as Counter Spell rather than a bug.
+  Both change how the AI plays: decide, then measure with `strengthsim … players=6`, control first, naming every
+  other shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did
   ([`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength)).
   `[id: ai-answers-others-casts]`
+- `ready to build`      · **THE AI'S ANSWER TO A STRIKE STILL ASKS "IS IT IMMUNITY?" (2026-10-09).** Found while
+  fixing Leyline against strikes aimed elsewhere (v1.33.8). `respondDecision`'s respond-timing branch picks its
+  card with `E.immunityEffFor`, which refuses Sanctuary under HECTOR (`{quick:true}` on a `kind:'shield'` base, no
+  immunity flag). So a computer holding Sanctuary with Hector in its zone declines a Critical Hit aimed at it,
+  measured headless on 2 shields and on 1, though `E.stakeFor(…, 'respond')` says the card answers that strike,
+  AUTO stops a human for it, and the Resolution branch (`resolutionGuardCard`) has used `E.lossAnswerFor` since
+  the epic for exactly this reason. The fix is one predicate for both timings: pick the cheapest card `stakeFor`
+  admits, as `resolutionGuardCard` does. It makes the AI defend more, so ship it behind a policy and measure it
+  with `strengthsim` first.
+  `[id: ai-strike-answer-asks-immunity]`
 
 - `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
   SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen
