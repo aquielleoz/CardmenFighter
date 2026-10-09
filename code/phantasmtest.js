@@ -81,10 +81,15 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(350);
   ok(/Confirm to conjure|Confirm to copy/i.test(await hint()), 'with a buff up it offers to conjure WITHOUT a swap ("'+(await hint()).slice(0,60)+'…")');
   const handBefore=await p.evaluate(()=>window.__solo.st().players[0].hand.length);
+  const castBefore=await p.evaluate(()=>window.__solo.stats().seats[0].eff.D10||0);
   await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
   const c2r=await conjured();
   ok(c2r.pile && c2r.pile.phantom===true, 'Confirm with NO card selected conjures the illusion and takes the initiative');
   ok(c2r.spent, 'the Illusion card is spent');
+  /* …AND THE RECORD COUNTS IT (record-skips-own-transforms): an illusion is cast through `phantasm`, not
+     `activate`, and no path counted it. The engine counts it now; read through the hook the record uses. */
+  const castAfter=await p.evaluate(()=>window.__solo.stats().seats[0].eff.D10||0);
+  ok(castAfter-castBefore===1, 'and the record counts your illusion as a cast  ('+castBefore+' → '+castAfter+')');
   const handAfter=await p.evaluate(()=>window.__solo.st().players[0].hand.length);
   ok(handAfter===handBefore-1, 'and it is the ONLY card that left your hand — the copies are illusions ('+handBefore+'→'+handAfter+')');
   ok(c2r.pile && c2r.pile.type==='pair', 'it answered a plain PAIR — the case a mandatory swap could never reach');

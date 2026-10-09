@@ -43,6 +43,12 @@ async function modalUp(p){ return p.evaluate(()=>!!(document.getElementById('ove
   ok(hostPending===false,'stack settled on the host (no lingering pending)');
   const logHit=await host.evaluate(()=>/[Cc]ounter/.test((document.getElementById('log')||{}).textContent||''));
   ok(logHit,'host log records the counter');
+  /* …AND THE HOST'S RECORD COUNTS IT (record-skips-own-transforms). The host narrated a client's Quick answer and
+   * never counted it, and every client stores the host's record, so the answer was in nobody's. Casts are counted
+   * by the engine now; read through the hook the record is built from (seat 1 is the client, absolute). */
+  const rec=await host.evaluate(()=>{ const s=window.__cmf.stats(); return (s&&s.seats) ? { host:s.seats[0].eff, client:s.seats[1].eff } : null; });
+  ok(!!rec && rec.client.D4===1, 'the host\'s record counts the CLIENT\'s Counter Spell  '+JSON.stringify(rec&&rec.client));
+  ok(!!rec && rec.host.D1===1, '  …and the host\'s own Gather Energy once, though it was countered  '+JSON.stringify(rec&&rec.host));
   /* AND THE CLIENT'S OWN LOG MUST TOO. Aj, 2026-08-30: "i think i've seen the counterspell fire off on netplay
    * but i can't confirm if it was only because it was on the host". The MECHANIC always worked from either seat
    * — this suite is a CLIENT countering — but until v1.31.58 the narration went through `logMsg`, which is

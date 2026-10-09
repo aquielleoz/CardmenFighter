@@ -3545,5 +3545,49 @@ function cards(ids) { return ids.map(card); }
   ok(!!kB && !kB.isSuper, 'incarnation: …and that entry does not claim it (a J and a K, no Queen)');
 })();
 
+// ===== EVERY CAST IS COUNTED ONCE, BY THE ENGINE (record-skips-own-transforms) =====
+/* The playtest record's `techniques`/`eff` were tallied in the UI, one call per presentation path, and four paths
+ * never counted: your own Ride or Form, a netplay client's Quick answer, an AI's answer inside another AI's turn,
+ * and every Phantasmal Illusion. `noteCast` now runs in `activate`, `respond` and `phantasm`, the only three ways a
+ * card is cast, so the path a cast took no longer matters. One staging per function, the refusal that must NOT
+ * count, and the mirror the count must never travel on. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  function fresh() { var g = E.newGame(null, { numPlayers: 2 }); g.round = 4; g.turn = 0; g.passes = 0; g.pile = null; g.lastPlayer = null; return g; }
+  var castsOf = function (g, p) { return g.players[p].casts || {}; };
+  // activate: a Technique
+  var gT = fresh(); gT.players[0].hand = [mk(1, 'D'), mk(9, 'C')]; gT.players[0].energy = nrg(4, 'D');
+  var rT = E.activate(gT, 0, '1D');
+  ok(rT.ok && castsOf(gT, 0).D1 === 1, 'casts: an activated Technique counts once, by its effect id  ' + JSON.stringify(castsOf(gT, 0)));
+  // activate: a Ride — your own transform was the path the UI never counted
+  var gR = fresh(); gR.players[0].shields = 3; gR.players[1].shields = 3;               // two lost table-wide: the Ride's gate is open
+  gR.players[0].hand = [mk(11, 'C'), mk(9, 'C')];
+  var rR = E.activate(gR, 0, '11C');
+  ok(rR.ok && rR.transformed && castsOf(gR, 0).C11 === 1, 'casts: a Ride counts like any other cast  ' + JSON.stringify(castsOf(gR, 0)));
+  // a refusal spends nothing and counts nothing
+  var gN = fresh(); gN.players[0].hand = [mk(9, 'S'), mk(4, 'C')]; gN.players[0].energy = [];
+  var rN = E.activate(gN, 0, '9S');
+  ok(!rN.ok && !castsOf(gN, 0).S9, 'casts: a refused cast (no energy) counts nothing');
+  // respond: the ANSWER is the responder's cast, and the cast it answers keeps its own count
+  var gQ = fresh(); gQ.players[0].hand = [mk(1, 'D'), mk(9, 'C')]; gQ.players[0].energy = nrg(4, 'D');
+  gQ.players[1].hand = [mk(9, 'D'), mk(5, 'C')]; gQ.players[1].energy = nrg(10, 'D');      // Leyline: the untargeted Quick, legal in any window
+  E.activate(gQ, 0, '1D');
+  for (var k = 0; gQ.respondFor === 0 && k < 5; k++) E.declineResponse(gQ, 0);            // the go-round starts at the caster
+  var rQ = gQ.respondFor === 1 ? E.respond(gQ, 1, '9D') : { ok: false, reason: 'staging: priority never reached seat 1 (' + gQ.respondFor + ')' };
+  ok(rQ.ok && castsOf(gQ, 1).D9 === 1, 'casts: a Quick answer counts for the seat that answered  ' + (rQ.ok ? JSON.stringify(castsOf(gQ, 1)) : rQ.reason));
+  ok(castsOf(gQ, 0).D1 === 1 && !castsOf(gQ, 0).D9, 'casts: …and the cast it answered keeps its own count, once  ' + JSON.stringify(castsOf(gQ, 0)));
+  // phantasm: the illusion is a Technique cast, on a path `activate` refuses
+  var gP = fresh(); var fh = E.detectCombo([mk(8, 'S', 'p'), mk(8, 'H', 'p'), mk(8, 'C', 'p'), mk(9, 'S', 'p'), mk(9, 'H', 'p')]);
+  gP.pile = { combo: fh, byPlayer: 1, raw: fh.value, rawKey0: fh.key[0], lockedDelta: 0, mod: 0 }; gP.lastPlayer = 1;
+  gP.players[0].hand = [mk(10, 'D'), mk(9, 'D'), mk(4, 'C')]; gP.players[0].energy = nrg(10, 'D');
+  var eightAt = fh.cards.map(function (c) { return c.rank; }).indexOf(8);
+  var rP = E.phantasm(gP, 0, { cardId: '10D', removeIdx: eightAt, addId: '9D' });             // 88899 → 99988, the swap phantasmtest stages
+  ok(rP.ok && castsOf(gP, 0).D10 === 1, 'casts: a Phantasmal Illusion counts  ' + (rP.ok ? JSON.stringify(castsOf(gP, 0)) : rP.reason));
+  // the count is host-side bookkeeping: an object, so netview's clonePlayer never puts it on a mirror
+  var NVc = require('./netview.js'), mir = JSON.stringify(NVc.mirrorFor(gQ, 1));
+  ok(mir.indexOf('"casts"') < 0, 'casts: the count never travels on a netplay mirror');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

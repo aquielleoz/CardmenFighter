@@ -48,6 +48,10 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   ok(await host.evaluate(()=>window.__cmf.pending())===false,'stack settled on the host after the remote Counter');
   ok(await host.evaluate(()=>/[Cc]ounter/.test((document.getElementById('log')||{}).textContent||'')),'host log records the remote counter');
+  /* …AND THE HOST'S RECORD COUNTS IT, through `hostApplyMoveN`'s answer handler, which a duel never reaches
+   * (record-skips-own-transforms; `nettest_counter` has the duel's). Seat 1 is client 1, absolute. */
+  const rec3=await host.evaluate(()=>{ const s=window.__cmf.stats(); return (s&&s.seats) ? s.seats[1].eff : null; });
+  ok(!!rec3 && rec3.D4===1, 'the host\'s record counts the remote Counter Spell  '+JSON.stringify(rec3));
   ok((await turnOf(host))!=null && (await turnOf(c1))!=null && (await turnOf(c2))!=null,'all three boards still live');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 

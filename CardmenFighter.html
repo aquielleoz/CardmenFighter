@@ -3134,6 +3134,14 @@
     return opp.filter(function (t) { return t.e.protect; })[0] || opp[0] || all[0] || null;
   }
 
+  /* EVERY CAST IS COUNTED HERE, ONCE, AT THE LINE WHERE IT COMMITS (record-skips-own-transforms). The playtest
+     record used to count casts in the UI, one call per presentation path, and four paths never did: your own Ride
+     or Form, a netplay client's Quick answer, an AI's answer inside another AI's turn, and every Phantasmal
+     Illusion. `activate`, `respond` and `phantasm` are the only ways a card is cast, so the count lives in them
+     and the record reads it. Keyed by the card's BASE effect id, the record's `eff` key. It is an OBJECT, so
+     `netview`'s clonePlayer (scalars plus named fields) keeps it off the mirror. */
+  function noteCast(pl, card) { var e = card && effectOf(card); if (!e || !e.id) return; var m = pl.casts || (pl.casts = {}); m[e.id] = (m[e.id] || 0) + 1; }
+
   // Activate a card's effect from hand. opts: { discard:[ids], toTop:id } for the
   // effects that need a choice (auto-picks lowest cards if omitted).
   function activate(st, p, cardId, opts) {
@@ -3262,6 +3270,7 @@
     // remove the activated card from hand, pay the cost (the card is now "on the stack")
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
     payEnergy(pl, card, costDelta);
+    noteCast(pl, card);                                       // committed: the record counts it (Techniques, Rides and Forms alike)
     if (pitchCard) { pl.hand = pl.hand.filter(function (c) { return c.id !== pitchCard.id; }); pl.removed.push(pitchCard); }   // Broadway pitch → Discard pile
     if (eff.kind !== 'transform') { st._effUsed = true; }   // this turn's first-effect discount/tax is now spent
 
@@ -3885,6 +3894,7 @@
     var qPitch = qeff.pitchHigh ? pitchFor(qp, quickCardId, opts && opts.pitch) : null;   // castRefusal already proved one exists
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
+    noteCast(qp, qcard);                                      // committed: a Quick answer is a cast, whoever makes it (see noteCast)
     if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.removed.push(qPitch); }   // Broadway pitch → Discard pile, as `activate` does
     var qOpts = cOid ? { counterOid: cOid } : {};
     if (qTarget != null) qOpts.target = qTarget;                      // resolution, stackTargetOf and Annoint all read it from here
@@ -4504,6 +4514,7 @@
                                            : "A bare copy only ties — swap a card in, or add a boost." };
     }
     pl.hand = pl.hand.filter(function (c) { return c.id !== pc.id; }); payEnergy(pl, pc); spendCard(pl, pc);   // the Illusion card is spent
+    noteCast(pl, pc);                                         // committed: the illusion is a Technique cast (see noteCast)
     if (swapping) { pl.hand = pl.hand.filter(function (c) { return c.id !== add.id; }); pl.energy.push(add); } // your one real card is really played
     /* Stored like any other play so refreshPile() keeps tracking the board: raw base value, plus the deltas
      * frozen at play time. `phantom` still marks it for the UI and the netplay mirror. */
@@ -7246,7 +7257,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.4';
+  var GAME_VERSION='v1.33.5';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8740,16 +8751,26 @@ window.CardFace = {};
   /* Stats are keyed by ABSOLUTE SEAT (v1.31.5). They used to be keyed by `pkey(pl)` -> 'you' | 'rival', which
    * collapsed all five opponents at a six-player table into one bucket, so an exported free-for-all could not
    * say who did anything — and a duel and a six-player game were indistinguishable in the file. */
-  function blankStat(){ return {jabs:0, specials:0, techniques:0, shieldsLost:0, eff:{}}; }
+  function blankStat(){ return {jabs:0, specials:0, shieldsLost:0}; }
   function resetStats(){ stats={seats:[]}; for(var si=0; si<6; si++) stats.seats[si]=blankStat(); gameStartTs=Date.now(); lastEndType=null; }
   function statOf(pl){ return (stats && stats.seats && typeof pl==='number') ? stats.seats[pl] : null; }
   function bumpFight(pl, type){ var s=statOf(pl); if(!s) return; if(type==='single') s.jabs++; else s.specials++; }
-  function bumpEffect(pl, eff){ var s=statOf(pl); if(!s||!eff) return; s.techniques++; s.eff[eff.id]=(s.eff[eff.id]||0)+1; }
+  /* CASTS ARE COUNTED BY THE ENGINE (record-skips-own-transforms): `noteCast` runs in `activate`, `respond` and
+   * `phantasm` as each cast commits. They used to be tallied here, by a `bumpEffect` call on each presentation
+   * path, and four paths never made one (your own Ride or Form, a netplay client's Quick answer, an AI's answer
+   * inside another AI's turn, every Phantasmal Illusion). So `techniques` and `eff` are READ from the game state
+   * wherever the record or a debug hook needs them, and never accumulated in `stats`. */
+  function castsOf(i){ var pl=state&&state.players&&state.players[i], m=(pl&&pl.casts)||{}, o={}; for(var k in m) o[k]=m[k]; return o; }
+  function castTotal(m){ var t=0; for(var k in m) t+=m[k]; return t; }
+  function statsView(){ if(!stats) return stats; var v={ recorded:stats.recorded, seats:[] };
+    for(var i=0;i<stats.seats.length;i++){ var s=stats.seats[i], o={}; for(var k in s) o[k]=s[k]; o.eff=castsOf(i); o.techniques=castTotal(o.eff); v.seats.push(o); }
+    return v; }
   function getGames(){ try{ var a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:memGames; }catch(e){ return memGames; } }
   /* `adopted` — a finished record pushed by the netplay HOST. A client only ever observed its own plays (every
-   * bumpFight/bumpEffect call site is in the local drivers, which a client does not run), so its own record
-   * would show every opponent at zero. The host is the authority and its record is complete, so it broadcasts
-   * it at game end and clients store THAT instead. The payload is public information — plays, never hands. */
+   * bumpFight call site is in the local drivers, which a client does not run, and a client's mirror never
+   * carries the engine's cast counts), so its own record would show every opponent at zero. The host is the
+   * authority and its record is complete, so it broadcasts it at game end and clients store THAT instead. The
+   * payload is public information — plays, never hands. */
   var lastAdopted = null;                     // test seam: the netplay record this page ADOPTED from the host
   function adoptRecord(rec){ lastAdopted = rec || null; return recordGame(rec); }
   function recordGame(adopted){
@@ -8761,17 +8782,17 @@ window.CardFace = {};
     }
     var np=(state&&state.numPlayers)||2;
     function snap(i){
-      var s=statOf(i)||blankStat(), pl=(state&&state.players[i])||null, per=personaOf(i);
+      var s=statOf(i)||blankStat(), pl=(state&&state.players[i])||null, per=personaOf(i), ef=castsOf(i);   // casts from the ENGINE — see castsOf
       return { seat:i, name:(seatName?seatName(i):null), deck:(seatDecks&&seatDecks[i])||(i===YOU?youDeck:(i===1?rivalDeck:null))||null,
                difficulty:(seatDiffs&&seatDiffs[i])||null, persona:(per&&per.name)||null,
-               jabs:s.jabs, specials:s.specials, techniques:s.techniques,
-               shieldsLost:s.shieldsLost, finalShields:(pl?pl.shields:null), eliminated:!!(pl&&pl.eliminated), eff:s.eff };
+               jabs:s.jabs, specials:s.specials, techniques:castTotal(ef),
+               shieldsLost:s.shieldsLost, finalShields:(pl?pl.shields:null), eliminated:!!(pl&&pl.eliminated), eff:ef };
     }
     var seats=[], i; for(i=0;i<np;i++) seats.push(snap(i));
     /* The v1.0 `rival` field claimed to be "the opponent" but at 3+ players it silently held a merge of all of
      * them — with fight counts stuck at 0, since bumpFight was only ever called for YOU. Keep the field so old
      * analysis still parses, but make it an HONEST merge, and mark it. */
-    var merged=blankStat();
+    var merged={jabs:0, specials:0, techniques:0, shieldsLost:0, eff:{}};
     for(i=0;i<np;i++){ if(i===YOU) continue; var o=seats[i];
       merged.jabs+=o.jabs; merged.specials+=o.specials; merged.techniques+=o.techniques;
       merged.shieldsLost+=o.shieldsLost;
@@ -10975,7 +10996,6 @@ window.CardFace = {};
     var pitchNote=r.pitched?(' <span class="subtle">(pitched '+cardSym(r.pitched)+')</span>'):'';
     setMessage('You played <b>'+eff.name+'</b>.'+pitchNote);
     sayCast(YOU, card, r, 'you', r.pitched?' — pitched '+cardSym(r.pitched):'');
-    bumpEffect(YOU, eff);
     TUT.note('activate', eff);
     revealEffect(card, 'You');              // quick flash of what you just played
     if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card);
@@ -11056,7 +11076,6 @@ window.CardFace = {};
     selected={}; targeting=null;
     setMessage('You played <b>'+eff.name+'</b>.');
     sayCast(YOU, card, r, 'you');
-    bumpEffect(YOU, eff);
     revealEffect(card, 'You');
     /* THE HOST MUST TAKE CONTROL BACK, AND THIS CONTINUATION FORGOT TO — SEVENTH INSTANCE (2026-09-18).
        `doRemove` is the `removeEquip` tail, a near-copy of the ordinary effect tail thirty lines up, and it
@@ -11088,7 +11107,6 @@ window.CardFace = {};
     if(!state.pending || state.respondFor!==RIVAL) return null;
     var resp=AI.respondDecision(state, RIVAL);
     if(resp && resp.respondedWith){
-      bumpEffect(RIVAL, {kind:resp.respondKind, id:resp.respondedWith});
       if(resp.countered){
         setMessage('🌀 Rival <b>countered</b> your '+humanEffName+'!');
         logMsg('<b>Rival</b> countered your '+humanEffName+' with '+resp.respondName+'!', 'rival');
@@ -11325,7 +11343,6 @@ window.CardFace = {};
     selected={};
     setMessage('You <b>counterfeited</b> a '+(src?cardSym(src):'card')+' — play the copy before the round ends.');
     say(YOU, '{who} counterfeited a '+(src?cardSym(src):'card')+'.', 'you');
-    bumpEffect(YOU, eff);
     revealEffect(card, 'You');
     rivalMayRespond(eff.name);
     if(state.finished){ render(); return endGame(); }
@@ -12131,13 +12148,17 @@ window.CardFace = {};
         if(e.play){
           var eff=e.card?E.effectOf(e.card):null;
           beats.push({ dwell: revealDwell(e.card), run:function(){
-            sayCast(seat, e.card, e, 'rival'); bumpEffect(seat, eff);   // `e.target` is the AI's activation result's aim
+            sayCast(seat, e.card, e, 'rival');   // `e.target` is the AI's activation result's aim
             if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
           }});
         }
         else if(e.useEquip){ beats.push({ dwell:750, run:function(){ say(seat, '{who} spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
+        /* ONE COUNT PER FIGHT, FOR THE SEAT THAT FOUGHT (record-skips-own-transforms). v1.31.5 added the count below
+           and left an older `bumpFight(RIVAL, …)` inside the beat, so a duel's AI fights were recorded twice and, at
+           3-6 players, seat 1 was credited with every opponent's (Bibong's 09-20 log: 3 jabs and 6 Specials,
+           recorded 6 and 12). */
         else if(e.fight==='play'){ bumpFight(seat, e.combo&&e.combo.type);   // opponents' fights were never counted — see recordGame
-        beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
+        beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
         else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.phantasm)+' overtakes the pile.', 'rival');   /* `e.phantasm`, NOT `e.made`: ai.js logs the SHAPE in `phantasm`, so `made` printed "a Special undefined" (phantasm-beat-reads-wrong-field) */ setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
@@ -12310,7 +12331,6 @@ window.CardFace = {};
            for which side of the window the damage landed on. */
         prioNote('  → ' + logName(q) + ' CAST ' + (resp.respondName || resp.respondedWith) + (resp.countered ? '  (a counter)' : ''),
                  (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round));
-        bumpEffect(q, {kind:resp.respondKind, id:resp.respondedWith});
         /* NAME THE TIMING, NOT JUST THE CARD. "answered at instant speed" is right for a response to a
            cast and wrong for the other two windows: at the Main → Play transition nothing has been cast
            to answer, and the old pre-fight path said "sprang X" for exactly that reason. Same family as
@@ -12679,7 +12699,6 @@ window.CardFace = {};
     if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); }
     if(qeff && qeff.kind==='counter'){ setMessage('🌀 You <b>Countered</b> '+pendName+'!'); say(YOU, '{who} countered '+pendName+' with '+qeff.name+'!', 'you'); }
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); say(YOU, '{who} answered with '+qeff.name+' at instant speed.', 'you'); }
-    bumpEffect(YOU, qeff);
     prioNote('  → you CAST ' + (qeff && qeff.name ? qeff.name : quickId) + (qeff && qeff.kind==='counter' ? ('  (countering ' + pendName + ')') : ''));
     /* CLEARED AND NOTED *BEFORE* `cont()`, FOR THE REASON `tutCastRivalTech` ALREADY GIVES FOR SETTING IT
        (2026-09-25). `cont()` runs the settle, and the settle is what OPENS THE NEXT WINDOW — priority goes
@@ -16791,13 +16810,12 @@ window.CardFace = {};
       /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
       if(it.op==='phantasm'){ return hostPhantasmIntent(1, it) ? (hostAfterOwnCast?hostAfterOwnCast():undefined) : undefined; }
       if(it.op==='activate'){
-        var acard=resolveIds(1,[it.id])[0], aeff=acard?E.effectOf(acard):null;
+        var acard=resolveIds(1,[it.id])[0];
         try{ r=E.activate(hostState, 1, it.id, { target:(it.target!=null?it.target:YOU), copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch }); }
         catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
         sayCast(1, acard, r, 'rival');   // effPhrase, like the host's own casts and every AI cast (client-activation-line-short-form)
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
-        bumpEffect(1, aeff);     // ...and uncounted: every other bumpEffect site is a LOCAL path, so the host's record — the one every seat ADOPTS — had this seat at zero
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
       try{
@@ -17213,13 +17231,12 @@ window.CardFace = {};
         /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
         if(it.op==='phantasm'){ return hostPhantasmIntent(seat, it) ? (driveN?driveN():undefined) : undefined; }
         if(it.op==='activate'){
-          var ac=resolveIds(seat,[it.id])[0], ae=ac?E.effectOf(ac):null;
+          var ac=resolveIds(seat,[it.id])[0];
           var tgt=(it.target!=null)?((it.target+seat)%n):undefined;   // un-rotate the client's (rotated) target back to the absolute seat
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
           sayCast(seat, ac, r, 'rival');   // effPhrase — same grammar as every other cast; the duel handler's twin
           fxBroadcast(seat, ac);
-          bumpEffect(seat, ae);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
@@ -18087,7 +18104,7 @@ window.CardFace = {};
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */
-    stats:function(){ return stats; },
+    stats:function(){ return statsView(); },
     addLog:function(t,c){ logMsg(t||'\u2026', c||'round'); },   /* mirrors __solo.log. NOT `log:` — that key is already taken below by the uncapped-history accessor (v1.31.93), and a later duplicate key in an object literal SILENTLY wins: the call returned fullLog and appended nothing, with no error. Same class as the duplicate-function trap in CLAUDE.md. */
     /* THE UNCAPPED LOG. `#log` evicts at 80 entries (see logMsg), and the host and client carry DIFFERENT total
      * line streams — the host logs host-local lines a client never receives — so past 80 the two windows cover
@@ -18152,7 +18169,7 @@ window.CardFace = {};
       beats:function(res){ return buildPreDrawBeats(res||{}); },
       names:function(list){ setSeatNames(list); render(); },
       // playtest-log hooks: assert what an EXPORT would actually contain without playing to a real finish
-      stats:function(){ return stats; }, record:function(){ return recordGame(); }, games:function(){ return getGames(); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
+      stats:function(){ return statsView(); }, record:function(){ return recordGame(); }, games:function(){ return getGames(); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
 })();
 </script>
 </body>

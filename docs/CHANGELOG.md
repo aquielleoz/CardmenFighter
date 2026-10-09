@@ -15,6 +15,33 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.5 — the saved game record counts every card cast, once
+
+**What you'll see:** nothing during play. This is the ⤓ export of your games, the file playtesters send. From this
+version it counts every card each player casts, once, and each fight once:
+- **Your own Rides and Forms are counted.** They never were, while the opponent's always were.
+- **So are a netplay opponent's Quick answers, the computer's answers during another computer's turn, and every
+  Phantasmal Illusion**, which nothing counted.
+- **The computer's fights are counted once.** In a duel each was recorded twice (Bibong's 20 September game: 3 jabs
+  and 6 Specials, recorded as 6 and 12), and at 3-6 players the first opponent was credited with everyone's.
+
+Records made before v1.33.5 still carry all of this; the record's `build` stamp tells them apart.
+
+- **Why it kept happening:** casts were counted in the page, one call for each way a cast can be shown, and four
+  ways never had one. The count now lives in the engine, in the three functions every cast goes through
+  (`activate`, `respond`, `phantasm`), and the record reads it from there. The nine counting calls in the page are
+  gone, so a new way of casting cannot miss the count.
+- **`techniques` now means every cast, Rides and Forms included**, for every seat: the meaning the opponents'
+  numbers always had. Your own number steps up from this build.
+- **Testing.** `test.js` 692 (+7): each of the three functions counts its cast, a refused cast counts nothing, and
+  the count never travels to the other seats. `oppbeatstest` 18 (+2): a computer fight counts once, for the seat
+  that fought. Through the record itself: your own Ride on a netplay host (`nettest_activate` 19, +2), a client's
+  Counter Spell in a duel and at three players (`nettest_counter` 12, +2; `nettest_react3` 8, +1), and an illusion
+  in solo and from a client (`phantasmtest` 13, +1; `nettest_phantasm` 9, +1). On the old code exactly the new
+  checks fail.
+- **Found on the way, filed:** when a computer answers another computer's cast during its turn, the battle log never
+  says so (`ai-answer-in-ai-turn-unnarrated`). In a headless count it happened in 16 of 60 three-player games.
+
 ### v1.33.4 — the battle log names who discarded and announces every INCARNATION
 
 **What you'll see:** two battle-log lines now say what actually happened.
