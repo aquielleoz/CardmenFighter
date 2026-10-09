@@ -15,6 +15,30 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.4 — the battle log names who discarded and announces every INCARNATION
+
+**What you'll see:** two battle-log lines now say what actually happened.
+- **After you cast a discard effect at an opponent** (Telekinesis, Outbalance), the log names them: "Rozalin
+  discarded 2 cards." It used to say "Rival discarded 2 cards.", which at a 3-6 player table named nobody in
+  particular. Bibong's v1.33.1 log had it right after a Telekinesis "aimed at Rozalin".
+- **When an opponent completes J + Q + K**, their cast line now ends "Transformation Requirements Complete! JQK —
+  INCARNATION!", the words your own transform line has always ended with. Before, the computer reached
+  INCARNATION silently (three of Bibong's four newest games), and so did a netplay opponent; the ⚡ badge in their
+  Forms zone was the only sign.
+
+- **Why the discard line stayed wrong:** the 2026-09-30 fix for the discard line naming the wrong seat corrected
+  the computer's version of it and closed the backlog entry, so the line after your own cast was never touched.
+  It now names the seat the engine says discarded.
+- **Why the INCARNATION line was missing:** only your own transform wrote it. Every other seat's cast goes
+  through one shared cast line, which now adds it when the engine says the transform completed the set, and the
+  computer's record of its own move carries that flag (`ai.js`).
+- **Testing.** `mptest` 125 (+2): a Telekinesis at the SECOND rival at a 3-player table must name that seat, so
+  a fix that named the duel rival cannot pass. `oppbeatstest` 16 (+2) and `nettest_activate` 17 (+3): the
+  computer's completing transform and a netplay client's both say INCARNATION, the client's on both screens,
+  and a transform that does not complete the set stays a plain line. `test.js` 685 (+4): the computer's move
+  record carries the flag only for the transform that completes J + Q + K. On the unfixed build exactly the new
+  assertions fail.
+
 ### v1.33.3 — the duel end screen names who beat you
 
 **What you'll see:** when you lose a duel, the end screen's title names your opponent, "Lefty Wins", instead of

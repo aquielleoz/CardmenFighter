@@ -138,6 +138,20 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   await wait(1600);
   const pline = await p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(e=>e.textContent.trim()).filter(t=>/Phantasmal/.test(t))[0]||'', beforeP);
   ok(/Full House/i.test(pline) && !/undefined/.test(pline), `the AI's illusion names the shape it made  ["${pline}"]` + (/undefined/.test(pline)?'  ← REPRODUCED':''));
+
+  /* AN AI's INCARNATION IS ANNOUNCED (opponent-incarnation-unannounced). In Bibong's 2026-10-08 games the Demon
+     completed J + Q + K three times and the log showed only the Form card that did it, while your own transform
+     line ends "JQK — INCARNATION!". Fed the entry `ai.js` now produces for the completing transform (test.js
+     asserts it does), and its twin without the flag, which must stay a plain cast line: "the line says
+     INCARNATION" is also true of a build that says it on every transform. */
+  const xformLine = async (extra)=>{ const n0=await p.evaluate(()=>document.querySelectorAll('#log .le').length);
+    await p.evaluate(x=>window.__solo.oppBeats([Object.assign({ play:'TRANSFORM', card:{rank:13,suit:'C',id:'xk13C'}, target:null }, x)], 1), extra);
+    await wait(3000);
+    return p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(e=>e.textContent.trim()).filter(t=>/played a Form Change/.test(t))[0]||'', n0); };
+  const superLine=await xformLine({ isSuper:true }), plainLine=await xformLine({});
+  ok(/^Caster played a Form Change - K♣ .*\. Transformation Requirements Complete! JQK — INCARNATION!$/.test(superLine),
+     `an AI transform that completes J + Q + K says INCARNATION  ["${superLine.slice(0,48)}…${superLine.slice(-60)}"]`+(/INCARNATION/.test(superLine)?'':'  ← REPRODUCED: the Form card and nothing else'));
+  ok(!!plainLine && !/INCARNATION/.test(plainLine), `  …and one that does not complete the set stays a plain cast line  ["…${plainLine.slice(-50)}"]`);
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

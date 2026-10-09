@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**681**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**685**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.3**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.4**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -505,36 +505,9 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
-- `ready to build`      · **"RIVAL DISCARDED 2 CARDS." AFTER YOUR OWN DISCARD EFFECT NAMES NOBODY — AND THIS ENTRY
-  WAS CLOSED ONCE BY A FIX TO A DIFFERENT LINE (re-filed 2026-10-09).** Bibong's v1.33.1 game: *"You played a
-  Technique - 3♦ Telekinesis — aimed at Rozalin."* then *"Rival discarded 2 cards."* The target has a name and
-  the line does not use it. `handleDiscardAfterAction` still reads `logMsg('<b>Rival</b> discarded N cards.')`:
-  a hardcoded name (wrong for a named persona in a duel, and nobody in particular at 3-6 players) on the
-  host-local logger. **c48cc44 (2026-09-30) claimed `closes discard-line-hardcodes-rival` and fixed the AI's
-  path in `buildOppBeats`**, which had named the caster; this human-cast path was never touched, and Bibong's
-  first export had already shown it (*"Rival discarded 1 card."*, 09-10).
-  **The fix is one line:** read `dp.player` (the discarding seat) before `E.resolveDiscard` clears
-  `discardPending`, and `say(dp.player, '{who} discarded N card(s).', 'rival')`. Its only caller sits after
-  the netplay host's early return into `NET.hostAfterOwnCast`, so only solo reaches it today; `say` costs
-  nothing there and stays right if that changes. **Assert it in a solo 3-player game:** a Telekinesis at a
-  named seat must log "<name> discarded 2 cards." and no "Rival discarded".
-  `[id: discard-line-hardcodes-rival]`
-
-- `ready to build`      · **AN OPPONENT'S INCARNATION IS NEVER ANNOUNCED IN THE BATTLE LOG; YOURS IS (2026-10-09).**
-  In three of Bibong's four newest games the Demon Lord completed J + Q + K, and the log shows only the Form
-  that finished it (*"Rozalin played a Form Change - K♣ Meleager Form — …"*), while your own transform line
-  ends *"Transformation Requirements Complete! JQK — INCARNATION!"*. That tail is written in exactly one
-  place, the transform branch of `activate` (your own cast, solo or netplay host). Every other seat's cast is
-  narrated by `sayCast`, which has no transform case — the AI's through `buildOppBeats`, a netplay CLIENT's
-  through the hosts' `op:'activate'` handlers — so the AI in solo and a client in netplay reach Super Mode
-  silently, and the ⚡ badge in their Forms zone is the only sign. **The data is half there:** the engine
-  returns `isSuper` on a transform and the host's handlers hold that result, but `ai.js` records an activation
-  as `{play, card, target}`, so the AI's beat cannot see it until the entry carries it. The same family as
-  the client's short cast line fixed in v1.32.7: a second narration path that missed what the first one says.
-  `[id: opponent-incarnation-unannounced]`
-
-- `ready to build`      · **THE PLAYTEST RECORD NEVER COUNTS YOUR OWN RIDES AND FORMS, AND COUNTS EVERY OPPONENT'S
-  (2026-10-09).** Nothing changes on the board: this is the ⤓ export that `PLAYER-PROFILE.md` reads. Every cast
+- `ready to build`      · **THE PLAYTEST RECORD MISCOUNTS THREE WAYS: IT SKIPS YOUR OWN RIDES AND FORMS, SKIPS A
+  CLIENT'S QUICK ANSWERS, AND COUNTS EVERY AI FIGHT TWICE (2026-10-09).** Nothing changes on the board: this is
+  the ⤓ export that `PLAYER-PROFILE.md` reads. Every cast
   path calls `bumpEffect` except one — the transform branch of `activate` returns before the ordinary tail
   that bumps — while the AI's casts (`buildOppBeats`) and a netplay client's (both hosts' `op:'activate'`
   handlers) are counted whatever the card. So `techniques` means Techniques for you and Techniques +
@@ -543,11 +516,18 @@ knows to check whether the epic has already moved the same lines.*
   netplay host narrates a CLIENT's Quick answer (`op:'respond'`, in both `hostApplyMove` and `hostApplyMoveN`)
   and never counts it, while your own answers (`humanResponds`) and the AI's are counted — and every client
   stores the host's record, so a client's answers are in nobody's.
-  **Proposed: count every activation everywhere** (bump in the transform branch and in both respond
-  handlers). That is what the opponent sites have always done, so every opponent figure already on record
-  keeps its meaning; your own counts step up from the first build that has it, and the record's `build`
-  stamp marks where. Assert both halves through the record: a staged Ride in a solo suite, a client's answer
-  in `nettest_record`.
+  **AND EVERY AI FIGHT IS COUNTED TWICE** (found while fixing v1.33.4's log lines). `buildOppBeats` calls
+  `bumpFight(seat, …)` as it builds a fight beat (added in v1.31.5, when opponents' fights were never counted),
+  and the beat's `run` still calls `bumpFight(RIVAL, …)`. In a duel both land on seat 1, so the AI's jabs and
+  Specials are doubled. Measured on Bibong's records: the 09-20 log shows the AI playing 3 jabs and 6 Specials
+  against 6 and 12 recorded, and a 10-08 one 5 and 6 against 10 and 12. At 3-6 players seat 1 is also credited
+  with every other opponent's fights (read from the code, not measured). This part needs no decision: delete
+  the inner call.
+  **Proposed for the rest: count every activation everywhere** (bump in the transform branch and in both
+  respond handlers). That is what the opponent sites have always done, so every opponent figure already on
+  record keeps its meaning; your own counts step up from the first build that has it, and the record's `build`
+  stamp marks where. Assert all three through the record: a staged Ride and a staged AI fight in a solo
+  suite, a client's answer in `nettest_record`.
   `[id: record-skips-own-transforms]`
 
 - `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
@@ -727,6 +707,10 @@ never read.*
   **AND CHECK THE SECOND MESSAGE**: *"the board stopped advancing"* is not the same claim as "it ran out of
   time" — a driver that stops advancing may be parked on something, which would make the cap a symptom.
   `exporttest` already had the v1.31.85 unproductive-iteration fix for a related problem.
+  **THIRD DATA POINT, 2026-10-09 (v1.33.4's sweep):** capped once, at 111s, in a 374s sweep, after nine sweeps
+  over two days that ran it uncapped in 13-30s. Run alone on the same build straight afterwards: 3/3 clean,
+  20-29s. So the knee moves with the machine, not the commit. Note that the second message is printed on EVERY
+  clock stop (`cappedByClock`), so on its own it is not a finding that the board parked.
   `[id: exporttest-time-capped]`
 
 - `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND

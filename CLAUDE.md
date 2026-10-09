@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 681 + 70 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 685 + 70 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 681 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 685 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 70, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -207,7 +207,7 @@ node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHI
                                                 # UPKEEP INCLUDED (9). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
                                                 # STALLED Upkeep (nobody on priority) must stay live too
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (123)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (125)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (32)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
@@ -2370,7 +2370,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.3 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 347s** (this line was
+Status as of **v1.33.4 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 374s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2384,13 +2384,13 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 681, `netview` 70, `mptest` 123, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 685, `netview` 70, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 14, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 16, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 74 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 74 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 17, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -3724,6 +3724,12 @@ now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits
   **SAY WHAT IT CANNOT DO. Nothing can tell whether `Backlog: none` is true**, so silent omission still gets
   through; what the gate buys is that the question is asked once per PR, in the history, and that a claim
   once made is checked. Do not describe it as airtight.
+  **AND A `closes` CAN BE TRUE OF THE WRONG LINE (2026-10-09).** `discard-line-hardcodes-rival` named
+  `handleDiscardAfterAction`; c48cc44 fixed the AI's twin of that line in `buildOppBeats`, claimed the close,
+  and passed — the entry was present at the base and gone at the tip, which is all the gate checks. The line it
+  named shipped for nine more days and came back in a playtester's log. **Before claiming a close, grep the
+  symbol the entry names and confirm your diff touches it**: two lines that say the same thing in two drivers
+  are where this happens.
   **AND IT WAS GREEN AND BLIND ON ITS FIRST RUN, FOR A ONE-WORD REASON:** `pushRefs()` reads **fd 0**, stdin
   is a STREAM, and this is its SECOND caller — the integration gate had already drained it, so the backlog
   gate iterated an empty list and passed every negative case. It is memoised now. **Any new gate added to

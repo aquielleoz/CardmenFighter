@@ -3512,5 +3512,38 @@ function cards(ids) { return ids.map(card); }
   ok(checked > 100 && !bad, 'headless games deal exactly once per round after the first (dealSeq = round − 1 at ' + checked + ' quiet points over ' + rounds + ' rounds, 2p and 3p)' + (bad ? '  ← ' + bad : ''));
 })();
 
+// ===== AN AI TRANSFORM THAT COMPLETES J + Q + K SAYS SO IN ITS LOG ENTRY (opponent-incarnation-unannounced) =====
+/* The battle log can announce an AI seat's INCARNATION only if `ai.js` tells the renderer, and `act` logged an
+ * activation as {play, card, target}: the engine's `isSuper` stopped there, so in three of four games of Bibong's
+ * export the Demon reached J + Q + K with nothing in the log. Both halves, off one staging: the King that completes
+ * the set carries the flag; a King with no Queen in the zone does not. `oppbeatstest` covers the line itself. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function zone(r, tier) { return { rank: r, suit: 'C', tier: tier, name: '', card: mk(r, 'C', 'z') }; }
+  function staged(forms) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 4; g.turn = 1; g.passes = 0; g.pile = null; g.lastPlayer = null;
+    g.players[0].shields = 1; g.players[1].shields = 1;            // six lost table-wide: the King's gate (2 x 3) is open
+    g.players[1].forms = forms;
+    g.players[1].hand = [mk(13, 'C'), mk(4, 'S'), mk(9, 'D')];    // K♣ Meleager Form, and two cards it cannot afford
+    g.players[1].energy = [];                                       // so the free transform is the only activation on offer
+    /* THE TRANSFORM DRAWS A CARD, so the deck is pinned: a Queen drawn off a shuffled deck was transformed in the
+       same phase and turned the no-Queen control into Super — red 1 run in 3 before this line. */
+    g.players[1].deck = [mk(3, 'H', 'd'), mk(5, 'H', 'd'), mk(6, 'H', 'd'), mk(7, 'H', 'd')]; g.players[1].shuffle = [];
+    return g;
+  }
+  var kingOf = function (log) { return log.filter(function (e) { return e.play === 'TRANSFORM' && e.card && e.card.rank === 13; })[0]; };
+  var logA = [], gA = staged([zone(11, 'ride'), zone(12, 'queen')]);
+  AI.playPhase(gA, 1, logA, 'knight', []);
+  var kA = kingOf(logA);
+  ok(!!kA && E.hasSuper(gA.players[1]), 'incarnation: staged — with a Ride and a Queen in its zone, the AI transforms the King (Super after: ' + E.hasSuper(gA.players[1]) + ')');
+  ok(!!kA && kA.isSuper === true, 'incarnation: …and that log entry says it completed J + Q + K, so the battle log can announce it  ' + JSON.stringify(kA || null));
+  var logB = [], gB = staged([zone(11, 'ride')]);
+  AI.playPhase(gB, 1, logB, 'knight', []);
+  var kB = kingOf(logB);
+  ok(!!kB && !E.hasSuper(gB.players[1]), 'incarnation: staged — with only a Ride in its zone, the AI transforms the King and is NOT in Super');
+  ok(!!kB && !kB.isSuper, 'incarnation: …and that entry does not claim it (a J and a K, no Queen)');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

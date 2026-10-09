@@ -258,6 +258,14 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(700);
   ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)<nrg0, 'confirming with ⚡ Activate finally spends the energy');
   ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length<2), '…and resolves against the seat you aimed at (P3, not the default next seat)');
+  /* …AND THE LOG NAMES THE SEAT THAT DISCARDED (discard-line-hardcodes-rival). The line after YOUR discard effect
+     was a hardcoded "Rival discarded 2 cards." — nobody in particular at three seats (Bibong's v1.33.1 log, after
+     a Telekinesis "aimed at Rozalin"). Seat 2 is the target ON PURPOSE: a fix that named the duel rival, seat 1,
+     would read correctly in a duel and fail here. */
+  const tName=await nm(2), oName=await nm(1);
+  const dLine=(await log()).filter(l=>/discarded \d+ cards?\.$/.test(l)).pop()||'';
+  ok(dLine===tName+' discarded 2 cards.', `…and the log names the seat that discarded  ["${dLine}"]`+(/^Rival /.test(dLine)?'  ← REPRODUCED: "Rival", nobody in particular':''));
+  ok(!!tName && tName!==oName && dLine.indexOf(oName)<0, `  …and not the other rival ("${oName}"), so the name is the target's and not a default`);
   // ================= D1/C2: round announcements name the real seats =================
   // Play a real 3-player game rather than forcing state: rounds then resolve through the normal driver, which
   // is what produces the announcement lines. (Forcing a pile/hands mid-round leaves the driver mid-cycle — it

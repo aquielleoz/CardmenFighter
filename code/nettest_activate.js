@@ -81,6 +81,29 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   let rode=false; for(let i=0;i<30;i++){ if(await join.evaluate(()=>{ var z=document.getElementById('youFormZone'); return !!(z && z.offsetParent!==null && z.children.length>1); })){ rode=true; break; } await wait(150); }
   ok(rode,'and the Ride really entered the client\'s zone (so the pop is not for a refused cast)');
 
+  /* …AND A CLIENT'S TRANSFORM THAT COMPLETES J + Q + K IS ANNOUNCED ON BOTH SCREENS (opponent-incarnation-
+   * unannounced). The host narrates a client's cast through `sayCast`, which never carried the INCARNATION tail
+   * the host's own transform line has, so a client reached Super Mode with nothing in anyone's log. The lone Ride
+   * above is the CONTROL — a plain cast line — and this one completes the set from a staged Queen and King. */
+  const lastRide=lines=>lines.filter(l=>/played a Ride - J/.test(l)).pop()||'';
+  const plainRide=lastRide(await host.evaluate(()=>window.__cmf.log()));
+  ok(!!plainRide && !/INCARNATION/.test(plainRide), 'the lone Ride is a plain cast line on the host  ["…'+plainRide.slice(-50)+'"]');
+  await host.evaluate((a)=>window.__cmf.forceAll([a.hh,a.rh],[a.he,a.re],[3,3],{forms:[null,[{rank:12,suit:'D',tier:'queen'},{rank:13,suit:'D',tier:'king'}]]}),
+    {hh:[D(9,'C'),D(9,'H')],rh:[D(11,'S')].concat(filler),he:energy,re:energy});
+  await wait(500);
+  await join.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="11S"]'); if(c)c.click();
+    var ca=document.getElementById('cardActivate'); var ctx=document.getElementById('ctxBtn');
+    if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)){ ca.click(); }
+    else if(ctx&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
+  const SUPER=/played a Ride - J♠ .*Transformation Requirements Complete! JQK — INCARNATION!$/;
+  let hostSuper='', joinSuper='';
+  for(let i=0;i<60 && !(hostSuper && joinSuper);i++){
+    hostSuper=(await host.evaluate(()=>window.__cmf.log())).filter(l=>SUPER.test(l)).pop()||'';
+    joinSuper=(await join.evaluate(()=>window.__cmf.log())).filter(l=>SUPER.test(l)).pop()||'';
+    if(!(hostSuper && joinSuper)) await wait(150); }
+  ok(!!hostSuper, 'the HOST\'s log announces the client\'s INCARNATION'+(hostSuper?'':'  ← REPRODUCED: last Ride line ["…'+lastRide(await host.evaluate(()=>window.__cmf.log())).slice(-60)+'"]'));
+  ok(/^You played/.test(joinSuper), 'and the CLIENT reads it as its own  ["'+joinSuper.slice(0,30)+'…"]');
+
   /* THE OTHER DIRECTION: the host's own cast is presented locally but nothing pushes it to the client, so a
    * client never saw ANY effect art — its own or the opponent's. Hand the turn back and cast from the host. */
   for(let i=0;i<30 && await turnOf(join)===0;i++){ await clickPass(join); await wait(300); }   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
