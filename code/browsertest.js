@@ -62,7 +62,7 @@ const path = require('path');
              The caller's own win regex is the classifier, so there is ONE definition of "this is the end"
              rather than a loose fall-through here and a strict test there. Inert today — every overlay this
              smoke reaches is either handled above or a real end screen. */
-          if (/YOU WIN|Rival Wins/i.test(m.textContent)) return { over: true };
+          if (document.getElementById('againBtn')) return { over: true };   // the end screen, by its own control: the title names the winner (v1.33.3), so it is no longer a constant to match
           return { unknown: (m.textContent||'').replace(/\s+/g,' ').trim().slice(0,90) };
         }
         // pick/confirm mode (end-of-turn hand-limit discard) — select until Confirm enables
@@ -98,10 +98,11 @@ const path = require('path');
     if (done) {
       const res = await page.evaluate(() => ({
         modal: document.getElementById('modal').textContent,
+        head: ((document.querySelector('#modal h2')||{}).textContent||'').trim(),   // the TITLE alone: in the full text it runs into the next sentence
         round: parseInt((document.getElementById('roundTag').textContent.match(/\d+/)||[0])[0],10),
       }));
       games++; maxRound = Math.max(maxRound, res.round);
-      if (/YOU WIN/.test(res.modal)) youWins++; else if (/Rival Wins/.test(res.modal)) rivalWins++;
+      if (/YOU WIN/.test(res.head)) youWins++; else if (/\S Wins$/.test(res.head)) rivalWins++;   // "<the opponent's name> Wins" (v1.33.3)
       else errors.push('sim'+sim+' ambiguous end: ' + res.modal.slice(0,80));
     }
     await page.close();

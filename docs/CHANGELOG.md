@@ -15,6 +15,17 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.3 — the duel end screen names who beat you
+
+**What you'll see:** when you lose a duel, the end screen's title names your opponent, "Lefty Wins", instead of
+always saying "Rival Wins". The message under it already named them ("You decked out — Lefty wins."), so the
+screen was saying two different things about who won. An opponent with no name reads "Rival 2 Wins", which is
+what the battle log has always called them, and the same rule the 3-6 player end screen already used.
+
+- **Testing.** `deckouttest` 12 (+1): its duel leg asserts the title names the winner, which read "Rival Wins"
+  on v1.33.2. `browsertest` now recognises the end screen by its own button and reads the winner from the title,
+  because the title is no longer a constant it can match.
+
 ### v1.33.2 — a deck-out at 3-6 players knocks one player out, not the game
 
 **What you'll see:** in a 3-6 player game, when one player runs out of cards, that player is out and the others
