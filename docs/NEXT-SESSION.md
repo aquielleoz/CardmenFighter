@@ -22,145 +22,51 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.3** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
-retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
-split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
+`main` is at **v1.33.3**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
+anything, and both halves are open main work.
 
-**⚡ THE PRIORITY MODEL IS COMPLETE AND SPECIFIED (2026-09-17).** Steps 1-23 are done and merged; the two
-boundaries that were still missing — the **end of Clean-up** and the Beginning Phase's **untap queue** —
-landed on the 16th and 17th. **The epic's sweep is 100 suites**, derived from `sweep.js`'s own filter — read
-the filter rather than a remembered count, and see CLAUDE.md for why one wall-clock figure is not worth
-quoting. *(This said "94/94 in ~227s" until 2026-09-29.)*
-Sub-branches PR **into** the epic, the version is held until it merges, and `main` is merged **into** it
-after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranch.js` enforces both).
+**⚑ WHERE TO PICK UP: the top of `## BACKLOG` below.** It is ranked — correctness first, then what a playtester
+meets immediately, then features and balance — so the first entry is the answer. *This line used to name the
+specific item and went stale twice, pointing at work that had already shipped; the ranking is the pointer now.*
 
-**THE GAME CHANGED SHAPE, so read this before touching anything:**
-- **All SIX priority points in the model now exist** — Upkeep, each cast in the Main Sub-Phase, the
-  Main → Fight transition, Resolution, the **beginning** of Clean-up and the **end** of it. `phaseWalk` is
-  the only walk; each boundary is a park plus the same five lines. There is no second priority mechanism
-  left anywhere. *(This said FIVE until 2026-09-17 — the end-of-Clean-up dance was in
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3 from the start and simply was not built.)*
-- **The Beginning Phase is MTG's three steps**: Untap → Upkeep → Draw. The untap queue (`BEGIN_ORDER` =
-  `roundAdvance` → `equipReset` → `stampRound`) is the one part of the game deliberately closed to
-  priority. `equipReset` IS the untap — it clears `usedThisRound` — and it used to run during Clean-up,
-  bringing once-per-round abilities back while the previous round was still being torn down.
-- **The phases were renamed AND THE CODE FOLLOWED** — `Fight Phase` → **Play Phase** (Main · **Fight** ·
-  **Resolution**). Step 23 closed the split on 2026-09-14, so **`fightEnd` in a `.js` file is a genuine
-  leftover now**, not the deliberate lag it used to be. *(This paragraph said the opposite until
-  2026-09-17 and would have sent a reader the wrong way; CLAUDE.md's docs map has carried the correction
-  since the day it landed.)* The one surviving `'fightend'` is the `localStorage` prompt-timing migration,
-  which must know the old key by definition.
-- **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move; Fight commits the
-  cards. Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
-- **Pass is an auto-pass with a brake** — one press carries you through, and stops if anyone ELSE acts in
-  the window it opened. Your own cast never brakes your own pass (`stackMark(st, me)`).
-- **The equipment counter tick is the game's FIRST triggered ability**, with Aj's card text on all five
-  decaying Equipment. Simultaneous triggers are ordered by the PUSH (active player first, so the last seat
-  is on top) — which is why §2 needs no exception for them.
-- **The boundary prompts DEFAULT OFF.** Only `respond` stops you. Four suites whose subject is a boundary
-  window pass **`?prompts=all`**; if a new suite drives one of those windows and sees nothing, that is why.
+**BEFORE STARTING, read CLAUDE.md.** Two sections earn their keep every session: the **five mechanical habits**
+(each cost real time on 2026-09-01, and one cost *Aj* three rounds of screenshots against a stale file), and the
+**doc routing table** — BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · CLAUDE.md =
+work differently · [`CHANGELOG.md`](CHANGELOG.md) = what shipped.
 
-**⏭ THE EPIC IS CODE-COMPLETE. WHAT IS LEFT IS THE MERGE ITSELF.** Steps 1-23 are done and the stack-model
-build landed on top (#225). The rename landed 2026-09-14 as **one symbol per commit** (`openFightEndWindow` →
-`openResolutionWindow`, `drainFightEnd`, `fightEndPushCard`, `fightEndGuardCard`, `enterFightEnd`,
-`fightEndResult`, `st.fightEnd` → `st.resolution`, the `'fightend'` prompt id, and both suite files). Code and
-docs now agree.
-*(All of this was stated TWICE, in near-identical paragraphs thirty lines apart, and the second copy still
-said main must NOT be merged into the epic yet — which the epic rule and `checkbranch.js` both contradict,
-and which was false by 2026-09-29. Consolidated that day. A header that says a thing twice will eventually
-say it two different ways, and the stale copy is the one a reader hits first.)*
+**THE GAME'S SHAPE, for anyone arriving cold.** Before touching a window, the stack or anything that grants
+priority, read [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md): it is the one live statement of the model.
+The rulings made while building it are in [`DECISIONS.md#priority-divergences`](DECISIONS.md#priority-divergences).
+The facts people trip over:
+- **Six priority points:** Upkeep, each cast in the Main Sub-Phase, the Main → Fight transition, Resolution,
+  and the beginning and end of Clean-up. `phaseWalk` is the only walk.
+- **The Beginning Phase is Untap → Upkeep → Draw.** The untap queue (`BEGIN_ORDER` = `roundAdvance` →
+  `equipReset` → `stampRound`) is the one part of the game closed to priority, and `equipReset` IS the untap.
+- **The Play Phase is Main · Fight · Resolution** (renamed from "Fight Phase"; the old Fight End is Resolution).
+  `fightEnd` in a `.js` file is a leftover. The one surviving `'fightend'` is the `localStorage` prompt-timing
+  migration, which must know the old key.
+- **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move, Fight commits the cards.
+  Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
+- **Pass is an auto-pass with a brake:** one press carries you through, and it stops if anyone ELSE acts in the
+  window it opened (`stackMark`).
+- **The equipment counter tick is the game's first triggered ability.** A trigger is an effect carrying `trig`.
+- **Notifications are ON · AUTO · OFF, AUTO by default,** which stops you only when you have a stake. A suite
+  whose subject is a window passes `?prompts=all` (the same as ON); if a new suite drives one of those windows
+  and sees nothing, that is why.
+- **Every seat runs one round ceremony** (`resolveRoundCeremony`, since v1.33.1): the opening, the deal, the
+  Round card. Solo and the host draw the deal; a netplay guest waits for the host's (`dealSeq`).
 
-**⚠ THE VERSION BUMP IS DELIBERATELY NOT DONE, AND THIS IS THE ORDER THAT MATTERS.** `versiontest` asserts
-the handoff's **"`main` is at vX"** line against README, so bumping README to **v1.32.0** while the epic is
-still unmerged would force that line to claim something false and the gate would correctly go red.
-CLAUDE.md's epic rule says the same thing from the other end: *the version is held for the whole epic and
-bumped ONCE at the merge.* **FIGHT-END-PLAN.md's step 23 says to bump it here — that instruction predates
-the epic rule and is wrong.** Do it in the epic → `main` PR, in ONE commit:
-README `**Status:** v1.32.0` · a `### v1.32.0` heading in `CHANGELOG.md` · this header's **`Current
-version:`** and **"`main` is at"** lines · CLAUDE.md's own `Current version:` line. It is a **minor** bump
-because the rules moved.
+**WHAT TO WATCH FOR IN A GAME.** The saved log's `--- PRIORITY WINDOWS ---` ledger records every boundary, the
+silent auto-advances included, and names the press that opened a transition (`[Next]`/`[Pass]`). On AUTO you
+should be stopped only when something is at stake for you; anything else is worth a saved log.
 
-**THE ONE SURVIVING `'fightend'` IS THE `localStorage` MIGRATION** (template, plus its assertion in
-`prompttest`). The prompt-timing id is persisted, so the migration must know the OLD name by definition —
-deleting that literal to "finish the rename" would orphan every preference a player has ticked, silently,
-because an unknown key falls back to the default. `prompttest` is 18 → **22** for it, and the migration
-assertions were A/B'd by deleting the migration and rebuilding.
-
-**TWO THINGS THE RENAME NEARLY GOT WRONG, both worth knowing before the next one:**
-- **`sweep.js` is a HYBRID, not the pure allowlist this line used to claim** — `nettest_*` and `lessontest*`
-  are GLOBBED, everything else is named explicitly. Renaming a NAMED suite without updating it drops that
-  suite **silently**, and the sweep still prints a green N/N. *(It also quoted "92, not 90"; the filter
-  derives 100 as of 2026-09-29. Read the filter in `sweep.js`, never a remembered count.)*
-- **A blanket identifier sweep damaged the one paragraph that was ABOUT the old names** (CLAUDE.md's rename
-  note), leaving it reading *"`resolution` in a `.js` file is the old name"*. Prose that discusses a rename
-  needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
-  purpose.
-
-**WHAT THE STACK-MODEL BUILD CHANGED (#225), all of it settled by Aj's rulings:**
-- Shield losses left `st.stack` for **`st.losses`** — a loss is the MOMENT, not an effect (§4).
-- **`counterTargets` reads the SOURCE CARD TYPE.** Counter Spell's text is *"Counter target Technique"*;
-  Quick is a modifier and a co-type, so counter-a-counter falls out. Rides and Form Changes are excluded by
-  **not being named**, which is the design — a card that answers them will name those types.
-- **The Queen of Diamonds boost works.** It was a `desc` with no field, while the base card already gave its
-  privilege away free. Two bugs cancelling into silence, with `CARD-LIST.md` publishing the promise.
-- **A trigger is an `effect` carrying `trig`** — uncounterable by RULE, not by stack tag.
-- **Transforms push and grant priority.** A whole card type used to bypass the go-round.
-- **The Stack now holds effects and only effects**, which §1 has always claimed. `kind` is constant
-  `'effect'` and deliberately left in place: it is on the wire, and removing it is churn.
-
-**⚠ WHAT IS NOT DONE. None of it shows in a green sweep, and none of it blocks the merge:**
-- **The auto-pass brake is covered in a DUEL and not at 3-6 players** (`nettest_brake.js`, 22, added
-  2026-09-29). Four legs: a quiet window does not brake (the control — without it a build that brakes on
-  everything passes every other leg), someone else's cast HOLDS the pass and a second press goes through,
-  your OWN cast does not brake you (bug 1), and a REMOTE seat's pass is braked and measured against the
-  right seat (bug 2, the duel re-apply at `stackMark(hostState, 1)`).
-  **`hostApplyMoveN`'s copy is covered too since 2026-09-29** — `nettest_brake3.js` (15), whose two real
-  legs are the SAME mutation from opposite sides: the HOST casting into a client's pass window must brake
-  it, and the CLIENT casting into its own must not. Either alone is weak; the pair pins the seat, which is
-  what the two-handler-families trap costs when you test only one direction.
-- **Drag-to-activate in Main is covered** (`dragtest.js`, 17, added 2026-09-29). The pair is the test: the
-  same card, the same staging, only the sub-phase varies, because "a drag activated" is equally true of a
-  build that lost the branch and does one thing everywhere. Both refusals are covered too, and they turned
-  out to be LIVE (in `#dropHint`, while the card is in the air) rather than a message after release.
-- **A transform opening a window for a REMOTE seat is HALF covered.** `nettest_ridewedge` drives the HOST's
-  own transform and the client's window. The other direction — a client transform opening a window for the
-  host or a third seat — is still undriven, and both defects that shipping piece 5 exposed were in driver
-  code of exactly that kind. *(This read "UNTESTED IN NETPLAY" flatly until 2026-09-29; `ridewedge` closed
-  half of it in September and nobody came back to narrow the claim.)*
-- ~~`kind: 'shieldImmune'` is an ORPHANED effect kind~~ — **the dead branch is deleted (2026-09-30).**
-  `sph` in `ai.js`'s `playPhase` could never match, so the AI's "shield up when in danger" move did not
-  exist. ⚠ THE FIELD IS ALIVE and must not be confused with the kind: Apollo-Sanctuary sets
-  `shieldImmune: true` as a patch and `engine.js` reads it, which is why grepping the word finds plenty
-  while grepping the KIND finds nothing. Restoring the branch is two lines if a card ever takes it.
-- **"1.21 extra priority windows per game" is a SOLO number.** At 3-6 players more seats can hold a Quick,
-  so the real figure is higher and unmeasured.
-
-**⚠ ONE GATE LEFT, AND IT IS NOT STEP 18 (2026-09-29).** Step 18 asked for *one real solo game and one
-two-device netplay game*. **Aj supplied the netplay game on 2026-09-29** — a complete nine-round duel,
-both ends saved, with the play-by-play IDENTICAL across the two seats and the Main → Fight go-round
-opening and being answered in real play at rounds 6, 7 and 8. That is the gate's substance and it is
-evidence, not reasoning. The SOLO half is closed on `browsertest`'s twelve complete duels through the
-real page — **that part is a judgement call and is marked as one**, so re-open it if a solo report ever
-contradicts it.
-**WHAT REMAINS IS STEP 22'S**: the version refusal against a genuinely OLD peer, with both sides in the
-suite faking the number via `?ver=`. It is **not** blocked on two devices, and it is not blocked on Aj:
-the version is HELD for the whole epic, so every build in existence is v1.31 and `verIncompatible`
-compares the MINOR — the refusal cannot fire at all until the bump. It is a POST-MERGE check by
-construction, and listing it as owed beforehand is what kept it looking blocked.
-
-**READ THE TWO NEW RULES IN CLAUDE.md BEFORE THE NEXT BUILD.** Both are about instruments lying: a seeded
-fingerprint proves the ENGINE and never loads the page (it was byte-identical through four commits while two
-UI defects sat in the build), and a BASELINE HAS TO BE A BUILD YOU DID NOT WRITE (a three-runs-per-arm A/B
-produced six confidently wrong data points and cleared the actual culprit).
-
-**WHAT TO WATCH FOR IN A SOLO GAME.** The saved log's `--- PRIORITY WINDOWS ---` ledger now records every
-boundary including the silent auto-advances, names the press that opened a transition (`[Next]`/`[Pass]`),
-and uses the current vocabulary. With the boundary prompts off you should be interrupted only when a
-Technique is cast — anything else is worth a log.
-
-Other branches: **`feat/qr-scanning`** (parked) and **`exp/shield-gain-guard`** (an unreviewed recovered
-stash — it breaks the epic's step-12 proof; read its BACKLOG entry before resuming it). Each has an entry
-saying what would revive it.
+**Other branches**, each with a note saying why it is not merged:
+- `feat/qr-scanning` — parked; its BACKLOG entry says what would revive it.
+- `exp/shield-gain-guard` — an unreviewed recovered stash; read its BACKLOG entry (`shield-gain-guard-parked`)
+  before resuming it.
+- `exp/ai-upkeep-cast` — recorded in [`DECISIONS.md#persona-traits`](DECISIONS.md#persona-traits).
+- `docs/second-set-class-design` — PR #295, an open and unreviewed design draft for a second set of classes.
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
 
@@ -168,20 +74,11 @@ saying what would revive it.
 npm test && node mptest.js && node landscapetest.js
 ```
 
-A full sweep is **`npm run sweep`** (four at a time, a couple of minutes); `npm run sweep:fast` skips the six
-slow stable suites and `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious.
-**The suite list, with every expected count, is in CLAUDE.md and that list is the authority** — if a count there
-disagrees with a suite, the suite is right. The two gate counts in the header above are asserted by
-`versiontest`, so they cannot drift.
-
-**⚑ WHERE TO PICK UP: the top of `## BACKLOG` below.** It is ranked — correctness first, then what a playtester
-meets immediately, then features and balance — so the first ★ is the answer. *This line used to name the
-specific item and went stale twice, pointing at work that had already shipped; the ranking is the pointer now.*
-
-**BEFORE STARTING, read CLAUDE.md.** Two sections earn their keep every session: the **five mechanical habits**
-(each cost real time on 2026-09-01, and one cost *Aj* three rounds of screenshots against a stale file), and the
-**doc routing table** — BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · CLAUDE.md =
-work differently · [`CHANGELOG.md`](CHANGELOG.md) = what shipped.
+A full sweep is **`npm run sweep`** (four at a time, several minutes); `npm run sweep:fast` skips the slow stable
+suites, and `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious. **The suite list,
+with every expected count, is in CLAUDE.md and that list is the authority** — if a count there disagrees with a
+suite, the suite is right. The two gate counts in the header above are asserted by `versiontest`, so they cannot
+drift.
 
 **What shipped, and why, is in [`CHANGELOG.md`](CHANGELOG.md)** — newest first. It is not summarised here: a
 "last four versions" list lived in this spot and rotted, which is the failure this whole file is now organised
@@ -749,6 +646,13 @@ never read.*
   `[id: phone-declutter-rest]`
 
 ### Tooling
+
+- `ready to build`      · **A CLIENT'S TRANSFORM THAT OPENS A WINDOW FOR ANOTHER SEAT IS DRIVEN BY NO SUITE.**
+  `nettest_ridewedge` drives the HOST's own transform and the client's window. The other direction, a client
+  transform opening a window for the host or a third seat, is still undriven, and both defects the stack-model
+  build's transform piece exposed were in driver code of exactly that kind. Moved here 2026-10-09 from the
+  handoff's START HERE, where it sat as a "not done" note nobody actions.
+  `[id: client-transform-window-undriven]`
 
 - `needs a measurement` · **`nettest_sync` SOMETIMES NEVER STARTS ITS GAME UNDER `-j 4` (2026-10-08).** Two runs
   in 54 at four lanes, on v1.33.0 and v1.33.1 builds, timed out in `startDuel` (*"waited for both boards to

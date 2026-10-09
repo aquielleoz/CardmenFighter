@@ -1060,6 +1060,17 @@ re-argues them or "restores" the doc.**
 - **§2's priority loop shipped step-for-step**, LIFO resolution and Counter-a-Counter included, and §3's
   **no-overkill / `wasBroken`** rule shipped exactly as written. Recorded here because both were doubted.
 
+**THE STACK-MODEL BUILD'S RULINGS (#225, 2026-09-14), all settled by Aj.** Moved here on 2026-10-09 from the
+handoff's START HERE, where they had sat since the build landed, so they outlive a section that is rewritten:
+- Shield losses left `st.stack` for **`st.losses`** — a loss is the MOMENT, not an effect (§4).
+- **`counterTargets` reads the SOURCE CARD TYPE.** Counter Spell's text is *"Counter target Technique"*;
+  Quick is a modifier and a co-type, so counter-a-counter falls out. Rides and Form Changes are excluded by
+  **not being named**, which is the design — a card that answers them will name those types.
+- **A trigger is an `effect` carrying `trig`** — uncounterable by RULE, not by stack tag.
+- **Transforms push and grant priority.** A whole card type used to bypass the go-round.
+- **The Stack now holds effects and only effects**, which §1 has always claimed. `kind` is constant
+  `'effect'` and deliberately left in place: it is on the wire, and removing it is churn.
+
 **`destroyShield` being `noKick` is CORRECT, and the round trip is worth recording.** The audit classified it
 as a deliberate divergence. I overruled it on a misreading of Aj's *"the techniques are shield losses. player
 loss is only through kicks. kicks only happen when there are no shields left"* — reading it as *a technique

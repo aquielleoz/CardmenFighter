@@ -55,7 +55,11 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   /* AND THE SPLIT HAS TO HOLD. A version heading appearing back in the handoff doc means the two files are
    * drifting into one again, which is how it reached 6,061 lines the first time — so that is a red suite, not
    * a style note. Checked below `## BACKLOG` only, since an entry could legitimately QUOTE a version above it. */
-  const afterBacklog=handoff.slice(handoff.indexOf('## BACKLOG'));
+  /* THE HEADING, NEVER A MENTION OF IT (2026-10-09). `indexOf('## BACKLOG')` found START HERE's own "the top of
+     `## BACKLOG` below" once that line moved above the section's bullets, and read every bullet after it as an
+     untagged backlog entry. The changelog gate below already learned this: a heading is a LINE. */
+  const BACKLOG_AT=handoff.search(/^## BACKLOG/m);
+  const afterBacklog=handoff.slice(BACKLOG_AT);
   const strayHeading=(afterBacklog.match(/^### v\d+\.\d+\.\d+/m)||[])[0];
   ok(!strayHeading, `no changelog entry has crept back into NEXT-SESSION.md (found "${strayHeading||'none'}") — shipped work belongs in CHANGELOG.md`);
   /* THE HANDOFF DOC'S OWN HEADER IS PART OF THE CHAIN NOW (2026-08-31). This suite guarded
@@ -73,7 +77,7 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const eng=run('test.js'), nv=run('netview.test.js');
   ok(!!eng && eng.fail===0, `test.js is green, so its count means something (${eng?eng.pass+' / '+eng.fail:'DID NOT REPORT'})`);
   ok(!!nv  && nv.fail===0,  `netview.test.js is green, so its count means something (${nv?nv.pass+' / '+nv.fail:'DID NOT REPORT'})`);
-  const hdr=handoff.slice(0, handoff.indexOf('## BACKLOG'));
+  const hdr=handoff.slice(0, BACKLOG_AT);
   const hv=(hdr.match(/\*\*Current version:\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/)||[])[1];
   ok(hv===want, `the handoff header's "Current version" matches README ("${hv||'NONE'}" vs "${want}")`);
   /* DELIBERATELY THREE-PART HERE, unlike every other pattern in this file: `main` never carries a fourth
