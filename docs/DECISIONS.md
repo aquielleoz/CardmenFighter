@@ -540,6 +540,44 @@ was added: an unexercised branch is not a safeguard, it is untested code.
 <a id="ai-strength"></a>
 ## AI strength
 
+### Answering a strike card with Sanctuary under Hector loses — measured by forcing the board, 2026-10-09
+
+**Asked:** `respondDecision`'s answer to a strike card picks with `immunityEffFor`, which refuses Sanctuary under
+Hector (`{quick:true}` on a shield gain, no immunity flag), while the engine's `stakeFor` admits it and the
+Resolution branch plays it. Filed as a bug (`ai-strike-answer-asks-immunity`); the fix was to pick the way the
+Resolution branch does.
+
+**The board never arises on its own: 0 times in ~9,600 AI games** at 2-6 players, on the Full Set and on the decks
+most likely to make it (Bard, Paladin). An AI holds Hector without Apollo almost only in duels (508 seat-turns in
+600 Bard duels, none in 300 six-player games), and duels almost never see a strike aimed at a seat on 1-2 shields
+(1 to 9 per 600). `strengthsim` printed exact ties with the policy's tally at 0 — the dead-policy signature, not a
+null result.
+
+**So it was forced (`forcesim.js`, Aj's suggestion):** play a real game to the first strike aimed at an AI seat on
+1-2 shields, give that seat Hector (never completing Apollo) and an affordable Sanctuary, then play the same game
+twice. Arm A plays the Sanctuary at the seat's first action on the strike, which is what the widened branch would
+do, since it runs before the Counter Spell branch; arm B is the shipped AI. Randomness pinned per deal; 40 control
+replays per run, 0 mismatches.
+
+| players | positions | forced seat won: with the fix vs shipped | McNemar z | placing |
+| --- | --- | --- | --- | --- |
+| 2 | 156 | 51.9% vs 63.5% | −2.55 | −0.115 ± 0.045 |
+| 3 | 165 | 12.1% vs 20.6% | −2.65 | −0.152 ± 0.039 |
+| 4 | 343 | 0.9% vs 2.0% | −1.26 | −0.067 ± 0.022 |
+| 6 | 989 | 0.3% vs 0.0% | +1.73 | −0.008 ± 0.006 |
+
+**Split by what the shipped AI did instead.** In place of a **Counter Spell** the fix loses hardest — 52.6% vs 67.2%
+in duels (z −2.79) — because a counter cancels the strike, while Sanctuary gives every player a shield and the
+strike lands anyway. In place of **taking the hit** it is no better in a duel (51.3% vs 51.3%) and worse at three
+players (11.3% vs 22.5%) and four. At six it is a wash: the seat survives about 1.6 turns longer and places no
+higher.
+
+**Why:** a strike card can never take a seat past 0 (`noKick`); the round-win strike can, and that is where
+`resolutionGuardCard` plays Sanctuary under Hector, so the card is worth more held for it. And the live Sanctuary is
+"every player gains 1 shield", so answering with it pays a card and 10 energy to hand each rival a shield. **Not
+shipped;** a comment at the refusal says so. **`stakeFor` decides whether a human is interrupted, not whether a cast
+is good play** — the filed entry treated the two as one. Re-run `forcesim.js` if Sanctuary's text ever changes.
+
 ### Leyline only against a strike aimed at you changes no win rate — measured 2026-10-09
 
 **Asked:** v1.33.8 stops the AI springing an immunity Quick (Leyline, Leyline under Athena, Sanctuary under
