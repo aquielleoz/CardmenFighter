@@ -152,6 +152,20 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   ok(/^Caster played a Form Change - K♣ .*\. Transformation Requirements Complete! JQK — INCARNATION!$/.test(superLine),
      `an AI transform that completes J + Q + K says INCARNATION  ["${superLine.slice(0,48)}…${superLine.slice(-60)}"]`+(/INCARNATION/.test(superLine)?'':'  ← REPRODUCED: the Form card and nothing else'));
   ok(!!plainLine && !/INCARNATION/.test(plainLine), `  …and one that does not complete the set stays a plain cast line  ["…${plainLine.slice(-50)}"]`);
+
+  /* AN AI FIGHT IS RECORDED ONCE, FOR THE SEAT THAT FOUGHT (record-skips-own-transforms). `buildOppBeats` counted a
+     fight as it built the beat AND again inside it, for seat 1, so a duel's AI fights were doubled (Bibong's 09-20
+     log: 3 jabs and 6 Specials, recorded 6 and 12) and at 3-6 players seat 1 was credited with everyone's. Fed a
+     fight entry for seat 1, then one for seat 2, reading the counts the record is built from. */
+  const fightsOf = ()=>p.evaluate(()=>window.__solo.stats().seats.slice(0,3).map(s=>s.specials));
+  const pairEntry = ()=>p.evaluate(()=>({ fight:'play', combo:window.CardmenEngine.detectCombo([{rank:6,suit:'H',id:'fx6H'},{rank:6,suit:'S',id:'fx6S'}]) }));
+  const f0 = await fightsOf();
+  await p.evaluate(e=>window.__solo.oppBeats([e], 1), await pairEntry()); await wait(1900);
+  const f1 = await fightsOf();
+  ok(f1[1]-f0[1]===1, `an AI's Special is recorded ONCE  (seat 1: ${f0[1]} → ${f1[1]})`+(f1[1]-f0[1]===2?'  ← REPRODUCED: counted twice':''));
+  await p.evaluate(e=>window.__solo.oppBeats([e], 2), await pairEntry()); await wait(1900);
+  const f2 = await fightsOf();
+  ok(f2[2]-f1[2]===1 && f2[1]===f1[1], `  …and another seat's fight goes to THAT seat, not seat 1  (seat 1: ${f1[1]} → ${f2[1]}, seat 2: ${f1[2]} → ${f2[2]})`);
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

@@ -79,6 +79,10 @@ async function until(fn,t=120,ms=130){ for(let i=0;i<t;i++){ if(await fn()) retu
   }, 90);
   ok(hostSaw, 'the HOST records the illusion' +
      (hostSaw?'':'  <-- REPRODUCED: the client ran E.phantasm locally and the host never heard about it'));
+  /* …AND COUNTS IT in the record every seat adopts (record-skips-own-transforms): `hostPhantasmIntent` narrated
+   * the client's illusion and never counted it. Seat 1 is the client, absolute. */
+  const phRec=await host.evaluate(()=>{ const s=window.__cmf.stats(); return (s&&s.seats) ? s.seats[1].eff : null; });
+  ok(!!phRec && phRec.D10===1, 'the host\'s record counts the CLIENT\'s illusion  '+JSON.stringify(phRec));
   ok(await until(async()=>{
        const pl=await host.evaluate(()=>((document.getElementById('pileLabel')||{}).textContent||''));
        return /You/i.test(pl)===false;   // the pile is no longer the host's

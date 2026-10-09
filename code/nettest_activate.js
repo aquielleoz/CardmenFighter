@@ -136,6 +136,12 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   ok(fxRide2.length>0,'the CLIENT sees the HOST\'s JACK pop'+(fxRide2.length?' ['+fxRide2.join(' | ')+']':' — NOTHING flashed'));
   let rode2=false; for(let i=0;i<30;i++){ if(await join.evaluate(()=>{ var z=document.getElementById('rivalFormZone'); return !!(z && z.offsetParent!==null && z.children.length>1); })){ rode2=true; break; } await wait(150); }
   ok(rode2,'and the host\'s Ride really shows in the client\'s view of its zone');
+  /* …AND THE HOST'S OWN RIDE IS IN ITS RECORD (record-skips-own-transforms). Your own transform was the one cast
+   * path that never counted, in solo and on a host alike: its branch returns before the counting tail. The engine
+   * counts every cast now. The client's two Rides above are the control — they were always counted. */
+  const rideRec=await host.evaluate(()=>{ const s=window.__cmf.stats(); return (s&&s.seats) ? { host:s.seats[0].eff, client:s.seats[1].eff } : null; });
+  ok(!!rideRec && rideRec.host.C11===1, 'the host\'s record counts its OWN Ride  '+JSON.stringify(rideRec&&rideRec.host));
+  ok(!!rideRec && rideRec.client.D11===1 && rideRec.client.S11===1, '  …and the client\'s two Rides, once each  '+JSON.stringify(rideRec&&rideRec.client));
 
   const hostPending=await host.evaluate(()=>window.__cmf.pending());
   ok(hostPending===false,'no lingering stack on the host');

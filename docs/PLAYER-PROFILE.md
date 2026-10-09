@@ -206,8 +206,8 @@ back half of each game; the four newer logs are complete. The seat stats and act
 separate counters, **with one hole, below**. The three 2026-10-08 records are the first in this file to carry
 a build: **v1.33.1** (the stamp shipped in v1.32.7); the rest predate it.
 
-**⚠ THE RECORDS NEVER COUNT YOUR OWN RIDES AND FORMS, AND THEY COUNT EVERY OPPONENT'S** (found 2026-10-09,
-filed `record-skips-own-transforms`). So a record's `techniques` is Techniques for Bibong and Techniques +
+**⚠ RECORDS OLDER THAN v1.33.5 NEVER COUNT YOUR OWN RIDES AND FORMS, AND THEY COUNT EVERY OPPONENT'S** (found
+2026-10-09, fixed in v1.33.5, so every record in this section has it). So a record's `techniques` is Techniques for Bibong and Techniques +
 Rides/Forms for the Demon Lord, and the first version of this section compared exactly that: *"3–7 Techniques
 a game against the Demon's 8–14"*. Split by card rank, the Demon's 8–14 was **7–11 Techniques plus 1–3
 Rides/Forms**. Bibong was still out-cast in all six of those games; the gap was smaller than written. A
@@ -256,18 +256,18 @@ undefined overtakes the pile"*, the missing build stamp, and the host narrating 
 in the 08-29 netplay game, the human-counter `logMsg` fixed in v1.31.58. **Not a bug:** Outbalance discarding
 two cards under Penelope is the Queen boost working.
 
-**Bugs the second export surfaced** (2026-10-09), all live on v1.33.1; the two battle-log lines are fixed in
-v1.33.4:
+**Bugs the second export surfaced** (2026-10-09), all live on v1.33.1 and all fixed since: the two battle-log
+lines in v1.33.4, the records in v1.33.5:
 - *"You played a Technique - 3♦ Telekinesis — aimed at Rozalin."* then *"Rival discarded 2 cards."* — the line
   after your own discard effect named nobody. It was seen in the first export too and filed, and a 2026-09-30
   fix to a **different** line (the AI's cast) closed it by mistake. **Fixed in v1.33.4.**
 - **The opponent's INCARNATION was never announced.** In three of the four newer games the Demon completed
   J + Q + K, and the log showed only the Form card that finished it; your own transform line ends *"JQK —
   INCARNATION!"*. **Fixed in v1.33.4**, for a netplay opponent too.
-- **The records miscount** (`record-skips-own-transforms`, still open): they skip your own Rides and Forms
-  (above), a netplay host never counts a client's Quick answers, and **every AI fight is counted twice in a
-  duel** (found while fixing the two lines above: the 09-20 log shows the AI playing 3 jabs and 6 Specials,
-  the record says 6 and 12). **Never read an opponent's jab or Special counts from these records.**
+- **The records miscounted**, fixed in v1.33.5: they skipped your own Rides and Forms (above), a netplay host
+  never counted a client's Quick answers, and **every AI fight was counted twice in a duel** (the 09-20 log
+  shows the AI playing 3 jabs and 6 Specials, the record says 6 and 12). **Never read an opponent's jab or
+  Special counts from a record older than v1.33.5**; the `build` stamp says which build made it.
 
 One more, historical, so nobody re-derives it: **a Leyline sprung in the old shield window was never
 counted.** Every *"You sprang Leyline Ascension in response — the shield held."* line in both exports (two on

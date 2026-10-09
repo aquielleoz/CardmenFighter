@@ -1219,6 +1219,14 @@
     return opp.filter(function (t) { return t.e.protect; })[0] || opp[0] || all[0] || null;
   }
 
+  /* EVERY CAST IS COUNTED HERE, ONCE, AT THE LINE WHERE IT COMMITS (record-skips-own-transforms). The playtest
+     record used to count casts in the UI, one call per presentation path, and four paths never did: your own Ride
+     or Form, a netplay client's Quick answer, an AI's answer inside another AI's turn, and every Phantasmal
+     Illusion. `activate`, `respond` and `phantasm` are the only ways a card is cast, so the count lives in them
+     and the record reads it. Keyed by the card's BASE effect id, the record's `eff` key. It is an OBJECT, so
+     `netview`'s clonePlayer (scalars plus named fields) keeps it off the mirror. */
+  function noteCast(pl, card) { var e = card && effectOf(card); if (!e || !e.id) return; var m = pl.casts || (pl.casts = {}); m[e.id] = (m[e.id] || 0) + 1; }
+
   // Activate a card's effect from hand. opts: { discard:[ids], toTop:id } for the
   // effects that need a choice (auto-picks lowest cards if omitted).
   function activate(st, p, cardId, opts) {
@@ -1347,6 +1355,7 @@
     // remove the activated card from hand, pay the cost (the card is now "on the stack")
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
     payEnergy(pl, card, costDelta);
+    noteCast(pl, card);                                       // committed: the record counts it (Techniques, Rides and Forms alike)
     if (pitchCard) { pl.hand = pl.hand.filter(function (c) { return c.id !== pitchCard.id; }); pl.removed.push(pitchCard); }   // Broadway pitch → Discard pile
     if (eff.kind !== 'transform') { st._effUsed = true; }   // this turn's first-effect discount/tax is now spent
 
@@ -1970,6 +1979,7 @@
     var qPitch = qeff.pitchHigh ? pitchFor(qp, quickCardId, opts && opts.pitch) : null;   // castRefusal already proved one exists
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
+    noteCast(qp, qcard);                                      // committed: a Quick answer is a cast, whoever makes it (see noteCast)
     if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.removed.push(qPitch); }   // Broadway pitch → Discard pile, as `activate` does
     var qOpts = cOid ? { counterOid: cOid } : {};
     if (qTarget != null) qOpts.target = qTarget;                      // resolution, stackTargetOf and Annoint all read it from here
@@ -2589,6 +2599,7 @@
                                            : "A bare copy only ties — swap a card in, or add a boost." };
     }
     pl.hand = pl.hand.filter(function (c) { return c.id !== pc.id; }); payEnergy(pl, pc); spendCard(pl, pc);   // the Illusion card is spent
+    noteCast(pl, pc);                                         // committed: the illusion is a Technique cast (see noteCast)
     if (swapping) { pl.hand = pl.hand.filter(function (c) { return c.id !== add.id; }); pl.energy.push(add); } // your one real card is really played
     /* Stored like any other play so refreshPile() keeps tracking the board: raw base value, plus the deltas
      * frozen at play time. `phantom` still marks it for the UI and the netplay mirror. */

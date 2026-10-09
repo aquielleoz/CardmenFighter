@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**685**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**692**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.4**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.5**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -505,30 +505,18 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
-- `ready to build`      · **THE PLAYTEST RECORD MISCOUNTS THREE WAYS: IT SKIPS YOUR OWN RIDES AND FORMS, SKIPS A
-  CLIENT'S QUICK ANSWERS, AND COUNTS EVERY AI FIGHT TWICE (2026-10-09).** Nothing changes on the board: this is
-  the ⤓ export that `PLAYER-PROFILE.md` reads. Every cast
-  path calls `bumpEffect` except one — the transform branch of `activate` returns before the ordinary tail
-  that bumps — while the AI's casts (`buildOppBeats`) and a netplay client's (both hosts' `op:'activate'`
-  handlers) are counted whatever the card. So `techniques` means Techniques for you and Techniques +
-  Rides/Forms for everyone else, and the first Bibong read compared exactly that (corrected in the profile:
-  the Demon's "8–14 Techniques" was 7–11 plus 1–3 Rides/Forms). **The mirror gap, found by the same audit:** a
-  netplay host narrates a CLIENT's Quick answer (`op:'respond'`, in both `hostApplyMove` and `hostApplyMoveN`)
-  and never counts it, while your own answers (`humanResponds`) and the AI's are counted — and every client
-  stores the host's record, so a client's answers are in nobody's.
-  **AND EVERY AI FIGHT IS COUNTED TWICE** (found while fixing v1.33.4's log lines). `buildOppBeats` calls
-  `bumpFight(seat, …)` as it builds a fight beat (added in v1.31.5, when opponents' fights were never counted),
-  and the beat's `run` still calls `bumpFight(RIVAL, …)`. In a duel both land on seat 1, so the AI's jabs and
-  Specials are doubled. Measured on Bibong's records: the 09-20 log shows the AI playing 3 jabs and 6 Specials
-  against 6 and 12 recorded, and a 10-08 one 5 and 6 against 10 and 12. At 3-6 players seat 1 is also credited
-  with every other opponent's fights (read from the code, not measured). This part needs no decision: delete
-  the inner call.
-  **Proposed for the rest: count every activation everywhere** (bump in the transform branch and in both
-  respond handlers). That is what the opponent sites have always done, so every opponent figure already on
-  record keeps its meaning; your own counts step up from the first build that has it, and the record's `build`
-  stamp marks where. Assert all three through the record: a staged Ride and a staged AI fight in a solo
-  suite, a client's answer in `nettest_record`.
-  `[id: record-skips-own-transforms]`
+- `ready to build`      · **AN AI'S ANSWER INSIDE ANOTHER AI'S TURN NEVER REACHES THE BATTLE LOG (2026-10-09).** At 3-6
+  players, when one computer seat answers another's cast during that seat's turn (a Counter Spell, a Leyline),
+  `ai.js` resolves the window inline (`resolveAIWindows`) and logs `{respond, respName, respBy, countered}`, and
+  `buildOppBeats` has no branch for that entry, so nothing is said. You read "Lefty played a Technique -
+  Telekinesis — aimed at Tank." and then nothing about the counter, so the cast appears simply not to happen.
+  **Measured headless** with the page's own call (`takeTurn(..., [0])`, every other seat an AI): one or more in 16
+  of 60 three-player games and 28 of 40 six-player games, and never in a duel, where the only other seat is you
+  and your windows suspend the turn instead. Found while building v1.33.5, which COUNTS these answers (the
+  engine counts every cast now); this is the narration half. **The fix is one beat in `buildOppBeats`**, worded
+  the way `settleWindows` words an AI's answer (countered, or answered at instant speed) and naming `respBy`; the
+  entry already carries the card's name (`respName`).
+  `[id: ai-answer-in-ai-turn-unnarrated]`
 
 - `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
   SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen
