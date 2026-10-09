@@ -15,6 +15,31 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.7 — the computer stops countering its own cards
+
+**What you'll see:** the computer no longer answers its own card. Before, a computer holding Counter Spell could
+play Telekinesis and then counter it itself, losing both cards, and it did the same with Annoint against its own
+Sabotage and Leyline against its own Critical Hit. Since v1.33.6 the log showed it ("Lefty played … Telekinesis",
+then "Lefty answered at instant speed with Counter Spell."); before that it happened silently. It was common at a
+full table: 89 of 200 six-player games had one.
+
+**Difficulty does not change.** Measured head to head against the old behaviour, the fixed computer wins no more
+often at any table size: +0.46 points in a duel, +0.16 at three players and +0.07 at six for the Knight, +0.24 and
+−0.03 for the Demon Lord, all within noise. For scale, the gap between Knight and Demon Lord in a duel is +7.63.
+
+- **Why:** since the phases rework the caster holds priority first on its own cast, and the computer's answer
+  logic checked only what kind of card was on top, not whose it was. It now passes on its own cast. The engine's
+  own rule for when a Quick matters already said so; the computer was catching up.
+- **`strengthsim` plays 3-6 players now** (`players=N`): every deal once per seat, the tested AI taking each seat
+  in turn, and identical AIs still come out at exactly the fair share. A duel-only test could not see this bug.
+  The results, and a side finding (at six players the Demon Lord is barely stronger than the Knight), are in
+  [`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength).
+- **Testing.** `test.js` 701 (+5): the caster no longer answers its own Telekinesis, Sabotage or Critical Hit, the
+  tally records what it held back, and the switch the strength test uses brings the old behaviour back. On the old
+  code exactly the four behaviour checks fail.
+- **Filed:** the computer also springs Leyline against a strike aimed at someone else (7 of 37 Leyline answers in
+  200 six-player games), `ai-answers-others-casts`.
+
 ### v1.33.6 — the battle log shows a computer answering another computer's card
 
 **What you'll see:** at a 3-6 player table, when one computer player answers another's card during that player's
