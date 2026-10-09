@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.9**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -203,6 +203,15 @@ node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME 
                                                 # a parked Resolution window the client repaints Resolve once
                                                 # an invisible burst is filtered out, and segmenting on it
                                                 # filmed an extra empty ceremony 1 run in 4 (`settled()`)
+node nettest_strip.js                          # THE STRIP AFTER THE CLEAN-UP DWELL COMES FROM THE GAME, ON EVERY SEAT (16).
+                                                # Leg 1: the host picks its end-of-round discards and the GUEST
+                                                # must read Clean-up (`trimPending`), not the turn colour. Leg 2:
+                                                # a broken shield hands the host Leyline, so its Upkeep window
+                                                # opens INSIDE its ceremony, and the host must read Beginning.
+                                                # ⚠ A BOUNDARY WINDOW ONLY PARKS INSIDE A CEREMONY IF IT DID NOT
+                                                # EXIST AT RESOLUTION — a seat that can act there makes the host
+                                                # drain the whole boundary BEFORE its ceremony starts, and the
+                                                # first cut of leg 2 staged exactly that and read a correct strip
 node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHILE A ROUND WINDOW IS OPEN,
                                                 # UPKEEP INCLUDED (9). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
@@ -2389,17 +2398,17 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.8 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 382s** (this line was
+Status as of **v1.33.9 — last FULL sweep 2026-10-09, `npm run sweep`, 121/121 in 354s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 8, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 9, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
 note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
-the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 120 with `nettest_parity`, `nettest_roundlock` and `deckouttest`.) (four lanes; background
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 121 with `nettest_parity`, `nettest_roundlock`, `deckouttest` and `nettest_strip`.) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2409,7 +2418,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 74 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 75 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,

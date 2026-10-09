@@ -7292,7 +7292,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.8';
+  var GAME_VERSION='v1.33.9';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7853,7 +7853,10 @@ window.CardFace = {};
      orange but after yellow the hand directly became idle."*
      He is right, and the fix is not to force windows: from the player's side Resolution IS the ceremony
      — the shatter and the banner — and Clean-up IS the trim. `uiPhase` follows the CEREMONY, the engine
-     flags still win when they are set, and the two agree about what is happening on screen. */
+     flags still win when they are set, and the two agree about what is happening on screen.
+     ⚠ "STILL WIN" WAS TRUE OF CLEAN-UP'S FLAGS ONLY until 2026-10-09: Upkeep and the trim lost to it, and the
+     seats dropped it at different moments. Now every engine phase outranks it, it lives only for the opening
+     (Resolution's beats and the Clean-up dwell), and every seat drops it there (`nettest_strip`). */
   var uiPhase=null;            // 'resolve' | 'cleanup' during the round ceremony, else null
   var dealHoldUntil=0;         // …and the Beginning tint is held until the deal-in animation has finished
   var difficulty='fighter';    // 'minion' | 'fighter' | 'demon' — persists across New Duel
@@ -12053,10 +12056,22 @@ window.CardFace = {};
        ⚠ `endCleanup` IS CLEAN-UP TOO (2026-10-07). The engine clears `cleanup` before it opens the
        END-of-Clean-up dance (`finishCleanup`), and `PHASES-AND-PRIORITY.md` files that dance under the
        Clean-up Phase, with `st.round` still the round that is ending. Tested on `cleanup` alone, a window
-       parked there fell through to the turn and painted Main or Idle, the same miss `upkeep` had. */
-    var ph = (state.cleanup || state.endCleanup || uiPhase==='cleanup') ? 'spCleanup'
-           : (state.resolution || uiPhase==='resolve') ? 'spResolve'
-           : (state.upkeep || dealingIn) ? 'spBegin'
+       parked there fell through to the turn and painted Main or Idle, the same miss `upkeep` had.
+       ⚠ AND EVERY ENGINE PHASE OUTRANKS THE CEREMONY'S `uiPhase`, NOT JUST CLEAN-UP'S (strip-from-state-after-
+       cleanup, 2026-10-09). `uiPhase==='cleanup'` sat in the first test, so it beat `state.upkeep`: an Upkeep
+       window that opened INSIDE the ceremony — a broken shield handing its owner a Quick — painted Clean-up
+       on that seat (`nettest_strip` leg 2). And `trimPending` is Clean-up too: the trim IS the Clean-up Phase,
+       and a guest waiting on the host's discard pick has no other flag to read, so it painted the turn
+       colour (leg 1). The ceremony's flag now only FILLS the gap where the engine says nothing.
+       `dealingIn` STAYS BELOW IT: it is an animation, not a phase, and lifted with `upkeep` it flashed Begin
+       over the ceremony's opening whenever a card had just entered a hand (the first cut of this fix did, on
+       both seats, filmed by `nettest_strip`). By the deal the flag is gone, so Begin still owns the deal. */
+    var ph = (state.cleanup || state.endCleanup || state.trimPending) ? 'spCleanup'
+           : state.resolution ? 'spResolve'
+           : state.upkeep ? 'spBegin'
+           : (uiPhase==='cleanup') ? 'spCleanup'
+           : (uiPhase==='resolve') ? 'spResolve'
+           : dealingIn ? 'spBegin'
            : (state.turn !== YOU) ? 'spIdle'
            : (state.subPhase==='play') ? 'spFight' : 'spMain';
     ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
@@ -12088,7 +12103,12 @@ window.CardFace = {};
       ceremonyBeat('cleanup', g, function(){
       setTimeout(function(){
         if(g!==gen) return;
-        flushThreshold(function(){ if(g===gen) then(); });      // a transform tier that just unlocked gets its OWN beat here
+        /* THE OPENING IS OVER, ON EVERY SEAT, SO THE CEREMONY'S FLAG GOES HERE (strip-from-state-after-cleanup).
+           From now on the round's work — the trim, the boundary windows, the deal — is the GAME's, and the
+           strip reads it from state. The seats used to let go at different moments: a guest at its deal step,
+           the host only at its deal, which is how the same table showed two phases. AFTER the threshold beat,
+           not before: a ROAR plays inside the dwell's colour, and nothing else would paint the gap. */
+        flushThreshold(function(){ if(g===gen){ uiPhase=null; then(); } });   // a transform tier that just unlocked gets its OWN beat here
       }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
       });
     });
@@ -17462,7 +17482,9 @@ window.CardFace = {};
     function dbgForce(hh, rh, he, re, hs, rs){ if(!hostState) return false; hostState.players[0].hand=hh.slice(); hostState.players[1].hand=rh.slice(); if(he) hostState.players[0].energy=he.slice(); if(re) hostState.players[1].energy=re.slice(); if(hs!=null) hostState.players[0].shields=hs; if(rs!=null) hostState.players[1].shields=rs; busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
     function dbgForceAll(hands, energies, shields, opts){ if(!hostState) return false; for(var s=0;s<hostState.numPlayers;s++){ if(hands&&hands[s]) hostState.players[s].hand=hands[s].slice(); if(energies&&energies[s]) hostState.players[s].energy=energies[s].slice(); if(shields&&shields[s]!=null) hostState.players[s].shields=shields[s]; if(opts&&opts.forms&&opts.forms[s]) hostState.players[s].forms=opts.forms[s].map(function(f){ return { rank:f.rank, suit:f.suit, tier:f.tier||'queen', name:f.name||'', card:{ rank:f.rank, suit:f.suit, id:'form'+f.rank+f.suit+'#'+s } }; });
         if(opts&&opts.equip&&opts.equip[s]) hostState.players[s].equipment=opts.equip[s].map(function(e){ return { id:e.id||'dbg', name:e.name||'Equipment', delta:e.delta||0, oppDelta:e.oppDelta||0, counters:e.counters!=null?e.counters:3, decay:true, card:{ rank:e.rank, suit:e.suit, id:'eq'+e.rank+e.suit+'#'+s } }; });
-        if(opts&&opts.deck&&opts.deck[s]) hostState.players[s].deck=opts.deck[s].slice(); if(opts&&opts.shuffle&&opts.shuffle[s]) hostState.players[s].shuffle=opts.shuffle[s].slice(); } if(opts){ if(opts.round!=null) hostState.round=opts.round; if(opts.turn!=null){ hostState.turn=opts.turn; hostState.initiative=opts.turn; hostState.pile=null; hostState.passes=0; hostState.lastPlayer=null; hostState.preFightHandled=false; for(var q=0;q<hostState.numPlayers;q++){ hostState.players[q].lockSkip=false; hostState.players[q].lockRound=false; } } } busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
+        if(opts&&opts.deck&&opts.deck[s]) hostState.players[s].deck=opts.deck[s].slice(); if(opts&&opts.shuffle&&opts.shuffle[s]) hostState.players[s].shuffle=opts.shuffle[s].slice();
+        if(opts&&opts.shieldPile&&opts.shieldPile[s]){ hostState.players[s].shieldPile=opts.shieldPile[s].slice(); hostState.players[s].shields=opts.shieldPile[s].length; }   // the LAST card is the one a broken shield returns to hand (`nettest_strip`)
+        } if(opts){ if(opts.round!=null) hostState.round=opts.round; if(opts.turn!=null){ hostState.turn=opts.turn; hostState.initiative=opts.turn; hostState.pile=null; hostState.passes=0; hostState.lastPlayer=null; hostState.preFightHandled=false; for(var q=0;q<hostState.numPlayers;q++){ hostState.players[q].lockSkip=false; hostState.players[q].lockRound=false; } } } busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
     /* THIS SEAT'S SIDE OF THE ONE ROUND CEREMONY (v1.33.1). A client runs the same `resolveRoundCeremony` as
        solo and the host (the opening, then the deal, then its Round card), and only its side differs: the
        host has already run the round boundary, so this seat's deal step WAITS for the host's deal (the mirror
@@ -17536,11 +17558,11 @@ window.CardFace = {};
       deal: function(res, g, present){
         var c=clientCer; if(!c || c.res!==res || g!==gen) return;
         c.stage='deal'; c.present=present;
-        /* TWO STEPS THE HOST TAKES LATER, THIS SEAT TAKES HERE, at the end of its beats: it leaves the Clean-up
-           colour and the deck-float mute now, as its own driver always did, because the Clean-up work (the
-           trim, the boundary drain) runs on the host and this seat only watches it. The host keeps both until
-           its deal. */
-        inCeremony=false; uiPhase=null; holdShields=false;
+        /* ONE STEP THE HOST TAKES LATER, THIS SEAT TAKES HERE, at the end of its beats: it lifts the deck-float
+           mute now, because the Clean-up work (the trim, the boundary drain) runs on the host and this seat
+           only watches it. The host keeps it until its deal. (The Clean-up COLOUR used to be dropped here too;
+           every seat drops it at the end of the opening now — see `playCeremonyOpening`.) */
+        inCeremony=false; holdShields=false;
         if(state && state.finished){ c.stage='done'; return maybeReleaseCeremony(c.tok); }   // the game ended instead of a deal (a deck-out)
         if(c.held){ var m=c.held; c.held=null; return landDeal(m); }
         if(state && (state.dealSeq||0) > c.base) return landDeal(null);   // the deal already landed unheld: its shatter had to play (see `isRoundDeal`)
