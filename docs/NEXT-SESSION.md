@@ -505,6 +505,51 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
+- `ready to build`      · **"RIVAL DISCARDED 2 CARDS." AFTER YOUR OWN DISCARD EFFECT NAMES NOBODY — AND THIS ENTRY
+  WAS CLOSED ONCE BY A FIX TO A DIFFERENT LINE (re-filed 2026-10-09).** Bibong's v1.33.1 game: *"You played a
+  Technique - 3♦ Telekinesis — aimed at Rozalin."* then *"Rival discarded 2 cards."* The target has a name and
+  the line does not use it. `handleDiscardAfterAction` still reads `logMsg('<b>Rival</b> discarded N cards.')`:
+  a hardcoded name (wrong for a named persona in a duel, and nobody in particular at 3-6 players) on the
+  host-local logger. **c48cc44 (2026-09-30) claimed `closes discard-line-hardcodes-rival` and fixed the AI's
+  path in `buildOppBeats`**, which had named the caster; this human-cast path was never touched, and Bibong's
+  first export had already shown it (*"Rival discarded 1 card."*, 09-10).
+  **The fix is one line:** read `dp.player` (the discarding seat) before `E.resolveDiscard` clears
+  `discardPending`, and `say(dp.player, '{who} discarded N card(s).', 'rival')`. Its only caller sits after
+  the netplay host's early return into `NET.hostAfterOwnCast`, so only solo reaches it today; `say` costs
+  nothing there and stays right if that changes. **Assert it in a solo 3-player game:** a Telekinesis at a
+  named seat must log "<name> discarded 2 cards." and no "Rival discarded".
+  `[id: discard-line-hardcodes-rival]`
+
+- `ready to build`      · **AN OPPONENT'S INCARNATION IS NEVER ANNOUNCED IN THE BATTLE LOG; YOURS IS (2026-10-09).**
+  In three of Bibong's four newest games the Demon Lord completed J + Q + K, and the log shows only the Form
+  that finished it (*"Rozalin played a Form Change - K♣ Meleager Form — …"*), while your own transform line
+  ends *"Transformation Requirements Complete! JQK — INCARNATION!"*. That tail is written in exactly one
+  place, the transform branch of `activate` (your own cast, solo or netplay host). Every other seat's cast is
+  narrated by `sayCast`, which has no transform case — the AI's through `buildOppBeats`, a netplay CLIENT's
+  through the hosts' `op:'activate'` handlers — so the AI in solo and a client in netplay reach Super Mode
+  silently, and the ⚡ badge in their Forms zone is the only sign. **The data is half there:** the engine
+  returns `isSuper` on a transform and the host's handlers hold that result, but `ai.js` records an activation
+  as `{play, card, target}`, so the AI's beat cannot see it until the entry carries it. The same family as
+  the client's short cast line fixed in v1.32.7: a second narration path that missed what the first one says.
+  `[id: opponent-incarnation-unannounced]`
+
+- `ready to build`      · **THE PLAYTEST RECORD NEVER COUNTS YOUR OWN RIDES AND FORMS, AND COUNTS EVERY OPPONENT'S
+  (2026-10-09).** Nothing changes on the board: this is the ⤓ export that `PLAYER-PROFILE.md` reads. Every cast
+  path calls `bumpEffect` except one — the transform branch of `activate` returns before the ordinary tail
+  that bumps — while the AI's casts (`buildOppBeats`) and a netplay client's (both hosts' `op:'activate'`
+  handlers) are counted whatever the card. So `techniques` means Techniques for you and Techniques +
+  Rides/Forms for everyone else, and the first Bibong read compared exactly that (corrected in the profile:
+  the Demon's "8–14 Techniques" was 7–11 plus 1–3 Rides/Forms). **The mirror gap, found by the same audit:** a
+  netplay host narrates a CLIENT's Quick answer (`op:'respond'`, in both `hostApplyMove` and `hostApplyMoveN`)
+  and never counts it, while your own answers (`humanResponds`) and the AI's are counted — and every client
+  stores the host's record, so a client's answers are in nobody's.
+  **Proposed: count every activation everywhere** (bump in the transform branch and in both respond
+  handlers). That is what the opponent sites have always done, so every opponent figure already on record
+  keeps its meaning; your own counts step up from the first build that has it, and the record's `build`
+  stamp marks where. Assert both halves through the record: a staged Ride in a solo suite, a client's answer
+  in `nettest_record`.
+  `[id: record-skips-own-transforms]`
+
 - `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
   SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen
   in a game. After its Clean-up dwell, the ceremony holds the strip on Clean-up with a UI flag (`uiPhase`),
