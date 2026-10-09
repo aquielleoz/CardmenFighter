@@ -3621,5 +3621,49 @@ function cards(ids) { return ids.map(card); }
   ok(!!aT && aT.transition === true && aT.round === 4, 'in-turn answer: …logged AS the transition, so the line can say "before the fight"  ' + JSON.stringify(aT || null));
 })();
 
+// ===== THE AI NEVER ANSWERS ITS OWN CAST (ai-counters-own-cast) =====
+/* Since epic step 6 the go-round starts at the CASTER, and `respondDecision`'s three answer branches tested only
+ * the effect's KIND — so an AI holding Counter Spell cast a Telekinesis and countered it itself, and Annoint and
+ * the immunity Quicks answered its own removal or strike. One staging per branch, asked at the moment that
+ * matters: right after the cast, the caster holding priority. Then the switch `strengthsim` uses, OFF, to prove
+ * the old behaviour is still reachable — two arms that behave the same print an exact tie and mean nothing. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  function fresh() {
+    var g = E.newGame(null, { numPlayers: 2 }); g.round = 4; g.turn = 1; g.passes = 0; g.pile = null; g.lastPlayer = null;
+    g.players.forEach(function (p) { p.hand = [mk(9, 'C', 'x'), mk(6, 'S', 'x')]; p.energy = []; p.equipment = []; });
+    return g;
+  }
+  var holds = function (g, p, id) { return g.players[p].hand.some(function (c) { return c.id === id; }); };
+  var answered = function (r) { return !!(r && r.respondedWith); };
+  function stageCounter() {                                         // seat 1: Telekinesis, holding Counter Spell
+    var g = fresh(); g.players[1].hand = [mk(3, 'D'), mk(4, 'D'), mk(9, 'C', 'y')]; g.players[1].energy = nrg(12, 'D');
+    var c = E.activate(g, 1, '3D', { target: 0 }); return { g: g, ok: c.ok && g.respondFor === 1 };
+  }
+  AI.resetPolicyStats();
+  var sC = stageCounter(), rC = AI.respondDecision(sC.g, 1);
+  ok(sC.ok && !answered(rC) && holds(sC.g, 1, '4D'), 'own cast: the caster does NOT counter its own Telekinesis, and keeps its Counter Spell  ' + JSON.stringify(rC && rC.respondedWith || null));
+  ok(AI.policyStats().ownCast >= 1, 'own cast: …and the policy tally records the answer it held back (' + AI.policyStats().ownCast + ')');
+  // Annoint: seat 1 sends Sabotage at seat 0's Equipment while holding its own Equipment and Annoint
+  var gA = fresh();
+  gA.players[0].equipment = [{ id: 'eq0', name: "Hero's Sword", delta: 2, counters: 3, decay: true, card: mk(5, 'C', 'q') }];
+  gA.players[1].equipment = [{ id: 'eq1', name: 'Holy Bow', delta: 2, counters: 3, decay: true, card: mk(8, 'H', 'q') }];
+  gA.players[1].hand = [mk(5, 'S'), mk(5, 'H'), mk(9, 'C', 'y')]; gA.players[1].energy = nrg(6, 'S').concat(nrg(6, 'H'));
+  var cA = E.activate(gA, 1, '5S', { target: 'eq0' }), pA = gA.respondFor, rA = AI.respondDecision(gA, 1);   // whose priority, read BEFORE the answer moves it on
+  ok(cA.ok && pA === 1 && !answered(rA) && holds(gA, 1, '5H'), 'own cast: the caster does NOT Annoint against its own Sabotage  ' + (cA.ok ? JSON.stringify(rA && rA.respondedWith || null) : cA.reason));
+  // the immunity Quick: seat 1, on two shields, casts Critical Hit at seat 0 while holding Leyline
+  var gI = fresh(); gI.players[1].shields = 2; gI.players[0].shields = 3;
+  gI.players[1].hand = [mk(9, 'S'), mk(9, 'D'), mk(10, 'C', 'pk'), mk(6, 'S', 'y')];          // Critical Hit, Leyline, a 10 to pitch
+  gI.players[1].energy = nrg(10, 'S').concat(nrg(10, 'D'));
+  var cI = E.activate(gI, 1, '9S', { target: 0 }), pI = gI.respondFor, rI = AI.respondDecision(gI, 1);
+  ok(cI.ok && pI === 1 && !answered(rI) && holds(gI, 1, '9D'), 'own cast: the caster does NOT spring Leyline against its own Critical Hit  ' + (cI.ok ? JSON.stringify(rI && rI.respondedWith || null) : cI.reason));
+  // the switch: with the policy OFF the old behaviour comes back, so a strengthsim arm without it really differs
+  AI.setArmPolicy(function () { return false; });
+  var sOff = stageCounter(), rOff = AI.respondDecision(sOff.g, 1);
+  AI.setArmPolicy(null);
+  ok(sOff.ok && rOff && rOff.respondedWith === 'D4', 'own cast: with `ownCast` switched off the caster counters itself again — the arm strengthsim compares against  ' + JSON.stringify(rOff && rOff.respondedWith || null));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

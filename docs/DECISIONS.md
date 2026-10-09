@@ -540,6 +540,36 @@ was added: an unexercised branch is not a safeguard, it is untested code.
 <a id="ai-strength"></a>
 ## AI strength
 
+### Not answering its own cast changes no win rate, and at six players the tiers barely differ — measured 2026-10-09
+
+**Asked:** v1.33.7 stops the AI answering its own cast (Counter Spell on its own Telekinesis, Annoint against its
+own Sabotage, Leyline against its own Critical Hit). Does that make the AI stronger, and so change difficulty?
+The self-answer was rare in duels and common at a full table (114 of 708 Counter Spells in 200 six-player games),
+so a duel-only head-to-head could not answer it. `strengthsim` gained `players=N` for this: every deal is played
+once per seat with the tested arm on that seat, and identical arms still pool to exactly the fair share (the
+controls printed 50.00, 33.33 and 16.67, every deal replaying identically).
+
+**Answer: no measurable change at any table size.** Arm A = the shipped AI (`ownCast` on), arm B = the same tier
+with `ownCast` off (`:push,pitch`):
+
+| players | tier | games | A's share | vs fair | σ |
+| --- | --- | --- | --- | --- | --- |
+| 2 | knight | 8,000 | 50.46% | +0.46 | +0.83 |
+| 3 | knight | 9,000 | 33.49% | +0.16 | +0.31 |
+| 6 | knight | 18,000 | 16.74% | +0.07 | +0.26 |
+| 3 | demon | 9,000 | 33.58% | +0.24 | +0.49 |
+| 6 | demon | 18,000 | 16.64% | −0.03 | −0.10 |
+
+**It is a real null, not a dead policy:** the tally shows the fix holding back 3,545 answers in the 18,000
+six-player knight games, for the one seat that had it on. Wasting two cards now and then does not decide AI
+games. Name the comparison: the duel knight→demon step is **+7.63** points, so the fix is under a tenth of a tier
+step even at the edge of its noise.
+
+**THE SIDE FINDING IS THE BIGGER ONE: AT SIX PLAYERS THE DEMON LORD IS BARELY STRONGER THAN THE KNIGHT.** One
+demon against five knights, 12,000 games: **17.03% against a fair 16.67%, +0.37 points, +1.08σ** — within noise,
+where the same step is +7.63 in a duel. A tier's edge is a duel's edge; at a full table it mostly washes out. One
+run, so read it as "under about a point", and re-measure before designing difficulty around it.
+
 ### Stacking Armor Piercing at Resolution — the question is moot, measured 2026-09-30
 
 **Asked:** `resolutionPushCard` refuses a second Armor Piercing (`if (qp.finishingBlow) return null`). That
