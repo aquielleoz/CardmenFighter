@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**692**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**696**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.6.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.5**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.6**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -505,18 +505,20 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
-- `ready to build`      · **AN AI'S ANSWER INSIDE ANOTHER AI'S TURN NEVER REACHES THE BATTLE LOG (2026-10-09).** At 3-6
-  players, when one computer seat answers another's cast during that seat's turn (a Counter Spell, a Leyline),
-  `ai.js` resolves the window inline (`resolveAIWindows`) and logs `{respond, respName, respBy, countered}`, and
-  `buildOppBeats` has no branch for that entry, so nothing is said. You read "Lefty played a Technique -
-  Telekinesis — aimed at Tank." and then nothing about the counter, so the cast appears simply not to happen.
-  **Measured headless** with the page's own call (`takeTurn(..., [0])`, every other seat an AI): one or more in 16
-  of 60 three-player games and 28 of 40 six-player games, and never in a duel, where the only other seat is you
-  and your windows suspend the turn instead. Found while building v1.33.5, which COUNTS these answers (the
-  engine counts every cast now); this is the narration half. **The fix is one beat in `buildOppBeats`**, worded
-  the way `settleWindows` words an AI's answer (countered, or answered at instant speed) and naming `respBy`; the
-  entry already carries the card's name (`respName`).
-  `[id: ai-answer-in-ai-turn-unnarrated]`
+- `ready to build`      · **THE AI COUNTERS ITS OWN CAST (2026-10-09).** `respondDecision`'s counter branch fires on any
+  threatening Technique on top of the stack (`THREAT_KIND`) with no check that it is someone else's, and since epic
+  step 6 the go-round starts at the CASTER. So an AI holding Counter Spell casts a Telekinesis, a Back Stab or a
+  Critical Hit and then counters it, losing both cards. **Measured headless** (every seat an AI at `knight`, each
+  Counter Spell checked against the controller of the object it answered): 2 of 26 Counter Spells in 200 duels,
+  12 of 81 in 200 three-player games, and **114 of 708 in 200 six-player games, in 89 of those games**. It was
+  invisible until v1.33.6 narrated the AI's answers inside its own turn; a log can now read "Lefty played a
+  Technique - 3♦ Telekinesis" followed by "Lefty answered at instant speed with Counter Spell."
+  **The two branches above it have the same missing check**: Annoint fires on any `removeEquip` while the seat
+  holds Equipment, and the immunity branch on any `destroyShield` while it is on two shields or fewer; neither
+  asks whose effect it is or what it is aimed at. Audit all three together.
+  **This changes AI play, so measure it**: `strengthsim` with the fix as an arm against `knight` (run the control
+  first), and `personasim` if the persona spread could move.
+  `[id: ai-counters-own-cast]`
 
 - `needs a repro`       · **THE PHASE STRIP SHOULD COME FROM THE GAME STATE AFTER THE CLEAN-UP DWELL, ON EVERY
   SEAT (2026-10-08).** Found by reading the code while uniting the ceremony drivers (v1.33.1); not yet seen

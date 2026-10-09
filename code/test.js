@@ -3589,5 +3589,37 @@ function cards(ids) { return ids.map(card); }
   ok(mir.indexOf('"casts"') < 0, 'casts: the count never travels on a netplay mirror');
 })();
 
+// ===== AN AI'S ANSWER INSIDE ANOTHER AI'S TURN IS LOGGED WITH WHO, WHEN AND WHICH ROUND (ai-answer-in-ai-turn-unnarrated) =====
+/* `resolveAIWindows` drains the windows that open inside an AI's turn and leaves a `respond` entry; the page now
+ * narrates it, and needs three facts the entry never carried. `respBy` is the seat that ANSWERED, the timing decides
+ * the wording ("answered at instant speed" vs "sprang … before the fight"), and the round stamps the ledger — both
+ * sampled before the answer changes them. One staging per timing, each at three seats so the answerer is not the
+ * turn's seat. `oppbeatstest` covers the line the page writes from this. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  function fresh() {
+    var g = E.newGame(null, { numPlayers: 3 }); g.round = 4; g.turn = 1; g.passes = 0; g.pile = null; g.lastPlayer = null;
+    g.players.forEach(function (p) { p.hand = [mk(9, 'C', 'x'), mk(5, 'H', 'x')]; p.energy = []; });
+    return g;
+  }
+  var answers = function (log) { return log.filter(function (e) { return e.respond; }); };
+  // a response to a cast: seat 1 casts Telekinesis, seat 2 counters it inside seat 1's turn
+  var gC = fresh();
+  gC.players[1].hand = [mk(3, 'D'), mk(9, 'C', 'y')]; gC.players[1].energy = nrg(8, 'D');
+  gC.players[2].hand.push(mk(4, 'D')); gC.players[2].energy = nrg(8, 'D');
+  var cast = E.activate(gC, 1, '3D', { target: 0 });
+  var aC = answers(AI.takeTurn(gC, 1, 'knight', [0]))[0];
+  ok(cast.ok && !!aC && aC.respBy === 2 && aC.respName === 'Counter Spell', 'in-turn answer: staged — seat 2 counters seat 1\'s Telekinesis inside seat 1\'s turn  ' + JSON.stringify(aC || null));
+  ok(!!aC && aC.transition === false && aC.round === 4, 'in-turn answer: …logged as a response to a cast (not the transition), in round 4  ' + JSON.stringify(aC || null));
+  // the Main → Fight transition: seat 2, holding Back Stab with Perseus in its zone, springs it before seat 1's fight
+  var gT = fresh();
+  gT.players[2].hand = [mk(10, 'S'), mk(6, 'C'), mk(6, 'D')]; gT.players[2].energy = nrg(12, 'S');   // Back Stab, and a pair to follow it with
+  gT.players[2].forms = [{ rank: 13, suit: 'S', tier: 'king', name: 'Perseus Form', card: mk(13, 'S', 'z') }];   // Perseus: Back Stab becomes a Quick
+  var aT = answers(AI.takeTurn(gT, 1, 'knight', [0]))[0];
+  ok(!!aT && aT.respBy === 2 && /Back Stab/.test(aT.respName), 'in-turn answer: staged — seat 2 springs Back Stab at seat 1\'s Main → Fight transition  ' + JSON.stringify(aT || null));
+  ok(!!aT && aT.transition === true && aT.round === 4, 'in-turn answer: …logged AS the transition, so the line can say "before the fight"  ' + JSON.stringify(aT || null));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

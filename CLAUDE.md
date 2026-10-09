@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 692 + 70 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 696 + 70 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 692 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 696 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 70, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -1481,10 +1481,16 @@ Nothing is spent before that, and `Clear` abandons it. A test that taps a target
 the confirm — `nettest_target3` and `nettest_discard` both had to.
 
 **Opponent turns are presented by `buildOppBeats(log, seat)`** — shared by the duel driver (`runRival`) and the
-N-player driver (`runOpponents`). It is the dwell + `flashArt`/`revealEffect` + `setMessage` + `bumpEffect` layer.
+N-player driver (`runOpponents`). It is the dwell + `flashArt`/`revealEffect` + `setMessage` + `bumpFight` layer
+(casts are counted by the engine since v1.33.5, not here).
 It used to live inline in `runRival`, and the free-for-all driver only logged, so **every readability feature was
 silently missing in 3-6 player games** (v1.29.3 fixed it by extracting). If you add a beat, add it there — never
 in one driver.
+**AND EVERY KIND OF ENTRY `ai.js` LOGS NEEDS A BRANCH HERE (v1.33.6).** `resolveAIWindows` had always logged a
+`respond` entry for an AI's answer inside an AI's turn, and no branch read it, so one AI countering another was
+never shown or counted. An unhandled kind falls through the `else if` chain without a sound. When you add a
+`log.push({ kind: … })` to `ai.js`, compare the two lists:
+`grep -o "log\.push({ *[a-zA-Z]*:" code/ai.js` against the `e.<kind>` branches in `buildOppBeats`.
 
 **THE SECOND NAME IN A LINE MUST TRAVEL AS A SEAT, NOT AS TEXT (v1.31.55).** `{who}` was always rotated by the
 reader; the other seat a line mentions — who lost the shield, who is out — was interpolated by the SENDER, so it
@@ -2370,12 +2376,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.5 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 370s** (this line was
+Status as of **v1.33.6 — last FULL sweep 2026-10-09, `npm run sweep`, 120/120 in 352s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 9, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 11, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
@@ -2384,9 +2390,9 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 692, `netview` 70, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 696, `netview` 70, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 18, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

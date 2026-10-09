@@ -6854,6 +6854,11 @@ __QR__
         else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say((e.who!=null?e.who:seat), '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
         else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
         else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} ran out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
+        /* AN AI'S ANSWER INSIDE THIS TURN (ai-answer-in-ai-turn-unnarrated). `ai.js` drained a window that opened
+           mid-turn and left this entry, and nothing read it. `respBy` is the seat that answered, usually NOT `seat`;
+           the timing and round were sampled before the answer, the way `settleWindows` samples them. Same words,
+           ledger line, cue and hold as an answer on your side of the table. */
+        else if(e.respond){ beats.push({ dwell:(reduceMotion()?300:1400), run:function(){ noteAIAnswer(e.respBy, e.respName, e.countered, e.transition, e.round); cueAIAnswer(e.respBy, e.respName, e.countered); render(); } }); }
       });
     return beats;
   }
@@ -6982,6 +6987,25 @@ __QR__
   // Settle the response stack: the Rival's AI answers its own windows inline (recursively), and when
   // a window is YOURS you're prompted; when the stack settles, `done` runs. Used by both a Rival cast
   // (cont resumes its turn) and YOUR own cast (cont continues your turn) — handles Counter-a-Counter.
+  /* AN AI'S ANSWER TO A WINDOW IS SAID ONE WAY, WHEREVER IT HAPPENS (ai-answer-in-ai-turn-unnarrated). Two places
+     make one: `settleWindows` below, which drains the windows that open on YOUR side of the table, and `ai.js`'s
+     `resolveAIWindows`, which drains the ones that open inside an AI's own turn and leaves only a `respond` entry
+     in that turn's log. The page had no branch for that entry, so at 3-6 players one AI countering another's cast
+     never reached the battle log: "Lefty played Telekinesis — aimed at Tank." and then nothing. Both now call
+     these two, so the words, the ledger line and the cue cannot drift apart.
+     NAME THE TIMING, NOT JUST THE CARD. "answered at instant speed" is right for a response to a cast and wrong
+     at the Main → Fight transition, where nothing has been cast to answer — the old pre-fight path said "sprang X"
+     for exactly that reason. Same family as the decline button reading "Let it resolve" where nothing resolves. */
+  function noteAIAnswer(q, name, countered, atTransition, roundAt){
+    prioNote('  → ' + logName(q) + ' CAST ' + name + (countered ? '  (a counter)' : ''), null, roundAt);
+    if(countered) say(q, '{who} countered with '+name+'!', 'rival');
+    else if(atTransition) say(q, '{who} sprang '+name+' before the fight.', 'rival');
+    else say(q, '{who} answered at instant speed with '+name+'.', 'rival');
+  }
+  function cueAIAnswer(q, name, countered){   // the on-screen half: the caption and the QUICK flash, which the caller then holds
+    setMessage(countered ? ('🌀 <b>'+logName(q)+' Countered with '+name+'!</b>') : ('<b>'+logName(q)+' answered with '+name+'.</b>'));
+    quickFlash(logName(q), name, !!countered);
+  }
   function settleWindows(g, done){
     if(g!==gen) return;
     // NETPLAY HOST: the Rival is a remote human — route through NET so their response windows wait on the wire
@@ -7007,22 +7031,17 @@ __QR__
            had already run `roundDraw`, so `state.round` read 7 by the time this line was written, and the
            ledger sent the next reader to the wrong round. Same off-by-one this file already recorded for
            `announceRoundWin`, in the one place it most confuses a boundary bug: the cast is the EVIDENCE
-           for which side of the window the damage landed on. */
-        prioNote('  → ' + logName(q) + ' CAST ' + (resp.respondName || resp.respondedWith) + (resp.countered ? '  (a counter)' : ''),
-                 (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round));
-        /* NAME THE TIMING, NOT JUST THE CARD. "answered at instant speed" is right for a response to a
-           cast and wrong for the other two windows: at the Main → Play transition nothing has been cast
-           to answer, and the old pre-fight path said "sprang X" for exactly that reason. Same family as
-           the decline button reading "Let it resolve" at a timing where nothing resolves. */
-        if(resp.countered) say(q, '{who} countered with '+resp.respondName+'!', 'rival');
-        else if(atTransition) say(q, '{who} sprang '+resp.respondName+' before the fight.', 'rival');
-        else say(q, '{who} answered at instant speed with '+resp.respondName+'.', 'rival');
+           for which side of the window the damage landed on.
+           AND THAT FIX PASSED THE ROUND IN THE WRONG SLOT until 2026-10-09: `prioNote`'s second argument is the
+           DETAIL, so the line kept the UI's `r7` in front and carried the engine's round as a trailing `6`.
+           `noteAIAnswer` passes it as `roundAt`. */
+        noteAIAnswer(q, resp.respondName || resp.respondedWith, resp.countered, atTransition,
+                     (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round));
         lastResp=resp; lastQ=q;
       }
     }
     if(lastResp){                                                  // the Rival sprang a Quick — flash a cue and DWELL so it's readable (it used to resolve instantly, log-only)
-      setMessage(lastResp.countered ? ('🌀 <b>'+logName(lastQ)+' Countered with '+lastResp.respondName+'!</b>') : ('<b>'+logName(lastQ)+' answered with '+lastResp.respondName+'.</b>'));
-      quickFlash(logName(lastQ), lastResp.respondName, !!lastResp.countered); render();
+      cueAIAnswer(lastQ, lastResp.respondName, lastResp.countered); render();
       return setTimeout(function(){
         if(g!==gen) return;
         if(state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
