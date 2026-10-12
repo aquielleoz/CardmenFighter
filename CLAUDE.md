@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.13**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.14**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -239,12 +239,16 @@ node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHI
                                                 # UPKEEP INCLUDED (9). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
                                                 # STALLED Upkeep (nobody on priority) must stay live too
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (127).
-                                                # Its last leg FORCES what its phase-strip driver once stalled on — an AI
-                                                # discard aimed at you — and drives it with that same `driveOnce`. The
-                                                # staging: the AI's hand holds nothing else castable and its own rule for
-                                                # the card holds (Telekinesis: a rival on 5+ cards), and a Knight aims a
-                                                # targeted effect at a seat on ONE shield (`chooseTarget` takes the kill)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (130).
+                                                # Its forced-discard leg FORCES what its phase-strip driver once stalled on
+                                                # — an AI discard aimed at you — and drives it with that same `driveOnce`.
+                                                # The staging: the AI's hand holds nothing else castable and its own rule
+                                                # for the card holds (Telekinesis: a rival on 5+ cards), and a Knight aims
+                                                # a targeted effect at a seat on ONE shield (`chooseTarget` takes the kill).
+                                                # Its LAST leg plays your opening jab while the Round 1 card still flies and
+                                                # requires ONE opponent driver after it (v1.33.14's `openedBy`), read off
+                                                # the ledger's `⚠ TWO OPPONENT DRIVERS` line, which fires on every
+                                                # double start where the banner symptom fired in only 4 games of 6
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (32)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
@@ -861,10 +865,16 @@ window's button still proves it opened, so presence can only fail loudly. It sur
 printed the ORDER of the windows it drove and the order contradicted the suite's own comment — **print what a
 driving loop did, not just whether it finished.**
 **AND STAGE AFTER THE HOST'S OPENING ROUND CARD, NOT BEFORE.** `startDuel` returns once the hands are dealt,
-while the host's "Round 1" card is still flying; when it lands, `startGame` calls `driveRival()` if the turn is
-not the host's — so a suite that forces the turn to a client straight after the deal gets the host parked on
-that client by the game, ~1.2s later, whatever the code under test did. It rescued a build with the hand-back
-deleted, in exactly one leg of three. `fin()` clears `#roundfx`; wait for that.
+while the host's "Round 1" card is still flying. Until v1.33.14, when it landed `startGame` called
+`driveRival()` if the turn was not the host's, so a suite that forced the turn to a client straight after the
+deal got the host parked on that client by the game, ~1.2s later, whatever the code under test did. It rescued
+a build with the hand-back deleted, in exactly one leg of three. `fin()` clears `#roundfx`; wait for that.
+**SINCE v1.33.14 IT DRIVES ONLY WHEN THE SEAT HOLDING THE INITIATIVE AT THE DEAL WAS NOT YOURS** (`openedBy`).
+The old test was a real bug, not only a suite trap: a solo player who played during the card had already started
+the opponents' driver, and the callback started a SECOND one. At 3+ players the spare loop never dies, so AIs
+played the next round under the round ceremony (`mptest`'s opening leg, A/B'd). A `dbg=1` host always opens,
+so that rescue no longer happens there. **A completion callback that starts a driver must decide from the state
+it was scheduled in, not the state it lands in** — your board is live while most of these animations play.
 
 **TWENTY GREEN NETPLAY SUITES COULD NOT SEE A FORKED DUEL, AND THE REASON IS STRUCTURAL.** Aj, 2026-08-28:
 *"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*. Two
@@ -2452,7 +2462,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.13 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 370s** (this line was
+Status as of **v1.33.14 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 370s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2466,7 +2476,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 713, `netview` 74, `mptest` 127, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 713, `netview` 74, `mptest` 130, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

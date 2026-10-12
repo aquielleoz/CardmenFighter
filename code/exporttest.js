@@ -72,6 +72,19 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
         const d=document.getElementById('pfDecline')||document.getElementById('respDecline')||document.getElementById('revOk');
         if(d){ d.click(); return; }
       }
+      /* A PICK (a forced discard, the clean-up trim) WANTS `need` CARDS, AND THE LINES BELOW GAVE IT ONE A PASS.
+         They press Clear, then pick the first card, so a TWO-card discard — Telekinesis, Discombobulate — was
+         undone on every pass and read "1/2 picked" until the 90s clock fired: the board really had stopped
+         advancing (exporttest-time-capped). Captured 2026-10-12: all four caps in sixteen probe runs were a
+         two-card discard aimed at you, with or without load — it was never the machine. A one-card discard
+         worked, which is why the cap came and went with the deal. Pick unpicked cards until Confirm lights,
+         as `mptest`'s driver learned on 2026-10-05. */
+      const f0=document.getElementById('fightBtn');
+      if(f0 && /Confirm/i.test(f0.textContent||'')){
+        if(!f0.disabled){ f0.click(); return; }
+        for(const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))){ c.click(); if(!f0.disabled){ f0.click(); return; } }
+        return;
+      }
       if(await window.__pressPass()) return;
       // holding the initiative means passing is illegal — lead the lowest card instead
       const clr=document.getElementById('clearBtn'); if(clr)clr.click();

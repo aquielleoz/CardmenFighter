@@ -827,6 +827,60 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     ok(false, 'could not start a 3-player game for the forced-discard leg');
   }
 
+  /* ============ A PLAY DURING THE OPENING CARD STARTS ONE OPPONENT DRIVER, NOT TWO (2026-10-12) ============
+     Your board is live while "Round 1 · Jabs only" flies in. If YOU lead and play before it lands, your play
+     starts the opponents' driver — and the card's own callback then started a SECOND one, because by then the
+     turn was an AI's. Two loops step AI turns on their own timers, and at three players the spare never dies, so
+     an AI played the next round underneath the round ceremony: `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE
+     TABLE` in 4 of 6 games that played during the card, 0 of 6 that waited (measured through `exporttest`'s
+     driver, which plays the instant it can).
+     THE MECHANISM IS ASSERTED, NOT THE SYMPTOM ALONE. The banner showed in four games of six, so its absence
+     in one run proves little; `runOpponents` now writes `⚠ TWO OPPONENT DRIVERS ARE RUNNING` the first time an
+     older loop steps after a newer one started, and that fires on every run that double-starts. */
+  {
+    await p.goto(URL); await wait(700);
+    await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350);
+    await p.evaluate(()=>{ document.querySelectorAll('#oppList select.strength').forEach(s=>{ s.value='knight'; s.dispatchEvent(new Event('change')); }); }); await wait(300);
+    await p.evaluate(()=>{ const b=document.getElementById('goFirstBtn'); if(b)b.click(); });
+    /* PLAY THE MOMENT A CARD IS CLICKABLE — no settle wait, because the wait IS the fix's absence of a
+       trigger. One press of Fight with a card selected plays from the Main Sub-Phase when the transition
+       auto-advances, so a single evaluate both plays and reads whether the opening card was still up. */
+    let early=null;
+    for(let i=0;i<80 && !early;i++){
+      early = await p.evaluate(()=>{ const st=window.__solo && window.__solo.st(); if(!st || st.numPlayers!==3 || st.turn!==0) return null;
+        const f=document.getElementById('fightBtn'), rf=document.getElementById('roundfx'), clr=document.getElementById('clearBtn');
+        for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){   // round 1 is jabs only: a pair's group leaves Fight dark
+          g.click();
+          if(f && !f.disabled){ const cardUp=!!(rf && rf.className); f.click(); return { cardUp:cardUp, played:!!(st.pile && st.pile.byPlayer===0) }; }
+          if(clr) clr.click();
+        }
+        return null; });
+      if(!early) await wait(50);
+    }
+    ok(!!early && early.cardUp && early.played,
+       'STAGED: you played your opening jab while the "Round 1" card was still on screen'+
+       (early ? (early.cardUp ? (early.played ? '' : '  ← Fight was pressed but no play landed') : '  ← it had already landed, so nothing below was at risk')
+              : '  ← no play landed at all'));
+    let idle=0, last='';
+    for(let i=0;i<300 && idle<40;i++){
+      const s=await p.evaluate(()=>{ const st=window.__solo.st(); return { done:!st||st.finished||st.round>=3, sig:st?(st.round+'/'+document.querySelectorAll('#log .le').length):'' }; });
+      if(s.done) break;
+      if(s.sig!==last){ idle=0; last=s.sig; } else idle++;
+      await driveOnce();
+      await wait(250);
+    }
+    const led = await p.evaluate(()=>window.__solo.prioLog()||[]);
+    const two = led.filter(l=>/TWO OPPONENT DRIVERS/.test(l)), stale = led.filter(l=>/ROUND BANNER FIRED WITH A PILE/.test(l));
+    const reached = await p.evaluate(()=>window.__solo.st().round);
+    ok(reached>=3 && two.length===0,
+       'ONE opponent driver ran, through two round boundaries (reached round '+reached+')'+
+       (two.length ? '  ← REPRODUCED: '+two[0].slice(0,140) : (reached>=3 ? '' : '  ← the game stopped short, so the drive proves nothing')));
+    ok(reached>=3 && stale.length===0,
+       '…and no round banner fired over a pile from the next round — an AI never moved under the ceremony'+
+       (stale.length ? '  ← '+stale[0].slice(0,120) : ''));
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
