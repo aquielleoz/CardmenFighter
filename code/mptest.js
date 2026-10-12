@@ -7,7 +7,7 @@
  * NOTE ai.js already handled both correctly for AI-vs-AI turns; only the human-acts paths were broken.
  * Run: node mptest.js */
 const { chromium } = require('playwright');
-const { clickFight } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { clickFight, driveStep } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -669,23 +669,9 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
      three times for throwaway diagnostics that could not be re-run.
      ⚠ ASSERT THE CLASS, NEVER THE COLOUR: the hues are becoming a player preference. */
   /* ONE DRIVER STEP, SHARED BY THE PHASE-STRIP WATCH AND THE FORCED-DISCARD LEG AT THE END OF THIS FILE — so
-     that leg proves the branch this watch actually runs, never a copy of it. */
-  const driveOnce = () => p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
-    const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
-    /* A PICK (a forced discard, the clean-up trim) RENDERS BARE CARDS, NO GROUPS — so the group loop below
-       can never answer it, and the driver sat there until the idle guard fired. Its own stall line named it
-       on the first sweep: `discard:{player:0,count:2}`, Fight reading "Confirm (off)". Select eligible cards
-       until Confirm lights, then confirm (mptest-phase-strip-stalls-under-load). */
-    if(fb && /Confirm/.test(fb.textContent)){
-      if(!fb.disabled){ fb.click(); return; }
-      for(const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))){ c.click(); if(!fb.disabled){ fb.click(); return; } }
-      return;
-    }
-    if(fb&&!fb.disabled){ fb.click(); return; }
-    for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){
-      g.click(); if(fb&&!fb.disabled){ fb.click(); return; }
-      const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); }
-    if(pb&&!pb.disabled) pb.click(); });
+     that leg proves the branch this watch actually runs, never a copy of it. It lives in `fightclick.js` as
+     `driveStep` since 2026-10-13, because `nettest_ceremony` needed it too; the pick answer is explained beside it. */
+  const driveOnce = () => driveStep(p);
   if(await start3p()){
     /* A PHASE'S TIME IS WRITTEN WHEN THE STRIP LEAVES IT, so stopping inside one would record nothing for that
        visit — the shape of `nettest_ceremony`'s one red (2026-10-12: 0ms on a tint the sampler HAD seen). That

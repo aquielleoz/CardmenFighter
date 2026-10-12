@@ -341,5 +341,33 @@ function clickDecline(page) {   // "Let it resolve", only while it is on screen 
   });
 }
 
+/* ---- ONE DRIVER STEP: keep an ordinary game moving, whatever the board is waiting on (2026-10-13) ----
+ * Born as `mptest`'s `driveOnce` and moved here when `nettest_ceremony` needed the same thing: its wait for the
+ * strip to leave Clean-up timed out in a sweep, because a seat sat on its end-of-round pick and nothing in that
+ * suite answers one. A second hand-rolled copy is how two answers drift apart, so both suites call this.
+ * In order: decline a VISIBLE Respond? window; answer a pick; press an enabled Fight; try each group; pass.
+ * A PICK (a forced discard, the clean-up trim) RENDERS BARE CARDS, NO GROUPS — so the group loop can never
+ * answer it, and `mptest`'s driver sat there until its idle guard fired. Its own stall line named it on the
+ * first sweep: `discard:{player:0,count:2}`, Fight reading "Confirm (off)". Select eligible cards until Confirm
+ * lights, then confirm (mptest-phase-strip-stalls-under-load). It PASSES and never casts, like `netwindows`,
+ * because choosing a card would change what the calling suite measures. */
+function driveStep(page) {
+  return page.evaluate(() => {
+    const d = document.getElementById('respDecline');
+    if (d && d.offsetParent && !d.disabled) { d.click(); return; }
+    const fb = document.getElementById('fightBtn'), pb = document.getElementById('passBtn');
+    if (fb && /Confirm/.test(fb.textContent)) {
+      if (!fb.disabled) { fb.click(); return; }
+      for (const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))) { c.click(); if (!fb.disabled) { fb.click(); return; } }
+      return;
+    }
+    if (fb && !fb.disabled) { fb.click(); return; }
+    for (const g of [].slice.call(document.querySelectorAll('#hand .group'))) {
+      g.click(); if (fb && !fb.disabled) { fb.click(); return; }
+      const c = document.getElementById('clearBtn'); if (c && !c.disabled) c.click(); }
+    if (pb && !pb.disabled) pb.click();
+  });
+}
+
 module.exports = { clickFight, selectAndFight, clickPass, enterFight, installPageHelpers, FIGHT_BUDGET,
-                   respQuicks, clickQuick, windowUp, clickDecline };
+                   respQuicks, clickQuick, windowUp, clickDecline, driveStep };

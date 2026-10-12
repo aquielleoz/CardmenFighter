@@ -63,21 +63,31 @@ const { openLesson } = require('./lessonlib');
      `.enter` until the hand next rebuilds, and `.enter`'s fly-in animation replaced the pulse that draws the
      gold ring, while the card's own shadow beat the static one. Which card is spotlit, and whether it was just
      dealt, comes with the deal, so the state is STAGED: the real `.enter` class on the real spotlit card. */
-  const look=()=>p.evaluate(()=>{ const el=document.querySelector('#hand .card.tut-spot'); if(!el) return null;
-    const cs=getComputedStyle(el); return { enter:el.classList.contains('enter'), anim:cs.animationName, shadow:cs.boxShadow }; });
-  await p.evaluate(()=>{ const el=document.querySelector('#hand .card.tut-spot'); if(el) el.classList.add('enter'); });
-  await p.waitForTimeout(700);   // past the .46s fly-in, so the reading is the resting state a player sees
-  const lit=await look();
-  ok(!!lit && lit.enter, 'STAGED: the spotlit card still carries `.enter`, as a card dealt this round does'+
-     (lit ? (lit.enter ? '' : '  ← the hand re-rendered and dropped it, so the check below is the ordinary case') : '  ← no spotlit card'));
-  ok(!!lit && /240, 200, 80/.test(lit.shadow),
+  /* ⚠ STAGE AND READ IN ONE STEP, ON ONE ELEMENT (2026-10-13). The first cut added the class, slept 700ms
+     outside the page and read whatever spotlit card was there by then — and the morning sweep caught a hand
+     re-render in that gap: the rebuilt card had no `.enter`, so the reading measured the ordinary case and the
+     staging check failed. Now the page keeps the element, waits out the fly-in itself, and accepts the reading
+     only if that same element is still in the page with both classes; a rebuild means stage again. */
+  const stageAndRead=()=>p.evaluate(async()=>{
+    for(let attempt=1; attempt<=6; attempt++){
+      const el=document.querySelector('#hand .card.tut-spot'); if(!el) return { attempt:attempt, none:true };
+      el.classList.add('enter');
+      await new Promise(r=>setTimeout(r,700));   // past the .46s fly-in, so the reading is the resting state a player sees
+      if(el.isConnected && el.classList.contains('enter') && el.classList.contains('tut-spot')){
+        const cs=getComputedStyle(el); return { attempt:attempt, enter:true, anim:cs.animationName, shadow:cs.boxShadow }; }
+    }
+    return { attempt:6, enter:false }; });
+  const lit=await stageAndRead();
+  ok(!!lit && lit.enter, 'STAGED: the spotlit card carried `.enter` through the reading, as a card dealt this round does'+
+     (lit && lit.enter ? (lit.attempt>1 ? '  [the hand re-rendered '+(lit.attempt-1)+'x first]' : '') : '  ← it never held through 6 tries'));
+  ok(!!lit && lit.enter && /240, 200, 80/.test(lit.shadow),
      '…and it visibly GLOWS — the gold ring is in its computed shadow, not only the class on it'+
-     (lit && /240, 200, 80/.test(lit.shadow) ? '' : '  ← REPRODUCED: no glow  ['+(lit ? lit.anim+' · '+lit.shadow.slice(0,60) : 'no card')+']'));
+     (lit && /240, 200, 80/.test(lit.shadow||'') ? '' : '  ← REPRODUCED: no glow  ['+(lit && lit.enter ? lit.anim+' · '+lit.shadow.slice(0,60) : 'no reading')+']'));
   await p.emulateMedia({ reducedMotion:'reduce' });   // no pulse there, so the static ring is the only glow
-  const still=await look();
-  ok(!!still && still.enter && /240, 200, 80/.test(still.shadow),
+  const still=await stageAndRead();
+  ok(!!still && still.enter && /240, 200, 80/.test(still.shadow||''),
      '…and with reduced motion on, where nothing pulses, the ring still shows'+
-     (still && /240, 200, 80/.test(still.shadow) ? '' : '  ← no glow  ['+(still ? still.anim+' · '+still.shadow.slice(0,60) : 'no card')+']'));
+     (still && /240, 200, 80/.test(still.shadow||'') ? '' : '  ← no glow  ['+(still && still.enter ? still.anim+' · '+still.shadow.slice(0,60) : 'no reading')+']'));
   await p.emulateMedia({ reducedMotion:'no-preference' });
   const why=await activateSpot();
   ok(why===null,'the ⚡ Activate control was offered and fired'+(why?' — '+why:''));
