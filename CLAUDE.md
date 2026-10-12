@@ -461,7 +461,10 @@ own shadow (same specificity, later in the sheet) beat the static ring, and a ca
 whose fly-in replaced the pulse. So How to Play's "select the glowing card" showed none (Aj, by hand), while
 every suite asserting the class stayed green. **When a step promises the player can SEE something, read the
 computed style**, and stage the states that change it (`.enter`, reduced motion). The class alone only tells you
-the script ran.
+the script ran. **And stage and read in ONE `evaluate`, on ONE element (2026-10-13):** adding `.enter` and then
+waiting out the fly-in from outside the page lost to a hand re-render — the rebuilt card had no `.enter`, so the
+check measured the ordinary case and went red in a sweep. Measured once it retried: the hand re-rendered inside
+that 700ms wait in 4 runs of 13. The page now keeps the element and re-stages when it is replaced.
 **A SCRIPTED LESSON MUST NAME THE CARDS EACH STEP ACCEPTS (v1.31.76), or a player who ignores the instruction
 dead-ends it.** The "The 2" lesson spends ten specific cards over three rounds, so a wrong play burns one the
 finale needs — Aj broke it in ninety seconds by leading something other than the Ace the step asked for. A step's
@@ -2217,6 +2220,11 @@ duration was missing. The drive stopped on the client's log while the client's c
 and an open visit records nothing (1 stop in 12 landed there, measured). **Read the pass/fail split before the
 message:** a presence check passing beside a 0ms duration points at the instrument. Both copies of the sampler
 (`mptest`, `nettest_ceremony`) now wait for the strip to leave the tints and flush what is open.
+**AND THE WAIT MUST KEEP THE GAME MOVING (2026-10-13).** The strip also sits on Clean-up, correctly, while a seat
+holds its end-of-round discard pick, and a plain wait cannot answer one: `nettest_ceremony`'s timed out in a
+sweep and 1 run in 8 after it, and its dump showed the client on "Discard 1" with the host parked on that pick.
+Both suites now drive while they wait, through one step in `fightclick.js` (`driveStep`, which was `mptest`'s
+`driveOnce`), so a pick is answered by the same code in both.
 
 **THE SWEEP'S SCHEDULING COST IS MEASURED, NOT DECLARED — AND THE LIST THAT DECLARED IT HAD SILENTLY
 INVERTED (2026-09-24).** `SLOW` drove BOTH the longest-first schedule and `--fast`, which are two different
@@ -2480,12 +2488,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.15 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 387s** (this line was
+Status as of **v1.33.15 — last FULL sweep 2026-10-13, `npm run sweep`, 124/124 in 385s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 12, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 10, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and

@@ -3,7 +3,7 @@
  * round 2 (combos legal), have the host win with a straight the client can't beat, and assert the client shows the
  * banner, logs the result, and its shield actually drops. (No Leyline, so the shield really falls.) */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickPass } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, driveStep } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8292),ROOM='CM'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -182,7 +182,27 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
       if((await roundOf(join)) > r0+1) break;
     }
   }
-  await waitFor(()=>join.evaluate(()=>window.__cur!=='spCleanup'), 50, 100);   // never stop inside Clean-up — see the sampler
+  /* What each board is waiting on, printed when the strip will not leave Clean-up — a red run should explain itself. */
+  const boardWhy=pg=>pg.evaluate(()=>{ const f=document.getElementById('fightBtn'), pb=document.getElementById('passBtn'), hw=document.getElementById('handWrap');
+    const t=el=>el?((el.textContent||'').trim().replace(/\s+/g,' ')+(el.disabled?' (off)':'')):'-';
+    return JSON.stringify({ strip:hw?(hw.className.match(/sp[A-Z][a-z]+/)||['-'])[0]:'-', fight:t(f), pass:t(pb),
+      cards:document.querySelectorAll('#hand .card').length, groups:document.querySelectorAll('#hand .group').length,
+      modal:!!document.querySelector('#overlay.show'), msg:t(document.getElementById('message')).slice(0,70), flags:window.__cmf.roundFlags() }); });
+  /* ⚠ AND THE WAIT MUST DRIVE, BECAUSE A CLEAN-UP PICK HOLDS THE STRIP FOR AS LONG AS NOBODY ANSWERS IT
+     (2026-10-13). The plain wait timed out in a sweep and 1 run in 8 after it, and the dump below said why on
+     the first catch: the CLIENT held 11 cards, its board read "Clean-up — over the hand limit (10). Discard 1",
+     and the host was parked on that pick (`trim:{player:1,need:1}`). The tint was CORRECT — the table really
+     was in Clean-up — and nothing in this suite answers a pick, so it sat there. `driveStep` is `mptest`'s
+     driver, moved to `fightclick.js` so both suites answer a pick with the same code. */
+  let leftCleanup=false, drove=0, pickAt=null;
+  for(let i=0; i<50; i++){
+    if(await join.evaluate(()=>window.__cur!=='spCleanup')){ leftCleanup=true; break; }
+    if(!pickAt) pickAt=await join.evaluate(()=>{ const m=document.getElementById('message'); return /over the hand limit/.test(m&&m.textContent||'') ? 'client' : null; })
+                    || await host.evaluate(()=>{ const m=document.getElementById('message'); return /over the hand limit/.test(m&&m.textContent||'') ? 'host' : null; });
+    await driveStep(host); await driveStep(join); drove++; await wait(150);
+  }
+  if(drove && leftCleanup) console.log('   ↳ stopped inside Clean-up'+(pickAt?' on the '+pickAt+'\'s end-of-round pick':'')+'; driving both seats moved the strip on after '+drove+' step(s)');
+  if(!leftCleanup) console.log('   ⏱ the client strip never left Clean-up, driving both seats\n   WHY: host '+await boardWhy(host)+'\n   WHY: join '+await boardWhy(join));
   const strip = await join.evaluate(()=>window.__seqStop());
   const sseen = new Set(strip.seq);
   ok(sseen.has('spResolve'),
