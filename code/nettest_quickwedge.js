@@ -33,6 +33,7 @@
  * Run: node nettest_quickwedge.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
+const { respQuicks, clickQuick } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8369),ROOM='QW'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -79,11 +80,7 @@ const armCast=(p,id)=>p.evaluate(cid=>{
 // step 2: tap the target. `.targetable` exists only while `targeting` is live, so this doubles as proof of step 1.
 // a tap STAGES the target and ⚡ Activate (#ctxBtn) casts it — confirm-first since equip-target-casts-without-confirm
 const tapTarget=p=>p.evaluate(()=>{ var t=document.querySelector('.targetable'); if(!t) return false; t.click(); var b=document.getElementById('ctxBtn'); if(!b||b.classList.contains('off')||!/Activate/.test(b.textContent)) return false; b.click(); return true; });
-const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
-const respondWith=(p,re)=>p.evaluate(src=>{
-  var b=[].slice.call(document.querySelectorAll('.respQuick')).filter(x=>new RegExp(src,'i').test(x.textContent))[0];
-  if(!b) return false; b.click(); return true;
-}, re);
+const respondWith=(p,re)=>clickQuick(p, re).then(t=>t!=null);   // visible buttons only — see fightclick.js
 
 (async()=>{
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node nettest_quickwedge.js'))); srv.listen(PORT,r); });

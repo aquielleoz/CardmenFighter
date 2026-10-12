@@ -22,6 +22,7 @@
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
+const { clickDecline } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8437),ROOM='PS'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;   // this suite's SUBJECT is a boundary window, which defaults OFF — see promptDefault
@@ -96,7 +97,7 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   ok(await until(()=>respOpen(join)), 'grant 1: the Respond? window opens');
 
   // ---- the player passes; the frame that would clear the signature never arrives
-  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await clickDecline(join);
   ok(await until(async()=>!(await respOpen(join))), 'the player passes and the window closes');
 
   /* THE RE-GRANT. Same oid, same holder, same card — only the generation differs. This is the assertion the
@@ -114,7 +115,7 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   /* THE NEGATIVE HALF. A signature that changed on EVERY mirror would pass everything above and destroy the
      de-dupe that stops fifty identical frames opening fifty modals — so re-injecting the SAME generation must
      be a no-op. Asserted by closing the window first: if the repeat re-opened it, that is the regression. */
-  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await clickDecline(join);
   await until(async()=>!(await respOpen(join)));
   await join.evaluate(m=>window.__cmf.inject(m), await mk(2));
   await wait(400);
@@ -125,7 +126,7 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
      INVISIBLE — not a crash, a silently parked table. Nothing mints one until step 11, which is exactly why it
      is injected here: otherwise this surface goes untested until the day it goes live. The WORDING is step
      14's; all this asserts is that the window opens and the player can act. */
-  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await clickDecline(join);
   await until(async()=>!(await respOpen(join)));
   const aOl=await appliedCount(join);
   const objectless=await join.evaluate((q)=>{
@@ -180,7 +181,7 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   const leadText = () => join.evaluate(() => { const p=document.querySelector('#modal p'); return p?p.textContent:''; });
   const stackText = () => join.evaluate(() => { const v=document.getElementById('stackView'); return (v && v.style.display!=='none') ? v.textContent : ''; });
 
-  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await clickDecline(join);
   await until(async()=>!(await respOpen(join)));
   const aFe=await appliedCount(join);
   await join.evaluate(m=>window.__cmf.inject(m), await feWindow(3, [0], ++seq));
@@ -215,7 +216,7 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
 
   /* AT ZERO SHIELDS IT IS THE KICK, and saying "a shield" there would understate the only decision that
      can end the game. Same window, one field different. */
-  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await clickDecline(join);
   await until(async()=>!(await respOpen(join)));
   await join.evaluate(m=>window.__cmf.inject(m), await feWindow(0, [0], ++seq));
   ok(await until(()=>respOpen(join)), 'fight end copy: the window re-opens at 0 shields');

@@ -45,7 +45,7 @@
  * Run: node nettest_brake.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight } = require('./fightclick');
+const { clickFight, respQuicks, clickQuick } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8388),ROOM='BR'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -55,7 +55,6 @@ const EN=(n,s)=>Array.from({length:n},(_,i)=>D(2,s,'e'+s+i));
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,110)); }
 async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 
-const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
 /* A RED RUN MUST EXPLAIN ITSELF — CLAUDE.md's standing rule, and the one that turned `nettest_guard` from
    three investigations into one red run. Everything the brake reads, plus what the player would see. */
 const why=p=>p.evaluate(()=>({
@@ -65,7 +64,7 @@ const why=p=>p.evaluate(()=>({
   fightLabel:((document.getElementById('fightBtn')||{}).textContent||'').trim(),
   passDisabled:!!((document.getElementById('passBtn')||{}).disabled),
   hand:document.querySelectorAll('#hand .card').length,
-  modal:!!document.querySelector('.respQuick,#respDecline')
+  modal:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
 }));
 const held=p=>p.evaluate(()=>/pass is on hold/i.test((document.getElementById('message')||{}).textContent||''));
 const clickPassBtn=p=>p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled){ b.click(); return true; } return false; });
@@ -182,7 +181,7 @@ async function lead(p, id, other){
     cer:window.__cmf.ceremony(),
     h:[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.getAttribute('data-id')).join(','),
     rs:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
-    m:!!document.querySelector('.respQuick,#respDecline')
+    m:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
   }));
   async function quiet(){
     let last=null, same=0;
@@ -242,7 +241,7 @@ async function lead(p, id, other){
   const offered = await until(async()=>(await respQuicks(join)).length>0, 60);
   ok(offered, '  the host\'s Pass opened the Main → Fight window and the CLIENT was offered it' +
      (offered ? '  ['+(await respQuicks(join)).map(t=>t.split(' ')[0]).join('|')+']' : '  ← nothing offered; check `prompts=all` and the ♣ energy'));
-  await join.evaluate(()=>{ const q=document.querySelector('.respQuick'); if(q) q.click(); });
+  await clickQuick(join);
   const wasHeld = await until(async()=>await held(host), 60);
   ok(wasHeld, 'SOMEONE ELSE CAST — THE PASS IS HELD, and the board says so' +
      (wasHeld ? '' : '  ← the pass completed through a rival cast; host: '+JSON.stringify(await why(host))));
@@ -273,7 +272,7 @@ async function lead(p, id, other){
   const selfOffered = await until(async()=>(await respQuicks(host)).length>0, 60);
   ok(selfOffered, '  the host\'s own Pass opened the window for the host itself' +
      (selfOffered ? '  ['+(await respQuicks(host)).map(t=>t.split(' ')[0]).join('|')+']' : '  ← nothing offered; the leg below would pass vacuously'));
-  await host.evaluate(()=>{ const q=document.querySelector('.respQuick'); if(q) q.click(); });
+  await clickQuick(host);
   /* NOT VACUOUS: prove the cast actually happened before reading the brake. A cast that was refused leaves
      the mark unchanged for the RIGHT reason and the assertion below would pass on a broken build. */
   const reallyCast = await until(async()=>!(await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="h9D"]'))), 60);
@@ -300,7 +299,7 @@ async function lead(p, id, other){
   const hostOffered = await until(async()=>(await respQuicks(host)).length>0, 60);
   ok(hostOffered, '  the CLIENT\'s pass opened the window, and the HOST was offered it' +
      (hostOffered ? '' : '  ← nothing offered; host: '+JSON.stringify(await why(host))));
-  await host.evaluate(()=>{ const q=document.querySelector('.respQuick'); if(q) q.click(); });
+  await clickQuick(host);
   await until(async()=>!(await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="h9D"]'))), 60);
   /* THE CLIENT'S PASS MUST NOT HAVE BEEN COMPLETED. Read the CLIENT's own frame: its seat is rotated to 0,
      so "still my turn" is `turn()===0` there. A completed pass hands the turn away and ends the round. */

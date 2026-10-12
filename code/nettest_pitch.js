@@ -17,7 +17,7 @@
  *
  * Run: node nettest_pitch.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { clickFight } = require('./fightclick');
+const { clickFight, clickQuick } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8461),ROOM='BP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -52,10 +52,10 @@ let host, join;
   await host.evaluate(()=>{ const a=document.getElementById('cardActivate'), x=document.getElementById('ctxBtn'); if(a&&a.offsetParent&&!a.disabled) a.click(); else if(x&&!x.disabled) x.click(); });
   // the host may hold priority first on its own cast — decline it
   const btns=await (async()=>{ for(let i=0;i<80;i++){ await host.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent) d.click(); });
-      const bs=await join.evaluate(()=>[...document.querySelectorAll('.respQuick[data-pitch]')].map(b=>({pitch:b.getAttribute('data-pitch'), text:b.textContent.replace(/\s+/g,' ')})));
+      const bs=await join.evaluate(()=>[...document.querySelectorAll('.respQuick[data-pitch]')].filter(b=>b.offsetParent!==null).map(b=>({pitch:b.getAttribute('data-pitch'), text:b.textContent.replace(/\s+/g,' ')})));
       if(bs.length) return bs; await wait(150); } return []; })();
   ok(btns.length===2 && btns.some(x=>x.pitch==='c10H') && btns.some(x=>x.pitch==='c1S'), 'the Respond? window offers ONE BUTTON PER BROADWAY CARD  ['+btns.map(x=>x.text.trim()).join(' | ')+']');
-  await join.evaluate(()=>{ const b=document.querySelector('.respQuick[data-pitch="c1S"]'); if(b) b.click(); });
+  await clickQuick(join, null, '.respQuick[data-pitch="c1S"]');
   ok(await until(async()=>(await clientHand()).indexOf('c7C')<0, 60), 'the client cast Armor Piercing through the host');
   const h1=await clientHand();
   ok(h1.indexOf('c1S')<0 && h1.indexOf('c10H')>=0, 'the pitch it CHOSE left — the Ace — and the 10 (the default) stayed  ['+h1+']');

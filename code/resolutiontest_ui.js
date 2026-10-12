@@ -31,7 +31,7 @@
  * Run: node resolutiontest_ui.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { selectAndFight, clickFight, clickPass } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
 const path = require('path');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -60,7 +60,7 @@ const clearTransition = p => p.evaluate(() => {
 });
 const modalText = p => p.evaluate(() => { const m = document.getElementById('modal');
   return (m && m.offsetParent) ? (m.textContent || '').replace(/\s+/g, ' ') : null; });
-const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll('.respQuick')).map(b => b.textContent.replace(/\s+/g, ' ')));
+const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed window leaves its own behind (fightclick.js)
 
 (async () => {
   const b = await chromium.launch(LAUNCH);
@@ -125,7 +125,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
 
     // (a) DECLINE — the control. Without it "you survived" below is true of a board that was never lethal.
-    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    await clickDecline(p);
     const died = await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st.finished; }));
     ok(died, 'A · CONTROL: declining, the kick lands and the game ends — the staging really was lethal');
     await p.close(); }
@@ -137,8 +137,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await clearTransition(p);
     await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
     await until(async () => !!(await modalText(p)));
-    const clicked = await p.evaluate(() => { const y = [].slice.call(document.querySelectorAll('.respQuick'))
-      .filter(x => /Sanctuary/i.test(x.textContent))[0]; if (y) { y.click(); return true; } return false; });
+    const clicked = !!(await clickQuick(p, /Sanctuary/i));
     ok(clicked, 'A · the same board again — this time Sanctuary is cast');
     /* THE ROUND MUST RESOLVE BEFORE "you survived" MEANS ANYTHING — with the go-round open the outcomes have
        not run, so `finished === false` would be true merely because nothing had happened yet. This is the
@@ -214,8 +213,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(offered.some(t => /Armor Piercing/i.test(t)),
        'B · …and Armor Piercing is among its Quicks' + (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
 
-    await p.evaluate(() => { const y = [].slice.call(document.querySelectorAll('.respQuick'))
-      .filter(x => /Armor Piercing/i.test(x.textContent))[0]; if (y) y.click(); });
+    await clickQuick(p, /Armor Piercing/i);
     const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
     ok(done, 'B · the round resolved after the cast');
     const cast = await p.evaluate(() => window.__solo.st().players[1].shields);
@@ -245,7 +243,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        vacuity this suite already guards against elsewhere. */
     for (let i = 0; i < 40; i++) {
       if (await p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; })) break;
-      await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
+      await clickDecline(p);
       await wait(150);
     }
     const dec = await p.evaluate(() => window.__solo.st().players[1].shields);
@@ -280,7 +278,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        GREEN on exactly the build this scenario exists to fail — it took the next assertion, reading
        `[New Duel]` off the buttons, to notice. `#respDecline` is the response window's own control and
        the end screen has none. */
-    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    const up = await until(() => windowUp(p));
     ok(up, 'C · THE OVERRIDE FIRES — `resolution` is unticked for Sanctuary and the window opens regardless, because this shield is about to break' +
        (up ? '' : '  ← no Respond? window; the kick landed unanswered'));
     const offered = await quickBtns(p);
@@ -302,7 +300,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        (line ? '  [' + line.slice(0, 110) + ']' : '  ← no window-shown line; a log cannot explain a prompt that fired'));
     /* THE BOARD WAS REALLY LETHAL — the same control A carries. Without it, "a window opened" is equally
        true of a staging where nothing was ever at stake. */
-    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    await clickDecline(p);
     const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
     ok(died, 'C · CONTROL: declining the forced window still ends the game — the shield really was on the line');
     await p.close(); }
@@ -328,7 +326,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     if (!await freshGame(p)) ok(false, 'C2 · a board where the shield about to break is the RIVAL\'s');
     await stagePierce(p);
     await leadAces(p);
-    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    const up = await until(() => windowUp(p));
     ok(up, 'C2 · THE OVERRIDE FIRES FOR THE STRIKER — `resolution` is unticked and the window opens anyway, because a shield is about to break and Armor Piercing changes it' +
        (up ? '' : '  ← no Respond? window; the strike landed at 1 and the preference decided it'));
     const offered = await quickBtns(p);
@@ -393,7 +391,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
     ok(died, 'C4 · the kick LANDED — OFF let the shield break with the answer in hand' +
        (died ? '' : '  ← the game did not end; the board may never have reached resolution'));
-    const up = await p.evaluate(() => !!document.getElementById('respDecline'));
+    const up = await p.evaluate(() => !!document.getElementById('respDecline'));   // PRESENCE on purpose: "ever opened" — a closed window's button still counts (fightclick.js)
     ok(!up, 'C4 · …and no window ever opened, though C proves this very board forces one on AUTO' +
        (up ? '  ← REPRODUCED: OFF did not reach `shieldSaveOverride`' : ''));
     /* THE CONDITION THAT MAKES OFF DEFENSIBLE AT ALL. Silent is fine; unexplainable is not — a saved log
@@ -445,10 +443,10 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     });
     ok(staged === 'on', 'C5 · staged — Armor Piercing is unticked at `resolution` and notifications are ON');
     await leadAces(p);
-    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    const up = await until(() => windowUp(p));
     ok(up, 'C5 · the window opens ANYWAY — ON beats the per-card untick' +
        (up ? '' : '  ← REPRODUCED: an untick survived the mode whose point is that nothing is silenced'));
-    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    await clickDecline(p);
     await p.close(); }
 
   // ------------------------------------------------- C6 · THE CONTROL CYCLES AND REMEMBERS
@@ -549,7 +547,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await until(async () => { how = await cast(); return how === 'icon' || how === 'ctx'; }, 40);
     ok(how === 'icon' || how === 'ctx', `C8 · you cast it (via ${how})`);
     await wait(1200);
-    const stopped = await p.evaluate(() => !!document.getElementById('respDecline'));
+    const stopped = await p.evaluate(() => !!document.getElementById('respDecline'));   // PRESENCE on purpose, as in C4: this page has had no window, so any button is one that opened
     ok(!stopped, 'C8 · AUTO did NOT stop you to answer your own cast' +
        (stopped ? '  ← REPRODUCED: a modal on every Technique you play, asking whether to counter yourself' : ''));
     await p.close(); }
@@ -585,10 +583,22 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     });
     await until(async () => { how2 = await cast2(); return how2 === 'icon' || how2 === 'ctx'; }, 40);
     ok(how2 === 'icon' || how2 === 'ctx', `C8b · the same cast, on ON (via ${how2})`);
-    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')), 40);
+    const up = await until(() => windowUp(p), 40);
     ok(up, 'C8b · ON DOES stop you — holding priority over your own cast is the rule, and ON is where it shows' +
        (up ? '' : '  ← C8 would be passing because the window is gone, not because AUTO is quiet'));
-    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); window.__solo.setPromptMode('auto'); });
+    await clickDecline(p); await p.evaluate(() => window.__solo.setPromptMode('auto'));
+    /* THE LEFTOVER IS REAL, AND THE SHARED READS CANNOT SEE IT (respquick-hidden-button-clicks, 2026-10-12). The
+       window just closed, and its buttons are still in the page: the trap a plain `querySelector` walked into
+       across twenty suites. Asserted both ways off one quiet board — it is your turn and the Rival holds
+       nothing — so the DOM really holds the stale buttons, and `respQuicks`, `windowUp` and `clickQuick` all
+       refuse them. Without the first half, "the helpers see nothing" is also true of a page with no buttons. */
+    const closed = await until(() => p.evaluate(() => !document.getElementById('overlay').classList.contains('show')), 40);
+    const left = await p.evaluate(() => ({ quick: document.querySelectorAll('.respQuick').length, decline: !!document.getElementById('respDecline') }));
+    const seen = await respQuicks(p), upNow = await windowUp(p), pressed = await clickQuick(p);
+    ok(closed && left.quick > 0 && left.decline && seen.length === 0 && !upNow && pressed === null,
+       `C8b · the closed window's buttons are still in the page (${left.quick} Quick, decline ${left.decline}) and the shared reads see none of them` +
+       (closed && left.quick > 0 && left.decline ? '' : '  ← the board has no stale buttons to refuse; this check is vacuous') +
+       (seen.length || upNow || pressed !== null ? `  ← REPRODUCED: respQuicks [${seen.join(' | ').slice(0, 60)}] windowUp ${upNow} clicked "${pressed}"` : ''));
     await p.close(); }
 
   // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
@@ -673,10 +683,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(await until(async () => !!(await modalText(p))), 'F · the resolution window opens');
     /* Click by NAME, not by index — the offer list is ordered by hand order and a reorder would silently
        cast the wrong card while every assertion below still passed. */
-    const castByName = async (re) => p.evaluate((src) => {
-      const b = [].slice.call(document.querySelectorAll('.respQuick')).filter(x => new RegExp(src, 'i').test(x.textContent))[0];
-      if (b) { b.click(); return true; } return false;
-    }, re);
+    const castByName = async (re) => !!(await clickQuick(p, re));   // a string matches without case, as before
     /* A RED RUN HERE MUST EXPLAIN ITSELF. The first draft asserted "depth >= 2" and reported only that it
        was not, which is indistinguishable between "the click missed", "the cast was refused" and "the
        object resolved before the next window opened" — three different bugs. `snap` is sampled after every

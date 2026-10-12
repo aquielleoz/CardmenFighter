@@ -11,7 +11,7 @@
  * hand picker, not an overlay, and that is precisely what wedged the earlier driver.
  * Run: node nettest_actloop.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, enterFight, clickDecline } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8331),ROOM='AL'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -165,7 +165,7 @@ const boardUsable=p=>p.evaluate(()=>{
     const ov=document.getElementById('overlay');
     return !!(ov && ov.classList.contains('show') && document.getElementById('respDecline'));
   }), 30);
-  if(offered) await host.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d)d.click(); });
+  if(offered) await clickDecline(host);
   /* This was `ok(true, ...)` — not an assertion at all, just a branch report. Both branches are legitimate, so
    * assert the invariant that holds EITHER WAY: after this step the host must have no response window left
    * open. A stuck overlay wedges play, which is exactly the failure mode this suite exists for. */

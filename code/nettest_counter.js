@@ -1,7 +1,7 @@
 /* Deterministic netplay COUNTER: host casts a Technique (Gather Energy 1D); the remote client, holding Counter
  * Spell (4D), sees the response modal appear from the mirror and Counters over the wire. Verifies the modal pops
  * on the client, the counter round-trips, the Technique is negated, and both boards stay error-free and in sync. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const { clickQuick, clickDecline } = require('./fightclick'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8280),ROOM='C'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -34,7 +34,7 @@ async function modalUp(p){ return p.evaluate(()=>!!(document.getElementById('ove
   ok(popped,'client response modal appeared from the mirror');
 
   // Client clicks the Counter Spell quick button.
-  const clicked=await join.evaluate(()=>{ var q=document.querySelector('.respQuick'); if(q){ q.click(); return q.textContent.slice(0,20); } var d=document.getElementById('respDecline'); if(d){ d.click(); return 'declined'; } return null; });
+  let clicked=await clickQuick(join); clicked = clicked!=null ? clicked.slice(0,20) : ((await clickDecline(join)) ? 'declined' : null);
   ok(clicked && /Counter/i.test(clicked),'client sent a Counter over the wire ('+clicked+')');
   await wait(900);
 
