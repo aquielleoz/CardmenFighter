@@ -431,13 +431,53 @@ the Exile) agrees with leaving it there.
   cards outright, against 3 in 300 when Techniques recycle. A real effect, but small: about one game in 14.
 - **"Without noticing" was the missing viewer, and it shipped in v1.33.11:** the ⊘ button opens the pile — named
   the **Exile** since v1.33.10 — on your bar, the rival's and every opponent panel. Nothing here contradicts
-  that it was the whole answer; the ♦ lead it raised lives on as `diamond-multiplayer-reclaim-lead`.
+  that it was the whole answer. The ♦ lead it raised was measured on 2026-10-12 and does not hold in the
+  shipped game: [Wizard at six players](#diamond-6p).
 
 **AN INSTRUMENT NOTE THAT COST A WRONG TABLE.** The first cut read "deck-out" as "eliminated with shields
 left and no cards", and printed **0.00 at every count**. A forced deck-out at 3 players was not counted,
 because `eliminatePlayer` zeroes the shields: read after the step, every N-player deck-out looked like a
 kick. It now reads the shields from before the step. The duel path was right all along, which is why only
 forcing the N-player case found it.
+
+## Wizard at six players, and what recycling Techniques does to each deck (2026-10-12) <a id="diamond-6p"></a>
+
+**The lead was "♦ is strong at six players because reclaim refuels a deck that thins fastest there", and it does
+not hold in the shipped game.** Measured with `node flagpair.js games=4000 players=6 seed=11` and `seed=22`:
+knight self-play, a random deck per seat, every deal played twice (Techniques to the Exile, as shipped; then to
+the Shuffle Pile, `recycle`) with the rng and `Math.random` pinned per game. The control (both arms shipped)
+flipped **0 of 400** games. A deck's change is read over its flipped games, z = net / √flips, both seeds pooled.
+
+| deck | win %, shipped (seed 11 · 22) | win %, recycle on | net (pooled) | flips | z |
+| --- | --- | --- | --- | --- | --- |
+| Paladin (Cle+Fig) | 23.1 · 24.7 | 20.0 · 19.9 | −169 | 1409 | **−4.50** |
+| Pure Cleric | 22.3 · 23.2 | 20.2 · 21.4 | −84 | 1382 | −2.26 |
+| Sage (Wiz+Cle) | 19.8 · 18.6 | 21.0 · 23.2 | +127 | 1249 | **+3.59** |
+| Bard (Cle+Rog) | 19.0 · 17.3 | 24.0 · 21.9 | +211 | 1239 | **+5.99** |
+| Pure Fighter | 16.4 · 17.3 | 12.3 · 14.1 | −158 | 1010 | **−4.97** |
+| Mage Knight (Wiz+Fig) | 15.6 · 16.2 | 14.3 · 15.1 | −52 | 1042 | −1.61 |
+| Full Set | 15.5 · 16.7 | 17.5 · 17.5 | +59 | 1097 | +1.78 |
+| Berserker (Fig+Rog) | 15.1 · 13.7 | 13.4 · 12.0 | −76 | 952 | −2.46 |
+| Warlock (Wiz+Rog) | 13.1 · 12.8 | 14.1 · 13.5 | +36 | 916 | +1.19 |
+| **Pure Wizard** | **12.6 · 11.7** | 15.9 · 14.1 | +127 | 959 | **+4.10** |
+| Pure Rogue | 11.2 · 11.5 | 10.9 · 10.8 | −21 | 775 | −0.75 |
+
+Fair share is 16.7%. About three games in four change winner between the arms (3004 and 3011 of 4000), and the
+median length does not move (30–31 rounds either way).
+
+**What it settles:**
+- **In the shipped game Pure Wizard is 10th of 11 at six players**, about 12%. The Cleric decks lead (Paladin and
+  Pure Cleric about 23–24%), and the spread is about 13 points, in line with the 12.3 recorded in PATCHNOTES for
+  the base rules. **The "♦ strength" was a property of the reverted `loss=all` variant**, where PATCHNOTES has Pure
+  Wizard first at 35.2%. The lead outlived the rule that produced it.
+- **Its premise is half stale.** The only base reclaim card is **♣8 Instant Recovery** (Fighter). ♦'s economy
+  card is ♦A Gather Energy (ramp), and ♦ reaches reclaim only through a Super-mode patch.
+- **Recycling Techniques helps Wizard rather than costing it** (+2.9 points, z +4.1), the opposite of the
+  hypothesis's direction: a Technique-heavy deck gets its spells back. Bard gains most (+4.8) and Sage gains
+  (+2.9). Paladin (−4.0) and Pure Fighter (−3.6) lose most.
+- **It is not a balancing lever.** It reshuffles the order and leaves the spread about where it was (≈13 points,
+  Bard and Sage on top, Rogue at the bottom), and it does not change game length. If `recycle` is ever proposed,
+  this table says who it moves.
 
 ## A Broadway pitch banks to energy — measured on identical deals (2026-10-12) <a id="pitch-to-energy"></a>
 
