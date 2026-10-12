@@ -3728,6 +3728,13 @@ with the identical commit.
 the repair is a cross-reference on it naming the successor and the merge commit; anything else rewrites a
 record that is still accurate. A future reader's problem is not that the work vanished, it is that a closed
 PR with no link reads as abandoned.
+**AND THE BACKLOG GATE CHECKS A NEW STACKED BRANCH FROM `main`, NOT FROM ITS PARENT (2026-10-12).** When the
+remote ref does not exist yet, `baseFor` falls back to the nearest integration branch, so the first push of a
+child branch re-checks the PARENT's commits against the CHILD's tip — and a parent's `Backlog: updates X` fails
+the moment the child closes X (#401 hit exactly that). Every claim is true at its own commit; the gate just
+cannot see the stack. **Push the stack's base first, then the child:** `git push origin <parent-sha>:refs/heads/<child>`
+re-checks the parent against its own tip, and `git push -u origin <child>` then checks only the child's commits.
+That is the gate working on the right range, not an escape from it.
 
 **Merge with `gh pr merge --merge --delete-branch`,** then prune locally:
 
