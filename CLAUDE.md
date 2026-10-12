@@ -239,7 +239,12 @@ node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHI
                                                 # UPKEEP INCLUDED (9). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
                                                 # STALLED Upkeep (nobody on priority) must stay live too
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (125)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (127).
+                                                # Its last leg FORCES what its phase-strip driver once stalled on — an AI
+                                                # discard aimed at you — and drives it with that same `driveOnce`. The
+                                                # staging: the AI's hand holds nothing else castable and its own rule for
+                                                # the card holds (Telekinesis: a rival on 5+ cards), and a Knight aims a
+                                                # targeted effect at a seat on ONE shield (`chooseTarget` takes the kill)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (32)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
@@ -2461,7 +2466,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 713, `netview` 74, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 713, `netview` 74, `mptest` 127, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
