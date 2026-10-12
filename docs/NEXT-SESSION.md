@@ -654,12 +654,24 @@ never read.*
 
 ### Tooling
 
-- `ready to build`      · **A CLIENT'S TRANSFORM THAT OPENS A WINDOW FOR ANOTHER SEAT IS DRIVEN BY NO SUITE.**
-  `nettest_ridewedge` drives the HOST's own transform and the client's window. The other direction, a client
-  transform opening a window for the host or a third seat, is still undriven, and both defects the stack-model
-  build's transform piece exposed were in driver code of exactly that kind. Moved here 2026-10-09 from the
-  handoff's START HERE, where it sat as a "not done" note nobody actions.
-  `[id: client-transform-window-undriven]`
+- `ready to build`      · **SUITES CLICK RESPOND? BUTTONS THAT ARE NO LONGER ON SCREEN (2026-10-12).**
+  `hideOverlay` removes the overlay's `show` class and leaves the modal's buttons in the DOM until the next
+  `showModal` replaces them, and `.click()` on a hidden button still runs its handler. So a suite that polls
+  `querySelector('.respQuick…')` and clicks finds the PREVIOUS window's button the moment it looks.
+  **MEASURED ONCE, ON THE DAY IT WAS FOUND:** `nettest_clientride`'s first cut "cast" Armor Piercing 3ms after
+  the Ride, before the host held priority; the engine answered *"No response window."*, the real window then
+  opened unwatched, `netwindows` passed it after its grace, and the leg went **green having cast nothing**. It
+  was caught only because the order of windows the suite printed contradicted its own comment.
+  **THE EXPOSURE, by grep: about 30 call sites in 20 suites check presence and never visibility.** Most
+  exposed are bare `.respQuick` selectors (any earlier window's button matches) and the
+  `modal:!!document.querySelector('.respQuick,#respDecline')` probes, which read TRUE for the rest of the game
+  after the first window. Whether a given site can actually be fooled depends on what window came before it
+  on that page, which nobody has checked site by site — the only MEASURED instance is the one above. All of
+  these suites are green in the sweep, which says the leftover is not winning there today, not that it can't.
+  **The remedy is one helper, not twenty edits:** a visible-only query (`b.offsetParent !== null`, the
+  `#respDecline` checks already use it) shared from `fightclick.js` or `netwindows.js`, then each site
+  switched to it, A/B'd by leaving a stale modal up. `nettest_clientride`/`nettest_clientride3` already do it.
+  `[id: respquick-hidden-button-clicks]`
 
 - `needs a measurement` · **`nettest_sync` SOMETIMES NEVER STARTS ITS GAME UNDER `-j 4` (2026-10-08).** Two runs
   in 54 at four lanes, on v1.33.0 and v1.33.1 builds, timed out in `startDuel` (*"waited for both boards to

@@ -119,6 +119,14 @@ node nettest_heldplay.js                        # A HELD FIGHT, BOTH SEATS (22).
                                                 # will not cast on demand. Leg B (the client) was red on v1.32.3:
                                                 # the host re-applied its play. `nettest_heldplay3` (11) is
                                                 # `hostApplyMoveN`'s copy, which a duel never reaches
+node nettest_clientride.js                      # A CLIENT CALLS A RIDE AND THE HOST GETS THE WINDOW (35) — the
+                                                # direction `nettest_ridewedge` does not drive. Declined,
+                                                # answered, and answered with the client asked AGAIN (the
+                                                # counter-back park on `netSettle`); every leg then requires the
+                                                # client's board back and the host parked on it.
+                                                # `nettest_clientride3` (26) is `hostApplyMoveN`'s copy: ANOTHER
+                                                # client holds the window, and the host's own modal opens in the
+                                                # middle of it. Both A/B'd by deleting the hand-back / `driveN()`
 node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET (7) — "→ Tank’s Spiked Armor",
                                                 # "→ your Holy Bow", "→ You"; NOT the other piece on the same
                                                 # seat; an untargeted row unchanged. The board's #stackView and
@@ -816,6 +824,21 @@ vs client) and every assertion was TRUE. **No DOM assertion can see a stacking b
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
+
+**A CLOSED WINDOW KEEPS ITS BUTTONS, SO A SUITE CAN CLICK ONE THAT IS NOT THERE (2026-10-12).** `hideOverlay`
+only hides the overlay; the modal's `.respQuick` buttons stay in the DOM until the next window replaces them,
+and `.click()` on a hidden button still runs its handler. `nettest_clientride`'s first cut polled for the
+host's Armor Piercing button, found the PREVIOUS leg's, "cast" 3ms after the Ride, got *"No response window."*,
+and went **green having cast nothing** — the real window opened later and `netwindows` passed it. **Query a
+window's buttons by VISIBILITY (`offsetParent !== null`), never by presence**; ~30 older call sites do not, filed
+as `[id: respquick-hidden-button-clicks]`. It surfaced only because the suite printed the ORDER of the windows
+it drove and the order contradicted the suite's own comment — **print what a driving loop did, not just
+whether it finished.**
+**AND STAGE AFTER THE HOST'S OPENING ROUND CARD, NOT BEFORE.** `startDuel` returns once the hands are dealt,
+while the host's "Round 1" card is still flying; when it lands, `startGame` calls `driveRival()` if the turn is
+not the host's — so a suite that forces the turn to a client straight after the deal gets the host parked on
+that client by the game, ~1.2s later, whatever the code under test did. It rescued a build with the hand-back
+deleted, in exactly one leg of three. `fin()` clears `#roundfx`; wait for that.
 
 **TWENTY GREEN NETPLAY SUITES COULD NOT SEE A FORKED DUEL, AND THE REASON IS STRUCTURAL.** Aj, 2026-08-28:
 *"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*. Two
@@ -2413,7 +2436,7 @@ the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
 note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
-the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 121 with `nettest_parity`, `nettest_roundlock`, `deckouttest` and `nettest_strip`.) (four lanes; background
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 123 with `nettest_parity`, `nettest_roundlock`, `deckouttest`, `nettest_strip` and the `nettest_clientride` pair.) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2423,12 +2446,12 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 75 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 77 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 12, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 15, `drawfizzle` 12, `respondtarget3` 8, `ping` 10.
+`target3` 12, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 15, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
