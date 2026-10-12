@@ -729,7 +729,10 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       return { round:s&&s.round, turn:s&&s.turn, sub:s&&s.subPhase, respondFor:s&&s.respondFor, pending:!!(s&&s.pending), discard:s&&s.discardPending, cleanup:!!(s&&s.cleanup), resolution:!!(s&&s.resolution),
                fight:f&&(f.textContent.trim()+(f.disabled?' (off)':'')), pass:pb&&(pb.textContent.trim()+(pb.disabled?' (off)':'')),
                hint:(document.getElementById('hint')||{}).textContent, msg:(document.getElementById('message')||{}).textContent, modal:!!document.querySelector('#overlay.show') }; })));
-    await waitFor(()=>p.evaluate(()=>!/^sp(Resolve|Cleanup|Begin)$/.test(window.__cur||'')), 50);   // never stop inside a ceremony tint
+    /* NEVER STOP INSIDE A CEREMONY TINT, AND KEEP DRIVING WHILE WAITING. The drive above stops the moment round
+       3 ends, so a Resolution window can be left waiting on YOUR answer with the strip on spResolve; a bare wait
+       timed out there in the 2026-10-12 sweep (green, but a timeout line in a passing suite misleads). */
+    for(let i=0;i<50;i++){ if(await p.evaluate(()=>!/^sp(Resolve|Cleanup|Begin)$/.test(window.__cur||''))) break; await driveOnce(); await wait(150); }
     const { seq, dur } = await p.evaluate(()=>window.__seqStop());
     const seen = new Set(seq);
     ['spIdle','spMain','spFight','spResolve','spCleanup','spBegin'].forEach(c=>{
