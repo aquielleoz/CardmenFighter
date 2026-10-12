@@ -617,16 +617,6 @@ never read.*
   make a stuck board take longer to report.
   `[id: mptest-3p-round-never-resolves]`
 
-- `needs a measurement` · **`mptest`'S PHASE-STRIP DRIVER STALLED UNDER LOAD — CAUSE FOUND BY ITS OWN STALL LINE, DRIVER
-  FIXED, NOT YET SEEN TO HOLD** (2026-10-05). Seven reds once, sequence stopping at `spFight → spIdle → spMain →
-  spFight → spIdle`, 3/3 clean alone. An idle exit now prints `⚠ PHASE-STRIP DRIVER STALLED`, and the very next
-  sweep named it: `discard:{player:0,count:2}`, Fight reading `Confirm (off)`, *"Rival forces a discard"*. An AI
-  forced a discard on the human seat, and the driver only clicked hand GROUPS — a pick renders bare cards
-  (CLAUDE.md, `pick mode`), so nothing could answer it. **A harness gap, not a product bug.** The driver now
-  selects eligible cards until Confirm lights. That branch only runs when an AI happens to force a discard, so
-  one green run says nothing: close this after a few sweeps print no stall line.
-  `[id: mptest-phase-strip-stalls-under-load]`
-
 - `needs a repro`       · **`nettest_ceremony`'S CLEAN-UP TINT READ 0ms ONCE UNDER A PARALLEL SWEEP** (2026-10-05, the
   v1.32.7 re-sweep): *"Clean-up stays on screen long enough to read — 0ms, floor 250"*, 13/1. Alone straight
   after: **4/4 at 613-720ms**, and green in the six earlier sweeps that day. 0ms means the client's sampler

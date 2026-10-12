@@ -668,6 +668,24 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
      that distinction is the entire bug. Kept as a suite rather than a probe because this repo has paid
      three times for throwaway diagnostics that could not be re-run.
      ⚠ ASSERT THE CLASS, NEVER THE COLOUR: the hues are becoming a player preference. */
+  /* ONE DRIVER STEP, SHARED BY THE PHASE-STRIP WATCH AND THE FORCED-DISCARD LEG AT THE END OF THIS FILE — so
+     that leg proves the branch this watch actually runs, never a copy of it. */
+  const driveOnce = () => p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
+    const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+    /* A PICK (a forced discard, the clean-up trim) RENDERS BARE CARDS, NO GROUPS — so the group loop below
+       can never answer it, and the driver sat there until the idle guard fired. Its own stall line named it
+       on the first sweep: `discard:{player:0,count:2}`, Fight reading "Confirm (off)". Select eligible cards
+       until Confirm lights, then confirm (mptest-phase-strip-stalls-under-load). */
+    if(fb && /Confirm/.test(fb.textContent)){
+      if(!fb.disabled){ fb.click(); return; }
+      for(const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))){ c.click(); if(!fb.disabled){ fb.click(); return; } }
+      return;
+    }
+    if(fb&&!fb.disabled){ fb.click(); return; }
+    for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){
+      g.click(); if(fb&&!fb.disabled){ fb.click(); return; }
+      const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); }
+    if(pb&&!pb.disabled) pb.click(); });
   if(await start3p()){
     await p.evaluate(()=>{ window.__seq=[]; window.__dur={}; let cur=null, t0=performance.now();
       window.__seqT=setInterval(()=>{
@@ -696,22 +714,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       if(prog.done) break;
       if(prog.round!==lastRound || prog.log!==lastSeq){ idle=0; lastRound=prog.round; lastSeq=prog.log; }
       else idle++;
-      await p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
-        const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
-        /* A PICK (a forced discard, the clean-up trim) RENDERS BARE CARDS, NO GROUPS — so the group loop below
-           can never answer it, and the driver sat there until the idle guard fired. Its own stall line named it
-           on the first sweep: `discard:{player:0,count:2}`, Fight reading "Confirm (off)". Select eligible cards
-           until Confirm lights, then confirm (mptest-phase-strip-stalls-under-load). */
-        if(fb && /Confirm/.test(fb.textContent)){
-          if(!fb.disabled){ fb.click(); return; }
-          for(const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))){ c.click(); if(!fb.disabled){ fb.click(); return; } }
-          return;
-        }
-        if(fb&&!fb.disabled){ fb.click(); return; }
-        for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){
-          g.click(); if(fb&&!fb.disabled){ fb.click(); return; }
-          const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); }
-        if(pb&&!pb.disabled) pb.click(); });
+      await driveOnce();
       await wait(450);
     }
     /* ⚠ AN IDLE EXIT EXPLAINS ITSELF (mptest-phase-strip-stalls-under-load, 2026-10-05). The signature above came
@@ -772,6 +775,56 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     ok(won.indexOf(names[1]+' won')>=0,
        'and the winner line NAMES the winner rather than saying "Rival won"  ['+won.split('\n')[2]+']');
     await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=false; s.winner=null; });
+  }
+
+  /* ============ THE PHASE-STRIP DRIVER ANSWERS A FORCED DISCARD (mptest-phase-strip-stalls-under-load) ============
+     The stall that filed that entry was an AI forcing a discard on YOUR seat mid-drive: a pick renders bare
+     cards, the driver only clicked groups, and the idle guard fired. The fix is the `Confirm` branch in
+     `driveOnce`, and it runs only when an AI happens to force a discard — so eight clean sweeps in one day
+     (2026-10-12) said nothing about it. This makes it happen through the real engine and the real picker, then
+     drives with `driveOnce` itself:
+     - the next AI holds Telekinesis (♦3, "Target Rival discards 2 cards") and the ♦ energy to cast it;
+     - YOU hold six cards with no pair and no Quick: the cast needs a rival on five or more after your jab, and
+       no window of yours gets in the way;
+     - YOU are on ONE shield and the other AI on three, so a Knight aims at you (`chooseTarget` takes the kill);
+     - the other AI holds no Quick and no energy — Counter Spell answers any threat, aimed at anyone. */
+  if(await start3p()){
+    await p.evaluate(()=>{
+      const st=window.__solo.st(), C=(r,s,t)=>({rank:r, suit:s, id:(t||'')+r+s});
+      const you=st.players[0], ai=st.players[1], other=st.players[2];
+      you.hand=[C(3,'C','y'),C(5,'C','y'),C(6,'S','y'),C(7,'H','y'),C(8,'C','y'),C(10,'S','y')]; you.shields=1;
+      ai.hand=[C(3,'D','tk'),C(2,'C','f'),C(2,'S','f')]; ai.energy=[]; for(let i=0;i<6;i++) ai.energy.push(C(3,'D','e'+i)); ai.forms=[]; ai.shields=3;
+      other.hand=[C(4,'S','o'),C(6,'H','o'),C(9,'C','o')]; other.energy=[]; other.forms=[]; other.shields=3;
+      st.round=3; st.turn=0; st.passes=0; st.lastPlayer=null; st.pile=null; st.preFightHandled=true;
+      st.pending=null; st.respondFor=null; st.stack=[]; st.prioPassed={}; st.resolution=null; st.discardPending=null;
+      window.__solo.render();
+    });
+    const snap=()=>p.evaluate(()=>{ const st=window.__solo.st(), fb=document.getElementById('fightBtn');
+      return { dp:st.discardPending ? { player:st.discardPending.player, count:st.discardPending.count } : null,
+               fight:fb ? fb.textContent.trim()+(fb.disabled?' (off)':'') : '', turn:st.turn, finished:!!st.finished,
+               hand:st.players[0].hand.map(c=>c.id), energy:st.players[0].energy.map(c=>c.id),
+               log:document.querySelectorAll('#log .le').length }; });
+    let sawPick=null, answered=null, idle=0, lastLog=-1, last=null;
+    for(let i=0;i<200 && idle<40;i++){
+      const s=await snap(); last=s;
+      if(s.finished) break;
+      if(!sawPick && s.dp && s.dp.player===0 && /Confirm/.test(s.fight)) sawPick=s;
+      if(sawPick && !s.dp){ answered=s; break; }
+      if(s.log!==lastLog){ idle=0; lastLog=s.log; } else idle++;
+      await driveOnce();
+      await wait(300);
+    }
+    ok(!!sawPick,
+       'STAGED: an AI forced a discard on YOUR seat in the middle of the drive — the picker opened with Fight reading "Confirm"'+
+       (sawPick ? '  [discard '+sawPick.dp.count+']' : '  ← it never opened, so the check below would be vacuous  '+JSON.stringify(last)));
+    const gone = sawPick && answered ? sawPick.hand.filter(id=>answered.hand.indexOf(id)<0) : [];
+    const moved = !!answered && await waitFor(async()=>(await p.evaluate(()=>document.querySelectorAll('#log .le').length)) > answered.log, 40);
+    ok(!!answered && gone.length===2 && gone.every(id=>answered.energy.indexOf(id)>=0) && moved,
+       'the shared driver answered it: the pick closed, 2 cards went from your hand to your energy pile, and play went on'+
+       (answered ? '  ['+gone.join(', ')+(moved?'':'  ← nothing happened after the pick')+']'
+                 : '  ← REPRODUCED: the driver never answered the pick ('+(idle>=40?'stalled, ':'')+JSON.stringify(last)+')'));
+  } else {
+    ok(false, 'could not start a 3-player game for the forced-discard leg');
   }
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
