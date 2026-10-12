@@ -15,6 +15,34 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.10 — a pitched Broadway card goes to your energy pile; the gone-for-good pile is the Exile
+
+**What you'll see:** when Ultima Attack, Armor Piercing or Critical Hit makes you discard a Broadway card (10, J,
+Q, K or A), that card now goes into your energy pile, where you can spend it, like every other discard in the
+game. It used to leave play for good. Instant Recovery's text under Hippolyta and under Ares's Super now calls the
+gone-for-good pile the **Exile**.
+
+- **Why:** Aj's rule (2026-10-12): *"discard is energy pile. only used techniques and destroyed equipments go to
+  the exile."* The card text always said "discard", and every other discard (Telekinesis, Outbalance,
+  Discombobulate, the clean-up down to 10) puts cards into the energy pile. Only the pitch went to the
+  gone-for-good pile, a v0.86 balance choice made to rein in Pure Fighter, so one word meant two destinations.
+  Now a discard always goes to the energy pile, and the Exile holds used Techniques and destroyed Equipment. A Ride
+  that Sabotage destroys counts as destroyed. Nothing else moves: worn-out Equipment already became energy, a
+  countered card still goes to the Shuffle Pile, and a disarm still sends Equipment where its text says.
+- **The pitched card can never pay for the cast that pitched it:** whether you can afford the cast is checked
+  before anything is pitched.
+- **Balance, measured on identical deals:** the 2-player class round-robin at 400 games per matchup. Both builds
+  played the same 26,400 games with randomness pinned per game; a self-check run of the old build against itself
+  matched exactly. 1,319 games (5%) changed winner. **Pure Fighter did not move** (+0.03 points). The biggest
+  mover is **Mage Knight (Wizard + Fighter), +1.6 points** (z 3.5); Warlock +0.75, Sage −0.9, Pure Cleric −0.8.
+  Game length is unchanged. For scale, adding the pitch cost in v0.86 moved Pure Fighter 3 points. Not measured
+  at 3–6 players.
+- **Testing.** The two `test.js` assertions that pinned the old destination are rewritten, not relaxed (`test`
+  707 → 711): the pitch must land in energy and not the Exile, and the used Technique itself must still be
+  exiled. On the old engine exactly the four destination checks fail. One new guard: nine energy and a Broadway
+  card in hand still cannot cast a 10-cost pitch card. It passes on the old engine too, because it pins the
+  invariant rather than the fix.
+
 ### v1.33.9 — the phase strip shows the right phase during the round wrap-up, on every screen
 
 **What you'll see:** the coloured phase strip under your hand now stays correct through the end of a round in two

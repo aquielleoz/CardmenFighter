@@ -399,6 +399,22 @@ The same runs with `recycle` (spent Techniques go to the Shuffle Pile instead of
 11 / 14 / 19 / 30, reshuffles per seat 0.39 / 1.05 / 2.22 / 5.03, Discarded per seat **0.7 / 1.0 / 1.4 /
 2.2** (pitches, Counter Spell's own card and destroyed Equipment still go there), deck-outs **0.01** at six.
 
+**RE-MEASURED 2026-10-12, WHEN THE BROADWAY PITCH STOPPED BEING LOST (v1.33.10).** A pitched Broadway card
+banks to the energy pile now, like every other discard, and the gone-for-good pile is called the **Exile**. Same
+command, both builds the same day. Today's v1.33.9 row is the baseline, not the table above: the v1.33.7–8 AI
+changes had already moved the 10-06 numbers by a few tenths.
+
+| players | exiled per seat, v1.33.9 → v1.33.10 | deck-outs per game | rounds (median) |
+| --- | --- | --- | --- |
+| 2 | 3.8 → 3.5 | 0.00 → 0.00 | 11 → 11 |
+| 3 | 4.7 → 4.3 | 0.00 → 0.00 | 14 → 14 |
+| 4 | 6.4 → 5.7 | 0.00 → 0.00 | 19 → 19 |
+| 6 | 8.7 → 7.7 | 0.08 → 0.09 | 30 → 30 |
+
+With `recycle` as well, only Counter Spell's and Annoint's own cards and destroyed Equipment are left to exile:
+0.3 / 0.4 / 0.6 / 1.0 a seat. **None of the conclusions below changes**: decks still thin with table size,
+length still does not move, and six-player deck-outs are still about one game in 12 (27 in 300 against 24).
+
 **What it settles:**
 - **Yes, decks thin, and the table size is the whole story.** In a duel the deck runs dry in about half of
   games and a seat loses ~4 cards for good. At six players every seat cycles 4-5 times, starting around
@@ -416,6 +432,42 @@ left and no cards", and printed **0.00 at every count**. A forced deck-out at 3 
 because `eliminatePlayer` zeroes the shields: read after the step, every N-player deck-out looked like a
 kick. It now reads the shields from before the step. The duel path was right all along, which is why only
 forcing the N-player case found it.
+
+## A Broadway pitch banks to energy — measured on identical deals (2026-10-12) <a id="pitch-to-energy"></a>
+
+Aj's rule, v1.33.10: *"discard is energy pile. only used techniques and destroyed equipments go to the exile."*
+The pitch had gone to the gone-for-good pile since v0.86, chosen then as "a real sacrifice" that pulled Pure
+Fighter from ~61% to ~58%. So the question was whether undoing the destination undoes that balance move.
+**It does not.** The pitched card still leaves your hand; you only get it back as one energy.
+
+**Method: `node rulepair.js <main checkout>/code code 400`** — the 2-player class round-robin, 400 games per
+ordered matchup, the same 26,400 games on the v1.33.9 and v1.33.10 engines, knight AI. **`Math.random` was pinned PER GAME**, not per process: reseeded at every
+`newGame` from a game counter, so both builds start every game from the same state and a divergence in one game
+cannot leak into the next. A self-check of v1.33.9 against itself came out byte-identical. Unpinned, the same
+self-check moved all eleven decks, by up to 0.8 points (Pure Wizard), which is as large as the effect
+being looked for.
+
+| deck | net games won, of 4000 | points | flipped games involving it | z |
+| --- | --- | --- | --- | --- |
+| Mage Knight (Wiz+Fig) | +64 | +1.60 | 326 | **3.5** |
+| Warlock (Wiz+Rog) | +30 | +0.75 | 218 | 2.0 |
+| Pure Rogue | +14 | +0.35 | 176 | 1.1 |
+| **Pure Fighter** | **+1** | **+0.03** | 293 | 0.1 |
+| Paladin (Cle+Fig) | +1 | +0.03 | 291 | 0.1 |
+| Bard (Cle+Rog) | 0 | 0.00 | 222 | 0.0 |
+| Pure Wizard | −10 | −0.25 | 180 | −0.7 |
+| Berserker (Fig+Rog) | −17 | −0.42 | 301 | −1.0 |
+| Full Set | −17 | −0.42 | 205 | −1.2 |
+| Pure Cleric | −31 | −0.78 | 217 | −2.1 |
+| Sage (Wiz+Cle) | −35 | −0.88 | 209 | −2.4 |
+
+1,319 of 26,400 games (5%) changed winner; about half of all games contain a pitch, so most pitches change
+nothing. Cast rates did not move (Armor Piercing 0.23, Ultima Attack 0.20, Critical Hit 0.28 a game), and
+neither did game length. **The decks that gain are the WIZARD hybrids that carry a pitch card** (Mage Knight's
+Ultima and Armor Piercing, Warlock's Critical Hit): Wizard is the ramp class, and one more energy is worth most
+to it. The decks that lose hold no pitch card and simply face those two more often. z is net ÷ √flips, i.e.
+against flips that are coin tosses, and it is a statement about THIS AI, not about human play.
+**Not measured at 3–6 players.** `mpsim` has no paired mode, and one unpaired run is noise at this size.
 
 ## Where the deck is stuck: VALUE, not shape <a id="value-stuck"></a>
 

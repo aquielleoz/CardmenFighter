@@ -10,14 +10,15 @@
  *   any-seat reshuffle % of GAMES in which at least one seat's deck ran dry and reshuffled
  *   seat reshuffle    % of SEAT-GAMES that reshuffled, and reshuffles per seat-game
  *   first reshuffle   median round of a seat's first reshuffle
- *   discarded         cards a seat sent to the Discard (`removed`) by the end — the pool it lost for good
+ *   exiled            cards a seat sent to the Exile (`removed`) by the end — the pool it lost for good. It was
+ *                     called the Discard until v1.33.10, when a discard came to mean the ENERGY pile everywhere
  *   deck-outs         seats eliminated (or duels ended) by running out of cards entirely
  * A reshuffle is detected as the Shuffle Pile SHRINKING while the deck GROWS between two observations —
  * `drawOne` moves the whole pile in one step, and the only other things that shrink the pile (Ares's Wheel,
  * Hippolyta's reclaim) also put cards back into the deck, so they are cycles too.
  *
  * Run: node recyclesim.js [games] [players=2,3,4,6] [recycle] [tier=knight]
- *      `recycle` turns RECYCLE_TECH on: spent Techniques go to the Shuffle Pile instead of the Discard.
+ *      `recycle` turns RECYCLE_TECH on: spent Techniques go to the Shuffle Pile instead of the Exile.
  *      NAMED flags, any order; it PRINTS the config it resolved — read that line. */
 const E=require('./engine.js');
 const AI=require('./ai.js');
@@ -30,12 +31,12 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
 E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
 if(E.setRecycleTech) E.setRecycleTech(RECYCLE);
 const realRandom=Math.random;
-console.log('CONFIG: games='+N+' players='+PLAYERS.join(',')+' techniques='+(RECYCLE?'RECYCLE (to the Shuffle Pile)':'DISCARD (shipped)')+' tier='+TIER+
+console.log('CONFIG: games='+N+' players='+PLAYERS.join(',')+' techniques='+(RECYCLE?'RECYCLE (to the Shuffle Pile)':'EXILE (shipped)')+' tier='+TIER+
             ' draw=numPlayers('+(E.isDrawPerPlayer?E.isDrawPerPlayer():'?')+')');
 const med=a=>{ if(!a.length) return '—'; const b=a.slice().sort((x,y)=>x-y); return b[Math.floor(b.length/2)]; };
 const avg=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length):0;
 const pct=(n,d)=>d?Math.round(100*n/d)+'%':'—';
-console.log('\nplayers  rounds(med/max)  any-seat reshuffle  seat reshuffle  reshuffles/seat  first reshuffle(med rnd)  discarded/seat  deck-outs/game');
+console.log('\nplayers  rounds(med/max)  any-seat reshuffle  seat reshuffle  reshuffles/seat  first reshuffle(med rnd)  exiled/seat     deck-outs/game');
 PLAYERS.forEach(P=>{
   const rounds=[], firsts=[], perSeat=[], discarded=[]; let anyGames=0, seatHits=0, deckOuts=0;
   for(let seed=1;seed<=N;seed++){
