@@ -19,7 +19,7 @@
  * is Leyline (♦9), castable with nothing to aim at; `prompts=all` because a Ride is not a shield event.
  * Run: node nettest_clientride3.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { selectAndFight } = require('./fightclick');
+const { selectAndFight, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8484),ROOM='C3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -35,12 +35,12 @@ const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
 const idsOn=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.getAttribute('data-id')).sort().join(','));
 const handOnHost=seat=>host.evaluate(s=>window.__cmf.handOf(s), seat);                  // the HOST's copy — the ground truth
-const windowOn=p=>p.evaluate(()=>{ const b=document.getElementById('respDecline'); return !!(b && b.offsetParent!==null); });
-const declineOn=p=>p.evaluate(()=>{ const b=document.getElementById('respDecline'); if(b && b.offsetParent!==null){ b.click(); return true; } return false; });
+const windowOn=windowUp;   // the shared visible-only reads — see fightclick.js
+const declineOn=clickDecline;
 /* VISIBLE, NOT PRESENT — a hidden modal keeps its buttons; see `nettest_clientride`, whose first cut "cast" a
    previous window's button 3ms after the Ride and went green having cast nothing. */
-const quickBtnOn=(p,id)=>p.evaluate(i=>{ const b=document.querySelector('.respQuick[data-id="'+i+'"]'); return !!(b && b.offsetParent!==null); }, id);
-const castOn=(p,id)=>p.evaluate(i=>{ const b=document.querySelector('.respQuick[data-id="'+i+'"]'); if(b && b.offsetParent!==null){ b.click(); return true; } return false; }, id);
+const quickBtnOn=(p,id)=>respQuicks(p, '.respQuick[data-id="'+id+'"]').then(a=>a.length>0);
+const castOn=(p,id)=>clickQuick(p, null, '.respQuick[data-id="'+id+'"]').then(t=>t!=null);
 /* THE RIDE ON SCREEN, by name: the caster's own zone on its board, and the gear line of its OPPONENT PANEL on
    every other board (seat numbers are LOCAL to each page, so the panel is found by content, not by index). */
 const rideMine=(p,name)=>p.evaluate(n=>[].slice.call(document.querySelectorAll('#youFormZone .formChip.ride, #youFormZone .formMini.ride')).some(c=>(c.title||'').indexOf(n)===0), name);
@@ -71,7 +71,7 @@ const why=p=>p.evaluate(()=>{
   return { rivalStatus:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
            hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,60),
            turn:(window.__cmf?window.__cmf.turn():null), pending:(window.__cmf?window.__cmf.pending():null),
-           fightDisabled:!!(f && f.disabled), window:!!document.querySelector('#respDecline'), hand:document.querySelectorAll('#hand .card').length };
+           fightDisabled:!!(f && f.disabled), window:!!((document.querySelector('#respDecline')||{}).offsetParent), hand:document.querySelectorAll('#hand .card').length };
 });
 const all=async()=>'host '+JSON.stringify(await why(host))+'  c1 '+JSON.stringify(await why(c1))+'  c2 '+JSON.stringify(await why(c2));
 

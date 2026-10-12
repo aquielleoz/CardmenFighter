@@ -1,5 +1,7 @@
 /* fightclick.js — a SHARED HELPER, not a suite (the `nettest_lobby.js` / `lessonlib.js` convention).
  * Don't run it directly; `sweep.js` skips it by name.
+ * It also carries the visible-only Respond? window reads (`respQuicks`, `clickQuick`, `windowUp`,
+ * `clickDecline`) — see the end of the file for why a plain `querySelector` is wrong there.
  *
  * THE FIGHT BUTTON HAS TWO STATES SINCE epic step 20, AND EVERY SUITE THAT DROVE IT HAD ONE CLICK.
  * `▶ Next` in the Main Sub-Phase is a PHASE MOVE — it takes you to the Fight Sub-Phase and passes priority
@@ -294,4 +296,50 @@ async function installPageHelpers(page, budgetMs) {
   }, budgetMs || 5000);
 }
 
-module.exports = { clickFight, selectAndFight, clickPass, enterFight, installPageHelpers, FIGHT_BUDGET };
+/* ---- THE RESPOND? WINDOW: VISIBLE, NEVER MERELY PRESENT (respquick-hidden-button-clicks, 2026-10-12) ----
+ * A CLOSED WINDOW LEAVES ITS BUTTONS IN THE PAGE. `hideOverlay()` only takes `show` off `#overlay`; `#modal`'s
+ * markup stays until the next `showModal` replaces it (`m.innerHTML=html`), and `.click()` on a hidden button
+ * still runs its handler. So `querySelector('.respQuick')` finds the PREVIOUS window's button the moment it
+ * looks. Measured once, and it went GREEN: `nettest_clientride`'s first cut "cast" Armor Piercing 3ms after the
+ * Ride, before the host held priority; the engine answered "No response window.", the real window then opened
+ * unwatched, `netwindows` passed it after its grace, and the leg passed having cast nothing.
+ * `offsetParent` is null inside the hidden overlay, and that is the whole test. It is ALSO null for a
+ * `position:fixed` element. None of these buttons is one, but `#tutPanel` is, so do not borrow the idiom there
+ * (`lessontest_phases` measures that panel with its rect).
+ * TWO SHAPES NEED NO HELPER. A read behind `#overlay.show` or a visible `#modal` in the SAME `evaluate` is
+ * already visible-only, because that window's markup replaced the old one when it opened. And a NEGATIVE check
+ * on a fresh page ("no window ever opened") is the one place PRESENCE is right: a closed window's button still
+ * proves it opened, so presence can only fail loudly, never pass by accident.
+ * Inside a larger `evaluate`, inline the same test:
+ *   [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null) */
+function respQuicks(page, sel) {   // the text of each VISIBLE Quick button, whitespace collapsed
+  return page.evaluate(s => [].slice.call(document.querySelectorAll(s)).filter(b => b.offsetParent !== null)
+    .map(b => b.textContent.replace(/\s+/g, ' ')), sel || '.respQuick');
+}
+/* Clicks the first visible, enabled match and returns its text, or null when there is none. `text` is a
+ * RegExp or a string (a string matches without case); `sel` narrows by attribute, e.g. `.respQuick[data-tseat="2"]`. */
+function clickQuick(page, text, sel) {
+  return page.evaluate(([s, src, flags]) => {
+    const b = [].slice.call(document.querySelectorAll(s)).filter(x => x.offsetParent !== null && !x.disabled &&
+      (src == null || new RegExp(src, flags).test(x.textContent || '')))[0];
+    if (!b) return null;
+    const t = (b.textContent || '').replace(/\s+/g, ' ');
+    b.click();
+    return t;
+  }, [sel || '.respQuick', text == null ? null : (text instanceof RegExp ? text.source : String(text)),
+      text instanceof RegExp ? text.flags : 'i']);
+}
+function windowUp(page) {   // a Respond? window is on screen right now
+  return page.evaluate(() => [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null));
+}
+function clickDecline(page) {   // "Let it resolve", only while it is on screen and live; true when it was pressed
+  return page.evaluate(() => {
+    const d = document.getElementById('respDecline');
+    if (!d || d.offsetParent === null || d.disabled) return false;
+    d.click();
+    return true;
+  });
+}
+
+module.exports = { clickFight, selectAndFight, clickPass, enterFight, installPageHelpers, FIGHT_BUDGET,
+                   respQuicks, clickQuick, windowUp, clickDecline };

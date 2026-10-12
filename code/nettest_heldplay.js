@@ -21,6 +21,7 @@
  * Run: node nettest_heldplay.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
+const { clickQuick } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8457),ROOM='HP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -37,7 +38,7 @@ const myTurn=p=>p.evaluate(()=>window.__cmf && window.__cmf.turn()===0);   // ea
 /* the CASTER's side: wait for its Respond? window and cast Leyline from it; the COMMITTER's side: decline any
    window of its own (it holds a Leyline too, and the go-round starts with it) and watch for the Fight beat */
 async function castLeyline(p, id, ms=12000){ const t0=Date.now(); while(Date.now()-t0<ms){
-    if(await p.evaluate(id=>{ const b=document.querySelector('.respQuick[data-id="'+id+'"]'); if(b){ b.click(); return true; } return false; }, id)) return true;
+    if(await clickQuick(p, null, '.respQuick[data-id="'+id+'"]')) return true;
     await wait(60); } return false; }
 async function commitAndWatch(committer, caster, cardId, casterQuick){
   await committer.evaluate(id=>{ const clr=document.getElementById('clearBtn'); if(clr&&!clr.disabled) clr.click(); const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c) c.click(); }, cardId);
@@ -46,7 +47,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   await committer.evaluate(()=>document.getElementById('fightBtn').click());
   let beat=false, cast=false; const t0=Date.now();
   while(Date.now()-t0<14000){
-    if(!cast) cast=await caster.evaluate(id=>{ const b=document.querySelector('.respQuick[data-id="'+id+'"]'); if(b){ b.click(); return true; } return false; }, casterQuick);
+    if(!cast) cast=!!(await clickQuick(caster, null, '.respQuick[data-id="'+casterQuick+'"]'));
     if(await committer.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d && d.offsetParent && !d.disabled) d.click();
         const fx=document.getElementById('roundfx'); return !!(fx && /phasefx/.test(fx.className) && /Fight sub-phase/.test(fx.textContent||'')); })) beat=true;
     if(cast && beat && /Someone answered/.test((await board(committer)).msg)) break;

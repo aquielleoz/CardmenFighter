@@ -20,7 +20,7 @@
  * Run: node prompttest.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { clickFight, installPageHelpers } = require('./fightclick');
+const { clickFight, installPageHelpers, clickDecline } = require('./fightclick');
 const path = require('path');
 const fs = require('fs');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
@@ -239,7 +239,7 @@ async function freshGame(p) {
   ok(!!withPrompt && /Counter Spell/.test(withPrompt),
      'CONTROL: with the prompt ON, the Rival’s cast opens the Respond? window offering Counter Spell' +
      (withPrompt ? '' : '  ← no window opened, so the negative below would prove nothing. Board: ' + lastBoard));
-  await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
+  await clickDecline(p);
   await wait(400);
 
   /* (b) IS DELETED, AND ITS HISTORY IS WHY THAT IS WORTH A TOMBSTONE RATHER THAN A QUIET REMOVAL. It

@@ -86,7 +86,7 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   for(let i=0;i<60;i++){
     await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
-    await join.evaluate(()=>{ const d=document.getElementById('sgNo')||document.getElementById('respDecline')||document.getElementById('pfDecline'); if(d)d.click(); });
+    await join.evaluate(()=>{ const d=['sgNo','respDecline','pfDecline'].map(id=>document.getElementById(id)).filter(b=>b&&b.offsetParent!==null)[0]; if(d)d.click(); });
     if(await host.evaluate(()=>document.getElementById('overlay').classList.contains('show'))) break;
     await wait(200);
   }

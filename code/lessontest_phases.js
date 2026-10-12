@@ -138,7 +138,7 @@ const { clickFight } = require('./fightclick');
 
   /* THE COUNTER — ported from `lessontest_quicks`. The Rival casts Infuse with Magic to push its King past
      your Ace; countering is what makes the next step's claim ("they cannot beat it") literally true. */
-  const got = await until(()=>!!document.querySelector('.respQuick'), 'the Respond? window opens', 20000);
+  const got = await until(()=>[].some.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null), 'the Respond? window opens', 20000);
   ok(got, 'the Rival cast a Technique and the Respond? window opened');
   /* ⚠ HIT-TEST, BECAUSE NO DOM ASSERTION CAN SEE A STACKING BUG. `#tutPanel` was `z-index:80`, chosen
      when `.overlay` was 30; the overlay became `--zNetroot + 1` and the coach panel spent every version
@@ -239,7 +239,7 @@ const { clickFight } = require('./fightclick');
   /* LEYLINE — the SECOND window, answered by a DIFFERENT Quick. Shields before and after is the claim, and
      it means something only because the pass above put a shield at risk. */
   const shBefore = (await st()).players[0].shields;
-  const got2 = await until(()=>!!document.querySelector('.respQuick'), 'the Resolution window opens', 20000);
+  const got2 = await until(()=>[].some.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null), 'the Resolution window opens', 20000);
   ok(got2, 'their pair beat yours, and Resolution opened a window');
   ok(await respond('Leyline'), '…offering Leyline Ascension');
   /* A RED RUN MUST EXPLAIN ITSELF — this is the one assertion in the file with somewhere to hide, because
@@ -250,7 +250,7 @@ const { clickFight } = require('./fightclick');
       const s=window.__solo.st(), b=document.getElementById('respDecline');
       return { panel:((document.querySelector('.tutStep')||{}).textContent||'').trim(),
                wait:((document.querySelector('.tutWait')||{}).textContent||'').trim().slice(0,40),
-               modalUp: !!(b && b.offsetParent), quicks:document.querySelectorAll('.respQuick').length,
+               modalUp: !!(b && b.offsetParent), quicks:[].filter.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null).length,
                nextBtn: !!document.getElementById('tutNextBtn'),
                round:s.round, turn:s.turn, sub:s.subPhase, rf:s.respondFor, pend:!!s.pending,
                resolution:!!s.resolution, cleanup:!!s.cleanup, upkeep:!!s.upkeep,

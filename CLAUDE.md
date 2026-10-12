@@ -287,7 +287,8 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # keeps the narrowness claim C2 used to carry — the same
                                                 # board with the strip already banked forces nothing.
                                                 # F adds the STACK IN THE WINDOW. B's answer line must name the
-                                                # ♦10 it pitched (72)
+                                                # ♦10 it pitched. C8b leaves a closed window's buttons in the page
+                                                # and the shared visible-only reads must refuse them (73)
 node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
                                                 # checkboxes were RETIRED 2026-09-30 and two thirds of this
                                                 # suite went with them — it asserted six rendered rows, that
@@ -846,10 +847,14 @@ only hides the overlay; the modal's `.respQuick` buttons stay in the DOM until t
 and `.click()` on a hidden button still runs its handler. `nettest_clientride`'s first cut polled for the
 host's Armor Piercing button, found the PREVIOUS leg's, "cast" 3ms after the Ride, got *"No response window."*,
 and went **green having cast nothing** — the real window opened later and `netwindows` passed it. **Query a
-window's buttons by VISIBILITY (`offsetParent !== null`), never by presence**; ~30 older call sites do not, filed
-as `[id: respquick-hidden-button-clicks]`. It surfaced only because the suite printed the ORDER of the windows
-it drove and the order contradicted the suite's own comment — **print what a driving loop did, not just
-whether it finished.**
+window's buttons by VISIBILITY (`offsetParent !== null`), never by presence.** `fightclick.js` carries the
+shared reads — `respQuicks`, `clickQuick`, `windowUp`, `clickDecline` — and every suite that touched a Respond?
+button outside an `#overlay.show` check was switched to them (2026-10-12, 24 suites);
+`resolutiontest_ui` C8b leaves a closed window's buttons in the page and asserts all four refuse them.
+**The one place presence is right is a NEGATIVE check on a fresh page** ("no window ever opened"): a closed
+window's button still proves it opened, so presence can only fail loudly. It surfaced only because the suite
+printed the ORDER of the windows it drove and the order contradicted the suite's own comment — **print what a
+driving loop did, not just whether it finished.**
 **AND STAGE AFTER THE HOST'S OPENING ROUND CARD, NOT BEFORE.** `startDuel` returns once the hands are dealt,
 while the host's "Round 1" card is still flying; when it lands, `startGame` calls `driveRival()` if the turn is
 not the host's — so a suite that forces the turn to a client straight after the deal gets the host parked on
@@ -2458,7 +2463,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 72, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

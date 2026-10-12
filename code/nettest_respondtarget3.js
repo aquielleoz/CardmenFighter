@@ -12,7 +12,7 @@
  * Run: node nettest_respondtarget3.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight } = require('./fightclick');
+const { clickFight, clickQuick } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8465),ROOM='RT'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -23,7 +23,6 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
 async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
-const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
 const declineIfUp=p=>p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent!==null){ d.click(); return true; } return false; });
 const clickPassBtn=p=>p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled){ b.click(); return true; } return false; });
 const why=p=>p.evaluate(()=>({
@@ -32,7 +31,7 @@ const why=p=>p.evaluate(()=>({
   hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,55),
   passDisabled:!!((document.getElementById('passBtn')||{}).disabled),
   hand:document.querySelectorAll('#hand .card').length,
-  modal:!!document.querySelector('.respQuick,#respDecline')
+  modal:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
 }));
 
 (async()=>{
@@ -60,7 +59,7 @@ const why=p=>p.evaluate(()=>({
      without it returns early and stages onto a board about to gain cards. This suite shows zero misses
      today and the blindness is identical, so it is fixed preventively: leaving one of two sibling suites
      without the check is how the pair drifts apart. */
-  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:!!document.querySelector('.respQuick,#respDecline')}));
+  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)}));
   async function quiet(){ let last=null,same=0; for(let i=0;i<80;i++){ const n=await snap(); same=(n===last && !JSON.parse(n).cer)?same+1:0; last=n; if(same>=4) return true; await wait(250);} console.log('   ⏱ never settled: '+last); return false; }
   async function stage(h0,h1,h2){
     const w=[want(h0),want(h1),want(h2)], pg=[host,c1,c2];
@@ -97,7 +96,7 @@ const why=p=>p.evaluate(()=>({
   const castOnHost=async id=>{ await host.evaluate(i=>{ const c=document.querySelector('#hand .card[data-id="'+i+'"]'); if(c) c.click(); }, id); await wait(250);
     await host.evaluate(()=>{ const a=document.getElementById('cardActivate'), x=document.getElementById('ctxBtn'); if(a&&a.offsetParent&&!a.disabled) a.click(); else if(x&&!x.disabled) x.click(); }); };
   const buttonsOn=async(p,attr)=>{ for(let i=0;i<80;i++){ await declineIfUp(host); await declineIfUp(c2);
-      const bs=await p.evaluate(a=>[...document.querySelectorAll('.respQuick['+a+']')].map(b=>({v:b.getAttribute(a), t:b.textContent.replace(/\s+/g,' ').trim()})), attr);
+      const bs=await p.evaluate(a=>[...document.querySelectorAll('.respQuick['+a+']')].filter(b=>b.offsetParent!==null).map(b=>({v:b.getAttribute(a), t:b.textContent.replace(/\s+/g,' ').trim()})), attr);
       if(bs.length) return bs; await wait(150); } return []; };
   const HE=s=>Array.from({length:12},(_,i)=>D(i+1,s,'e'+s+i));
 
@@ -109,7 +108,7 @@ const why=p=>p.evaluate(()=>({
   const b1=await buttonsOn(c1,'data-tseat');
   ok(b1.length===2, 'client 1 is offered Back Stab once PER RIVAL  ['+b1.map(x=>x.t).join(' | ')+']');
   // client 1's frame is rotated: the host (absolute 0) is its seat 2, client 2 (absolute 2) its seat 1
-  await c1.evaluate(()=>{ const b=document.querySelector('.respQuick[data-tseat="2"]'); if(b) b.click(); });
+  await clickQuick(c1, null, '.respQuick[data-tseat="2"]');
   ok(await until(async()=>await host.evaluate(()=>window.__cmf.lock(0)===true), 60), 'it locked the HOST — the rival it chose');
   ok(await host.evaluate(()=>window.__cmf.lock(2)===false), '…and NOT client 2, the old default (the next seat)');
 
@@ -121,7 +120,7 @@ const why=p=>p.evaluate(()=>({
   await castOnHost('h6H');
   const b2=await buttonsOn(c1,'data-tequip');
   ok(b2.length===2 && b2.some(x=>/Holy Shroud/.test(x.t)), 'client 1 is offered Annoint once PER PIECE of Equipment  ['+b2.map(x=>x.t).join(' | ')+']');
-  await c1.evaluate(()=>{ const b=document.querySelector('.respQuick[data-tequip="eqB"]'); if(b) b.click(); });
+  await clickQuick(c1, null, '.respQuick[data-tequip="eqB"]');
   const prot=async()=>host.evaluate(()=>{ const r=window.__cmf.roundNow(), e=window.__cmf.equipOf(1)||[]; return { r, A:(e.find(x=>x.id==='eqA')||{}).protectedRound, B:(e.find(x=>x.id==='eqB')||{}).protectedRound }; });
   ok(await until(async()=>{ const x=await prot(); return x.B===x.r; }, 60), 'it protected the SECOND piece — the one it chose  '+JSON.stringify(await prot()));
   const pz=await prot();

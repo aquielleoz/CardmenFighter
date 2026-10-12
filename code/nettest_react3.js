@@ -1,7 +1,7 @@
 /* N-PLAYER REACTIVE PARITY (3 players): the host casts a Technique (Gather Energy 1D); a REMOTE OPPONENT (client 1,
  * holding Counter Spell 4D) gets the Counter window on its own board and counters over the wire — proving reactive
  * windows now belong to the remote human in 3–6p, not the auto-resolver. Over BroadcastChannel. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const { clickQuick } = require('./fightclick'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8297),ROOM='RX'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -42,7 +42,7 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   // Host activates Gather Energy → the Counter window should open on client 1 (a remote opponent).
   await host.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="1D"]'); if(c)c.click(); var ca=document.getElementById('cardActivate'), ctx=document.getElementById('ctxBtn'); if(ca&&ca.offsetParent!==null&&!ca.disabled)ca.click(); else if(ctx&&!ctx.disabled&&/Activate/i.test(ctx.textContent||''))ctx.click(); });
   ok(await waitFor(async()=>await modalUp(c1)),'remote opponent (client 1) got the Counter window from its mirror');
-  const clicked=await c1.evaluate(()=>{ var q=document.querySelector('.respQuick'); if(q){ q.click(); return (q.textContent||'').slice(0,14); } return null; });
+  const clicked=await clickQuick(c1).then(t=>t==null?null:t.slice(0,14));
   ok(clicked && /Counter/i.test(clicked),'client 1 sent a Counter over the wire ('+clicked+')');
   await wait(1200);
 

@@ -3,7 +3,7 @@
  * the host's Technique — and (b) plays a couple of rounds. Verifies both ends stay in sync with no errors.
  * stun=0 (host candidates only) + mDNS disabled → the two tabs connect over loopback ICE, no external STUN/TURN. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickPass } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, clickQuick } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8290),ROOM='R'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&stun=0&dbg=1`;
@@ -58,7 +58,7 @@ async function waitTurnEnds(p){ for(let i=0;i<50;i++){ if(!(await snap(p)).yourT
   await wait(500);
   await host.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="1D"]'); if(c)c.click(); var ca=document.getElementById('cardActivate'), ctx=document.getElementById('ctxBtn'); if(ca&&ca.offsetParent!==null&&!ca.disabled)ca.click(); else if(ctx&&!ctx.disabled&&/Activate/i.test(ctx.textContent||''))ctx.click(); });
   ok(await waitFor(async()=>await modalUp(join), 50, 150),'client response modal appeared over WebRTC');
-  const clicked=await join.evaluate(()=>{ var q=document.querySelector('.respQuick'); if(q){ q.click(); return true; } return false; });
+  const clicked=!!(await clickQuick(join));
   ok(clicked,'client sent a Counter over the DataChannel');
   /* POLL, never a fixed wait, for anything that has to cross the wire — a slow machine must make this suite
    * SLOWER, not red. This pair used to assert 1000ms after the client's click. */

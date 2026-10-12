@@ -30,7 +30,7 @@
  * Run: node nettest_prefightduel.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight } = require('./fightclick');
+const { clickFight, respQuicks, clickDecline } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8376),ROOM='PD'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -60,7 +60,6 @@ const why=p=>p.evaluate(()=>{
            turn:(window.__cmf?window.__cmf.turn():null),
            fightDisabled:!!(f&&f.disabled), hand:document.querySelectorAll('#hand .card').length };
 });
-const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
 
 (async()=>{
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — sweep.js assigns ports; to run alone use PORT=n node nettest_prefightduel.js'))); srv.listen(PORT,r); });
@@ -118,7 +117,7 @@ const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.res
      THE REAL QUESTION IS WHETHER PLAY CONTINUES. Drive the client's turn and require the host to come
      back. A genuinely abandoned window fails this, because nothing on either side ever resumes. */
   const before = await host.evaluate(()=>window.__cmf.turn());
-  await join.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d) d.click(); });
+  await clickDecline(join);
   const handed = await until(async()=>await host.evaluate(()=>window.__cmf.turn())===1, 60);
   ok(handed, 'the window is ANSWERED and the host\'s fight resolves — the turn passes to the client' +
      (handed ? '' : '  ← the decline was dropped; host: '+JSON.stringify(await why(host))));

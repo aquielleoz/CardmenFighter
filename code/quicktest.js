@@ -13,7 +13,7 @@
  *
  * Run: node quicktest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
-const { selectAndFight, clickFight } = require('./fightclick');
+const { selectAndFight, clickFight, clickDecline } = require('./fightclick');
 /* TWO URLS, AND THE PAIR IS THE POINT (2026-09-30). This suite's subject is ELIGIBILITY — does the offer
    list read `effectFor` — so it needs a window to open at all, and since 2026-09-23 the DEFAULT mode is
    AUTO, which interrupts you only when `stakeFor` says you have one. The Rival here casts a plain
@@ -184,7 +184,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const twoSame = await offersFor([[10,'H'],[10,'H']]);      // two Sanctuaries — one PLAY
   ok(twoSame.length===1,
      `TWO COPIES OF ONE QUICK OFFER ONE BUTTON (${twoSame.length}: [${twoSame.join('|')}]) — which copy leaves your hand changes nothing`);
-  await dup.evaluate(()=>{ const m=document.getElementById('respDecline'); if(m) m.click(); }); await wait(400);
+  await clickDecline(dup); await wait(400);
   const twoDiff = await offersFor([[10,'H'],[9,'D']]);       // Sanctuary + Leyline — two PLAYS
   ok(twoDiff.length===2,
      `  …and two DIFFERENT Quicks still offer two (${twoDiff.length}: [${twoDiff.join('|')}]) — the dedupe is on the effect, not on "a card"`);

@@ -3,7 +3,7 @@
  * the client can't beat) that threatens the client's shield. The client holds Leyline (9D) and springs it OVER THE
  * WIRE. Verifies the guard modal pops from the mirror, resolves on the host, and the client keeps its shield. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickPass } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, clickDecline } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8285),ROOM='G'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;   // this suite's SUBJECT is a boundary window, which defaults OFF — see promptDefault
@@ -104,12 +104,12 @@ async function waitFor(fn){ for(let i=0;i<250;i++){ if(await fn()) return true; 
   const guardModal=await waitFor(async()=>await modalUp(join));
   ok(guardModal,'the client is offered the Fight End window from the mirror');
 
-  const offered=await join.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent));
+  const offered=await respQuicks(join);
   ok(offered.some(t=>/Leyline/i.test(t)),
      'Leyline is offered as an ordinary Quick, not a whitelisted guard'+(offered.length?'  ['+offered.join(' | ').slice(0,90)+']':'  ← no Quick buttons at all'));
 
   const r0=await roundOf(join);
-  const clicked=await join.evaluate(()=>{ var y=[].slice.call(document.querySelectorAll('.respQuick')).filter(b=>/Leyline/i.test(b.textContent))[0]; if(y){ y.click(); return 'guard'; } return null; });
+  const clicked=(await clickQuick(join, /Leyline/i)) ? 'guard' : null;
   ok(clicked==='guard','client sprang Leyline over the wire');
 
   /* Drain whatever the cast opens — the Quick goes on the stack and the go-round runs on, so the round only
@@ -117,8 +117,8 @@ async function waitFor(fn){ for(let i=0;i<250;i++){ if(await fn()) return true; 
      assertion below mean something. */
   for(let i=0;i<80;i++){
     if(await roundOf(join)>r0) break;
-    await join.evaluate(()=>{ var d=document.getElementById('respDecline'); if(d&&!d.disabled)d.click(); });
-    await host.evaluate(()=>{ var d=document.getElementById('respDecline'); if(d&&!d.disabled)d.click(); });
+    await clickDecline(join);
+    await clickDecline(host);
     await wait(150);
   }
   const resolved=await roundOf(join)>r0;

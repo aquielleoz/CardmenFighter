@@ -28,7 +28,7 @@
  *     own turn hand-over), so the Ride is legal for it. Its other cards are no Quick at base.
  * Run: node nettest_clientride.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { selectAndFight } = require('./fightclick');
+const { selectAndFight, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8483),ROOM='CR'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -43,16 +43,16 @@ let host, join;
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const idsOn=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.getAttribute('data-id')).sort().join(','));
 const clientHandOnHost=()=>host.evaluate(()=>window.__cmf.handOf(1));         // the HOST's copy — the ground truth
-const windowOn=p=>p.evaluate(()=>{ const b=document.getElementById('respDecline'); return !!(b && b.offsetParent!==null); });
-const declineOn=p=>p.evaluate(()=>{ const b=document.getElementById('respDecline'); if(b && b.offsetParent!==null){ b.click(); return true; } return false; });
+const windowOn=windowUp;   // the shared visible-only reads — see fightclick.js
+const declineOn=clickDecline;
 /* ⚠ VISIBLE, NOT PRESENT. `hideOverlay` hides the modal and leaves its buttons in the DOM, so a bare
    `querySelector` finds the PREVIOUS window's Armor Piercing button long after that window closed — and a
    `.click()` on a hidden button still runs its handler. The first cut of leg C did exactly that: it "cast"
    3ms after the Ride, before the host held priority at all, the engine answered "No response window.", the
    real window then opened unwatched, `netwindows` passed it after its grace, and the leg went GREEN having
    cast nothing. Legs A and B had the same race and won it on timing. */
-const quickBtnOn=(p,id)=>p.evaluate(i=>{ const b=document.querySelector('.respQuick[data-id="'+i+'"]'); return !!(b && b.offsetParent!==null); }, id);
-const castOn=(p,id)=>p.evaluate(i=>{ const b=document.querySelector('.respQuick[data-id="'+i+'"]'); if(b && b.offsetParent!==null){ b.click(); return true; } return false; }, id);
+const quickBtnOn=(p,id)=>respQuicks(p, '.respQuick[data-id="'+id+'"]').then(a=>a.length>0);
+const castOn=(p,id)=>clickQuick(p, null, '.respQuick[data-id="'+id+'"]').then(t=>t!=null);
 /* THE RIDE ON SCREEN, by name. Collapsed, a zone shows `.formChip` chips; expanded, `.formMini` cards — both
    carry the Form's name in their title, which is the one thing that says WHICH card landed. */
 const rideOn=(p,zone,name)=>p.evaluate(a=>[].slice.call(document.querySelectorAll(a.zone+' .formChip.ride, '+a.zone+' .formMini.ride')).some(c=>(c.title||'').indexOf(a.name)===0), {zone, name});
@@ -86,7 +86,7 @@ const why=p=>p.evaluate(()=>{
            hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,70),
            message:((document.getElementById('message')||{}).textContent||'').trim().slice(0,70),
            turn:(window.__cmf?window.__cmf.turn():null), pending:(window.__cmf?window.__cmf.pending():null),
-           fightDisabled:!!(f && f.disabled), window:!!document.querySelector('#respDecline'), hand:document.querySelectorAll('#hand .card').length };
+           fightDisabled:!!(f && f.disabled), window:!!((document.querySelector('#respDecline')||{}).offsetParent), hand:document.querySelectorAll('#hand .card').length };
 });
 const both=async()=>'host '+JSON.stringify(await why(host))+'  client '+JSON.stringify(await why(join));
 

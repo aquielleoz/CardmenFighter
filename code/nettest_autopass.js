@@ -25,6 +25,7 @@
  * Run: node nettest_autopass.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
+const { respQuicks, clickDecline } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8372),ROOM='AP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -35,7 +36,6 @@ async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 
 const hostLog = p => p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'), e=>e.textContent.trim()));
 const resolveLines = async p => (await hostLog(p)).filter(l=>/let it resolve/.test(l));
-const respQuicks = p => p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
 const armCast=(p,id)=>p.evaluate(cid=>{
   var clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
   [].slice.call(document.querySelectorAll('#hand .card.sel')).forEach(function(c){ c.click(); });
@@ -155,7 +155,7 @@ const hostPending = p => p.evaluate(()=>!!window.__cmf.pending());
   ok(await until(async()=>await tapTarget(host), 40), '…and taps the last Equipment');
   ok(await until(async()=>await hostPending(host), 60), 'the window is open on the host — read there, so a stale client modal cannot fake it');
   const ledBefore = (await join.evaluate(()=>window.__cmf.prioLog())).length;
-  await join.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d) d.click(); });
+  await clickDecline(join);
   const grew = await until(async()=>(await join.evaluate(()=>window.__cmf.prioLog())).some(l=>/→ you DECLINED/.test(l)), 60);
   const led = await join.evaluate(()=>window.__cmf.prioLog());
   ok(grew, `LEG 2b · the CLIENT's own ledger records its decline (${ledBefore} → ${led.length} entries)`+

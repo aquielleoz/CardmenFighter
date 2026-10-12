@@ -32,7 +32,7 @@
  * Run: node nettest_brake3.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight } = require('./fightclick');
+const { clickFight, respQuicks, clickQuick } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8402),ROOM='B3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -43,7 +43,6 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
 async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
-const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
 const declineIfUp=p=>p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent!==null){ d.click(); return true; } return false; });
 const clickPassBtn=p=>p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled){ b.click(); return true; } return false; });
 const why=p=>p.evaluate(()=>({
@@ -52,7 +51,7 @@ const why=p=>p.evaluate(()=>({
   hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,55),
   passDisabled:!!((document.getElementById('passBtn')||{}).disabled),
   hand:document.querySelectorAll('#hand .card').length,
-  modal:!!document.querySelector('.respQuick,#respDecline')
+  modal:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
 }));
 
 (async()=>{
@@ -80,7 +79,7 @@ const why=p=>p.evaluate(()=>({
      without it returns early and stages onto a board about to gain cards. This suite shows zero misses
      today and the blindness is identical, so it is fixed preventively: leaving one of two sibling suites
      without the check is how the pair drifts apart. */
-  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:!!document.querySelector('.respQuick,#respDecline')}));
+  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)}));
   async function quiet(){ let last=null,same=0; for(let i=0;i<80;i++){ const n=await snap(); same=(n===last && !JSON.parse(n).cer)?same+1:0; last=n; if(same>=4) return true; await wait(250);} console.log('   ⏱ never settled: '+last); return false; }
   async function stage(h0,h1,h2){
     const w=[want(h0),want(h1),want(h2)], pg=[host,c1,c2];
@@ -136,7 +135,7 @@ const why=p=>p.evaluate(()=>({
   const hostOffered = await until(async()=>(await respQuicks(host)).length>0, 60);
   ok(hostOffered, '  seat 1\'s pass opened the window and the HOST was offered it' +
      (hostOffered ? '  ['+(await respQuicks(host)).map(t=>t.split(' ')[0]).join('|')+']' : '  ← nothing offered; the leg below would pass vacuously'));
-  await host.evaluate(()=>{ const q=document.querySelector('.respQuick'); if(q) q.click(); });
+  await clickQuick(host);
   const hostCast = await until(async()=>!(await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="h9D"]'))), 60);
   ok(hostCast, '  …and the host really cast it — Leyline has left its hand');
   await wait(1200);
@@ -158,7 +157,7 @@ const why=p=>p.evaluate(()=>({
   const selfOffered = await until(async()=>(await respQuicks(c1)).length>0, 60);
   ok(selfOffered, '  seat 1\'s own pass opened the window for seat 1 itself' +
      (selfOffered ? '' : '  ← nothing offered; the leg below would pass vacuously'));
-  await c1.evaluate(()=>{ const q=document.querySelector('.respQuick'); if(q) q.click(); });
+  await clickQuick(c1);
   const selfCast = await until(async()=>!(await c1.evaluate(()=>!!document.querySelector('#hand .card[data-id="a9D"]'))), 60);
   ok(selfCast, '  …and seat 1 really cast it');
   const ownThrough = await until(async()=>(await turnOf(host))===2, 60);
