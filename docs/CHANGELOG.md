@@ -32,6 +32,9 @@ Broadway card it pitched, whoever played it: *"Rival 2 played Critical Hit — a
   AI really casts (it fails on the old `ai.js`). `nettest_pitch` 15 → 18: the host's line for a client's Critical
   Hit and for its Armor Piercing answer both name the pitch, and the client's own log reads both.
   `resolutiontest_ui` 71 → 72: your Armor Piercing answer names the ♦10 it spent, red on the old line.
+  `nettest_target3` 12 → 13, the 3-player host's line: it went red in the first sweep because its target
+  capture ran to the full stop and swallowed the new "— pitched 10♥". The capture now stops at the next " — ",
+  and a new check requires all three screens to name the 10♥; on a build without the change, only that check fails.
 
 ### v1.33.12 — your phone bar is one line: shields as a number, the deck and piles behind one tap
 
