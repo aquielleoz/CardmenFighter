@@ -890,6 +890,15 @@
   /* deal-in for freshly drawn cards */
   @keyframes dealIn{ from{ opacity:0; transform:translateY(32px) scale(.78) rotate(-5deg);} 60%{opacity:1;} to{ opacity:1; transform:none;} }
   #hand .card.enter{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both; }
+  /* A SPOTLIT HAND CARD MUST OUT-RANK ITS OWN SHADOW AND ITS FLY-IN (2026-10-12). `.tut-spot` is one class, so
+     on a hand card it lost twice: `.card`'s plain shadow (same specificity, later in this sheet) beat its gold
+     ring, and a card the lesson had just pulled from the deck into your hand carries `.enter`, whose `dealIn`
+     replaced the `tutPulse` that draws the ring while it runs. How to Play's "select the glowing card" step
+     then showed no glowing card at all (Aj, by hand), while every suite passed, because they assert the CLASS.
+     Under reduced motion `.enter` drops all animation, so the static ring here is the only glow there is. */
+  #hand .card.tut-spot{ box-shadow:0 0 0 3px var(--gold), 0 0 0 7px rgba(240,200,80,.28), 0 0 22px rgba(240,200,80,.55); }
+  #hand .card.enter.tut-spot{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both, tutPulse 1.3s ease-in-out .46s infinite; }
+  @media (prefers-reduced-motion: reduce){ #hand .card.enter.tut-spot{ animation:none; } }
   /* pile cards start off-transform; entrance is driven inline via JS FLIP */
   #pile .card{ transform-origin:center; }
   /* THE PILE IS THE FOCAL POINT and shows at most 5 cards (a straight or a full house), so it has far more room
@@ -7351,7 +7360,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.14';
+  var GAME_VERSION='v1.33.15';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
