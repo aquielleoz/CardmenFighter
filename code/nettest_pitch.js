@@ -98,6 +98,15 @@ let host, join;
   // the duel host narrates a client's cast in full too (client-activation-line-short-form) — `hostApplyMove`'s twin
   const hl=await host.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
   ok(/played a Technique - 9♠ Critical Hit —/.test(hl), 'the duel host narrates the client\'s Critical Hit in full'+(/played a Technique - 9♠ Critical Hit —/.test(hl)?'':'  ← '+((hl.match(/.*Critical Hit.*/)||[''])[0])));
+  /* AND BOTH SCREENS NAME THE CARD THAT WAS PITCHED (pitch-named-in-log, 2026-10-12). Only your own cast
+     ever said it; a client's cast and every Quick answer pitched a Broadway card the log never mentioned.
+     Both choices here are the ACE — the one the client picked, not the default — so the line has to carry the
+     real card, read through the HOST's narration (it owns the line) and the CLIENT's copy of it. */
+  const jl=await join.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
+  const critLine=(hl.match(/.*Critical Hit.*/)||[''])[0], ansLine=(hl.match(/.*answered at instant speed with Armor Piercing.*/)||[''])[0];
+  ok(/pitched A♥/.test(critLine), 'the host\'s line for the client\'s Critical Hit names the pitched Ace  ['+critLine.trim()+']');
+  ok(/pitched A♠/.test(ansLine), 'the host\'s line for the client\'s Armor Piercing answer names its pitched Ace  ['+ansLine.trim()+']');
+  ok(/pitched A♥/.test(jl) && /pitched A♠/.test(jl), '…and the client\'s own log reads the same two lines');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);

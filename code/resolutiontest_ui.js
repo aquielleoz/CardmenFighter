@@ -222,6 +222,14 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(cast === 2,
        `B · THE EXTRA STRIP LANDED — the Rival lost 2 shields, not 1 (4 → ${cast})` +
        (cast === 2 ? '' : '  ← `finishingBlow` is being read BEFORE the window, which is the whole reason the window had to move'));
+    /* THE ANSWER LINE NAMES THE PITCH (pitch-named-in-log, 2026-10-12). Armor Piercing spends the ♦10 staged
+       above, and `humanResponds` used to say only "answered with Armor Piercing at instant speed." — the one
+       Broadway card a player spends without choosing it, gone from the log. Read on the RENDERED log. */
+    const ansLine = await p.evaluate(() => [].map.call(document.querySelectorAll('#log .le'), e => e.textContent.trim())
+                                              .filter(t => /answered with Armor Piercing/.test(t))[0] || '');
+    ok(/pitched 10♦/.test(ansLine),
+       'B · …and the battle log names the Broadway card the answer pitched' +
+       (ansLine ? '  ["' + ansLine.slice(0, 90) + '"]' : '  ← no answer line at all'));
     await p.close(); }
 
   { const p = await b.newPage(); p.on('pageerror', e => errs.push('B2: ' + e.message));

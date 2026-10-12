@@ -286,6 +286,21 @@ function cards(ids) { return ids.map(card); }
     gN.turn = 0; gN.round = 3; gN.pile = null; gN.lastPlayer = null; gN.passes = 0; gN.players[1].shields = 3;
     var rN = E.activate(gN, 0, '10C');
     ok(rN.ok === false && mN.hand.length === 3 && mN.energy.length === 9, 'nine energy and a Broadway card in hand still cannot cast a 10 — the pitch never pays for its own cast (' + (rN.reason || 'cast went through') + ')');
+    /* THE AI'S CAST ENTRY CARRIES ITS PITCH (pitch-named-in-log, 2026-10-12). The page names a pitched card from
+       `r.pitched`, and for an AI cast `r` is this log entry — which kept the card and the aim and dropped the
+       pitch, so no AI cast ever named one. Staged with the rival on TWO shields because the AI fires a
+       destroyShield only at a seat on 1-2 (measured 0/20 at three shields, 20/20 at two). */
+    var aSeed = 7; var mrOld = Math.random;
+    Math.random = function () { aSeed |= 0; aSeed = aSeed + 0x6D2B79F5 | 0; var t = Math.imul(aSeed ^ aSeed >>> 15, 1 | aSeed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    var gA = E.newGame(null, { starter: 1 }); var aiP = gA.players[1];
+    aiP.hand = [sc(10, 'C'), sc(13, 'C'), sc(12, 'D'), sc(3, 'H')]; aiP.energy = []; energy(aiP, 12, 'C');
+    gA.players[0].shields = 2; gA.players[0].hand = [sc(5, 'S'), sc(6, 'S')]; gA.players[0].energy = [];
+    gA.turn = 1; gA.round = 3; gA.pile = null; gA.lastPlayer = null; gA.passes = 0; gA.subPhase = 'main';
+    var logA = AI.takeTurn(gA, 1, 'knight'); Math.random = mrOld;
+    var castA = logA.filter(function (x) { return x.play && x.card && x.card.id === '10C'; })[0];
+    ok(!!castA, 'STAGED: the AI casts Ultima Attack at the rival on two shields');
+    ok(!!(castA && castA.pitched) && aiP.energy.some(function (c) { return c.id === castA.pitched.id; }),
+       '…and its log entry names the Broadway card it pitched — the one now in its energy pile (' + (castA && castA.pitched ? castA.pitched.rank + castA.pitched.suit : 'no pitched field') + ')');
     ok(!me.hand.some(function (c) { return c.rank === 13; }), 'the pitched King left the hand');
     // Ultima Attack with NO other Broadway card in hand → blocked.
     var g2 = E.newGame(null, { starter: 0 }); var m2 = g2.players[0];

@@ -87,10 +87,17 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
      every other seat reads its own name for seat 2 — default names are frame-relative, so the host calls it
      "Rival 3" and the caster c1 calls it "Rival 2". A sender-baked name would read "Rival 3" on all three. */
   const c1Log=await c1.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
-  const aimOf=t=>((t.match(/9♠ Critical Hit —[^\n]*?— aimed at ([^.\n]+)\./)||[])[1]||'(no target named)');
+  /* THE TARGET IS NO LONGER THE END OF THE LINE (pitch-named-in-log, 2026-10-12). The capture ran to the full
+     stop, so naming the pitched card turned "Rival 3" into "Rival 3 — pitched 10♥" and these three went red on
+     a correct line. It stops at the next " — " now, and the pitch gets its own assertion below: this is the
+     only suite that reaches `hostApplyMoveN`'s cast line, so the 3-player half of that fix is pinned here. */
+  const aimOf=t=>((t.match(/9♠ Critical Hit —[^\n]*?— aimed at (.+?)(?: — |\.)/)||[])[1]||'(no target named)');
   ok(aimOf(hLog)==='Rival 3', `the HOST's cast line names the target: "aimed at ${aimOf(hLog)}"`);
   ok(aimOf(c1Log)==='Rival 2', `the CASTER's names it in its own frame: "aimed at ${aimOf(c1Log)}"`);
   ok(aimOf(c2Log)==='You', `and the client that was HIT reads "aimed at You": "aimed at ${aimOf(c2Log)}"`);
+  const pitchOf=t=>((t.match(/9♠ Critical Hit —[^\n]*?— pitched ([^.\n]+)\./)||[])[1]||'(no pitch named)');
+  ok([hLog, c1Log, c2Log].every(l=>pitchOf(l)==='10♥'),
+     `…and all three name the Broadway card it pitched, the 10♥: ${[hLog, c1Log, c2Log].map(pitchOf).join(' / ')}`);
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
