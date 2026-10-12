@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**711**) + `node netview.test.js` (**70**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**711**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.10.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.11.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.10**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.11**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -644,9 +644,12 @@ never read.*
   line) and every phone and landscape size measures clean, so this is a design change, not a fix.
   **Asked 2026-10-12 whether he still wants it: "Yes, both halves"** — shields become a number on phones, and
   the deck name, deck count and pile counts move behind a tap.
-  **ONE THING TO CONFIRM WHEN BUILDING IT:** he chose a SEPARATE button for the Exile viewer
-  (`re-check-setrecycletech-discard`), asked before the tap-for-counts half was settled, so whether the Exile
-  button stays on the phone bar or joins the tapped counts is still his call.
+  **ONE THING TO CONFIRM WHEN BUILDING IT:** he chose a SEPARATE button for the Exile viewer (shipped in
+  v1.33.11), asked before the tap-for-counts half was settled, so whether the ⊘ stays on the phone bar or joins
+  the tapped counts is still his call. **AND THIS IS WHERE THE ⊘ COMES BACK ON THE NARROWEST PHONES:** v1.33.11
+  hides it below 340px (`.exStat`), because at 327x660 with the longest deck name the bar had no room and the
+  round-1 message ran 26px into your panel. Shields as a number frees ~50px; `piletest` pins the exception both
+  ways, so lifting it reds that suite until the assertion is updated with it.
   **IF SHIELDS BECOME A NUMBER, THE BREAK ANIMATION SURVIVES** — checked when this was filed: `animateShields`
   works off a numeric diff; only the target (`shatterShield(slots[i])`) is pip-specific. (The other gap noted here — no shatter on an
   opponent's panel at 3-6 players — shipped in v1.32.20.)
@@ -896,31 +899,14 @@ never read.*
 
 ### Balance and design
 
-- `ready to build`      · **THE EXILE NOBODY CAN SEE — DECIDED 2026-10-12: A SEPARATE BUTTON, AND EVERYONE'S IS OPEN**
-  (Aj, 2026-09-08: *"so were decks actually getting thinner without me noticing? huh?"*). **They are**, and the
-  numbers are in [`DECISIONS.md#deck-cycling`](DECISIONS.md#deck-cycling) (re-measured 2026-10-12).
-  - **The rule, settled the same day** (Aj: *"discard is energy pile. only used techniques and destroyed
-    equipments go to the exile"*): the gone-for-good pile is the **Exile**, and a discard always goes to the
-    energy pile. v1.33.10 shipped the half that needed the engine — the Broadway pitch banks to energy now — and
-    the name, in the two card texts that mention the pile.
-  - **What lands in the Exile:** resolved Techniques (`spendCard`; `RECYCLE_TECH` defaults false), Counter
-    Spell's and Annoint's own cards, destroyed Equipment, and a Ride that Sabotage destroys (read as destroyed;
-    say so if Aj meant otherwise). NOT the pitch (energy), NOT worn-out Equipment (`retireEquip` → energy), NOT
-    a countered card (Shuffle Pile), NOT a disarm (wherever its text says). Two narrow ways back: Hippolyta's
-    `reclaimDiscard` and Ares's Super Wheel.
-  - **THE BUILD, now that WHERE is answered.** Aj: a **separate button** (not inside the ♻ viewer, not a piles
-    sheet), and **everyone's** Exile can be opened, view-only, as an energy pile already can. `openPileView` is
-    already generic over a zone name and is only ever called with `'energy'` and `'shuffle'`, so this is a third
-    zone reading `removed`, plus a button on your bar, on the duel rival's bar and on each opponent panel at
-    3-6 players. The phone half interacts with `phone-declutter-rest` (see that entry's open question).
-  - **STILL A LEAD, NOT A FINDING: ♦'s multiplayer strength.** Wizard is the ramp/reclaim class, and reclaim
-    is worth most when the pool is thin and cycling fast, which the deck-cycling table confirms is the
-    six-player condition (4-5 cycles a seat). The honest test is per-deck win share at 6p with `recycle` on
-    and off. `mpsim` has no recycle flag yet, and one run is noise (Pure Rogue's sd is ~3.3 points), so it
-    wants about 8 runs an arm.
-  - **Related, and deliberately NOT bundled:** whether Counter Spell's own card should go to the Shuffle Pile
-    instead. Aj: *"let's leave counter spell alone for now."*
-  `[id: re-check-setrecycletech-discard]`
+- `needs a measurement` · **♦'S MULTIPLAYER STRENGTH — A LEAD, NOT A FINDING.** Wizard is the ramp/reclaim class,
+  and reclaim is worth most when the pool is thin and cycling fast — which
+  [`DECISIONS.md#deck-cycling`](DECISIONS.md#deck-cycling) confirms is the six-player condition (4-5 cycles a
+  seat). The honest test is per-deck win share at 6p with `recycle` on and off. `mpsim` has no recycle flag yet,
+  and one run is noise (Pure Rogue's sd is ~3.3 points), so it wants about 8 runs an arm — or a paired mode,
+  which is what made `rulepair.js` able to read a 0.03-point move in a duel. Split out of the Exile entry when
+  the viewer shipped (v1.33.11).
+  `[id: diamond-multiplayer-reclaim-lead]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
