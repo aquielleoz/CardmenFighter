@@ -2199,6 +2199,13 @@ forever is not worth 1s. Do not re-propose it without timing the suites first.
 **A SETTLE PREDICATE MUST INCLUDE THE THING BEING ASSERTED ON.** Replacing the sleeps needed a "wait until the
 geometry stops moving" poll; the first version watched `#hand`'s box and returned while the CARDS were still
 growing into it, so two negative cases measured a 60px card against a 66px floor and failed.
+**A SAMPLER THAT WRITES A PHASE'S TIME WHEN IT LEAVES THE PHASE MUST NOT STOP INSIDE ONE (2026-10-12).**
+`nettest_ceremony`'s only red, Clean-up at 0ms, was filed as "the sampler never caught it, or the beat was
+skipped". But the run was 13/1, so its "reaches CLEAN-UP" check had PASSED: the tint was seen, and only its
+duration was missing. The drive stopped on the client's log while the client's ceremony was still on Clean-up,
+and an open visit records nothing (1 stop in 12 landed there, measured). **Read the pass/fail split before the
+message:** a presence check passing beside a 0ms duration points at the instrument. Both copies of the sampler
+(`mptest`, `nettest_ceremony`) now wait for the strip to leave the tints and flush what is open.
 
 **THE SWEEP'S SCHEDULING COST IS MEASURED, NOT DECLARED — AND THE LIST THAT DECLARED IT HAD SILENTLY
 INVERTED (2026-09-24).** `SLOW` drove BOTH the longest-first schedule and `--fast`, which are two different

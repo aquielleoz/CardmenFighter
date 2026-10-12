@@ -626,15 +626,13 @@ never read.*
   line with that state when it gives up (verified by forcing a 1-iteration budget), and the sweep keeps `WHY:`
   lines. **Next step: wait for it to fire again and read the line** — do not raise the budget, which would only
   make a stuck board take longer to report.
+  **⚠ A STRONG CANDIDATE, FIXED IN v1.33.14 — UNPROVEN AS THIS ONE'S CAUSE (2026-10-12).** Until v1.33.14 every
+  3-player game in `mptest` ran TWO opponent drivers: `start3p` returns 1200ms after go-first, the "Round 1"
+  card lands at ~1640-1760ms (measured 4/4), and this driver plays at once, which is exactly what made the
+  opening card's callback start a second `runOpponents` loop. Two loops racing is a plausible way to leave a
+  board no control can play. If it recurs on v1.33.14 or later, the saved ledger's `⚠ TWO OPPONENT DRIVERS`
+  line says whether it is that class; a few clean sweeps on v1.33.14+ would argue for closing it.
   `[id: mptest-3p-round-never-resolves]`
-
-- `needs a repro`       · **`nettest_ceremony`'S CLEAN-UP TINT READ 0ms ONCE UNDER A PARALLEL SWEEP** (2026-10-05, the
-  v1.32.7 re-sweep): *"Clean-up stays on screen long enough to read — 0ms, floor 250"*, 13/1. Alone straight
-  after: **4/4 at 613-720ms**, and green in the six earlier sweeps that day. 0ms means the client's sampler
-  never caught `spCleanup` at all, not that it was short — so either the sampler is starved under load or the
-  beat was genuinely skipped on that run. Telling them apart needs the sampler to record what it DID see
-  around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
-  `[id: nettest-ceremony-cleanup-tint-zero]`
 
 ### Tooling
 

@@ -148,12 +148,20 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
      THE SAMPLER IS `mptest`'s, DELIBERATELY — that file proved three of these colours unreachable in a
      real game, and a second idiom for one question is how two answers drift apart. Assert the CLASS, never
      the colour: the hues are becoming a player preference. */
-  await join.evaluate(()=>{ window.__seq=[]; window.__dur={}; let cur=null, t0=performance.now();
+  /* ⚠ A PHASE'S TIME IS WRITTEN WHEN THE STRIP LEAVES IT, SO THE SAMPLER MUST NOT STOP INSIDE ONE
+     (nettest-ceremony-cleanup-tint-zero, 2026-10-12). The one red this check ever had read "Clean-up …
+     0ms" at 13/1 — so "reaches CLEAN-UP" PASSED on that run: the sampler had seen the tint, and only its
+     duration was missing. The drive below stops on the client's LOG showing the next round, and the
+     client's own ceremony can still be on Clean-up then; a visit still open at stop recorded nothing.
+     Measured: 1 stop in 12 landed inside Clean-up, green only because an earlier visit had already
+     written 420ms. So the stop waits for the strip to leave Clean-up, and flushes whatever is open. */
+  await join.evaluate(()=>{ window.__seq=[]; window.__dur={}; window.__cur=null; let t0=performance.now();
+    const close=now=>{ const cur=window.__cur; if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); } };
+    window.__seqStop=()=>{ clearInterval(window.__seqT); close(performance.now()); return { seq:window.__seq, dur:window.__dur, cur:window.__cur }; };
     window.__seqT=setInterval(()=>{
       const hw=document.getElementById('handWrap'); if(!hw) return;
       const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
-      if(c!==cur){ if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); }
-                   cur=c; t0=now; window.__seq.push(c); } }, 12); });
+      if(c!==window.__cur){ close(now); window.__cur=c; t0=now; window.__seq.push(c); } }, 12); });
   /* Drive one more round boundary so the sampler has a ceremony to watch. Bound by UNPRODUCTIVE
      iterations, never a raw count — this suite's own family learned that the expensive way. */
   { let stale=0, lastRound=await join.evaluate(()=>window.__cmf.turn()!=null?(window.__cmf.boardStamp?1:1):1);
@@ -174,7 +182,8 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
       if((await roundOf(join)) > r0+1) break;
     }
   }
-  const strip = await join.evaluate(()=>{ clearInterval(window.__seqT); return { seq:window.__seq, dur:window.__dur }; });
+  await waitFor(()=>join.evaluate(()=>window.__cur!=='spCleanup'), 50, 100);   // never stop inside Clean-up — see the sampler
+  const strip = await join.evaluate(()=>window.__seqStop());
   const sseen = new Set(strip.seq);
   ok(sseen.has('spResolve'),
      "THE CLIENT'S STRIP REACHES RESOLUTION" +
@@ -187,7 +196,8 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
      dwell is the host's 420ms; the floor sits well under it and well over one frame. */
   ok((strip.dur['spCleanup']||0) >= 250,
      '…and Clean-up stays on screen long enough to read — '+(strip.dur['spCleanup']||0)+'ms, floor 250' +
-     ((strip.dur['spCleanup']||0)>=250 ? '' : '  ← a tint nobody can SEE, however reliably a sampler finds it'));
+     ((strip.dur['spCleanup']||0)>=250 ? '' : '  ← a tint nobody can SEE, however reliably a sampler finds it  ['+
+       strip.seq.join(' → ')+' · stopped on '+strip.cur+' · '+JSON.stringify(strip.dur)+']'));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
 

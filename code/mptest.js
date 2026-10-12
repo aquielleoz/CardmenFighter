@@ -687,12 +687,17 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); }
     if(pb&&!pb.disabled) pb.click(); });
   if(await start3p()){
-    await p.evaluate(()=>{ window.__seq=[]; window.__dur={}; let cur=null, t0=performance.now();
+    /* A PHASE'S TIME IS WRITTEN WHEN THE STRIP LEAVES IT, so stopping inside one would record nothing for that
+       visit — the shape of `nettest_ceremony`'s one red (2026-10-12: 0ms on a tint the sampler HAD seen). That
+       suite's sampler is this one, deliberately, so both stop the same way: wait for the strip to leave the
+       ceremony's tints, then flush whatever is still open. */
+    await p.evaluate(()=>{ window.__seq=[]; window.__dur={}; window.__cur=null; let t0=performance.now();
+      const close=now=>{ const cur=window.__cur; if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); } };
+      window.__seqStop=()=>{ clearInterval(window.__seqT); close(performance.now()); return { seq:window.__seq, dur:window.__dur }; };
       window.__seqT=setInterval(()=>{
         const hw=document.getElementById('handWrap'); if(!hw) return;
         const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
-        if(c!==cur){ if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); }
-                     cur=c; t0=now; window.__seq.push(c); } }, 12); });
+        if(c!==window.__cur){ close(now); window.__cur=c; t0=now; window.__seq.push(c); } }, 12); });
     /* ⚠ BOUND BY UNPRODUCTIVE ITERATIONS, NEVER A RAW COUNT — and this file's own history says so
        (v1.31.85: `exporttest` looped `i<160`, went red under `-j 4` and 5/5 green alone, because an
        iteration whose click `busy` swallows spends budget while advancing nothing). I wrote `i<70` here
@@ -724,7 +729,8 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       return { round:s&&s.round, turn:s&&s.turn, sub:s&&s.subPhase, respondFor:s&&s.respondFor, pending:!!(s&&s.pending), discard:s&&s.discardPending, cleanup:!!(s&&s.cleanup), resolution:!!(s&&s.resolution),
                fight:f&&(f.textContent.trim()+(f.disabled?' (off)':'')), pass:pb&&(pb.textContent.trim()+(pb.disabled?' (off)':'')),
                hint:(document.getElementById('hint')||{}).textContent, msg:(document.getElementById('message')||{}).textContent, modal:!!document.querySelector('#overlay.show') }; })));
-    const { seq, dur } = await p.evaluate(()=>{ clearInterval(window.__seqT); return { seq:window.__seq, dur:window.__dur }; });
+    await waitFor(()=>p.evaluate(()=>!/^sp(Resolve|Cleanup|Begin)$/.test(window.__cur||'')), 50);   // never stop inside a ceremony tint
+    const { seq, dur } = await p.evaluate(()=>window.__seqStop());
     const seen = new Set(seq);
     ['spIdle','spMain','spFight','spResolve','spCleanup','spBegin'].forEach(c=>{
       ok(seen.has(c), 'the strip reaches '+c+' in an ordinary 3-player game'+
