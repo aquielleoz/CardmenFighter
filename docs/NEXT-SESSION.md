@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.11.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.12.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.11**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.12**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -634,26 +634,6 @@ never read.*
   beat was genuinely skipped on that run. Telling them apart needs the sampler to record what it DID see
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
-
-
-- `ready to build`      · **THE REST OF AJ'S PHONE DECLUTTER — DECIDED 2026-10-12: BOTH HALVES.** His
-  2026-10-02 direction for the hand bar: *"we can probably make shields a number… maybe we don't need all that
-  info on display all the time? i think the most important one is shields, then energy, then effects affecting
-  the board"* — deck name, deck count and discard count on demand. v1.32.12 built the parts that the collision
-  needed (Specials list → ☰, your turn → header, the boost chip onto the shields line, Forms + Equipment on one
-  line) and every phone and landscape size measures clean, so this is a design change, not a fix.
-  **Asked 2026-10-12 whether he still wants it: "Yes, both halves"** — shields become a number on phones, and
-  the deck name, deck count and pile counts move behind a tap.
-  **ONE THING TO CONFIRM WHEN BUILDING IT:** he chose a SEPARATE button for the Exile viewer (shipped in
-  v1.33.11), asked before the tap-for-counts half was settled, so whether the ⊘ stays on the phone bar or joins
-  the tapped counts is still his call. **AND THIS IS WHERE THE ⊘ COMES BACK ON THE NARROWEST PHONES:** v1.33.11
-  hides it below 340px (`.exStat`), because at 327x660 with the longest deck name the bar had no room and the
-  round-1 message ran 26px into your panel. Shields as a number frees ~50px; `piletest` pins the exception both
-  ways, so lifting it reds that suite until the assertion is updated with it.
-  **IF SHIELDS BECOME A NUMBER, THE BREAK ANIMATION SURVIVES** — checked when this was filed: `animateShields`
-  works off a numeric diff; only the target (`shatterShield(slots[i])`) is pip-specific. (The other gap noted here — no shatter on an
-  opponent's panel at 3-6 players — shipped in v1.32.20.)
-  `[id: phone-declutter-rest]`
 
 ### Tooling
 

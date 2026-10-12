@@ -755,6 +755,34 @@
   #youMetaMods #playMods{display:inline-flex; margin:0; gap:4px;}
   #youMetaMods #playMods .pmod{padding:1px 7px; font-size:11px;}
   @media (orientation:portrait){ #youMetaMods #playMods .pmod .src{display:none;} }   /* portrait: the amount only (sources in the title); landscape has the width for them */
+  /* SHIELDS AS A NUMBER, AND THE DECK AND PILE COUNTS BEHIND ONE TAP — PORTRAIT PHONE ONLY (phone-declutter-rest).
+     Aj, 2026-10-02: *"we can probably make shields a number… maybe we don't need all that info on display all the
+     time? i think the most important one is shields, then energy, then effects affecting the board"*; and of the
+     ⊘, 2026-10-12: *"behind the tap with the other counts"*. `placeZones` MOVES the deck name, 🂠, ♻ and ⊘ into
+     `#pilesSheet` and sets `body.phoneBar`; desktop and the landscape band keep everything on the bar.
+     THE PIPS STAY IN THE DOM, HIDDEN: `animateShields` diffs them and the shatter targets them, and the number is
+     synced and shaken from the same call, so the break still has its local cue and the centre-stage flourish. */
+  .shNum{display:none; align-items:center; gap:4px; font-weight:800; font-size:14px; line-height:1;}
+  .shNum .shIco{display:inline-block; width:12px; height:15px; border-radius:2px 2px 4px 4px; background:var(--shield); box-shadow:inset 0 -2px 0 rgba(0,0,0,.15);}
+  .shNum.zero .shIco{background:transparent; border:1.5px solid rgba(255,255,255,.2);}
+  .shNum.zero b{color:var(--red);}
+  .shNum.shake-shield{animation:shieldShake .46s ease-in-out;}
+  @media (prefers-reduced-motion: reduce){ .shNum.shake-shield{animation:none;} }
+  body.phoneBar #youShields{display:none;}
+  body.phoneBar #youShieldsNum{display:inline-flex;}
+  /* `[hidden]` LOSES TO A `display` RULE (see `#menuSheet`), so both overrides are stated. */
+  #pilesWrap{position:relative; display:inline-flex;}
+  #pilesWrap[hidden]{display:none;}
+  #pilesBtn.open{border-color:var(--gold); color:var(--gold);}
+  /* OPENS UPWARD, over the board: the hand sits right under the bar, and the cards are what you are looking at. */
+  #pilesSheet{position:absolute; left:0; bottom:calc(100% + 7px); z-index:var(--zMenu);
+    display:flex; flex-direction:column; align-items:flex-start; gap:7px; padding:8px 10px; min-width:170px; max-width:calc(100vw - 16px); white-space:nowrap;
+    background:#241633; border:1px solid var(--line); border-radius:12px; box-shadow:0 14px 34px rgba(0,0,0,.6);}
+  #pilesSheet[hidden]{display:none;}
+  #pilesSheet .deckName{font-weight:700; white-space:normal;}   /* a long custom deck name wraps instead of widening the sheet */
+  .sheetLbl{display:none;}
+  #pilesSheet .sheetLbl{display:inline;}
+  #handMeta #pilesSheet .deckWord{display:inline;}   /* the ≤380px rule hides it on the bar; the sheet has the room */
   @media (max-width:720px){
     #hand{padding-top:calc(24px + var(--handLap));}
     #hand > .group{margin-top:calc(-1 * var(--handLap));}
@@ -1529,8 +1557,11 @@
        onto the Equipment line, the Equipment chip wrapped, your bar grew 28px and the rival's 12px, and the
        round-1 message ran 26px into your panel. 340, 360, 375, 390 and 412 measured clean WITH it — the bars came
        out the same height either way. The phone declutter (`phone-declutter-rest`, approved 2026-10-12) frees
-       this room — shields as a number alone is ~50px — so that is where it comes back. */
-    #handMeta .exStat, #rival .exStat{display:none;}
+       this room — shields as a number alone is ~50px — so that is where it comes back.
+       ⚠ AND IT DID, FOR YOUR BAR ONLY: on a portrait phone your ⊘ lives behind the 🂠 tap (Aj: *"behind the tap
+       with the other counts"*), and a `#handMeta .exStat` rule here would hide it INSIDE the sheet too. The
+       rival's bar was not part of the declutter, so its ⊘ is still the one this rule hides. */
+    #rival .exStat{display:none;}
   }
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
@@ -1890,11 +1921,12 @@
     <div id="handMeta">
       <span class="fighter" style="padding:5px 10px; gap:10px; background:transparent; border:none;">
         <button type="button" id="youWho" class="who whoBtn" style="min-width:0;" title="Click to change your name">You</button><span id="youDeckName" class="deckName"></span>
-        <span class="shields" id="youShields"></span>
+        <span class="shields" id="youShields"></span><span class="shNum" id="youShieldsNum" title="Your shields"><i class="shIco"></i><b>0</b></span>   <!-- portrait phone: shields as a NUMBER (see placeZones) -->
         <span class="stat"><button type="button" id="youNrgBtn" class="statBtn" title="Open your energy pile">⚡<span id="youNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
+        <span class="pilesWrap" id="pilesWrap" hidden><button type="button" id="pilesBtn" class="statBtn" title="Your deck and piles" aria-haspopup="true" aria-expanded="false">🂠 ▾</button><span id="pilesSheet" hidden></span></span>   <!-- portrait phone: the deck name and the three counts below are MOVED into the sheet (see placeZones) -->
         <span class="stat deck">🂠 <b id="youDeck">0</b><span class="deckWord"> deck</span></span>
-        <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span></button></span>
-        <span class="stat exStat"><button type="button" id="youExBtn" class="statBtn" title="Open your Exile — the cards gone for good">⊘ <span id="youEx" class="shufBox clickable">0</span></button></span>
+        <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span><span class="sheetLbl"> shuffle pile</span></button></span>
+        <span class="stat exStat"><button type="button" id="youExBtn" class="statBtn" title="Open your Exile — the cards gone for good">⊘ <span id="youEx" class="shufBox clickable">0</span><span class="sheetLbl"> exile</span></button></span>
         <span id="youMetaMods"></span>   <!-- portrait phone: `#playMods` is MOVED here, onto the shields line (see placeZones) -->
         <span class="equip" id="youEquip"></span>
         <span class="panelZones" id="youZones"></span>     <!-- phone: ditto — see placeZones -->
@@ -3243,6 +3275,7 @@ __QR__
   // rebuild a fighter's shields; on a change, shatter/shake (loss) or pop-in (gain), plus a center-stage flourish
   function animateShields(el, n, player){
     var prev = (player in prevShields) ? prevShields[player] : null;
+    syncShieldNum(el, n);                                      // the portrait-phone number rides the SAME diff (and the same hold) as the pips
     if(prev===n){ if(el.children.length!==Math.max(baseShields(),n)) shieldsEl(el,n); return; }  // unchanged — don't rebuild (avoid clobbering an in-flight shatter)
     shieldsEl(el, n);
     var slots=el.children;
@@ -3258,8 +3291,9 @@ __QR__
     if(prev!=null && !reduceMotion()){
       if(n<prev){                                              // took damage
         for(var i=n;i<prev && i<slots.length;i++) shatterShield(slots[i]);
-        el.classList.remove('shake-shield'); void el.offsetWidth; el.classList.add('shake-shield');
-        (function(c){ setTimeout(function(){ c.classList.remove('shake-shield'); }, 500); })(el);
+        [el, el.id==='youShields' ? $('youShieldsNum') : null].forEach(function(c){ if(!c) return;   // the number shakes with the pips — on a portrait phone it is what you can see
+          c.classList.remove('shake-shield'); void c.offsetWidth; c.classList.add('shake-shield');
+          setTimeout(function(){ c.classList.remove('shake-shield'); }, 500); });
         centerShieldFX('brk', player);
       } else if(n>prev){                                       // gained a shield
         for(var j=prev;j<n && j<slots.length;j++) slots[j].classList.add('forming');
@@ -3363,6 +3397,15 @@ __QR__
     if(getComputedStyle(host).position==='static') host.style.position='relative';
     var f=document.createElement('span'); f.className='deckLoss'; f.textContent='−'+n; host.appendChild(f);
     (function(g){ setTimeout(function(){ if(g.parentNode) g.parentNode.removeChild(g); }, 1050); })(f);
+  }
+  /* YOUR SHIELDS AS A NUMBER on a portrait phone (phone-declutter-rest) — a SEPARATE element, never a child of the
+     pip row: `animateShields` compares the row's child count against the slot count, and one extra child there
+     would rebuild the row on every render and clobber an in-flight shatter. Only your bar carries one. */
+  function syncShieldNum(el, n){
+    if(!el || el.id!=='youShields') return;
+    var num=$('youShieldsNum'); if(!num) return;
+    var b=num.querySelector('b'); if(b && b.textContent!==String(n)) b.textContent=n;
+    num.classList.toggle('zero', n===0);
   }
   function shatterShield(slot){
     slot.classList.add('shatter');
@@ -7872,7 +7915,7 @@ __QR__
    * game-owned windows (respond, shield-guard, pre-fight, reveal) stay on the owed list where they were. */
   var stickyModal=false;
   function showStickyModal(html, cls){ showModal(html, cls); stickyModal=true; }
-  function showModal(html, cls){ overlayDismiss=null; stickyModal=false; closeCardFull(); closeMenu(); var m=$('modal'), ov=$('overlay');
+  function showModal(html, cls){ overlayDismiss=null; stickyModal=false; closeCardFull(); closeMenu(); closePiles(); var m=$('modal'), ov=$('overlay');
     /* Opened WHILE peeking? Stash the end screen the peek is hiding — there is only one #modal, so this
      * dialog would otherwise overwrite it — and un-hide the modal for the duration. `peekStash` is set once
      * per peek: a second dialog replaces the first without losing the end screen underneath. */
@@ -8867,10 +8910,10 @@ __QR__
   function lessonZonesSteps(){
     return [
       { text:"A quick tour of the <b>five zones</b>. First, your <b>Hand</b> — the cards you’re holding, ready to fight or activate.", hi:'#hand', btn:"Next ▸" },
-      { text:"Your <b>Deck</b> (🂠) — you draw 2 from it each round. It’s fine to <b>end a round with an empty hand</b>; you only <b>deck out</b> (and lose) if you ever have to <b>draw with both your deck and shuffle pile empty</b>. So keep the cycle fed.", hi:'#handMeta .stat.deck', btn:"Next ▸" },
+      { text:"Your <b>Deck</b> (🂠) — you draw 2 from it each round. It’s fine to <b>end a round with an empty hand</b>; you only <b>deck out</b> (and lose) if you ever have to <b>draw with both your deck and shuffle pile empty</b>. So keep the cycle fed.", hi:'#handMeta .stat.deck, #pilesWrap:has(.stat.deck) > #pilesBtn', btn:"Next ▸" },
       { text:"The <b>Play area</b> — where the fight happens. Cards played here are compared; the higher one wins the round.", hi:'#pile', btn:"Next ▸" },
       { text:"Your <b>Energy pile</b> (⚡) — every card you fight banks here. It’s the fuel you spend on card effects.", hi:'#youNrgSuits', btn:"Next ▸" },
-      { text:"Your <b>Shuffle pile</b> (♻) — spent energy lands here, and when your <b>Deck</b> runs dry the shuffle pile becomes your new deck. Cards cycle Hand → Play/Energy → Shuffle → Deck → Hand. That’s the board!", hi:'#youShuf', btn:"Finish" }
+      { text:"Your <b>Shuffle pile</b> (♻) — spent energy lands here, and when your <b>Deck</b> runs dry the shuffle pile becomes your new deck. Cards cycle Hand → Play/Energy → Shuffle → Deck → Hand. That’s the board!", hi:'#youShuf, #pilesWrap:has(#youShuf) > #pilesBtn', btn:"Finish" }
     ];
   }
 
@@ -9621,6 +9664,22 @@ __QR__
    * lifts it along with everything else during peek and the sheet needs no peek rule of its own. */
   function closeMenu(){ var sh=$('menuSheet'), b=$('menuBtn'); if(!sh||!b) return;
     sh.hidden=true; b.classList.remove('open'); b.setAttribute('aria-expanded','false'); }
+  /* THE 🂠 SHEET (phone-declutter-rest) — the ☰ sheet's twin, for the counts a portrait phone moves off the bar:
+     a dropdown, closed by an outside tap, by Escape, and by any dialog opening (`showModal` calls this beside
+     `closeMenu`), so tapping ♻ or ⊘ inside it opens the viewer and the sheet gets out of the way. */
+  function closePiles(){ var sh=$('pilesSheet'), b=$('pilesBtn'); if(!sh||!b) return;
+    sh.hidden=true; b.classList.remove('open'); b.setAttribute('aria-expanded','false'); }
+  (function(){
+    var wrap=$('pilesWrap'), btn=$('pilesBtn'), sheet=$('pilesSheet'); if(!wrap||!btn||!sheet) return;
+    /* CLAMPED INTO THE SCREEN ON OPEN: anchored at the button's left it ran off the right edge at 327px (the
+       button sits mid-bar), and a custom deck's name can be long. Measured after it renders, shifted by the
+       overflow on either side, so it holds at every width and any name length. */
+    function place(){ sheet.style.left='0px'; var r=sheet.getBoundingClientRect(), vw=document.documentElement.clientWidth, dx=0;
+      if(r.right>vw-8) dx=(vw-8)-r.right; if(r.left+dx<8) dx=8-r.left; sheet.style.left=dx+'px'; }
+    btn.addEventListener('click', function(e){ e.stopPropagation(); var on=sheet.hidden; sheet.hidden=!on; btn.classList.toggle('open', on); btn.setAttribute('aria-expanded', on?'true':'false'); if(on) place(); });
+    document.addEventListener('click', function(e){ if(!sheet.hidden && !wrap.contains(e.target)) closePiles(); });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !sheet.hidden) closePiles(); });
+  })();
   (function(){
     var wrap=$('menuWrap'), btn=$('menuBtn'), sheet=$('menuSheet');
     function setOpen(on){ sheet.hidden=!on; btn.classList.toggle('open', on); btn.setAttribute('aria-expanded', on?'true':'false'); }
@@ -9939,6 +9998,22 @@ __QR__
        `title`, and wider layouts keep the full "from Giant Boar, Hero's Javelin". */
     var pm=$('playMods'), pmHome=$('handWrap'), pmPhone=$('youMetaMods'), hand=$('hand');
     if(pm && pmPhone && pmHome){ if(moved){ if(pm.parentNode!==pmPhone) pmPhone.appendChild(pm); } else if(pm.parentNode!==pmHome) pmHome.insertBefore(pm, hand); }
+    /* AND THE DECK NAME AND THE THREE COUNTS GO BEHIND ONE TAP — PORTRAIT PHONE ONLY (phone-declutter-rest; Aj,
+       2026-10-02 + 2026-10-12, quoted at the CSS). Shields, energy and the board-effect chips are what stay on the
+       bar, in his order. MOVED, NOT REBUILT, like everything above: `#youShufBtn` / `#youExBtn` keep their
+       handlers and open their viewers from inside the sheet. The landscape band has the width, so only `phone`. */
+    var sheet=$('pilesSheet'), pw=$('pilesWrap'), dn=$('youDeckName'), who=$('youWho'), mm=$('youMetaMods');
+    var dk=document.querySelector('#handMeta .stat.deck'), sf=$('youShufBtn')&&$('youShufBtn').parentNode, ex=$('youExBtn')&&$('youExBtn').parentNode;
+    if(sheet && pw && dn && who && mm && dk && sf && ex){
+      if(phone){ [dn,dk,sf,ex].forEach(function(n){ if(n.parentNode!==sheet) sheet.appendChild(n); }); }
+      else {
+        if(dn.parentNode===sheet) who.parentNode.insertBefore(dn, who.nextSibling);
+        [dk,sf,ex].forEach(function(n){ if(n.parentNode===sheet) mm.parentNode.insertBefore(n, mm); });   // in order, so the bar reads 🂠 ♻ ⊘ again
+        closePiles();
+      }
+      pw.hidden=!phone;
+    }
+    document.body.classList.toggle('phoneBar', !!phone);
   }
   function buildDice(n){
     var da=$('diceArea'); if(!da) return; da.style.opacity='';

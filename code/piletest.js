@@ -121,10 +121,11 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok(await p.evaluate(()=>/Exile/.test(document.querySelector('#modal h2').textContent) && document.querySelectorAll('.pileRow').length===3),'…which opens that seat\'s Exile (3 cards)');
   ok(await p.evaluate(()=>!(document.querySelector('.oppPanel[data-seat="2"] .oppZones')||{className:''}).className.match(/\bopen\b/)),'…and the click did not also open the panel\'s zones behind it');
 
-  /* THE ONE PLACE THE BUTTON IS NOT: phones under 340px wide, where the bar has no room for it (measured at
-     327x660 with the longest deck name — see the CSS). Pinned BOTH ways, so the exception cannot quietly widen
-     and cannot quietly outlive the phone declutter that is meant to retire it: hidden at 327 but still REACHED
-     through the viewer's ring, and present at 390. */
+  /* ON A PORTRAIT PHONE YOUR ⊘ IS BEHIND THE 🂠 TAP (phone-declutter-rest; Aj, 2026-10-12: *"behind the tap with the
+     other counts"*). It replaced the narrow-phone exception this block used to pin — your ⊘ hidden under 340px —
+     so the claim moved with it: hidden on the bar at EVERY portrait width, shown and working once the sheet is
+     open. The RIVAL's bar was not part of the declutter, so its exception stands, still pinned both ways:
+     hidden at 327 (no room), on screen at 390. `phonetest` carries the rest of the declutter. */
   async function narrow(w,h){
     const q=await (await b.newContext({viewport:{width:w,height:h}})).newPage(); q.on('pageerror',e=>errs.push(e.message));
     await q.goto(URL); await q.waitForTimeout(700);
@@ -132,15 +133,18 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
     await q.evaluate(()=>document.getElementById('goFirstBtn').click()); await q.waitForTimeout(1100);
     return q;
   }
-  const n327=await narrow(327,660);
-  ok(await n327.evaluate(()=>document.getElementById('youExBtn').offsetParent===null && document.getElementById('rivalExBtn').offsetParent===null),'at 327px the ⊘ buttons are hidden — the bar has no room');
-  await n327.evaluate(()=>document.getElementById('youShufBtn').click()); await n327.waitForTimeout(300);
-  await n327.evaluate(()=>document.getElementById('pvNext').click()); await n327.waitForTimeout(300);
-  ok(await n327.evaluate(()=>/Exile/.test(document.querySelector('#modal h2').textContent)),'…but ♻ → still reaches the Exile there');
-  await n327.close();
-  const n390=await narrow(390,780);
-  ok(await n390.evaluate(()=>document.getElementById('youExBtn').offsetParent!==null && document.getElementById('rivalExBtn').offsetParent!==null),'at 390px both ⊘ buttons are on screen');
-  await n390.close();
+  for(const [w,h,rivalShown] of [[327,660,false],[390,780,true]]){
+    const q=await narrow(w,h);
+    ok(await q.evaluate(()=>document.getElementById('youExBtn').offsetParent===null && !!document.getElementById('pilesBtn') && document.getElementById('pilesBtn').offsetParent!==null),
+       `at ${w}px your ⊘ is off the bar, behind the 🂠 button`);
+    await q.evaluate(()=>{ const x=document.getElementById('pilesBtn'); if(x) x.click(); }); await q.waitForTimeout(250);
+    ok(await q.evaluate(()=>document.getElementById('youExBtn').offsetParent!==null), `  → and the 🂠 tap shows it`);
+    await q.evaluate(()=>document.getElementById('youExBtn').click()); await q.waitForTimeout(350);
+    ok(await q.evaluate(()=>/Exile/.test((document.querySelector('#modal h2')||{}).textContent||'')), `  → which opens the Exile from inside the sheet`);
+    ok(await q.evaluate(()=>document.getElementById('rivalExBtn').offsetParent!==null)===rivalShown,
+       `  → while the rival's ⊘ is ${rivalShown?'on screen':'hidden — its bar has no room under 340px'}`);
+    await q.close();
+  }
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

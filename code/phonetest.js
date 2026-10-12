@@ -210,6 +210,77 @@ const actionRow = p => p.evaluate(()=>{
        `  → including Sort's full label ("${wide.bs.filter(x=>x.id==='sortBtn')[0].text}")`);
     await ctx.close();
   }
+
+  /* ---- THE PHONE BAR DECLUTTER (phone-declutter-rest) ----
+     Aj, 2026-10-02: *"we can probably make shields a number… maybe we don't need all that info on display all the
+     time? i think the most important one is shields, then energy, then effects affecting the board"*; and of the
+     ⊘, 2026-10-12: *"behind the tap with the other counts"*. On a portrait phone your shields read as a NUMBER and
+     the deck name, 🂠, ♻ and ⊘ go behind one 🂠 tap.
+     PINNED BOTH WAYS: a tablet and the landscape band keep the full bar, and a rotation moves the counts back —
+     a rule with no edge would pass every phone line below while stripping the counts off a desktop too. Staged
+     with the LONGEST deck name and real piles, so "off the bar" is not true of nodes that were empty anyway. */
+  const vis=(p,sel)=>p.evaluate(s=>{ const e=document.querySelector(s); if(!e||e.offsetParent===null) return false; const r=e.getBoundingClientRect(); return r.width>0&&r.height>0; }, sel);
+  async function barPage(w,h){
+    const ctx=await b.newContext({viewport:{width:w,height:h}});
+    const p=await ctx.newPage(); p.on('pageerror',e=>errs.push(w+'x'+h+' bar: '+e.message));
+    await p.goto(URL); await wait(700);
+    await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await p.evaluate(()=>{ ['setYouDeck','setRivalDeck'].forEach(function(id){ var s=document.getElementById(id); if(s) s.value='MageKnight'; }); });
+    await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1200);
+    await p.evaluate(()=>{ const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:r+s+t});
+      st.players[0].removed=[mk(5,'S','#x'),mk(8,'H','#x')]; st.players[0].shuffle=[mk(3,'D','#s')]; st.players[0].shields=3; window.__solo.render(); });
+    await wait(600);
+    return { ctx, p };
+  }
+  const COUNTS=['#youDeckName','#handMeta .stat.deck','#youShufBtn','#youExBtn'];
+  for(const [w,h] of [[390,780],[327,660]]){
+    const { ctx, p }=await barPage(w,h); const tag=`${w}x${h}`;
+    ok(await vis(p,'#youShieldsNum') && !(await vis(p,'#youShields')), `${tag}: your shields read as a NUMBER, the pips hidden`);
+    ok((await p.evaluate(()=>(document.querySelector('#youShieldsNum b')||{}).textContent))==='3', `  → and the number is the real count (3)`);
+    const off=[]; for(const s of COUNTS) if(await vis(p,s)) off.push(s);
+    ok(off.length===0 && await vis(p,'#pilesBtn'), `${tag}: the deck name, 🂠, ♻ and ⊘ are OFF the bar, behind the 🂠 button`+(off.length?'  ← still showing: '+off.join(', '):''));
+    /* ONE LINE: everything left on the bar shares the name's row — the point of the change, in pixels */
+    const row=await p.evaluate(()=>{ const t=id=>{ const e=document.getElementById(id); return e?Math.round(e.getBoundingClientRect().top):-999; }; return { who:t('youWho'), num:t('youShieldsNum'), btn:t('pilesBtn'), nrg:t('youNrgBtn') }; });
+    ok(Math.max(row.num,row.btn,row.nrg)-row.who<14, `  → and the bar is ONE row: name, shields, energy and 🂠 share it (${JSON.stringify(row)})`);
+    await p.evaluate(()=>{ const x=document.getElementById('pilesBtn'); if(x) x.click(); }); await wait(250);
+    const on=[]; for(const s of COUNTS) if(await vis(p,s)) on.push(s);
+    const sheet=await p.evaluate(()=>{ const sh=document.getElementById('pilesSheet'); if(!sh) return { left:-1, right:-1, vw:0, txt:'(no sheet)' }; const r=sh.getBoundingClientRect();
+      return { left:Math.round(r.left), right:Math.round(r.right), vw:document.documentElement.clientWidth, txt:sh.textContent.replace(/\s+/g,' ').trim() }; });
+    ok(on.length===COUNTS.length, `${tag}: tapping 🂠 shows all four ("${sheet.txt}")`);
+    ok(/Mage Knight/.test(sheet.txt) && /deck/.test(sheet.txt) && /1 shuffle pile/.test(sheet.txt) && /2 exile/.test(sheet.txt), `  → the deck name and the three counts, labelled, with the real numbers`);
+    ok(sheet.left>=0 && sheet.right<=sheet.vw, `  → and the sheet stays ON SCREEN (${sheet.left}..${sheet.right} of ${sheet.vw})`);
+    await p.mouse.click(Math.round(w/2), 120); await wait(200);
+    ok(await p.evaluate(()=>{ const sh=document.getElementById('pilesSheet'); return !!(sh && sh.hidden); }), `  → a tap outside closes it`);
+    await p.evaluate(()=>{ const x=document.getElementById('pilesBtn'); if(x) x.click(); }); await wait(200);
+    await p.evaluate(()=>document.getElementById('youExBtn').click()); await wait(350);
+    ok(await p.evaluate(()=>{ const sh=document.getElementById('pilesSheet'); return /Exile/.test((document.querySelector('#modal h2')||{}).textContent||'') && !!(sh && sh.hidden); }),
+       `  → ⊘ inside it opens the Exile, and the sheet gets out of the way`);
+    await p.evaluate(()=>{ const d=document.getElementById('pvDone'); if(d) d.click(); }); await wait(200);
+    /* THE NUMBER FOLLOWS A BREAK, and turns at zero — the shields line is what a player reads first */
+    await p.evaluate(()=>{ const st=window.__solo.st(); st.players[0].shields=0; window.__solo.render(); }); await wait(300);
+    ok(await p.evaluate(()=>{ const n=document.getElementById('youShieldsNum'); return !!(n && (n.querySelector('b')||{}).textContent==='0' && n.classList.contains('zero')); }),
+       `  → the number follows a break, and marks zero`);
+    await ctx.close();
+  }
+  /* THE NEGATIVE HALF: a portrait tablet and the landscape band keep the full bar */
+  for(const [w,h,what] of [[768,1024,'a 768px tablet'],[844,390,'the 844x390 landscape band']]){
+    const { ctx, p }=await barPage(w,h);
+    const kept=[]; for(const s of COUNTS) if(await vis(p,s)) kept.push(s);
+    ok(await vis(p,'#youShields') && !(await vis(p,'#youShieldsNum')) && kept.length===COUNTS.length && !(await vis(p,'#pilesBtn')),
+       `${what} keeps the full bar — pips, deck name, 🂠, ♻ and ⊘, and no 🂠 button`+(kept.length<COUNTS.length?'  ← missing: '+COUNTS.filter(s=>kept.indexOf(s)<0).join(', '):''));
+    await ctx.close();
+  }
+  /* AND A ROTATION MOVES THEM BACK, and forth — `placeZones` re-runs on the media change */
+  {
+    const { ctx, p }=await barPage(390,844);
+    await p.setViewportSize({width:844,height:390}); await wait(500);
+    const back=[]; for(const s of COUNTS) if(await vis(p,s)) back.push(s);
+    ok(back.length===COUNTS.length && !(await vis(p,'#pilesBtn')), `turning a 390x844 phone sideways puts the counts back on the bar (${back.length}/${COUNTS.length})`);
+    await p.setViewportSize({width:390,height:844}); await wait(500);
+    const again=[]; for(const s of COUNTS) if(await vis(p,s)) again.push(s);
+    ok(again.length===0 && await vis(p,'#pilesBtn'), `  → and upright again, they go back behind the 🂠 tap`);
+    await ctx.close();
+  }
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
