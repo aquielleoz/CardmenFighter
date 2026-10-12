@@ -265,12 +265,27 @@ function cards(ids) { return ids.map(card); }
   // ---- Broadway pitch cost: Ultima Attack / Armor Piercing discard a 10/J/Q/K/A ----
   (function () {
     function energy(pl, n, s) { for (var i = 0; i < n; i++) pl.energy.push(sc(4, s || 'C')); }
-    // Ultima Attack WITH a Broadway card to pitch → succeeds, strips a shield, and the pitch goes to Discard.
+    // Ultima Attack WITH a Broadway card to pitch → succeeds, strips a shield, and the pitch BANKS TO ENERGY.
+    /* A PITCH IS A DISCARD, AND A DISCARD GOES TO THE ENERGY PILE (Aj, 2026-10-12). This asserted the
+       pitched King in the gone-for-good pile from v0.86 until today — that was the rule then, so the
+       assertion is rewritten, not relaxed: energy, NOT the Exile. The used Technique itself is still exiled,
+       which is the other half of the same rule. */
     var g = E.newGame(null, { starter: 0 }); var me = g.players[0], foe = g.players[1];
     me.hand = [sc(10, 'C'), sc(13, 'C'), sc(4, 'H')]; energy(me, 10, 'C');   // Ultima(10C) + a King to pitch + filler
     g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0; foe.shields = 3;
     var r = E.activate(g, 0, '10C');
-    ok(r.ok && r.pitched && r.pitched.rank === 13 && me.removed.some(function (c) { return c.rank === 13 && c.suit === 'C'; }), 'Ultima Attack pitches a Broadway card to the Discard pile');
+    ok(r.ok && r.pitched && r.pitched.rank === 13 && me.energy.some(function (c) { return c.rank === 13 && c.suit === 'C'; }), 'Ultima Attack pitches a Broadway card INTO THE ENERGY PILE, like every other discard');
+    ok(!me.removed.some(function (c) { return c.rank === 13; }), '…and NOT into the Exile, where it went until 2026-10-12');
+    ok(me.energy.length === 1, '…and the cast spent the ten ♣, leaving the pitched King as the only card in the pile (' + me.energy.length + ')');
+    ok(me.removed.some(function (c) { return c.id === '10C'; }), '…while the used Technique itself IS exiled — the other half of the rule');
+    /* A BANKED PITCH MUST NEVER PAY FOR ITS OWN CAST — the claim worth pinning now that the pitched card lands in
+       the very pile the cost is paid from. It holds because `canAfford` runs before anything is pitched, so this
+       passes on the old engine too, by design: it guards the invariant against a reorder, it is not the fix. */
+    var gN = E.newGame(null, { starter: 0 }); var mN = gN.players[0];
+    mN.hand = [sc(10, 'C'), sc(13, 'C'), sc(4, 'H')]; energy(mN, 9, 'C');   // nine ♣ for a 10-cost cast + a King to pitch
+    gN.turn = 0; gN.round = 3; gN.pile = null; gN.lastPlayer = null; gN.passes = 0; gN.players[1].shields = 3;
+    var rN = E.activate(gN, 0, '10C');
+    ok(rN.ok === false && mN.hand.length === 3 && mN.energy.length === 9, 'nine energy and a Broadway card in hand still cannot cast a 10 — the pitch never pays for its own cast (' + (rN.reason || 'cast went through') + ')');
     ok(!me.hand.some(function (c) { return c.rank === 13; }), 'the pitched King left the hand');
     // Ultima Attack with NO other Broadway card in hand → blocked.
     var g2 = E.newGame(null, { starter: 0 }); var m2 = g2.players[0];
@@ -3333,7 +3348,8 @@ function cards(ids) { return ids.map(card); }
   var r1 = E.respond(g1, 1, 'ap', { pitch: 'bA' });
   var h1 = g1.players[1].hand.map(function (c) { return c.id; });
   ok(r1.ok && h1.indexOf('bA') < 0 && h1.indexOf('b10') >= 0, 'a QUICK cast pays the pitch it names — the Ace went, the 10 stayed  [' + h1 + ']' + (h1.indexOf('bA') >= 0 && h1.indexOf('b10') >= 0 ? '  ← REPRODUCED: the Quick paid NO pitch' : ''));
-  ok(g1.players[1].removed.some(function (c) { return c.id === 'bA'; }), '…and the pitched card is in the Discard pile, as an activation\'s is');
+  ok(g1.players[1].energy.some(function (c) { return c.id === 'bA'; }) && !g1.players[1].removed.some(function (c) { return c.id === 'bA'; }),
+     '…and the pitched card BANKS TO ENERGY, as an activation\'s does — never the Exile (the rule since 2026-10-12)');
   var g2 = rigQ([mk(10, 'H', 'b10'), mk(1, 'S', 'bA')]); E.respond(g2, 1, 'ap', {});
   ok(g2.players[1].hand.every(function (c) { return c.id !== 'b10'; }), 'an unnamed Quick pitch defaults to the lowest, like activate');
   var g3 = rigQ([mk(5, 'H', 'x5')]);

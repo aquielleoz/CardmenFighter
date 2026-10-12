@@ -28,7 +28,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 **Queen Form — ♣Q · Hippolyta Form**:
 - **Prepare for Combat** → Draw 1 more (draw 3).
 - **Armor Piercing** → Armor Piercing becomes a Quick.
-- **Instant Recovery** → Also shuffle your Discard (spent cards) back into your deck before drawing.
+- **Instant Recovery** → Also shuffle your Exile (used Techniques, destroyed Equipment) back into your deck before drawing.
 
 **King Form — ♣K · Meleager Form**:
 - **Brilliant Tactic** → Boost your next play by 1 more (to +3).
@@ -36,7 +36,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 - **Spiked Armor** → The Rival's highest card each fight drops 1 further (to −3).
 
 **Super Mode — ♣ · Ares Mode** *(J+Q+K in zone)*:
-- **Instant Recovery** → The Wheel — shuffle your hand, your Discard, and your Shuffle Pile back into your deck, then draw 6 fresh cards.
+- **Instant Recovery** → The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.
 - **Ultima Attack** → The Rival loses 1 additional shield (2 total).
 
 ---

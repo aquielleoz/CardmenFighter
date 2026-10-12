@@ -2937,9 +2937,9 @@
       super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and you can't lose a shield until end of round." } }
     },
     C: {
-      queen: { 1: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 7: { quick: true, desc: 'Armor Piercing becomes a Quick.' }, 8: { reclaimDiscard: true, desc: 'Also shuffle your Discard (spent cards) back into your deck before drawing.' } },
+      queen: { 1: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 7: { quick: true, desc: 'Armor Piercing becomes a Quick.' }, 8: { reclaimDiscard: true, desc: 'Also shuffle your Exile (used Techniques, destroyed Equipment) back into your deck before drawing.' } },
       king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "The Rival's highest card each fight drops 1 further (to −3)." } },
-      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Discard, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
+      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
     },
     S: {
       queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
@@ -3243,8 +3243,16 @@
     if (!canAfford(pl, card, costDelta)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit (need ' + costHint(card, costDelta) + ').' };
 
     // REWORK: Broadway pitch cost — Ultima Attack / Armor Piercing ALSO require discarding a Broadway card
-    // (10, J, Q, K, or A) from hand as an additional cost. The pitched card goes to the Discard pile (a real
-    // sacrifice — recoverable only via Hippolyta's reclaim-Discard). Auto-picks the least valuable (lowest 10 first).
+    // (10, J, Q, K, or A) from hand as an additional cost. Auto-picks the least valuable (lowest 10 first).
+    /* A PITCH IS A DISCARD, AND A DISCARD GOES TO THE ENERGY PILE (Aj, 2026-10-12: *"discard is energy pile.
+       only used techniques and destroyed equipments go to the exile"*). From v0.86 the pitched card went to the
+       gone-for-good pile instead — chosen then as "a real sacrifice" to pull Pure Fighter down — while every
+       other discard in the game (Telekinesis, Outbalance, Discombobulate, the clean-up) has always banked to
+       energy, so one verb on the card text meant two destinations. The gone-for-good pile is the EXILE now,
+       and it holds used Techniques and destroyed Equipment only. The pitched card can never pay for the cast
+       that pitched it, and the reason is the ORDER OF THE CHECKS, not where the push sits: `canAfford` above runs
+       before anything is pitched, and `payEnergy` spends oldest-first, so the card banked at the end is never
+       reached. `test.js` pins it from the outside — nine energy and a Broadway card still cannot cast a 10. */
     var pitchCard = null;
     if (eff.pitchHigh) {
       pitchCard = pitchFor(pl, cardId, opts.pitch);
@@ -3271,7 +3279,7 @@
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
     payEnergy(pl, card, costDelta);
     noteCast(pl, card);                                       // committed: the record counts it (Techniques, Rides and Forms alike)
-    if (pitchCard) { pl.hand = pl.hand.filter(function (c) { return c.id !== pitchCard.id; }); pl.removed.push(pitchCard); }   // Broadway pitch → Discard pile
+    if (pitchCard) { pl.hand = pl.hand.filter(function (c) { return c.id !== pitchCard.id; }); pl.energy.push(pitchCard); }   // Broadway pitch → Energy pile, like every other discard (see above)
     if (eff.kind !== 'transform') { st._effUsed = true; }   // this turn's first-effect discount/tax is now spent
 
     /* THE TRANSFORM USED TO RETURN HERE, APPLYING ITSELF AND NEVER TOUCHING THE STACK (changed 2026-09-14).
@@ -3895,7 +3903,7 @@
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
     noteCast(qp, qcard);                                      // committed: a Quick answer is a cast, whoever makes it (see noteCast)
-    if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.removed.push(qPitch); }   // Broadway pitch → Discard pile, as `activate` does
+    if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.energy.push(qPitch); }   // Broadway pitch → Energy pile, as `activate` does (affordability was checked without it — see there)
     var qOpts = cOid ? { counterOid: cOid } : {};
     if (qTarget != null) qOpts.target = qTarget;                      // resolution, stackTargetOf and Annoint all read it from here
     st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: qOpts, countered: false });
@@ -4103,12 +4111,12 @@
         for (var iE = 0; iE < take; iE++) oppE.shuffle.push(oppE.energy.shift());
         spendCard(pl, card); break;
       case 'reclaim':                                     // Leyline Ascension / Instant Recovery
-        if (eff.wheel) {                                  // Ares (Super): the Wheel — dump hand + Discard + Shuffle into the deck, then draw fresh
+        if (eff.wheel) {                                  // Ares (Super): the Wheel — dump hand + Exile + Shuffle into the deck, then draw fresh
           pl.deck = pl.deck.concat(shuffle(pl.shuffle.concat(pl.removed).concat(pl.hand)));
           pl.shuffle = []; pl.removed = []; pl.hand = [];
         } else {
           pl.deck = pl.deck.concat(shuffle(pl.shuffle)); pl.shuffle = [];   // Shuffle Pile back into the deck
-          if (eff.reclaimDiscard) { pl.deck = pl.deck.concat(shuffle(pl.removed)); pl.removed = []; }   // Hippolyta: also pull your Discard (spent cards) back
+          if (eff.reclaimDiscard) { pl.deck = pl.deck.concat(shuffle(pl.removed)); pl.removed = []; }   // Hippolyta: also pull your Exile (used Techniques, destroyed Equipment) back
         }
         if (eff.half) { var half = Math.floor(pl.deck.length / 2); for (var iH = 0; iH < half; iH++) { var hc = pl.deck.shift(); if (hc) pl.energy.push(hc); } }
         if (eff.draw) drawCards(pl, eff.draw);
@@ -7292,7 +7300,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.9';
+  var GAME_VERSION='v1.33.10';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};

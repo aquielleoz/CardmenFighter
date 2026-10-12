@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.9**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.10**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 707 + 70 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 711 + 70 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 707 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 711 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 70, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -508,9 +508,14 @@ node analysis.js 130 on      # class round-robin — args: N catchup recycle dif
 node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= apex nostrip noshp nodpp.
                              # It PRINTS the config it resolved — read that line. Positional args once made
                              # every arm of two studies run the SAME config; see PATCHNOTES 0j.
-node recyclesim.js 300       # DECK CYCLING BY PLAYER COUNT — reshuffles, cards lost to the Discard, deck-outs and
+node recyclesim.js 300       # DECK CYCLING BY PLAYER COUNT — reshuffles, cards lost to the Exile, deck-outs and
                              # rounds, at 2/3/4/6p, every seat, Math.random pinned. `players=2,6` `recycle` `tier=` are
                              # NAMED flags and it prints its CONFIG. Results: DECISIONS.md#deck-cycling
+node rulepair.js <dirA> <dirB> 400   # IS THIS RULES CHANGE REAL? — the class round-robin played on TWO checkouts
+                             # (`git worktree add <dir> main` is the baseline), Math.random pinned PER GAME, and
+                             # the games whose winner FLIPPED counted: net, points and z per deck. `analysis.js`
+                             # pins nothing and moves every deck by up to 0.8 run to run. The same dir twice is
+                             # the CONTROL and must print 0 flipped. Results: DECISIONS.md#pitch-to-energy
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
 node strengthsim.js 4000 demon knight   # IS THIS CHANGE STRONGER? — the ONLY harness here that can ask.
                              # Every other sim runs the same AI on both seats and is structurally blind to it.
@@ -2398,12 +2403,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.9 — last FULL sweep 2026-10-09, `npm run sweep`, 121/121 in 354s** (this line was
+Status as of **v1.33.10 — last FULL sweep 2026-10-12, `npm run sweep`, 121/121 in 358s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 9, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 10, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
@@ -2412,7 +2417,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 707, `netview` 70, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 711, `netview` 70, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
@@ -3380,6 +3385,13 @@ extraction behaviour-preserving. The two arms disagreed, which reads as a refact
 Pin `Math.random` too and the arms match byte for byte. **Run the instrument against ITSELF before reading
 either arm** — the existing rule above says a null result can be the instrument, and this is the other half:
 a POSITIVE result can be too, and it is the more persuasive of the two because it looks like a finding.
+**PIN IT PER GAME, NOT PER PROCESS, WHEN THE CHANGE ALTERS GAMES (2026-10-12).** A process-wide pin makes a run
+reproducible, but it does not PAIR two builds: the first game that diverges consumes a different number of
+draws, and every game after it starts from a different stream, so the arms are unpaired from there on.
+Reseeding `Math.random` at every `newGame` from a game counter keeps each game paired and lets you count the
+games that actually flipped. `analysis.js` pins nothing: its unpinned self-check moved all eleven decks by up
+to 0.8 points, the size of the effect being measured. **`rulepair.js` is the paired version for an ENGINE
+change** (numbers: [`DECISIONS.md#pitch-to-energy`](docs/DECISIONS.md#pitch-to-energy)).
 
 **`mpsim`'s `flag()` MATCHED SUBSTRINGS until v1.31.26.** `FLAGS` is the joined argument STRING and `flag(name)`
 was `FLAGS.indexOf(name) >= 0`, so `flag('kits')` matched inside the argument `kits3` and asking for `kits3`
