@@ -41,7 +41,13 @@ async function openLesson(id, viewport){
        budget; `lessontest_quicks` fails on "the Respond? window opens" and a covered board would look the
        same. `pickMode` is declared below and this only runs later, so the const is initialised by then. */
     const pk=await pickMode().catch(()=>null);
-    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src+(pk?'\n   ← '+pk:'')); return false; };
+    /* …AND WHICH STEP THE LESSON WAS ON (2026-10-12). Two filed one-off reds could not be read for want of it:
+       `lessontest_forms`' "the Q is spotlit" (never reached the step, or reached it and lit nothing?) and a
+       lesson whose `finish()` never saw the completion modal (which step stopped?). `step()` already returns
+       the step, its text and how many things are lit; one red run now says which. Declared below, like `pickMode`. */
+    const sp=await step().catch(()=>null);
+    const where=sp ? ('\n   ← tutorial on '+(sp.n||'(no step)')+' · '+sp.spots+' lit · Next '+(sp.hasNext?'shown':'hidden')+' · "'+(sp.text||'').replace(/\s+/g,' ').slice(0,90)+'"') : '';
+    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src+(pk?'\n   ← '+pk:'')+where); return false; };
   /* ANSWER A PRIORITY WINDOW THE BOARD PUTS UP, so a covered board is not mistaken for a broken lesson
      (epic step 3). Every helper below polls the board; a modal covers it, so each would retry to timeout and
      report the LESSON broken when the truth is that the harness never learned this window. Today no lesson

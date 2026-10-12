@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.14.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.15.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.14**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.15**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -691,6 +691,10 @@ never read.*
   `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
   when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
   red run would then name both the suite and the step.
+  **✅ BOTH HALVES OF THAT ARE IN (2026-10-12).** `next()` already printed `⚠ next(): #tutNextBtn was not
+  present`, and `finish()` polls through `lessonlib`'s `until`, whose timeout now prints the tutorial step,
+  how many things are lit, whether Next is showing and the step's text. So a recurrence names the step, and
+  the sweep's whole-line summary names the suite. Nothing left to build: this waits for that one run.
   `[id: lesson-suite-lost-name]`
 
 - `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
@@ -738,6 +742,14 @@ never read.*
   verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
   concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
   only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
+  **✅ THE HUMAN HALF IS EXPLAINED AND FIXED (v1.33.15, 2026-10-12), AND IT WAS NOT THIS SUITE'S MECHANISM.**
+  Aj's How to Play card HAD `.tut-spot`; it simply did not glow. The class lost the cascade on a hand card:
+  `.card`'s shadow (same specificity, later) beat the static ring, and a card dealt this round keeps `.enter`,
+  whose fly-in replaced the pulse. Measured on a lit card carrying `.enter`: `animation: dealIn`, the plain shadow,
+  no ring; the six lit cards without it all glowed. `lessontest_howto` now stages `.enter` and reads the
+  computed glow. **So "one mechanism" above was wrong**: this suite's red had the class MISSING, which a cascade
+  bug cannot cause. What is left is that half alone, and a `lessonlib` poll timeout now prints the step the
+  lesson was on, which separates "never reached the step" from "on the step, lit nothing" in one red run.
   `[id: lessontest-forms-poll]`
 
 - `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a

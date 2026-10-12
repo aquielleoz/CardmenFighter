@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.14**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -68,7 +68,7 @@ node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — th
 #                                       # old Quicks one. Both base Quicks, the doorway, and pauses held on
 #                                       # real ceremony beats rather than forced windows (48). `lessontest_quicks.js`
 #                                       # is DELETED: its lesson no longer exists
-node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
+node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated, and the spotlit card must GLOW in its computed style, fly-in and reduced motion included (28)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
 node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (22)
 node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (21)
@@ -456,6 +456,12 @@ makes factual promises the gate does not check — a shield broke, the card bank
 engine's own answer). For an ungated tour like `zones`, assert each step's selector **exists AND carries
 `.tut-spot`**: `applySpot` does `querySelectorAll` and lights nothing when an id is renamed, and the tour still
 clicks to the end.
+**AND CARRYING `.tut-spot` IS NOT GLOWING (v1.33.15).** On a hand card the class lost the cascade: `.card`'s
+own shadow (same specificity, later in the sheet) beat the static ring, and a card dealt this round keeps `.enter`,
+whose fly-in replaced the pulse. So How to Play's "select the glowing card" showed none (Aj, by hand), while
+every suite asserting the class stayed green. **When a step promises the player can SEE something, read the
+computed style**, and stage the states that change it (`.enter`, reduced motion). The class alone only tells you
+the script ran.
 **A SCRIPTED LESSON MUST NAME THE CARDS EACH STEP ACCEPTS (v1.31.76), or a player who ignores the instruction
 dead-ends it.** The "The 2" lesson spends ten specific cards over three rounds, so a wrong play burns one the
 finale needs — Aj broke it in ninety seconds by leading something other than the Ace the step asked for. A step's
@@ -2469,7 +2475,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.14 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 376s** (this line was
+Status as of **v1.33.15 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 376s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2485,7 +2491,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 130, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 25,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

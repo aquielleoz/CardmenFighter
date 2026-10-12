@@ -15,6 +15,25 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.15 — the tutorial's "glowing card" always glows
+
+**What you'll see:** when a lesson tells you to *"select the glowing card"* (How to Play step 8, and Energy &
+Effects), the card it means now always has its pulsing gold ring. Before, if that card had arrived in your hand
+with this round's deal, it showed no glow at all. The step asked you to tap a glowing card that wasn't there:
+Aj, by hand, 2026-09-17: *"lots of un greyed cards here and no cards are glowing"*.
+- **Why it happened:** the spotlight is a CSS class, and on a hand card it lost on two counts. The card's own
+  shadow rule has the same specificity and comes later in the stylesheet, so it beat the static gold ring. And a
+  card dealt this round keeps its fly-in class until the hand next rebuilds; the fly-in animation replaced the
+  pulse that draws the ring while it runs. Whether the card glowed depended on the deal, so it came and went.
+- **Now:** a spotlit hand card gets the ring at a specificity that wins, and a spotlit card still flying in runs
+  its fly-in first and then the pulse. With reduced motion on, the ring stays on without pulsing. Before, a
+  just-dealt card had no glow at all there.
+- **Testing.** `lessontest_howto` 25 → 28: the spotlit card is staged with its real fly-in class, then must
+  show the gold ring in its *computed* style, with and without reduced motion. The old checks asserted only that
+  the class was present, so they were green on exactly the screen Aj saw. With the old CSS, both glow checks fail.
+  `lessonlib`'s poll timeouts now also print which tutorial step the lesson was on, so the two open one-off lesson
+  failures will name their step next time.
+
 ### v1.33.14 — at 3+ players, the AIs no longer play the next round under the round ceremony
 
 **What you'll see:** in a 3–6 player solo game, if you led round 1 and played your first card while the "Round 1 ·
