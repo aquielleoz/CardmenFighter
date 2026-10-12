@@ -15,6 +15,28 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.12 — your phone bar is one line: shields as a number, the deck and piles behind one tap
+
+**What you'll see on a portrait phone:** your bar reads **You · 🛡 3 · ⚡ · 🂠▾** on one line. Your shields
+show as a number instead of pips. The deck name, your 🂠 deck count, ♻ shuffle pile and ⊘ Exile sit behind the
+**🂠▾** button: tap it and a small sheet opens above the bar listing all four, and tapping ♻ or ⊘ in it opens
+that pile. Tap anywhere else to close it.
+- **What stays on the bar is Aj's order** (2026-10-02): *"the most important one is shields, then energy, then
+  effects affecting the board"*: shields, ⚡ energy, and the boost/debuff and Forms/Equipment chips. And of the ⊘,
+  2026-10-12: *"behind the tap with the other counts"*.
+- **A shield break still shows**: the number shakes and drops, and the centre-stage "shield down" banner plays
+  as before. At zero the number turns red.
+- **Only your bar, and only in portrait.** A tablet, the landscape band and desktop keep the full bar, and
+  turning a phone sideways puts the counts back on it. The rival's bar is unchanged.
+- **The "Zones of Play" tutorial** lights the 🂠 button when it points at your deck or shuffle pile on a phone,
+  the same way it lights ☰ for the Specials list.
+- **Testing.** `phonetest` 72 → 96: shields as a number, the counts off the bar and back on the tap, the bar on
+  one row, the sheet on screen at 327 px, closing on an outside tap and when ⊘ opens the Exile, the number
+  following a break to zero, and the negative half (a 768 px tablet and the 844 × 390 landscape band keep the full
+  bar; a rotation moves the counts both ways). On v1.33.11 the 20 phone-side checks fail and the negative half
+  passes. `piletest` 46 → 51: your ⊘ is behind the tap at 327 and 390 and opens the Exile from the sheet, while
+  the rival's under-340 px rule still holds.
+
 ### v1.33.11 — the Exile has its own button, and an online player can see their own piles
 
 **What you'll see:**

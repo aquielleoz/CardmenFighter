@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.11**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.12**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -85,10 +85,14 @@ node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's es
 #                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
 #                                       # `answerWindow()`'s pick escape are not untested code
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
-node piletest.js                                # energy/shuffle/EXILE pile viewers + promote (46) — the Exile's own
+node piletest.js                                # energy/shuffle/EXILE pile viewers + promote (51) — the Exile's own
                                                 # ⊘ button on both bars and every opponent panel, the ← → ring,
-                                                # view-only on anyone else's, and the one exception pinned both
-                                                # ways: hidden under 340px (no room), still reached through ♻ →
+                                                # view-only on anyone else's; on a portrait phone your ⊘ is behind
+                                                # the 🂠 tap (and works from inside it), the rival's hidden <340px
+node phonetest.js                               # THE PORTRAIT PHONE (96): the hand's lapped rows and the action row,
+                                                # and the BAR DECLUTTER — shields as a number, the deck name, 🂠, ♻ and
+                                                # ⊘ behind one 🂠 tap. Pinned both ways: a tablet and the landscape
+                                                # band keep the full bar, and a rotation moves the counts back
 node nettest_piles.js                           # A CLIENT SEES ITS OWN SHUFFLE PILE AND ANYONE'S EXILE (12). Both
                                                 # travelled as face-down dummies, so a client's bar read ♻ 3 over
                                                 # a viewer saying "This pile is empty." (measured 2026-10-12). Each
@@ -2435,12 +2439,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.11 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 364s** (this line was
+Status as of **v1.33.12 — last FULL sweep 2026-10-12, `npm run sweep`, 124/124 in 360s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 9, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 8, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
@@ -2450,8 +2454,8 @@ it. **The "run serially, never two at once" rule this line used to carry died wi
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 711, `netview` 74, `mptest` 125, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
-`piletest` 46, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
