@@ -857,15 +857,6 @@ never read.*
 
 ### Balance and design
 
-- `needs a measurement` · **♦'S MULTIPLAYER STRENGTH — A LEAD, NOT A FINDING.** Wizard is the ramp/reclaim class,
-  and reclaim is worth most when the pool is thin and cycling fast — which
-  [`DECISIONS.md#deck-cycling`](DECISIONS.md#deck-cycling) confirms is the six-player condition (4-5 cycles a
-  seat). The honest test is per-deck win share at 6p with `recycle` on and off. `mpsim` has no recycle flag yet,
-  and one run is noise (Pure Rogue's sd is ~3.3 points), so it wants about 8 runs an arm — or a paired mode,
-  which is what made `rulepair.js` able to read a 0.03-point move in a duel. Split out of the Exile entry when
-  the viewer shipped (v1.33.11).
-  `[id: diamond-multiplayer-reclaim-lead]`
-
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
   measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
