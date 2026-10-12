@@ -4369,9 +4369,17 @@ __QR__
     prevTurn=state.turn;                 // seed so the opening turn doesn't chime — the game-start jingle covers it
     SFX.play('gameStart');              // short "begin" jingle as the board comes up
     render();
-    var g=gen;
+    var g=gen, openedBy=state.turn;
     playRoundCardBeat({opening:true, newRound:1}, function(){   // "Round 1 · Jabs only" card to open
-      if(g===gen && state.turn!==YOU) driveRival();
+      /* DRIVE THE SEAT THAT HELD THE INITIATIVE AT THE DEAL, NOT WHOEVER IS ON TURN WHEN THIS CARD LANDS
+         (2026-10-12). Your board is live while the card flies, so when YOU lead and play before it lands,
+         `playCards` has already started the opponents' driver — and this then started a SECOND one, because
+         by now the turn is an AI's. Two `runOpponents` loops step AI turns on their own timers, and at 3+
+         players the spare never dies (it always finds another AI to move), so it played the next round
+         underneath the round ceremony: `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`, measured in
+         4 of 6 three-player games that acted during this card and 0 of 6 that waited for it. In a duel the
+         spare dies as soon as the turn comes back to you, which is why duels never showed it. */
+      if(g===gen && openedBy!==YOU && state.turn!==YOU) driveRival();
       if(g===gen && tutorialMode) TUT.start((currentLesson&&currentLesson.steps?currentLesson.steps:tutSteps)());   // launch the coach once the opening card has flown in
     });
   }
@@ -7627,14 +7635,25 @@ __QR__
    * the free-for-all driver had NONE and stepped straight into the first AI seat. One constant, both drivers. */
   var PLAY_HOLD = 1000;
   function playHold(){ return reduceMotion() ? 60 : PLAY_HOLD; }
+  /* ONE OPPONENT DRIVER AT A TIME, AND A SECOND ONE SAYS SO (2026-10-12). Each `runOpponents` call starts a
+     loop that steps AI turns on its own timers, and nothing stopped two from running: the opening card's
+     callback started a second one whenever you had already played during its flight (fixed at `openedBy`).
+     Two loops is not an error anybody sees — it surfaces rounds later as an AI moving under the round
+     ceremony — so any OTHER path that does the same now names itself in the saved ledger.
+     ⚠ IT REPORTS AND DOES NOT BLOCK. Retiring the older loop looks tidier and is wrong: it may be mid-beats
+     on the very turn that ended the round, and dropping it would drop that round's ceremony. */
+  var oppDriverSeq=0;
   function runOpponents(){
     if(state.finished){ busy=false; render(); return endGame(); }
     busy=true; render();
-    var g=gen;
+    var g=gen, me=++oppDriverSeq, warned=false;
     var firstStep=true;
     (function step(){
       if(firstStep){ firstStep=false; return setTimeout(function(){ if(g===gen) step(); }, playHold()); }   // let your play linger
       if(g!==gen) return;
+      if(me!==oppDriverSeq && !warned){ warned=true;
+        prioNote('⚠ TWO OPPONENT DRIVERS ARE RUNNING — an older loop stepped after a newer one started',
+          'round '+state.round+' · turn '+logName(state.turn)+' · pile '+((state.pile&&state.pile.combo&&state.pile.combo.type)||'—')); }
       if(state.finished){ busy=false; $('rivalStatus').textContent=''; render(); return endGame(); }
       if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }  // a rival forced YOU to discard — prompt (resumes via resumeRival→runOpponents)
       if(state.respondFor===YOU){ return promptHumanResponse(g); }                 // ditto

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.13.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.14.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.13**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.14**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches. The BACKLOG below still has an epic-era **"For main"** heading; it no longer means
 anything, and both halves are open main work.
 
@@ -542,6 +542,17 @@ knows to check whether the epic has already moved the same lines.*
   CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
   built precisely because this would not reproduce — five hypotheses measured and killed, with the note
   *"the next occurrence has to explain itself instead."* This is that occurrence, and it does.
+  **⚠ ONE CAUSE OF THE STALE-PILE HALF WAS FOUND AND FIXED IN v1.33.14 (2026-10-12), AND IT WAS TWO AI DRIVERS.**
+  If you led round 1 and played while the "Round 1" card was still flying, your play started `runOpponents`,
+  and the card's own callback started a second loop, because by then the turn was an AI's. At 3+ players the
+  spare never dies, so an AI played the next round under the round ceremony: `⚠ ROUND BANNER FIRED WITH A PILE
+  STILL ON THE TABLE` in 4 of 6 such games, 0 of 6 that waited for the card. A timestamped trace showed it
+  directly: an AI's next-round lead logged *before* the previous round's "won" line. The callback now drives
+  only when an AI held the initiative at the deal (`openedBy`), `mptest`'s opening leg pins it both ways, and
+  `runOpponents` writes `⚠ TWO OPPONENT DRIVERS ARE RUNNING` to the ledger if any other path double-starts.
+  **WHY THIS STAYS OPEN:** Aj's r7 also printed `ROUND BANNER REPEATED`, which this path was never seen to do.
+  A recurrence on v1.33.14 or later will say which it is: a two-driver line names this class, and its absence
+  rules it out.
   **WHAT THE SAVED LOG CARRIES:**
   ```
   r7  ⚠ ROUND BEGAN WITH A STALE PILE — the clean-up boundary did not complete  round 7 · pile pair · turn 1
@@ -634,32 +645,6 @@ never read.*
   consequence, not as findings. Measure the rate solo and at `-j 4`, and on a build before v1.33.0, before
   reading anything into it: two sightings cannot say whether it is load, the relay mock, or new.
   `[id: nettest-sync-never-deals]`
-
-- `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
-  MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
-  `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
-  ending `PASS: 17  FAIL: 0  (TIME-CAPPED)`. It only showed on the slower of the day's sweeps (295s against
-  ~230s), which is exactly when a wall-clock budget bites.
-  **✅ CONFIRMED LOAD-DEPENDENT — SECOND DATA POINT 2026-09-25.** The next morning's sweep ran **221s and
-  `exporttest` did NOT cap**, against the 295s run where it capped TWICE. Same commit, same suite, same 90s
-  budget; the only thing that moved was the machine. So *"does this suite always test short?"* is answered —
-  it does not — and what is left is a JUDGEMENT rather than a measurement: **is a suite that silently tests
-  less on a slow machine acceptable?**
-  **221s clean against 295s capped puts the knee between the two**, so the margin is thin rather than
-  absent, and a machine slower than this one would cap every run.
-  **THIS IS THE `nettest_sync` SHAPE, ALREADY DOCUMENTED IN CLAUDE.md** — *"a wall-clock-bounded suite tests
-  less when the sweep is parallel, and stays green while doing it"* — so the suite is reporting correctly
-  and the question is whether 90s is still the right number. **Measure before raising it**, and ask what the
-  driver is waiting FOR first: a wait on work stretches under load, a wait on a timer does not, and this
-  repo spent a day getting that backwards on `lessontest_quicks`.
-  **AND CHECK THE SECOND MESSAGE**: *"the board stopped advancing"* is not the same claim as "it ran out of
-  time" — a driver that stops advancing may be parked on something, which would make the cap a symptom.
-  `exporttest` already had the v1.31.85 unproductive-iteration fix for a related problem.
-  **THIRD DATA POINT, 2026-10-09 (v1.33.4's sweep):** capped once, at 111s, in a 374s sweep, after nine sweeps
-  over two days that ran it uncapped in 13-30s. Run alone on the same build straight afterwards: 3/3 clean,
-  20-29s. So the knee moves with the machine, not the commit. Note that the second message is printed on EVERY
-  clock stop (`cappedByClock`), so on its own it is not a finding that the board parked.
-  `[id: exporttest-time-capped]`
 
 - `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
   2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`

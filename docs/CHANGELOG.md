@@ -15,6 +15,32 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.14 — at 3+ players, the AIs no longer play the next round under the round ceremony
+
+**What you'll see:** in a 3–6 player solo game, if you led round 1 and played your first card while the "Round 1 ·
+Jabs only" card was still flying in, the game started the opponents twice. From then on an AI could take its
+next turn while the end-of-round ceremony was still playing. In the battle log, an AI's play from the new round
+showed up *before* "X won the round" and before "Round N begins". You could also find your own board live
+mid-ceremony. Now one set of opponent turns runs, whenever you play.
+- **The cause:** when the opening card lands, it starts the AI if it isn't your turn. If you had already played,
+  your play had already started the AI, so this was a second start. In a duel the extra one stops as soon as the
+  turn comes back to you, which is why duels never showed it. At three or more players it always found another
+  AI to move. The card now starts the AI only when an AI held the initiative at the deal.
+- **It is one known way this round-boundary bug happens, not proven to be the only one.** Aj's original
+  3-player log (2026-09-24) shows the same family of symptom, and its round banner also *repeated*, which nothing
+  here reproduces. So the backlog entry stays open, and the saved log's ledger now writes `⚠ TWO OPPONENT DRIVERS
+  ARE RUNNING` if two AI drivers are ever running again, by any route.
+- **How it was found:** `exporttest` kept hitting its 90-second limit, and the reason wasn't the machine. Its
+  driver couldn't answer a two-card forced discard (Telekinesis, Discombobulate). It pressed Clear and picked one
+  card on every pass, so the picker sat at "1/2 picked" until the clock ran out. That was all four caps in sixteen
+  probe runs, loaded or not. With that fixed, a probe that saved the ledger showed the round banner firing over a
+  pile from the next round in 11 of 12 games. A timestamped trace then caught two AI driver loops running, the
+  second one started by the opening card.
+- **Testing.** `mptest` 127 → 130: play your opening jab while the Round 1 card is still up, then drive two round
+  boundaries. Exactly one opponent driver may run, and no round banner may fire over a pile. With the old
+  callback, both checks fail (2/2 runs, the detector naming round 1). `exporttest` now picks cards until Confirm
+  lights: 16/16 green with no cap, every run finishing on its first dealt game, against 4 caps in 16 before.
+
 ### v1.33.13 — the battle log names the Broadway card every cast and answer pitched
 
 **What you'll see:** when Critical Hit, Ultima Attack or Armor Piercing is played, the battle log names the
