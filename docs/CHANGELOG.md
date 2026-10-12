@@ -15,6 +15,24 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.13 — the battle log names the Broadway card every cast and answer pitched
+
+**What you'll see:** when Critical Hit, Ultima Attack or Armor Piercing is played, the battle log names the
+Broadway card it pitched, whoever played it: *"Rival 2 played Critical Hit — aimed at You — pitched A♥."*, or
+*"You answered with Armor Piercing at instant speed — pitched 10♦."*
+- **Before, only your own cast said it.** That line passed the pitch in by hand. An AI's cast, an online
+  opponent's cast and every Quick answer, yours included, spent a Broadway card the log never mentioned. Since
+  v1.33.10 that card goes to the pitcher's energy pile, so a line that leaves it out also hides where the card went.
+- **One helper now.** The engine already reports the pitch on both a cast and an answer (`pitched`), and `ai.js`
+  now copies it onto its log entries. `pitchTail` reads it at every line that narrates one: `sayCast` (your
+  cast, the AI's, and both netplay host handlers), the AI's answers (`noteAIAnswer`, in both drivers), your own
+  answer, and both host handlers for a client's answer. The saved log's priority ledger names it on the AI's
+  answers too.
+- **Testing.** `test.js` 711 → 713: the AI's cast log entry carries the pitched card, staged at two shields so the
+  AI really casts (it fails on the old `ai.js`). `nettest_pitch` 15 → 18: the host's line for a client's Critical
+  Hit and for its Armor Piercing answer both name the pitch, and the client's own log reads both.
+  `resolutiontest_ui` 71 → 72: your Armor Piercing answer names the ♦10 it spent, red on the old line.
+
 ### v1.33.12 — your phone bar is one line: shields as a number, the deck and piles behind one tap
 
 **What you'll see on a portrait phone:** your bar reads **You · 🛡 3 · ⚡ · 🂠▾** on one line. Your shields

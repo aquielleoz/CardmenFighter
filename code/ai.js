@@ -794,6 +794,7 @@
     var r = E.activate(st, p, id, opts);
     if (!r.ok) return false;
     if (log) { var ent = { play: tag, card: card, target: r.target || null };   // what it was aimed at, for the cast line
+      if (r.pitched) ent.pitched = r.pitched;                                   // ...and the Broadway card it pitched, so the line can name it
       if (r.transformed && r.isSuper) ent.isSuper = true;                       // ...and that this transform completed J + Q + K, so the line can say INCARNATION
       log.push(ent); }
     if (r.pending) {
@@ -932,7 +933,7 @@
       var roundAt = (st.resolvedRound != null && st.resolution) ? st.resolvedRound : st.round;
       var rr = respondDecision(st, q);
       if (!rr) break;
-      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt });
+      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null });
     }
   }
 
