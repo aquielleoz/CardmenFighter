@@ -109,17 +109,25 @@
   }
 
   // ---- Full mirror: a redacted, seat-ROTATED clone of the engine state so a client can feed the real render().
-  // The client's seat becomes index 0 (so all the UI's `=== YOU`/0 checks work), opponents' hidden zones become
-  // same-length dummy arrays (hand/deck/shuffle/removed — only their COUNTS are ever shown), and every seat-index
-  // field is remapped. Public info (energy, equipment, forms, shields, flags) travels intact.
+  // The client's seat becomes index 0 (so all the UI's `=== YOU`/0 checks work), the hidden zones become
+  // same-length dummy arrays (an opponent's hand, and every deck — only their COUNTS are ever shown), and every
+  // seat-index field is remapped. Public info (energy, the Shuffle Pile, the Exile, equipment, forms, shields,
+  // flags) travels intact.
   function dummies(n, tag) { var a = []; for (var i = 0; i < (n || 0); i++) a.push({ rank: 0, suit: 'x', id: 'hidden:' + tag + ':' + i, hidden: true }); return a; }
   function clonePlayer(pl, mine, tag, rot) {
     var o = {};
     for (var k in pl) if (typeof pl[k] !== 'object' || pl[k] === null) o[k] = pl[k];   // scalar flags copy straight
     o.hand = mine ? cards(pl.hand) : dummies((pl.hand || []).length, tag + 'h');        // your real hand; opponents = face-down count
     o.deck = dummies((pl.deck || []).length, tag + 'd');                                // nobody sees deck order
-    o.shuffle = dummies((pl.shuffle || []).length, tag + 's');
-    o.removed = dummies((pl.removed || []).length, tag + 'r');
+    /* THE SHUFFLE PILE AND THE EXILE ARE PUBLIC, AND THEY TRAVEL (v1.33.11). Both were dummies "because only their
+       COUNTS are ever shown" — and then the ♻ viewer shipped, so a client's own pile read "♻ 3" on the bar and
+       "This pile is empty." in the viewer (measured 2026-10-12), while solo and the host showed the cards. Every
+       card that can enter either pile was face-up when it got there: spent energy, a countered cast, Equipment
+       that Plead for Peace returned, a recycled Technique (`shuffle`); a used Technique or destroyed Equipment
+       (`removed`, the Exile — which holds nothing from a hand since v1.33.10 banked the Broadway pitch to energy
+       instead). Order is not secret either: the Shuffle Pile is shuffled at random on its way into the deck. */
+    o.shuffle = cards(pl.shuffle);
+    o.removed = cards(pl.removed);
     o.energy = cards(pl.energy);                                                        // public
     o.forms = (pl.forms || []).map(function (f) { return { rank: f.rank, suit: f.suit, tier: f.tier, name: f.name, card: card(f.card) }; });
     o.equipment = (pl.equipment || []).map(function (e) { var c = {}; for (var kk in e) c[kk] = (kk === 'card') ? card(e.card) : e[kk]; return c; });

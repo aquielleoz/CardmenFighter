@@ -1523,6 +1523,14 @@
        first run, which is the ratchet working exactly as its own comment promises. These phones have no
        room on either axis, so they keep the spacing and the target size they already had. */
     #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{min-height:0;}
+    /* THE ⊘ EXILE BUTTON DOES NOT FIT ON THESE BARS (v1.33.11), and the pile viewer's ← → ring still reaches the
+       Exile from ⚡ or ♻ — so it is hidden here, not lost. Measured at 327x660 with the longest deck name
+       (`landscapetest` pins Mage Knight): one more stat on your bar's second line pushed the board-effect chip
+       onto the Equipment line, the Equipment chip wrapped, your bar grew 28px and the rival's 12px, and the
+       round-1 message ran 26px into your panel. 340, 360, 375, 390 and 412 measured clean WITH it — the bars came
+       out the same height either way. The phone declutter (`phone-declutter-rest`, approved 2026-10-12) frees
+       this room — shields as a number alone is ~50px — so that is where it comes back. */
+    #handMeta .exStat, #rival .exStat{display:none;}
   }
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
@@ -1841,6 +1849,7 @@
     <span class="stat">🃏 <span id="rivalHand">0</span></span>
     <span class="stat deck">🂠 <b id="rivalDeck">0</b></span>
     <span class="stat">♻ <span id="rivalShuf">0</span></span>
+    <span class="stat exStat"><button type="button" id="rivalExBtn" class="statBtn" title="View the Rival’s Exile — the cards gone for good">⊘ <span id="rivalEx">0</span></button></span>
     <span class="equip" id="rivalEquip"></span>
     <span class="panelZones" id="rivalZones"></span>   <!-- phone: the Forms/equipment zones move in here — see placeZones -->
     <span class="stat" id="rivalStatus" style="margin-left:auto;color:var(--gold);"></span>
@@ -1885,6 +1894,7 @@
         <span class="stat"><button type="button" id="youNrgBtn" class="statBtn" title="Open your energy pile">⚡<span id="youNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
         <span class="stat deck">🂠 <b id="youDeck">0</b><span class="deckWord"> deck</span></span>
         <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span></button></span>
+        <span class="stat exStat"><button type="button" id="youExBtn" class="statBtn" title="Open your Exile — the cards gone for good">⊘ <span id="youEx" class="shufBox clickable">0</span></button></span>
         <span id="youMetaMods"></span>   <!-- portrait phone: `#playMods` is MOVED here, onto the shields line (see placeZones) -->
         <span class="equip" id="youEquip"></span>
         <span class="panelZones" id="youZones"></span>     <!-- phone: ditto — see placeZones -->
@@ -6850,17 +6860,25 @@ window.CardFace = {};
   }
 
   // ---- Full mirror: a redacted, seat-ROTATED clone of the engine state so a client can feed the real render().
-  // The client's seat becomes index 0 (so all the UI's `=== YOU`/0 checks work), opponents' hidden zones become
-  // same-length dummy arrays (hand/deck/shuffle/removed — only their COUNTS are ever shown), and every seat-index
-  // field is remapped. Public info (energy, equipment, forms, shields, flags) travels intact.
+  // The client's seat becomes index 0 (so all the UI's `=== YOU`/0 checks work), the hidden zones become
+  // same-length dummy arrays (an opponent's hand, and every deck — only their COUNTS are ever shown), and every
+  // seat-index field is remapped. Public info (energy, the Shuffle Pile, the Exile, equipment, forms, shields,
+  // flags) travels intact.
   function dummies(n, tag) { var a = []; for (var i = 0; i < (n || 0); i++) a.push({ rank: 0, suit: 'x', id: 'hidden:' + tag + ':' + i, hidden: true }); return a; }
   function clonePlayer(pl, mine, tag, rot) {
     var o = {};
     for (var k in pl) if (typeof pl[k] !== 'object' || pl[k] === null) o[k] = pl[k];   // scalar flags copy straight
     o.hand = mine ? cards(pl.hand) : dummies((pl.hand || []).length, tag + 'h');        // your real hand; opponents = face-down count
     o.deck = dummies((pl.deck || []).length, tag + 'd');                                // nobody sees deck order
-    o.shuffle = dummies((pl.shuffle || []).length, tag + 's');
-    o.removed = dummies((pl.removed || []).length, tag + 'r');
+    /* THE SHUFFLE PILE AND THE EXILE ARE PUBLIC, AND THEY TRAVEL (v1.33.11). Both were dummies "because only their
+       COUNTS are ever shown" — and then the ♻ viewer shipped, so a client's own pile read "♻ 3" on the bar and
+       "This pile is empty." in the viewer (measured 2026-10-12), while solo and the host showed the cards. Every
+       card that can enter either pile was face-up when it got there: spent energy, a countered cast, Equipment
+       that Plead for Peace returned, a recycled Technique (`shuffle`); a used Technique or destroyed Equipment
+       (`removed`, the Exile — which holds nothing from a hand since v1.33.10 banked the Broadway pitch to energy
+       instead). Order is not secret either: the Shuffle Pile is shuffled at random on its way into the deck. */
+    o.shuffle = cards(pl.shuffle);
+    o.removed = cards(pl.removed);
     o.energy = cards(pl.energy);                                                        // public
     o.forms = (pl.forms || []).map(function (f) { return { rank: f.rank, suit: f.suit, tier: f.tier, name: f.name, card: card(f.card) }; });
     o.equipment = (pl.equipment || []).map(function (e) { var c = {}; for (var kk in e) c[kk] = (kk === 'card') ? card(e.card) : e[kk]; return c; });
@@ -7300,7 +7318,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.10';
+  var GAME_VERSION='v1.33.11';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9027,7 +9045,7 @@ window.CardFace = {};
       el.innerHTML =
         '<div class="oppTop"><span class="oppName">'+seatName(i)+' <span class="oppSeat">'+deckLabel(seatDecks[i]||'full')+'</span></span></div>'+
         '<div class="oppShields shields"></div>'+
-        '<div class="oppStats"><button type="button" class="statBtn oppNrgBtn" data-seat="'+i+'" title="View '+seatName(i)+'’s energy pile">⚡'+(nrg||'0')+'</button><span>🃏'+pl.hand.length+'</span><span>🂠'+pl.deck.length+'</span><span>♻'+pl.shuffle.length+'</span></div>'+
+        '<div class="oppStats"><button type="button" class="statBtn oppNrgBtn" data-seat="'+i+'" title="View '+seatName(i)+'’s energy pile">⚡'+(nrg||'0')+'</button><span>🃏'+pl.hand.length+'</span><span>🂠'+pl.deck.length+'</span><span>♻'+pl.shuffle.length+'</span><button type="button" class="statBtn oppExBtn" data-seat="'+i+'" title="View '+seatName(i)+'’s Exile — the cards gone for good">⊘'+pl.removed.length+'</button></div>'+
         '<div class="oppGear'+(gear.length?' tappable':'')+'" title="'+(gear.length?'Tap to open '+seatName(i)+'’s zones':'')+'">'+(gear.join('')||'<span class="none">no gear</span>')+'</div>'+
         '<div class="oppZones"><div class="equipZone oppEquipZone"></div><div class="formZone oppFormZone"></div></div>'+
         (pl.eliminated?'<div class="oppDead">OUT</div>':'')+
@@ -9048,6 +9066,8 @@ window.CardFace = {};
       // never doubles as a loss/target pick on the panel behind it.
       var nb=el.querySelector('.oppNrgBtn');
       if(nb) nb.addEventListener('click', (function(seat){ return function(ev){ ev.stopPropagation(); if(!lossPick && !targetPick) openPileView('energy', seat); }; })(i));
+      var xb=el.querySelector('.oppExBtn');                    // ⊘ → their Exile, view-only and open to everyone (Aj, 2026-10-12)
+      if(xb) xb.addEventListener('click', (function(seat){ return function(ev){ ev.stopPropagation(); if(!lossPick && !targetPick) openPileView('exile', seat); }; })(i));
       /* EXPANDABLE ZONES. The gear line used to be plain <span> labels, so an opponent's Equipment and
        * Rides/Forms were merely DESCRIBED — unreachable for Forceful Strip / Sabotage, which the engine
        * has always offered as targets. Tapping the gear line now opens the seat's real zones, built by the
@@ -9905,7 +9925,7 @@ window.CardFace = {};
     if(!shieldsHeld()){ animateShields($('youShields'), you.shields, YOU); }
     paintWhoLabels();
     var yb=$('youNrgSuits'); if(yb){ yb.innerHTML=energyChips(you); yb.title=energyBreakdown(you); energyPulse(yb, YOU, you); }
-    $('youDeck').textContent=you.deck.length; $('youShuf').textContent=you.shuffle.length;
+    $('youDeck').textContent=you.deck.length; $('youShuf').textContent=you.shuffle.length; $('youEx').textContent=you.removed.length;
     renderEquipZone($('youEquipZone'), you, true, YOU); renderFormsZone($('youFormZone'), you, true, YOU);
     if(MP()){                                                          // N-player: a strip of opponent panels; hide the single duel panel + its on-table zones
       $('rival').style.display='none'; $('rivalEquipZone').style.display='none'; $('rivalFormZone').style.display='none';
@@ -9917,7 +9937,7 @@ window.CardFace = {};
       var rb=$('rivalNrgSuits'); if(rb){ rb.innerHTML=energyChips(riv); rb.title=energyBreakdown(riv); energyPulse(rb, RIVAL, riv); }
       $('rivalHand').textContent=riv.hand.length;
       $('rivalDeck').textContent=riv.deck.length;
-      $('rivalShuf').textContent=riv.shuffle.length;
+      $('rivalShuf').textContent=riv.shuffle.length; $('rivalEx').textContent=riv.removed.length;
       renderEquipZone($('rivalEquipZone'), riv, false, RIVAL); renderFormsZone($('rivalFormZone'), riv, false, RIVAL);
       $('rival').classList.toggle('turn', state.turn===RIVAL && !state.finished);
       $('rival').classList.toggle('targetable', !!(targetPick && !MP()));   // duel: the rival panel is the tap-target while choosing a target
@@ -14601,8 +14621,8 @@ window.CardFace = {};
   }
   function pileCards(which){
     var pl=state && state.players[pileSeat]; if(!pl) return [];
-    var a=(which==='shuffle' ? pl.shuffle : pl.energy) || [];
-    return a.filter(function(c){ return !c.hidden; });                // a redacted zone (shuffle/deck dummies) shows as empty, not as fake cards
+    var a=(which==='shuffle' ? pl.shuffle : which==='exile' ? pl.removed : pl.energy) || [];
+    return a.filter(function(c){ return !c.hidden; });                // a redacted zone shows as empty, not as fake cards (the Shuffle Pile and the Exile travel as real cards since v1.33.11 — see netview)
   }
   function firstOfSuitIds(cards){                       // which card a colored pip of each suit would claim
     var seen={}, out={};
@@ -14610,12 +14630,16 @@ window.CardFace = {};
     return out;
   }
   function openPileView(which, seat){
-    pileWhich=(which==='shuffle')?'shuffle':'energy'; pileSel=null; pileRead=null;
+    pileWhich=(which==='shuffle'||which==='exile')?which:'energy'; pileSel=null; pileRead=null;
     pileSeat=(typeof seat==='number')?seat:YOU;
     renderPileView();
   }
   function renderPileView(){
-    var isNrg=(pileWhich!=='shuffle'), cards=pileCards(pileWhich), canOrder=isNrg && pileCanReorder();
+    var isNrg=(pileWhich==='energy'), isEx=(pileWhich==='exile'), cards=pileCards(pileWhich), canOrder=isNrg && pileCanReorder();
+    /* THREE PILES, ONE VIEWER, ← AND → WALK THEM IN A RING (the Exile joined 2026-10-12). Energy is spent INTO the
+       Shuffle Pile, which comes back; the Exile does not — so the ring reads in the order a card travels. */
+    var RING=['energy','shuffle','exile'], PNAME={ energy:'Energy pile', shuffle:'Shuffle pile', exile:'Exile' };
+    var ri=RING.indexOf(pileWhich), prevP=RING[(ri+2)%3], nextP=RING[(ri+1)%3];
     var mine=(pileSeat===YOU), owner=mine?'':(seatName(pileSeat)+'’s ');   // declare BEFORE the hint reads it
     var firsts=isNrg?firstOfSuitIds(cards):{};
     var rows='';
@@ -14629,7 +14653,11 @@ window.CardFace = {};
         '<span class="pvName">'+rankLabel(c.rank)+SUIT_SYMBOL[c.suit]+(nm!=='—'?(' · '+esc(nm)):'')+'</span>'+
         '<span class="pvTags">'+tags+'</span></div>';
     });
-    var hint = !mine
+    var hint = isEx
+      ? (mine
+          ? 'Cards you have lost <b>for good</b>: Techniques you have used, and Equipment that was destroyed. They never shuffle back into your deck — only Instant Recovery under <b>Hippolyta</b>, or <b>The Wheel</b> under Ares, brings them back.'
+          : 'What '+seatName(pileSeat)+' has lost <b>for good</b>: used Techniques and destroyed Equipment. Open information, like an energy pile — <b>view only</b>.')
+      : !mine
       ? (isNrg
           ? 'Energy piles are <b>open information</b> — the same as cards face-up on a table. This is <b>view only</b>: position <b>1</b> is what '+seatName(pileSeat)+' spends next.'
           : 'What '+seatName(pileSeat)+' has already spent. It is <b>shuffled at random</b> back into their deck when it runs dry.')
@@ -14638,12 +14666,12 @@ window.CardFace = {};
             ? 'Position <b>1</b> is spent next. Tap a card to read it or <b>promote it to the top</b> — a promoted card becomes the next one spent, so it recycles into your ♻ pile sooner. A <b>coloured cost</b> takes the <b>first card of that suit</b> (tagged), so it can skip past a promotion.'
             : 'Position <b>1</b> is spent next. You can reorder this on <b>your own turn</b>.')
         : 'Cards you have already spent. When your 🂠 deck runs dry, this pile is <b>shuffled at random</b> back into it — the order here does not matter, only what is in it.');
-    var body='<h2>'+(isNrg?('⚡ '+owner+'Energy pile'):('♻ '+owner+'Shuffle pile'))+'</h2>'+
+    var body='<h2>'+(isEx?('⊘ '+owner+'Exile'):isNrg?('⚡ '+owner+'Energy pile'):('♻ '+owner+'Shuffle pile'))+'</h2>'+
       '<div class="pileHead">'+
-        '<button type="button" class="pvNav" id="pvPrev" title="'+(isNrg?'Shuffle pile':'Energy pile')+'">←</button>'+
-        '<span class="pvTitle">'+(isNrg?'Spent next, first':'Waiting to be reshuffled')+'</span>'+
+        '<button type="button" class="pvNav" id="pvPrev" title="'+PNAME[prevP]+'">←</button>'+
+        '<span class="pvTitle">'+(isNrg?'Spent next, first':isEx?'Gone for good':'Waiting to be reshuffled')+'</span>'+
         '<span class="pvCount">'+cards.length+' card'+(cards.length===1?'':'s')+'</span>'+
-        '<button type="button" class="pvNav" id="pvNext" title="'+(isNrg?'Shuffle pile':'Energy pile')+'">→</button>'+
+        '<button type="button" class="pvNav" id="pvNext" title="'+PNAME[nextP]+'">→</button>'+
       '</div>'+
       '<p class="pileHint">'+hint+'</p>'+
       (cards.length?('<div class="pileList" id="pileList">'+rows+'</div>'):'<div class="pileEmpty">This pile is empty.</div>');
@@ -14668,9 +14696,9 @@ window.CardFace = {};
         pileSel=(pileSel===id?null:id); pileRead=null; renderPileView();
       });
     });
-    var flip=function(){ pileWhich=isNrg?'shuffle':'energy'; pileSel=null; pileRead=null; renderPileView(); };
-    $('pvPrev').addEventListener('click', flip);
-    $('pvNext').addEventListener('click', flip);
+    var go=function(w){ return function(){ pileWhich=w; pileSel=null; pileRead=null; renderPileView(); }; };
+    $('pvPrev').addEventListener('click', go(prevP));
+    $('pvNext').addEventListener('click', go(nextP));
     if($('pvView')) $('pvView').addEventListener('click', function(){ pileRead=pileSel; renderPileView(); });
     if($('pvBack')) $('pvBack').addEventListener('click', function(){ pileRead=null; renderPileView(); });
     if($('pvPromote')) $('pvPromote').addEventListener('click', function(){ promoteFromPile(pileSel); });
@@ -14921,6 +14949,8 @@ window.CardFace = {};
   $('log').addEventListener('scroll', function(){ setLogNewBtn(!logAtBottom()); });   // away from the newest = offer the way back, news or not
   $('youNrgBtn').addEventListener('click', function(){ openPileView('energy'); });     // ⚡ → the ordered energy pile (promote from here)
   $('youShufBtn').addEventListener('click', function(){ openPileView('shuffle'); });   // ♻ → what is queued to come back (read-only)
+  $('youExBtn').addEventListener('click', function(){ openPileView('exile'); });        // ⊘ → what is gone for good (read-only)
+  $('rivalExBtn').addEventListener('click', function(){ openPileView('exile', RIVAL); });
   $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });
   $('youWho').addEventListener('click', function(){ if(!peeking) openNameEditor(); });   // your name, editable from the board   // energy piles are open information — view only
   $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });

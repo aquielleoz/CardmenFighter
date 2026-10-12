@@ -415,6 +415,11 @@ With `recycle` as well, only Counter Spell's and Annoint's own cards and destroy
 0.3 / 0.4 / 0.6 / 1.0 a seat. **None of the conclusions below changes**: decks still thin with table size,
 length still does not move, and six-player deck-outs are still about one game in 12 (27 in 300 against 24).
 
+**COUNTER SPELL'S OWN CARD STAYS IN THE EXILE, FOR NOW (Aj, 2026-09-08).** Whether it should go to the Shuffle Pile
+instead was raised beside the Discard-viewer question and deliberately not bundled: *"let's leave counter spell
+alone for now."* It is a used Technique, so Aj's 2026-10-12 rule (used Techniques and destroyed Equipment go to
+the Exile) agrees with leaving it there.
+
 **What it settles:**
 - **Yes, decks thin, and the table size is the whole story.** In a duel the deck runs dry in about half of
   games and a seat loses ~4 cards for good. At six players every seat cycles 4-5 times, starting around
@@ -424,8 +429,9 @@ length still does not move, and six-player deck-outs are still about one game in
   lever for [game length](#game-length).
 - **The one place it bites is six-player deck-outs:** 21 games in 300 eliminated a seat for running out of
   cards outright, against 3 in 300 when Techniques recycle. A real effect, but small: about one game in 14.
-- **"Without noticing" is still the missing Discard viewer.** Nothing here contradicts it; see the
-  `re-check-setrecycletech-discard` BACKLOG entry for what is left.
+- **"Without noticing" was the missing viewer, and it shipped in v1.33.11:** the ⊘ button opens the pile — named
+  the **Exile** since v1.33.10 — on your bar, the rival's and every opponent panel. Nothing here contradicts
+  that it was the whole answer; the ♦ lead it raised lives on as `diamond-multiplayer-reclaim-lead`.
 
 **AN INSTRUMENT NOTE THAT COST A WRONG TABLE.** The first cut read "deck-out" as "eliminated with shields
 left and no cards", and printed **0.00 at every count**. A forced deck-out at 3 players was not counted,

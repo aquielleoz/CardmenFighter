@@ -71,6 +71,20 @@ ok(mj.indexOf('"9C"') === -1, 'mirror: hidden opponent hand card id does NOT lea
 ok(m.turn === 1, 'mirror: turn remapped (real seat 0 → view index 1)');
 ok(m.pile.byPlayer === 1, 'mirror: pile.byPlayer remapped');
 ok(m.players[0].deck.every(function (c) { return c.hidden; }), 'mirror: even your own deck is face-down (order hidden)');
+/* THE SHUFFLE PILE AND THE EXILE ARE PUBLIC AND TRAVEL (v1.33.11). Both were dummies, so a client's ♻ viewer read
+   "This pile is empty." under a bar that said "♻ 3" — measured 2026-10-12. Your own piles, AND an opponent's (the
+   Exile is open to everyone, as an energy pile already is), with the hidden zones staying hidden beside them. */
+var gp = E.newGame(null, { numPlayers: 2 });
+gp.players[1].shuffle = [{ rank: 5, suit: 'H', id: 's5H' }, { rank: 7, suit: 'C', id: 's7C' }];
+gp.players[1].removed = [{ rank: 9, suit: 'S', id: 'x9S' }];
+gp.players[0].shuffle = [{ rank: 3, suit: 'D', id: 's3D' }];
+gp.players[0].removed = [{ rank: 5, suit: 'S', id: 'x5S' }, { rank: 6, suit: 'D', id: 'x6D' }];
+gp.players[0].hand = [{ rank: 12, suit: 'H', id: 'h12H' }];
+var mp2 = NV.mirrorFor(gp, 1), ids = function (a) { return a.map(function (c) { return c.id; }).join(','); };
+ok(ids(mp2.players[0].shuffle) === 's5H,s7C', 'mirror: YOUR OWN Shuffle Pile travels with its real cards, so the ♻ viewer can show them (' + ids(mp2.players[0].shuffle) + ')');
+ok(ids(mp2.players[0].removed) === 'x9S', 'mirror: …and so does your own Exile (' + ids(mp2.players[0].removed) + ')');
+ok(ids(mp2.players[1].removed) === 'x5S,x6D' && ids(mp2.players[1].shuffle) === 's3D', 'mirror: an OPPONENT\'s Exile and Shuffle Pile travel too — both are open information (' + ids(mp2.players[1].removed) + ' / ' + ids(mp2.players[1].shuffle) + ')');
+ok(mp2.players[1].hand.every(function (c) { return c.hidden; }) && JSON.stringify(mp2).indexOf('"h12H"') === -1, 'mirror: …while that opponent\'s HAND stays face-down and its card id never appears');
 ok(JSON.stringify(JSON.parse(mj)) === mj, 'mirror: round-trips through JSON');
 var g3 = E.newGame(null, { numPlayers: 3 }); g3.turn = 1;
 ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by seat offset');

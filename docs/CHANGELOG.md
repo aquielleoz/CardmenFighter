@@ -15,6 +15,35 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.11 — the Exile has its own button, and an online player can see their own piles
+
+**What you'll see:**
+- **A ⊘ button beside ♻ on your bar** counts the cards you have lost for good: Techniques you have used and
+  Equipment that was destroyed. Tap it to see them. The same button is on the rival's bar in a duel and on every
+  opponent panel at 3–6 players; anyone else's Exile is view only.
+- **The pile viewer walks three piles now:** ← and → go energy → shuffle → Exile and round again, the order a
+  card travels.
+- **Online, your own ♻ shuffle pile shows its cards.** On a client it said "This pile is empty." under a bar
+  that counted them, and the Exile would have done the same.
+- **On phones narrower than 340 px** (the iPhone SE first generation), the ⊘ button has no room on the bar, so it
+  is hidden there; open ♻ and press → to reach the Exile. It comes back with the phone declutter.
+
+- **Why:** Aj, 2026-09-08: *"so were decks actually getting thinner without me noticing?"* They were, and the one
+  pile that only ever grows was the one nobody could open. His calls on 2026-10-12: its own button, and everyone's
+  Exile open, as energy piles already are.
+- **Online, the Shuffle Pile and the Exile travel as real cards now.** Both used to be sent face-down "because only
+  their counts are ever shown", which stopped being true when the ♻ viewer shipped. Every card in either pile was
+  face-up when it got there (spent energy, a countered cast, Equipment Plead for Peace returned, a used Technique,
+  destroyed Equipment), and since v1.33.10 nothing from a hand goes to the Exile. Hands and decks stay hidden.
+- **The narrow-phone exception is measured, not guessed.** At 327 × 660 with the longest deck name, one more item on
+  your bar pushed the board-effect chip onto the Equipment line, the bar grew 28 px, and the round-1 message ran
+  26 px into your panel. Widths of 340, 360, 375, 390 and 412 measured the same with the button as without it.
+- **Testing.** `piletest` 30 → 46: your Exile, the rival's, an opponent panel's at 3 players, the ring both ways,
+  and the narrow-phone exception pinned in both directions (hidden at 327 but reachable through ♻ →, present at
+  390). New `nettest_piles` (12): each seat really casts Divine Tactics, and the used card has to reach the Exile,
+  travel and render on both screens; on the old redaction it fails 4 checks, naming the empty viewer.
+  `netview.test` 70 → 74: the piles travel, while an opponent's hand stays face-down.
+
 ### v1.33.10 — a pitched Broadway card goes to your energy pile; the gone-for-good pile is the Exile
 
 **What you'll see:** when Ultima Attack, Armor Piercing or Critical Hit makes you discard a Broadway card (10, J,

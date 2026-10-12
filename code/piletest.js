@@ -1,4 +1,4 @@
-/* Energy / Shuffle pile viewers + ⤒ Promote to top (ENERGY-REORDER-DESIGN.md).
+/* Energy / Shuffle / Exile pile viewers + ⤒ Promote to top (ENERGY-REORDER-DESIGN.md; the Exile since v1.33.11).
  * Covers: ⚡ opens the ordered energy pile, the "spent next" and "first <suit>" tags (decision 3's labelling
  * of the colored-pip caveat), real card thumbnails, tap → 🔍 View + ⤒ Promote, that View shows the full
  * description-box text and ← Back keeps the selection, that a promote moves the card to the front AND writes a
@@ -81,6 +81,66 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   await p.evaluate(()=>document.querySelectorAll('.pileRow')[0].click()); await p.waitForTimeout(200);
   ok(await p.evaluate(()=>!document.getElementById('pvPromote')),'…and no promote button on someone else\'s pile');
   ok(await p.evaluate(()=>window.__solo.st().players[1].energy[0].id==='8D#r'),'…their pile is untouched');
+
+  /* ---- THE EXILE (v1.33.11): the pile gone for good gets its own button, and everyone's is open ----
+     Aj, 2026-10-12: a SEPARATE button, and every seat's Exile viewable — "so were decks actually getting thinner
+     without me noticing?" was the report, and the one pile that only grows was the one nobody could open.
+     Staged with a used Technique and a destroyed Equipment, the two things the Exile holds. */
+  await p.evaluate(()=>{ const d=document.getElementById('pvDone'); if(d)d.click(); }); await p.waitForTimeout(200);
+  await p.evaluate(()=>{ const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:r+s+t});
+    st.players[0].removed=[mk(5,'S','#ex'),mk(8,'H','#ex')]; st.players[1].removed=[mk(9,'D','#rx')]; st.turn=0; window.__solo.render(); }); await p.waitForTimeout(250);
+  ok(await p.evaluate(()=>(document.getElementById('youEx')||{}).textContent==='2'),'your bar carries a ⊘ Exile count (2)');
+  await p.evaluate(()=>document.getElementById('youExBtn').click()); await p.waitForTimeout(350);
+  ok(await p.evaluate(()=>/Exile/.test(document.querySelector('#modal h2').textContent)),'⊘ opens your Exile');
+  ok(await p.evaluate(()=>document.querySelectorAll('.pileRow').length===2 && document.querySelectorAll('.pileRow.ro').length===2),'…listing both exiled cards, read-only');
+  ok(await p.evaluate(()=>/for good/.test(document.querySelector('.pileHint').textContent) && /Hippolyta/.test(document.querySelector('.pileHint').textContent)),'…with a hint that they are gone for good, and the one way back');
+  await p.evaluate(()=>document.querySelectorAll('.pileRow')[0].click()); await p.waitForTimeout(200);
+  ok(await p.evaluate(()=>!document.getElementById('pvPromote')),'…and no promote button');
+  /* THE RING, both ways from the Exile — energy is spent INTO the Shuffle Pile, the Exile is where nothing returns */
+  await p.evaluate(()=>document.getElementById('pvPrev').click()); await p.waitForTimeout(300);
+  ok(await p.evaluate(()=>/Shuffle pile/.test(document.querySelector('#modal h2').textContent)),'← from the Exile goes to the shuffle pile');
+  await p.evaluate(()=>document.getElementById('pvNext').click()); await p.waitForTimeout(300);
+  await p.evaluate(()=>document.getElementById('pvNext').click()); await p.waitForTimeout(300);
+  ok(await p.evaluate(()=>/Energy pile/.test(document.querySelector('#modal h2').textContent)),'→ from the Exile wraps round to the energy pile');
+  await p.evaluate(()=>document.getElementById('pvDone').click()); await p.waitForTimeout(200);
+  await p.evaluate(()=>document.getElementById('rivalExBtn').click()); await p.waitForTimeout(350);
+  ok(await p.evaluate(()=>/Exile/.test(document.querySelector('#modal h2').textContent) && document.querySelectorAll('.pileRow').length===1 && /9♦/.test(document.querySelector('.pileRow .pvName').textContent)),'the Rival\'s ⊘ opens THEIR Exile (9♦)');
+  ok(await p.evaluate(()=>/view only/.test(document.querySelector('.pileHint').textContent)),'…marked view only');
+  await p.evaluate(()=>{ const d=document.getElementById('pvDone'); if(d)d.click(); }); await p.waitForTimeout(200);
+
+  /* AT 3-6 PLAYERS the opponent panels carry it too — the panel is the only place an opponent's piles live there */
+  await p.goto(URL); await p.waitForTimeout(700);
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await p.waitForTimeout(350);
+  await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await p.waitForTimeout(350);
+  await p.evaluate(()=>{ const b=document.getElementById('goFirstBtn'); if(b)b.click(); }); await p.waitForTimeout(1200);
+  ok(await p.evaluate(()=>!!(window.__solo && window.__solo.st() && window.__solo.st().numPlayers===3)),'STAGED: a 3-player game');
+  await p.evaluate(()=>{ const st=window.__solo.st(); st.players[2].removed=[{rank:4,suit:'C',id:'4C#p2'},{rank:6,suit:'S',id:'6S#p2'},{rank:3,suit:'H',id:'3H#p2'}]; window.__solo.render(); }); await p.waitForTimeout(300);
+  const ob=await p.evaluate(()=>{ const b=document.querySelector('.oppPanel[data-seat="2"] .oppExBtn'); return b?b.textContent.trim():null; });
+  ok(ob==='⊘3','the seat-2 opponent panel carries a ⊘ Exile button with its count ('+ob+')');
+  await p.evaluate(()=>document.querySelector('.oppPanel[data-seat="2"] .oppExBtn').click()); await p.waitForTimeout(350);
+  ok(await p.evaluate(()=>/Exile/.test(document.querySelector('#modal h2').textContent) && document.querySelectorAll('.pileRow').length===3),'…which opens that seat\'s Exile (3 cards)');
+  ok(await p.evaluate(()=>!(document.querySelector('.oppPanel[data-seat="2"] .oppZones')||{className:''}).className.match(/\bopen\b/)),'…and the click did not also open the panel\'s zones behind it');
+
+  /* THE ONE PLACE THE BUTTON IS NOT: phones under 340px wide, where the bar has no room for it (measured at
+     327x660 with the longest deck name — see the CSS). Pinned BOTH ways, so the exception cannot quietly widen
+     and cannot quietly outlive the phone declutter that is meant to retire it: hidden at 327 but still REACHED
+     through the viewer's ring, and present at 390. */
+  async function narrow(w,h){
+    const q=await (await b.newContext({viewport:{width:w,height:h}})).newPage(); q.on('pageerror',e=>errs.push(e.message));
+    await q.goto(URL); await q.waitForTimeout(700);
+    await q.evaluate(()=>document.getElementById('newBtn').click()); await q.waitForTimeout(350);
+    await q.evaluate(()=>document.getElementById('goFirstBtn').click()); await q.waitForTimeout(1100);
+    return q;
+  }
+  const n327=await narrow(327,660);
+  ok(await n327.evaluate(()=>document.getElementById('youExBtn').offsetParent===null && document.getElementById('rivalExBtn').offsetParent===null),'at 327px the ⊘ buttons are hidden — the bar has no room');
+  await n327.evaluate(()=>document.getElementById('youShufBtn').click()); await n327.waitForTimeout(300);
+  await n327.evaluate(()=>document.getElementById('pvNext').click()); await n327.waitForTimeout(300);
+  ok(await n327.evaluate(()=>/Exile/.test(document.querySelector('#modal h2').textContent)),'…but ♻ → still reaches the Exile there');
+  await n327.close();
+  const n390=await narrow(390,780);
+  ok(await n390.evaluate(()=>document.getElementById('youExBtn').offsetParent!==null && document.getElementById('rivalExBtn').offsetParent!==null),'at 390px both ⊘ buttons are on screen');
+  await n390.close();
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
