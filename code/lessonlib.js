@@ -16,6 +16,14 @@ async function openLesson(id, viewport){
   const b=await chromium.launch(LAUNCH);
   const p=await (await b.newContext({viewport:viewport||{width:1200,height:900}})).newPage();
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+  /* LOAD ON DEMAND (2026-10-13). Every lesson flake on file was seen under a `-j 4` sweep and never solo, so
+   * "wait for a loaded sweep to go red" was the only way to see one again. `LESSON_THROTTLE=n` slows this page's
+   * own CPU n-fold through Chromium's DevTools protocol (`Emulation.setCPUThrottlingRate`): a loaded lane without a
+   * loaded machine, and the same n every run. Timers still fire on the wall clock, which is the point of using it
+   * — the work between them slows, the dwells do not. Inert without the variable, so the sweep never sets it. */
+  const THROTTLE=+process.env.LESSON_THROTTLE||0;
+  if(THROTTLE>1){ const cdp=await p.context().newCDPSession(p); await cdp.send('Emulation.setCPUThrottlingRate',{rate:THROTTLE});
+    console.log('   ⚙ LESSON_THROTTLE='+THROTTLE+' — this page runs '+THROTTLE+'x slower'); }
   let pass=0, fail=0;
   const ok=(c,m)=>{ console.log((c?'✓':'✗')+' '+m); c?pass++:fail++; return !!c; };
   /* 30s, NOT 9s. These budgets are a HANG GUARD, not a race — a poll returns the instant its condition is

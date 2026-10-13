@@ -116,111 +116,8 @@ re-read its tag.
 ### Open — in priority order
 
 *Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
-length). The first four entries are all "force it rather than wait for it" work; the round-ceremony entry joined
-them that day, once a hypothesis made it forceable. **The first entry is the next job.***
-
-- `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
-  2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
-  (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
-  (retried for 30000ms)"*, 112s in the sweep against 22s solo). **It was never the poll budget.**
-  **THE MECHANISM, MEASURED.** `card <id> has no group` means the board is in PICK MODE: `renderHand`'s
-  first branch renders bare cards into `#hand` with no `.group` wrapper and is the only writer that does.
-  A pick never clears itself, so the retry burns its whole 30s against a board that cannot move. And **the
-  lesson sits at 10 of 10 cards at that step — exactly the cap, zero headroom** — so one card left unspent
-  by a slipped beat takes the hand to 11 and opens the clean-up trim. The full rule is in CLAUDE.md.
-  **WHAT SHIPPED:** `lessonlib.pickMode()` names the state, `answerWindow()` escapes it loudly,
-  `lessontest_twos` asserts the rig's own `[10/10]` promise, `nettest_trim` asserts the DOM contract, and
-  `lessontest_pickescape` forces the condition so neither guard is untested code. The sweep also surfaces
-  warnings from GREEN suites now, so the `⚠` escape line cannot pass unnoticed.
-  **WHAT IS STILL OPEN — AND IT IS THE ONLY THING LEFT HERE: WHICH BEAT SLIPS.** Every earlier assertion in
-  the suite passed on all three red runs, so the unspent card is not one an assertion covers. The next red
-  run will print the hand size (`[11/10]`) and name the pick, which bounds the search to one round
-  boundary; until then there is nothing to fix, only something to catch.
-  **DO NOT RAISE A POLL BUDGET FOR THIS.** Three occurrences were read as contention because the suite was
-  22s solo and 112s loaded; the 112s is the retry burning down, not the machine. The lane-count theory this
-  entry used to carry is **withdrawn** — a stable wrong state for thirty seconds is a mode, not a race.
-  **`lessontest_forms` (2026-09-24, *"the Q is spotlit for you to activate"*, 13/2, 3/3 solo) is a
-  DIFFERENT signature** and is not explained by this; it needs its own repro rather than being folded in.
-  **NEXT (2026-10-13): TRY TO FORCE IT INSTEAD OF WAITING FOR A SWEEP.** Every sighting was under load, and
-  Chromium can slow a page's own CPU on demand (`Emulation.setCPUThrottlingRate` over a CDP session), which is a
-  loaded lane without a loaded machine. Run the suite throttled 4-6x a few dozen times: a red prints `[11/10]`
-  and names the pick, which bounds the search to one round boundary. If throttled runs stay green, that is
-  evidence the trigger is not CPU load — worth as much as a red. Same plan as the two lesson entries below.
-  `[id: lessontest-twos-poll-under-load]`
-
-- `needs a repro`       · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
-  (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
-  and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
-  change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
-  live in the setup dialog's roll).
-  **Why 30s matters.** v1.31.84 raised all six lesson polls 9s → 30s precisely to end this class, and the note
-  there says a poll budget is a HANG GUARD, not a race — it returns the instant the condition holds. Blowing the
-  whole 30s therefore means the condition never became true, not that the machine was slow. The rig is not the
-  suspect either: CLAUDE.md measured `tutRigForms` placing a Q **8/8**, with a fallback whose failure needs all
-  four jacks behind shields (1 in 270,725).
-  **THE ONE THING THAT WOULD SETTLE IT COSTS NOTHING, and should be added before hunting:** on timeout, print
-  `step()` — it already returns the step number, its text and `spots`. That separates the two live hypotheses,
-  which need completely different fixes: **the lesson never reached that step** (an earlier gate silently failed
-  to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
-  spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
-  exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
-  **IT RECURRED 2026-09-17, AND A HUMAN SIGHTING IN A DIFFERENT LESSON IS NOW THE BETTER LEAD.** One full
-  sweep went 92/93 on this suite — both spotlight assertions, *"the Q is spotlit"* and *"…and the spotlit
-  card really is the Q"*. The SAME MORNING, Aj hit the same symptom by hand in **How to Play step 8**:
-  *"lots of un greyed cards here and no cards are glowing"* — a step that GATES on activating, telling the
-  player to select a glowing card that is not there. Two different lessons, one mechanism (`tut-spot` never
-  applied), and one of them reproducible by a person rather than 1-in-many in a sweep.
-  **CHASE THE HUMAN ONE.** `lessontest_howto` asserts a card is spotlit at step 8 and is GREEN, so the suite
-  and the real game disagree — which is worth more than another rate measurement. Start at `tutPickEffect`
-  → `tutEnsureEffect` → `tutEffId`: it returns null when nothing passes `tutEffOK`, and `render()` wipes
-  `.tut-spot` every paint (`reapply` re-adds it), so either half failing looks identical on screen.
-  **A/B'd AND IT PROVED NOTHING, which is worth recording so nobody repeats it.** `clickFight` gained a
-  verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
-  concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
-  only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
-  **✅ THE HUMAN HALF IS EXPLAINED AND FIXED (v1.33.15, 2026-10-12), AND IT WAS NOT THIS SUITE'S MECHANISM.**
-  Aj's How to Play card HAD `.tut-spot`; it simply did not glow. The class lost the cascade on a hand card:
-  `.card`'s shadow (same specificity, later) beat the static ring, and a card dealt this round keeps `.enter`,
-  whose fly-in replaced the pulse. Measured on a lit card carrying `.enter`: `animation: dealIn`, the plain shadow,
-  no ring; the six lit cards without it all glowed. `lessontest_howto` now stages `.enter` and reads the
-  computed glow. **So "one mechanism" above was wrong**: this suite's red had the class MISSING, which a cascade
-  bug cannot cause. What is left is that half alone, and a `lessonlib` poll timeout now prints the step the
-  lesson was on, which separates "never reached the step" from "on the step, lit nothing" in one red run.
-  **NEXT (2026-10-13): try to FORCE it with the page's CPU throttled** — the plan in the `lessontest_twos` entry
-  above. Its one sighting was under `-j 4`, and the step print means a single throttled red says which half it is.
-  `[id: lessontest-forms-poll]`
-
-- `needs a repro`       · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
-  sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
-  *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
-  them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
-  the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
-  timeout fails both (the second because `localStorage` was never written).
-  **`lessontest_quicks` WAS the first suite to look at, and it no longer exists** — its lesson was absorbed
-  into "Phases and Quicks" on 2026-09-25 and the file was deleted, so the suspect this entry named is gone
-  without the entry having been closed. Its ~25% rate under `-j 4` had a different signature anyway, and the
-  cause is recorded in CLAUDE.md (a hand-rolled priority check that abandoned an open window); that is
-  history now, not a lead. *(This read "see the entry above" and pointed at nothing — repaired 2026-09-29.)*
-  **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
-  past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
-  identification. **Capture the full sweep log.**
-  **Not reproduced:** an immediate re-sweep was **89/89**, and **33 runs of all eleven lesson suites
-  eleven-at-a-time** (heavier than the sweep's four lanes) were clean. `lessontest_quicks` was the prime
-  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep. (That
-  suite has since been deleted; the sentence is kept as the record of what was ruled out, not as a lead.)
-  **Do not file this as a flake and do not raise a poll budget on it.** This repo's record is that an
-  intermittent has been a real dependency every single time. The cheap next move is the one the
-  `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
-  when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
-  red run would then name both the suite and the step.
-  **✅ BOTH HALVES OF THAT ARE IN (2026-10-12).** `next()` already printed `⚠ next(): #tutNextBtn was not
-  present`, and `finish()` polls through `lessonlib`'s `until`, whose timeout now prints the tutorial step,
-  how many things are lit, whether Next is showing and the step's text. So a recurrence names the step, and
-  the sweep's whole-line summary names the suite. Nothing left to build: this waits for that one run.
-  **NEXT (2026-10-13): try to FORCE that run** — all eleven lesson suites with the page's CPU throttled, the plan
-  in the `lessontest_twos` entry above. The suite is unknown, so this is the one place a throttled sweep of the
-  whole family is worth its cost: a red now names both the suite and the step.
-  `[id: lesson-suite-lost-name]`
+length). Forcing the flakes the same day parked four of them, so the round-ceremony entry is the one forcing job
+left. **The first entry is the next job.***
 
 - `needs a repro`       · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
   CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
@@ -674,6 +571,110 @@ them that day, once a hypothesis made it forceable. **The first entry is the nex
   passed" from "it led something else". Verified on a forced copy: *"The pile: fullhouse 2H 2S 2C 3D 3C (played
   by seat 1) · round 3 · turn 0 · the Rival holds 0 cards"*. **Revives when that assertion goes red in a sweep.**
   `[id: lessontest-twos-prep]`
+
+- `parked`              · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
+  2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
+  (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
+  (retried for 30000ms)"*, 112s in the sweep against 22s solo). **It was never the poll budget.**
+  **THE MECHANISM, MEASURED.** `card <id> has no group` means the board is in PICK MODE: `renderHand`'s
+  first branch renders bare cards into `#hand` with no `.group` wrapper and is the only writer that does.
+  A pick never clears itself, so the retry burns its whole 30s against a board that cannot move. And **the
+  lesson sits at 10 of 10 cards at that step — exactly the cap, zero headroom** — so one card left unspent
+  by a slipped beat takes the hand to 11 and opens the clean-up trim. The full rule is in CLAUDE.md.
+  **WHAT SHIPPED:** `lessonlib.pickMode()` names the state, `answerWindow()` escapes it loudly,
+  `lessontest_twos` asserts the rig's own `[10/10]` promise, `nettest_trim` asserts the DOM contract, and
+  `lessontest_pickescape` forces the condition so neither guard is untested code. The sweep also surfaces
+  warnings from GREEN suites now, so the `⚠` escape line cannot pass unnoticed.
+  **WHAT IS STILL OPEN — AND IT IS THE ONLY THING LEFT HERE: WHICH BEAT SLIPS.** Every earlier assertion in
+  the suite passed on all three red runs, so the unspent card is not one an assertion covers. The next red
+  run will print the hand size (`[11/10]`) and name the pick, which bounds the search to one round
+  boundary; until then there is nothing to fix, only something to catch.
+  **DO NOT RAISE A POLL BUDGET FOR THIS.** Three occurrences were read as contention because the suite was
+  22s solo and 112s loaded; the 112s is the retry burning down, not the machine. The lane-count theory this
+  entry used to carry is **withdrawn** — a stable wrong state for thirty seconds is a mode, not a race.
+  **`lessontest_forms` (2026-09-24, *"the Q is spotlit for you to activate"*, 13/2, 3/3 solo) is a
+  DIFFERENT signature** and is not explained by this; it needs its own repro rather than being folded in.
+  **FORCED 2026-10-13 AND NOT REPRODUCED, SO PARKED.** `lessonlib` gained `LESSON_THROTTLE=n`, which slows the
+  page's own CPU n-fold through Chromium's DevTools protocol. 16 runs at 4x and 8 at 20x, and the 20x runs really
+  were starved (34s against 24s): the pick never opened. So the page's CPU is not the trigger. **Revives when it
+  fails in a sweep**: the red prints `[11/10]` and names the pick, which bounds it to one round boundary.
+  `[id: lessontest-twos-poll-under-load]`
+
+- `parked`              · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
+  (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
+  and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
+  change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
+  live in the setup dialog's roll).
+  **Why 30s matters.** v1.31.84 raised all six lesson polls 9s → 30s precisely to end this class, and the note
+  there says a poll budget is a HANG GUARD, not a race — it returns the instant the condition holds. Blowing the
+  whole 30s therefore means the condition never became true, not that the machine was slow. The rig is not the
+  suspect either: CLAUDE.md measured `tutRigForms` placing a Q **8/8**, with a fallback whose failure needs all
+  four jacks behind shields (1 in 270,725).
+  **THE ONE THING THAT WOULD SETTLE IT COSTS NOTHING, and should be added before hunting:** on timeout, print
+  `step()` — it already returns the step number, its text and `spots`. That separates the two live hypotheses,
+  which need completely different fixes: **the lesson never reached that step** (an earlier gate silently failed
+  to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
+  spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
+  exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
+  **IT RECURRED 2026-09-17, AND A HUMAN SIGHTING IN A DIFFERENT LESSON IS NOW THE BETTER LEAD.** One full
+  sweep went 92/93 on this suite — both spotlight assertions, *"the Q is spotlit"* and *"…and the spotlit
+  card really is the Q"*. The SAME MORNING, Aj hit the same symptom by hand in **How to Play step 8**:
+  *"lots of un greyed cards here and no cards are glowing"* — a step that GATES on activating, telling the
+  player to select a glowing card that is not there. Two different lessons, one mechanism (`tut-spot` never
+  applied), and one of them reproducible by a person rather than 1-in-many in a sweep.
+  **CHASE THE HUMAN ONE.** `lessontest_howto` asserts a card is spotlit at step 8 and is GREEN, so the suite
+  and the real game disagree — which is worth more than another rate measurement. Start at `tutPickEffect`
+  → `tutEnsureEffect` → `tutEffId`: it returns null when nothing passes `tutEffOK`, and `render()` wipes
+  `.tut-spot` every paint (`reapply` re-adds it), so either half failing looks identical on screen.
+  **A/B'd AND IT PROVED NOTHING, which is worth recording so nobody repeats it.** `clickFight` gained a
+  verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
+  concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
+  only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
+  **✅ THE HUMAN HALF IS EXPLAINED AND FIXED (v1.33.15, 2026-10-12), AND IT WAS NOT THIS SUITE'S MECHANISM.**
+  Aj's How to Play card HAD `.tut-spot`; it simply did not glow. The class lost the cascade on a hand card:
+  `.card`'s shadow (same specificity, later) beat the static ring, and a card dealt this round keeps `.enter`,
+  whose fly-in replaced the pulse. Measured on a lit card carrying `.enter`: `animation: dealIn`, the plain shadow,
+  no ring; the six lit cards without it all glowed. `lessontest_howto` now stages `.enter` and reads the
+  computed glow. **So "one mechanism" above was wrong**: this suite's red had the class MISSING, which a cascade
+  bug cannot cause. What is left is that half alone, and a `lessonlib` poll timeout now prints the step the
+  lesson was on, which separates "never reached the step" from "on the step, lit nothing" in one red run.
+  **FORCED 2026-10-13 AND NOT REPRODUCED, SO PARKED.** 16 runs at 4x and 8 at 20x page-CPU throttle (the 20x runs
+  took 7s against 4s): the Q was spotlit every time. **Revives when it fails in a sweep**; the step print then says
+  which half it is.
+  `[id: lessontest-forms-poll]`
+
+- `parked`              · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
+  sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
+  *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
+  them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
+  the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
+  timeout fails both (the second because `localStorage` was never written).
+  **`lessontest_quicks` WAS the first suite to look at, and it no longer exists** — its lesson was absorbed
+  into "Phases and Quicks" on 2026-09-25 and the file was deleted, so the suspect this entry named is gone
+  without the entry having been closed. Its ~25% rate under `-j 4` had a different signature anyway, and the
+  cause is recorded in CLAUDE.md (a hand-rolled priority check that abandoned an open window); that is
+  history now, not a lead. *(This read "see the entry above" and pointed at nothing — repaired 2026-09-29.)*
+  **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
+  past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
+  identification. **Capture the full sweep log.**
+  **Not reproduced:** an immediate re-sweep was **89/89**, and **33 runs of all eleven lesson suites
+  eleven-at-a-time** (heavier than the sweep's four lanes) were clean. `lessontest_quicks` was the prime
+  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep. (That
+  suite has since been deleted; the sentence is kept as the record of what was ruled out, not as a lead.)
+  **Do not file this as a flake and do not raise a poll budget on it.** This repo's record is that an
+  intermittent has been a real dependency every single time. The cheap next move is the one the
+  `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
+  when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
+  red run would then name both the suite and the step.
+  **✅ BOTH HALVES OF THAT ARE IN (2026-10-12).** `next()` already printed `⚠ next(): #tutNextBtn was not
+  present`, and `finish()` polls through `lessonlib`'s `until`, whose timeout now prints the tutorial step,
+  how many things are lit, whether Next is showing and the step's text. So a recurrence names the step, and
+  the sweep's whole-line summary names the suite. Nothing left to build: this waits for that one run.
+  **FORCED 2026-10-13 AND NOT REPRODUCED, SO PARKED.** Every `lessonlib` lesson suite with its page throttled,
+  4x and 20x: every completion modal appeared. (`lessontest` and `lessontest_energyorder` open their own pages
+  and were not throttled, but this failure was inside `lessonlib`'s `finish()`, so neither is the unknown suite.)
+  **Revives when a lesson suite fails its completion assertions in a sweep**; the red names the suite and the step.
+  `[id: lesson-suite-lost-name]`
 
 #### When something exists first
 
