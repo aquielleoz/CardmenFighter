@@ -68,7 +68,14 @@ const { openLesson } = require('./lessonlib');
   /* AND THE FLIP, at five cards, with the reveal in the step BEFORE the instruction. */
   const ledFh=await until(()=>{ const s=window.__solo.st();
       return !!s.pile && s.pile.combo.type==='fullhouse' && s.pile.combo.cards.filter(c=>c.rank===2).length===3; },'the Rival leads 222 + a pair');   // no override: the default 30s. At 4.7s idle this was the only poll in the harness under a 4x margin
-  ok(ledFh,'the Rival led a full house built on three 2s'+(ledFh?'':'  ← REPRODUCED: the pilot passed with a short hand'));
+  /* ON A RED, SAY WHAT IS ON THE TABLE, NOT WHY (lessontest-twos-prep, 2026-10-13). This used to read "← REPRODUCED:
+     the pilot passed with a short hand", a cause nothing had established — and the one capture we have of this step
+     failing showed a PAIR still on the pile, which that guess does not describe. The pile, the round, the turn and
+     the Rival's hand tell "the round never turned over" from "the pilot passed" from "it led something else". */
+  const sawPile=ledFh ? '' : await p.evaluate(()=>{ const s=window.__solo.st(), c=s.pile&&s.pile.combo;
+    return '  ← it did not. The pile: '+(c ? c.type+' '+c.cards.map(x=>x.rank+x.suit).join(' ')+' (played by seat '+s.pile.byPlayer+')' : 'empty')+
+           ' · round '+s.round+' · turn '+s.turn+' · the Rival holds '+s.players[1].hand.length+' cards'; });
+  ok(ledFh,'the Rival led a full house built on three 2s'+sawPile);
   ok(await p.evaluate(()=>window.__solo.prioLog().some(l=>/TWOS PILOT REPAIRED/.test(typeof l==='string'?l:JSON.stringify(l)))),
      '…through the REPAIR, which the ledger names — the forced hole really was reached');
   const fhCards=await p.evaluate(()=>{ const s=window.__solo.st(); return s.pile?s.pile.combo.cards.map(c=>c.rank+c.suit):[]; });
