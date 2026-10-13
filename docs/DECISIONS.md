@@ -1278,6 +1278,22 @@ card before acting on it.** The finding survived adversarial verification and I 
 sentence. What remains is a genuine defect of a different shape — the cast is legal, fully paid for, and does
 nothing — and it is filed in the BACKLOG as a refusal, not a kick.
 
+<a id="shield-gain-answer"></a>
+**A SHIELD GAIN ANSWERS AN INCOMING LOSS, AND IT IS OFFERED WHATEVER THE TABLE LOOKS LIKE (Aj; the first
+attempt reviewed and found superseded 2026-10-13).** Aj's reasoning, from a stash that tried it in the old guard
+window: *"for human's, having the option to use it when you are about to lose a shield is good — regardless of
+how the table looks. it also makes the quick make more sense... really since it's a quick it should be offered
+everywhere the player gets priority."* Whether it is a good play stays the player's call: in a duel Sanctuary's
+gain reaches the Rival too, and gating it to 0 shields was proposed and rejected as deciding for them.
+**The shipped game does all of it, through `lossAnswerFor`:** a shield gain counts as an answer at any shield
+count; at 0 shields it is, with Leyline's `cantLose`, the only thing that stops the Fighter Kick; prevention
+outranks a gain; and only a Quick qualifies. So Sanctuary under Hector is offered, and AUTO stops you for it,
+while base Sanctuary, which is not a Quick, is not.
+**The stash itself is not needed.** It patched `guardEffFor` and the shield-guard window, both deleted by the
+epic, and it also admitted base Sanctuary, which its own quoted reason ("since it's a quick") does not ask for
+and which broke the epic's superset proof (`shadowtest`: 93 counterexamples). Whether the AI should cast it is a
+separate, measured question: [`#ai-strength`](#ai-strength).
+
 ## Initiative catch-up — DECLINED, and it was never Aj's report <a id="initiative-catchup"></a>
 
 **Struck off 2026-09-08.** Aj: *"i never put the initiative catch up on the backlog myself. i don't think
