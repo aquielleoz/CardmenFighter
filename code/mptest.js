@@ -858,8 +858,8 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
        (early ? (early.cardUp ? (early.played ? '' : '  ← Fight was pressed but no play landed') : '  ← it had already landed, so nothing below was at risk')
               : '  ← no play landed at all'));
     let idle=0, last='';
-    for(let i=0;i<300 && idle<40;i++){
-      const s=await p.evaluate(()=>{ const st=window.__solo.st(); return { done:!st||st.finished||st.round>=3, sig:st?(st.round+'/'+document.querySelectorAll('#log .le').length):'' }; });
+    for(let i=0;i<700 && idle<40;i++){   // to round 6, not 3: the second double-driver path (v1.33.16) needed rounds the old reach never played
+      const s=await p.evaluate(()=>{ const st=window.__solo.st(); return { done:!st||st.finished||st.round>=6, sig:st?(st.round+'/'+document.querySelectorAll('#log .le').length):'' }; });
       if(s.done) break;
       if(s.sig!==last){ idle=0; last=s.sig; } else idle++;
       await driveOnce();
@@ -868,12 +868,34 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     const led = await p.evaluate(()=>window.__solo.prioLog()||[]);
     const two = led.filter(l=>/TWO OPPONENT DRIVERS/.test(l)), stale = led.filter(l=>/ROUND BANNER FIRED WITH A PILE/.test(l));
     const reached = await p.evaluate(()=>window.__solo.st().round);
-    ok(reached>=3 && two.length===0,
-       'ONE opponent driver ran, through two round boundaries (reached round '+reached+')'+
-       (two.length ? '  ← REPRODUCED: '+two[0].slice(0,140) : (reached>=3 ? '' : '  ← the game stopped short, so the drive proves nothing')));
-    ok(reached>=3 && stale.length===0,
+    ok(reached>=6 && two.length===0,
+       'ONE opponent driver ran, through five round boundaries (reached round '+reached+')'+
+       (two.length ? '  ← REPRODUCED: '+two[0].slice(0,140) : (reached>=6 ? '' : '  ← the game stopped short, so the drive proves nothing')));
+    ok(reached>=6 && stale.length===0,
        '…and no round banner fired over a pile from the next round — an AI never moved under the ceremony'+
        (stale.length ? '  ← '+stale[0].slice(0,120) : ''));
+  }
+
+  /* ═══ A SUPERSEDED OPPONENT LOOP NEVER RESUMES, AND A RESUMING ONE RE-LOCKS FIRST — SOURCE-SCANNED (2026-10-13) ═══
+     `drainResolution` clears `busy` before its continuation, and `runOpponents` RESUMES after the round ceremony
+     with `step()`. Until v1.33.16 nothing re-locked the board there, and nothing checked whether a newer loop
+     had started while this one waited, so after a round ended on an AI's pass a second `runOpponents` could run
+     beside it: `⚠ TWO OPPONENT DRIVERS` in 7 of 30 three-player games on v1.33.15, played by a driver that acts as
+     soon as the board allows, some with the stale-pile banner; 0 of 36 with the fix (18 with the re-lock alone, 18 with both halves).
+     SCANNED, NOT EXERCISED, AND SAID SO. Two stagings were tried and neither reached the window on demand — the
+     AI's own choices and the board's lock during the Round card decide whether it opens — so a played leg here
+     passed on the build that had the bug. The opening leg below still drives a natural game to round 6 with
+     the live `⚠ TWO OPPONENT DRIVERS` detector; this scan is what catches a revert every run. A/B'd: either half
+     removed reds it. */
+  {
+    const tpl = require('fs').readFileSync(path.resolve(__dirname, 'CardmenFighter.template.html'), 'utf8');
+    const ro = tpl.slice(tpl.indexOf('function runOpponents(){'), tpl.indexOf('function runOpponents(){') + 9000);
+    const cont = (ro.match(/resolveRoundCeremony\(fres, g, function\(\)\{([^}]*)\}\)/) || [])[1] || '';
+    ok(!!cont, 'the opponents\' loop resumes after the round ceremony through one continuation'+(cont?'':'  ← not found: the scan below proves nothing'));
+    ok(/me\s*!==\s*oppDriverSeq[^;]*\)\s*return/.test(cont),
+       '…which YIELDS if a newer opponent loop started while it waited'+(/oppDriverSeq/.test(cont)?'':'  ← REVERTED: a superseded loop would resume beside the newer one'));
+    ok(/busy\s*=\s*true[\s\S]*step\(\)/.test(cont),
+       '…and RE-LOCKS the board before it steps'+(/busy\s*=\s*true/.test(cont)?'':'  ← REVERTED: the next AI turn would play with your board live'));
   }
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
