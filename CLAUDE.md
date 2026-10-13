@@ -84,7 +84,12 @@ node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's es
 #                                       # `renderHand` appends bare cards with no `.group`. Forces the
 #                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
 #                                       # `answerWindow()`'s pick escape are not untested code
-#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
+#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly.
+#   `LESSON_THROTTLE=n node lessontest_x.js` slows that lesson page's CPU n-fold (Chromium DevTools), to test
+#   a load-only flake on demand. These lessons mostly wait on the game's own timers, so 4x barely moves them;
+#   20x adds 40-75% wall time. 72 throttled runs (2026-10-13) reproduced none of the three load-only lesson flakes
+#   on file, so the page's CPU is not their trigger. `lessontest` and `lessontest_energyorder` open their own
+#   pages and ignore it
 node piletest.js                                # energy/shuffle/EXILE pile viewers + promote (51) — the Exile's own
                                                 # ⊘ button on both bars and every opponent panel, the ← → ring,
                                                 # view-only on anyone else's; on a portrait phone your ⊘ is behind
