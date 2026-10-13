@@ -116,29 +116,8 @@ re-read its tag.
 ### Open — in priority order
 
 *Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
-length). The first five entries are all "force it rather than wait for it" work; the round-ceremony entry joined
+length). The first four entries are all "force it rather than wait for it" work; the round-ceremony entry joined
 them that day, once a hypothesis made it forceable. **The first entry is the next job.***
-
-- `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
-  in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
-  as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every
-  single time, and the captured hint names one:
-  `Fight is disabled — hint: Special Full House — doesn't beat the Special Pair.`
-  **The pile was a PAIR when the lesson had just claimed the Rival led `222` + a pair.** So the failing thing is
-  the PREP playing for the Rival, not the assertion waiting on it: a full house went in and a pair came out,
-  which is the shape of a partially-landed play — the documented `busy`-swallows-a-click class that
-  `lessonlib`'s helpers retry for and that has already presented as a product bug three times.
-  **The cheap first move is to make the prep self-diagnosing** rather than to raise the 30s poll (it timed out
-  at its full budget, so the budget is not the constraint): have the Rival-leads step assert WHAT it led and say
-  so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
-  in one run.
-  **HALF OF THAT IS DONE (checked 2026-10-13), AND THE OTHER HALF IS THE MESSAGE.** The Rival is now flown by the
-  lesson's PILOT, not a step prep, and the suite asserts the lead itself (*"the Rival led a full house built on
-  three 2s"*). But its red still names a cause — *"← REPRODUCED: the pilot passed with a short hand"* — where
-  the one capture we have showed a PAIR on the pile. **What is left: print the pile it actually saw** (type,
-  cards, who played it) instead of the guess. Re-read the 2026-09-07 diagnosis against the pilot before
-  trusting it; it was written about the prep.
-  `[id: lessontest-twos-prep]`
 
 - `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
   2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
@@ -681,6 +660,20 @@ them that day, once a hypothesis made it forceable. **The first entry is the nex
   at the reading …]`. Verified on a forced copy: it printed `staged 15px · before the action 0px in a 242px box`, which
   names the mechanism in one run.
   `[id: landscapetest-newlog-flaky]`
+
+- `parked`              · **`lessontest_twos` FAILED ONCE UNDER LOAD WITH A PAIR ON THE PILE WHERE THE RIVAL'S 222 FULL HOUSE
+  SHOULD HAVE BEEN** (one `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep). The captured hint:
+  `Fight is disabled — hint: Special Full House — doesn't beat the Special Pair.` At step 7 you have just passed on
+  the Rival's pair of 2s, so the Rival should take the round and lead `222` + a pair; a pair still showing reads like
+  a round that never turned over.
+  **THE FILED DIAGNOSIS WAS ABOUT CODE THAT IS GONE.** It blamed the step PREP for a partly-landed play; the Rival
+  is now flown by the lesson's pilot, and the suite asserts the lead itself.
+  **THE NEXT RED DESCRIBES THE BOARD (2026-10-13).** The lead assertion used to say *"← REPRODUCED: the pilot passed
+  with a short hand"*, a cause nothing had established. It now prints the pile (shape, cards, who played it), the
+  round, the turn and the Rival's hand size, which separates "the round never turned over" from "the pilot
+  passed" from "it led something else". Verified on a forced copy: *"The pile: fullhouse 2H 2S 2C 3D 3C (played
+  by seat 1) · round 3 · turn 0 · the Rival holds 0 cards"*. **Revives when that assertion goes red in a sweep.**
+  `[id: lessontest-twos-prep]`
 
 #### When something exists first
 
