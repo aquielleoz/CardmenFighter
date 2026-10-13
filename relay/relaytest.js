@@ -8,11 +8,10 @@
  * code into tested code. Until that is run, say so.
  *
  * Zero dependencies, like the rest of the repo. */
-var http = require('http'), https = require('https'), { spawn } = require('child_process');
+var http = require('http'), https = require('https');
 
 var pass = 0, fail = 0;
 function ok(c, m) { if (c) { pass++; console.log('✓ ' + m); } else { fail++; console.log('✗ ' + m); } }
-function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 var BASE = process.argv[2] || null, child = null;
 
@@ -40,9 +39,9 @@ function req(method, path, body) {
 
 (async function () {
   if (!BASE) {
-    child = spawn(process.execPath, [__dirname + '/mock.js', '8791'], { stdio: 'ignore' });
-    BASE = 'http://127.0.0.1:8791';
-    await wait(600);
+    var mockPort = process.env.PORT ? +process.env.PORT + 500 : 8791;   // follows PORT under the sweep, so two runs never share a mock
+    child = await require('./startmock.js')(mockPort);                 // waits for its listen line; fails loudly if the port is taken
+    BASE = 'http://127.0.0.1:' + mockPort;
     console.log('testing the MOCK — this proves the protocol, NOT the Worker\'s SQL\n');
   } else {
     console.log('testing a real deployment: ' + BASE + '\n');

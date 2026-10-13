@@ -2471,6 +2471,16 @@ error handler in all 44 suites, so it produced no error and no exit — the proc
 to do about it. **`sweep.js` also caps each suite at 300s and SIGKILLs the process GROUP** — a suite spawns
 chromium and a killed parent cannot reap its own browsers (measured: 5 alive before, 0 after). A hung suite is
 now a named failure instead of a lane held forever.
+**AND A SUITE'S *SECOND* PORT HAD THE SAME HOLE, SO CONCURRENT COPIES SHARED ONE RELAY (2026-10-13).** The relay
+mock was spawned on a HARDCODED port (`nettest_sync` 8835, `nettest_relay` 8797, `relaytest` 8791) with its output
+ignored, so a mock that lost the bind exited unseen and the suite used whichever process held the port. Four
+copies of `nettest_sync` at once shared one mock, and when its owner exited it killed the relay under any copy
+mid-handshake: `FAILED — PASS: 8  FAIL: 4  · rounds 0, actions 0`, 2 runs in 54, filed as a load flake for five
+days. A plain sweep runs one copy of each suite, so it could never see it. Holding the port with a foreign mock
+and killing it once the host had its room code reproduced it on demand, to the second. **Every port a suite binds
+comes from `PORT`** (the mock is `PORT + 500`), and `relay/startmock.js` waits for the mock's listen line and
+throws, naming the port, if the bind fails. **A batch of one suite is not a sweep**: before blaming load for a
+failure seen only in batches, look for state the copies share.
 
 **Never `pkill` browsers while a suite is running — and never put cleanup in a command that shares a shell
 with a test.** `pkill -f headless_shell` used as tidy-up killed a running `browsertest`'s page mid-flight; the
@@ -2488,12 +2498,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.15 — last FULL sweep 2026-10-13, `npm run sweep`, 124/124 in 385s** (this line was
+Status as of **v1.33.15 — last FULL sweep 2026-10-13, `npm run sweep`, 124/124 in 388s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 10, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 11, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
