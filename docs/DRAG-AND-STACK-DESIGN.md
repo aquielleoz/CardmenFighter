@@ -1,8 +1,8 @@
 # Drag and stack: playing from the board
 
-**Status: DRAFT, waiting on Aj's rulings (2026-10-13). Nothing here is built.** The work lives on
-`epic/drag-and-stack`: every step PRs into it, and `main` sees one merge at the end. Each **⚖** below is a
-ruling for Aj. The default beside it is a recommendation, not a decision.
+**Status: RULED by Aj, 2026-10-13. Nothing is built yet; step 1 is next.** The work lives on
+`epic/drag-and-stack`: every step PRs into it, and `main` sees one merge at the end. One question is still open,
+and it belongs to step 5: where the stack visualizer sits on a portrait phone.
 
 ## In Aj's words
 
@@ -70,87 +70,92 @@ The three earlier asks this answers:
 - **Drags already explain a refusal in the air.** `highlightTarget` asks the question the release will ask
   and writes the reason into `#dropHint` while the card is still being dragged.
 
-## The design
+## The design, as ruled
 
-### Two drop zones
+### Two drop zones, and no Next
 
-- **The middle of the play area fights.** It runs what the Fight button runs with a selection: from Main it
-  crosses into the Fight Sub-Phase, the go-round at the crossing included, then plays; in the Fight Sub-Phase
-  it plays. If someone casts into the crossing, you are held in the Fight Sub-Phase with the cards still
-  selected, as today (`nettest_heldplay`).
-- **The cast zone activates.** In Main it runs `ctxAction()`'s own `run`; while you hold priority in a window,
-  it answers the window. Both zones are live in both sub-phases, and a refusal shows in `#dropHint` (a
-  Technique dropped there in the Fight Sub-Phase: *"The fight has begun — effects are a Main-half move."*).
+- **The middle of the play area fights. The right side is the stack visualizer**, and dropping a card on it is
+  how you cast. It takes its room from the play area, so the hand and the card-reader pane keep theirs.
+- **The Next button is gone; the Fight Sub-Phase stays.** You leave Main by fighting (drop in the middle, or
+  select and press Fight) or by Pass. Crossing into the fight is still a priority point: if someone casts there,
+  your cards stay selected and you choose again, as today (`nettest_heldplay`).
+- **⚡ Activate and Fight stay**, so every drag has a tap equivalent.
 - **Where you drop decides what a drag means, not the sub-phase.** That replaces Aj's epic-step-20 rule,
   *"dragging to play activates card effects now, except when in the fight sub-phase"*, and inverts
   `dragtest`'s premise with it.
 
-### The stack strip
+### The stack visualizer
 
-- A strip at the bottom of the play area that shows each object as a card, newest on top, each naming who cast
-  it and at what (the `stackRowsHTML` text, kept).
+- Each object shows as a card, newest on top, naming who cast it and at what (the `stackRowsHTML` text, kept).
 - Every cast lands there through one presentation: yours, a rival's, an AI's, a guest's. That gives answered
-  Quicks the animation they have never had. An object leaves the strip when it resolves.
+  Quicks the animation they have never had. An object leaves when it resolves.
 - **Do not bolt an animation onto the modal path instead.** That would be a third presentation to keep in step.
-  And the strip and the glow ship together, as Aj asked: shipping one leaves the modal's prose half in place.
-- **The window's sentence moves here**, because it is the decision's context: who cast what at whom, *"It does
-  not target you — countering only helps …"*, and at Resolution who is about to be struck, the Fighter Kick
-  warning included.
+  And the visualizer and the glow ship together, as Aj asked: shipping one leaves the modal's prose half in place.
+- The right edge of the table is also where the Equipment zones sit today, so the visualizer shares that side.
 
-### Priority on the board
+### Staging a cast
 
-- When you hold priority and can act, the cards you can cast glow and Pass is live. The table waits for you,
-  and nothing covers the board.
+- Drop a card on the visualizer, or select it and press ⚡: it sits there **staged**, visible only to you, with
+  nothing spent. A card with nothing to choose waits too.
+- Make its choices on the board with the existing pickers (a rival's panel, an Equipment, a Broadway card in
+  your hand) or, new, a card in the visualizer, for Counter Spell.
+- **⚡ Activate sends it**, and only then does it appear for everyone. Until then its ✕, or dragging it back out,
+  cancels it. The ✕ goes once it is activated: no takebacks.
+
+### When the game stops for you to answer
+
+- **The Respond? box stays, small.** It carries the decision's sentence — who cast what at whom, *"It does not
+  target you — countering only helps …"*, and at Resolution who is about to be struck, the Fighter Kick warning
+  included — and two buttons, **Yes** and **No**.
+- **Yes** closes it, and the cards you can cast glow. Drop one on the visualizer (or tap it and press ⚡), or
+  press **Pass**, which names the moment as today's decline button does (`declineLabel`: "Let it resolve",
+  "Move to the fight", "Start the round", "Let the round resolve", "End the round", "Let the counter come off").
+- **No** passes, the same as Pass.
 - **Activate does not pass.** You keep priority after a cast and can stack another (§2 step 2, *"holding
-  priority"*); only Pass hands it on.
-- Other seats see the strip and who holds priority. They never see a staged card.
+  priority"*); only Pass or No hands it on.
+- **Notifications are unchanged.** ON · AUTO · OFF decide whether the box appears at all.
+- The box drops the per-card buttons, the copied table summary and the Peek button: your hand and the board
+  are the list now.
+- Other seats see the visualizer and who holds priority. They never see a staged card.
 
-### Staging
+## Rulings, 2026-10-13
 
-- Drop a card on the stack, or tap it (⚖5): it sits there **staged**, visible only to you, with nothing spent.
-- Make its choices on the board with the existing pickers: a rival's panel, an Equipment, a Broadway card in
-  your hand, or (new) a card on the strip, for Counter Spell.
-- ⚡ Activate sends it, and only then does it appear for everyone. Cancel, or dragging it back to your hand,
-  returns it.
+1. **One cast zone: the stack visualizer, on the right of the play area. The middle fights.** *"this will eat
+   up a part of the play area so hands and description pane are not affected... ideally"*
+2. **Dropping places a card; Activate casts it.** *"drop to the stack vis and then activate. or you can drag it
+   out to clear, or there will be an x button to cancel your attempt. once you activate, that x button
+   disappears."*
+3. **Next is removed; the Fight Sub-Phase stays.** *"Maybe we remove Next button... But we still keep the
+   fight sub-phase of course."* Confirmed when asked.
+4. **Pass carries today's per-moment label.** *"the default is ok"*
+5. **⚡ and Fight stay.** *"the lightning button and fight button don't disappear"*
+6. **Notifications are unchanged.** *"the notifs still work the same"*
+7. **A small Respond? box first, then your hand.** *"it becomes Respond? and then yes you go view your hand i
+   think that's for every activated card. select no, and it's the same as pass. when you can view your hand..
+   pass also is pass."* Confirmed as a Yes / No box when asked.
+8. **Phones and landscape: open.** Aj asked *"i guess landscape keeps the modals?"*; the measurements are below.
 
-## Rulings needed
+## Still open
 
-1. **⚖ One cast zone or two?** The message names "the right side of the play area" to activate and "the stack
-   visualizer down at the bottom" to respond. **Default: one.** The strip is the cast zone everywhere, so
-   *drop on the stack = cast* is a single rule, in Main and in every window. If two: is "the right side" the
-   right edge of the table, where the Equipment zones sit today, or the card reader panel beside it?
-2. **⚖ Does a card with nothing to choose still wait for ⚡ Activate?** **Default: yes. Dropping never spends;
-   Activate always does.** That is what makes every drop cancellable. It costs one more press for an
-   untargeted cast, which a Main drag casts at once today.
-3. **⚖ The accidental Next.** No takebacks, so the guard goes on the press. Options:
-   - (a) **Glow first.** In Main, the cards you can still use glow; Next stays plain while any of them is
-     Main-only and lights up when none is. Costs nothing, prevents nothing.
-   - (b) **Confirm only when it costs something.** While anything Main-only is still usable, the first press
-     of Next (or Pass) turns the button into "Leave Main? ▸" for a few seconds, and a second press crosses.
-     A Quick does not count, since crossing does not lose it. With nothing Main-only usable it is one press,
-     as today, so a dead Main gains no chore (the September ruling, *"don't auto advance @\_@ they can pass
-     from fight"*, stands).
-   - (c) **Hold to cross.** A half-second press while anything Main-only is still usable.
-   - (d) **Demote Next.** The big button only fights; crossing without playing moves to a smaller control.
+- **Where the visualizer sits on a portrait phone (step 5).** Measured with a full five-card play on the table:
 
-   **Default: (a) + (b).** With the drop zones, most turns never touch Next at all.
-4. **⚖ Where Pass lives in a window.** **Default: the action row's Pass button**, carrying today's per-window
-   label (`declineLabel`: "Let it resolve", "Move to the fight", "Start the round", "Let the round resolve",
-   "End the round", "Let the counter come off"). Fight is off while you hold priority in a window.
-5. **⚖ Taps.** Every drag needs a tap equivalent: for phones, for players who click, and for the suites, which
-   mostly click. **Default: tap a glowing card and press ⚡ to stage it**, the way ⚡ Activate works in Main
-   today. The Fight button is unchanged.
-6. **⚖ Notifications.** **Default: ON · AUTO · OFF keep their meaning.** They decide whether the table waits
-   for you (cards glow, Pass live) or passes for you. What glows is always the engine's answer, never the
-   setting. One question this raises, not a proposal: with no modal, being stopped costs far less, so is
-   AUTO still the right default?
-7. **⚖ Scope.** **Default:** the Respond? window (every priority point) and Counterfeit's picker go. The
-   Outbalance hand read, the pile viewer, the end screen and the menus stay dialogs.
-8. **⚖ Phones and landscape.** Measured at 390×844 portrait: the play area is 320×267 with the pile 165px
-   wide and about 75px to its right. Landscape has no spare height at all (that is `landscapetest`'s whole
-   job). **Default: on a phone the strip overlays the bottom of the play area only while the stack is
-   non-empty, and the strip is the cast zone**, which is why ⚖1 matters most there. Measured before it is
-   built.
+  | viewport | play area | room right of the pile | card size there |
+  | --- | --- | --- | --- |
+  | desktop 1440×900 | 980×551 | 277px | 80×116 |
+  | laptop 1280×800 | 842×460 | 258px | 61×88 |
+  | landscape 932×430 | 566×170 | 156px | 46×67 |
+  | landscape 844×390 | 506×149 | 126px | 46×67 |
+  | portrait 390×844 | 320×267 | 53px | 38×55 |
+  | portrait 360×740 | 290×353 | 38px | 38×55 |
+
+  Landscape has the width; what it lacks is height, so several cards in the visualizer would overlap sideways.
+  A portrait phone has no width for a right-hand column, but it has spare height under the pile.
+  **Recommendation: one design everywhere**, with the visualizer on the right where there is width and under the
+  pile on a portrait phone. No layout keeps the old modal, because two answer screens drift apart. The
+  Respond? box itself is a small modal on every layout.
+- **Counterfeit's picker.** Not ruled. Default: its choice moves onto the board like the other Main pickers.
+- **Glow in Main.** Aj's glow is for answering. In Main the board already greys the effects you cannot afford
+  (`markAfford`). Default: glow only when answering, unless Aj wants it in Main too.
 
 ## Invariants, not up for ruling
 
@@ -161,9 +166,9 @@ These are rules this repo already has (CLAUDE.md):
   the host re-resolves them (`resolveIds`). Nothing new goes on the wire.
 - **What glows is the engine's answer** (`E.canCastQuick`, `ctxActionFor`), never the notification setting:
   a preference must not decide what is legal.
-- **One path for every seat.** The replacement for the modal renders for solo, the host's own seat and a
-  guest alike.
-- **No takebacks.** The crossing stays irreversible; any guard is UI only.
+- **One path for every seat.** The new Respond? box and the board answer render for solo, the host's own seat
+  and a guest alike.
+- **No takebacks.** The crossing stays irreversible, and so does an activated cast.
 - **No legal target, no glow.** Targeting happens on cast.
 - **A glow is checked in its computed style**, with `.enter` and reduced motion staged: carrying `.tut-spot`
   was not glowing (v1.33.15).
@@ -171,10 +176,19 @@ These are rules this repo already has (CLAUDE.md):
 ## What it does not change
 
 The rules, `engine.js`, `ai.js`, `netview.js` and the wire, as far as this draft can see. The engine already
-has the stack, the go-round, per-card castability and cast-time targets, and the AI never touches the UI.
+has the stack, the go-round, per-card castability and cast-time targets, and the AI never touches the UI. The
+one wire change is a deletion: see the first trap below.
 
 ## Traps found while drafting
 
+- **Next has its own wire op.** A guest's Next press sends `{op:'toFight'}`, and both host drivers handle it
+  (`hostApplyMove` and `hostApplyMoveN`). With Next gone the op has no sender: delete both handlers in step 1,
+  then run the `name:name` grep and a UI suite, per CLAUDE.md's deletion rules.
+- **Next is load-bearing in the harness and the lessons.** 9 suites step out of Main through `fightclick`'s
+  `enterFight`, which presses Next; 7 more read its label (`fightbeattest`, `nettest_fightbeat`, `phonetest`,
+  `peektest` and three lesson suites); 16 template lines tell the player to press it, including the Phases and
+  Quicks lesson's "doorway" step. With Next gone, nothing enters the Fight Sub-Phase without playing except the
+  held-fight case, so that is the Fight Sub-Phase beat's one remaining trigger.
 - **A drag only starts on your turn.** `onPointerDown` returns unless `state.turn === YOU`, and a response is
   usually cast on someone else's turn.
 - **`updateActions` turns everything off when it is not your turn** (*"Rival is fighting…"*), so holding
@@ -185,21 +199,29 @@ has the stack, the go-round, per-card castability and cast-time targets, and the
   `clickQuick` / `clickDecline` or straight through its DOM. `lessontest_phases` drives it most: the Phases and
   Quicks lesson has the player spring Counter Spell and then Leyline Ascension from it.
 - **`lessonQuicksSteps` is dead code.** It holds the deleted Quicks lesson's steps, still describing *"When
-  the Respond? prompt pops up…"*, and nothing calls it. Step 7 deletes it.
+  the Respond? prompt pops up…"*, and nothing calls it. Step 6 deletes it.
 
 ## Steps
 
-Each step PRs into the epic; a merge that changes the page bumps the epic's fourth number. The full sweep runs
-on the epic before it merges.
+Each step PRs into the epic and keeps the sweep green on its own; a merge that changes the page bumps the
+epic's fourth number. The full sweep runs on the epic before it merges.
 
-1. **The friction fix: drop zones and the Next guard (⚖1–3).** `dragtest` rewritten. It plays on its own, so
-   Aj can try it first.
-2. **Glow**, in Main and in windows, asserted by computed style.
-3. **The stack strip**, replacing `#stackView`'s rows, with every cast flying in through one presentation.
-4. **Staging for Main casts**, and Counterfeit's picker onto the board.
-5. **Windows on the board.** The test helpers first (`fightclick`, `netwindows`), so most suites follow with no
-   edits; then the board version of `promptHumanResponse` for every seat, the tap path and the labelled Pass.
-6. **Phones and landscape.**
-7. **The lessons.** Phases and Quicks rebuilt around the board, every lesson that mentions the window re-read
-   (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps` deleted.
-8. **Delete the modal path**, sweep on the epic, merge.
+1. **The friction fix: two drop zones, and no Next.** The middle fights; a column on the right takes casts,
+   with today's stack rows moved into it; the big button is Fight only. Everything that says or presses Next
+   changes in the same step: the hint, the lessons' Next steps, `enterFight` and the in-page helpers,
+   `fightbeattest`, `nettest_fightbeat`, the `toFight` handlers, and `dragtest` rewritten. Every layout gets a
+   basic place for the column, so `phonetest` and `landscapetest` stay green; step 5 refines it. It plays on
+   its own, so Aj can try it first.
+2. **Staging in Main.** A dropped card waits in the column with its ✕, its choices made on the board, until
+   ⚡ Activate. Counterfeit's picker moves onto the board.
+3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
+   presentation.
+4. **The Respond? box and answering on the board.** The box shrinks to its sentence and Yes / No; Yes lights
+   the castable cards (asserted by computed style); No and Pass pass. The test helpers change first
+   (`fightclick`, `netwindows`), so most suites follow with no edits; then every seat at once, through
+   `promptHumanResponse`.
+5. **Phones and landscape**, from the measurements above.
+6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
+   answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
+   deleted.
+7. **Delete the old modal path**, sweep on the epic, merge.

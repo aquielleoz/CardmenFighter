@@ -23,7 +23,7 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 ## ☀️ START HERE
 
 `main` is at **v1.33.16**. **`epic/drag-and-stack` is open** (2026-10-13): playing from the board, designed in
-[`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md) and waiting on Aj's rulings. Its steps PR into the epic;
+[`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md), ruled by Aj the same day. Its steps PR into the epic;
 other work stays on `main` in ordinary `fix/`/`feat/` branches.
 
 **⚑ WHERE TO PICK UP: the first entry under `### Open` in `## BACKLOG` below.** Open is in the order Aj
@@ -120,12 +120,12 @@ re-read its tag.
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
-- `needs a decision`    · **★ PLAY FROM THE BOARD: DROP ZONES, A STACK STRIP, AND PRIORITY WINDOWS WITHOUT THE
-  MODAL — `epic/drag-and-stack`, OPENED 2026-10-13.** Aj's design, his three earlier asks, and the Next-button
+- `ready to build`      · **★ PLAY FROM THE BOARD: DROP ZONES, A STACK VISUALIZER, AND ANSWERING FROM YOUR HAND —
+  `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
   friction behind it (*"accidentally, pressing next and then being unable to go back to main to
-  activate abilities"*) are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md), with eight rulings
-  marked ⚖ and a default beside each. **Next: Aj rules on the ⚖ list, then step 1 (the drop zones and the Next
-  guard).** Nothing is built yet.
+  activate abilities"*) and his eight rulings are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
+  **Next: step 1, two drop zones and no Next button.** One question is left for step 5 (where the visualizer
+  sits on a portrait phone). Nothing is built yet.
   `[id: priority-modal-redesign]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
