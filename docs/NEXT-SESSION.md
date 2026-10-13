@@ -143,24 +143,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
 
-- `needs a repro`       · **NETPLAY ANIMATIONS LOOK "SHANKED" (Aj) — ITS NAMED ROOT WAS FIXED 2026-09-30, SO RE-CHECK BEFORE
-  INVESTIGATING FURTHER. The next move is Aj's: play a netplay duel and say which animation still looks wrong.**
-  The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
-  well… treat them as one investigation"*, and that root is now closed: `playCards` captures `flipFrom`
-  BEFORE its client return, so a client's own play FLIPs from its slot in hand instead of sliding in like
-  a rival's. `nettest_drag` asserts the branch both ways (host's card 0 flips, own card 1) and A/B's red.
-  **THIS ENTRY IS NOT CLOSED WITH IT, because "shanked" was never pinned to that root** — it is one word
-  from one session, and closing a `needs a repro` on a sibling's fix is how a real report gets lost. The
-  next move is unchanged and is cheap: play a netplay duel and say which animation still looks wrong, or
-  confirm it does not. A suite cannot judge how something LOOKS; it can only say which branch ran.
-  **THE ORIGINAL:** Reported twice now without a specific frame, so **the first job is
-  to make the report precise** — which beat, which seat, reduced-motion or not — rather than to start
-  changing dwells. Two things already known that a vague animation report usually turns out to be:
-  `buildOppBeats` is the single funnel both drivers use and a bespoke path silently misses whatever it
-  gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
-  never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
-  `[id: client-animations-shanked]`
-
 ### Parked — each entry says what revives it
 
 #### When it happens again — the detectors are live
@@ -656,6 +638,27 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   `hostTakeBack`. The client now holds its board through its ceremony, and the host refuses a board op that
   arrives mid-ceremony (`CEREMONY_REFUSE`). If this recurs on v1.32.23 or later, that path is ruled out.
   `[id: round-ceremony-reruns-with-stale-res]`
+
+- `parked`              · **NETPLAY ANIMATIONS LOOK "SHANKED" (Aj) — ITS NAMED ROOT WAS FIXED 2026-09-30, SO RE-CHECK BEFORE
+  INVESTIGATING FURTHER. The next move is Aj's: play a netplay duel and say which animation still looks wrong.**
+  **PARKED 2026-10-13 AT AJ'S CALL, AND IT REVIVES WHEN AJ BRINGS IT UP AGAIN** (*"you can park the shanked
+  animations until i bring back up again"*). Nothing below needs redoing then; the re-check it asks for still
+  stands.
+  The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
+  well… treat them as one investigation"*, and that root is now closed: `playCards` captures `flipFrom`
+  BEFORE its client return, so a client's own play FLIPs from its slot in hand instead of sliding in like
+  a rival's. `nettest_drag` asserts the branch both ways (host's card 0 flips, own card 1) and A/B's red.
+  **THIS ENTRY IS NOT CLOSED WITH IT, because "shanked" was never pinned to that root** — it is one word
+  from one session, and closing a `needs a repro` on a sibling's fix is how a real report gets lost. The
+  next move is unchanged and is cheap: play a netplay duel and say which animation still looks wrong, or
+  confirm it does not. A suite cannot judge how something LOOKS; it can only say which branch ran.
+  **THE ORIGINAL:** Reported twice now without a specific frame, so **the first job is
+  to make the report precise** — which beat, which seat, reduced-motion or not — rather than to start
+  changing dwells. Two things already known that a vague animation report usually turns out to be:
+  `buildOppBeats` is the single funnel both drivers use and a bespoke path silently misses whatever it
+  gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
+  never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
+  `[id: client-animations-shanked]`
 
 #### When something exists first
 
