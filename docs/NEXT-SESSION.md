@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.15.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.15**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
+`main` is at **v1.33.16**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
 `fix/`/`feat/` branches.
 
 **⚑ WHERE TO PICK UP: the first entry under `### Open` in `## BACKLOG` below.** Open is in the order Aj
@@ -116,71 +116,8 @@ re-read its tag.
 ### Open — in priority order
 
 *Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
-length). Forcing the flakes the same day parked four of them, so the round-ceremony entry is the one forcing job
-left. **The first entry is the next job.***
-
-- `needs a repro`       · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
-  CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
-  built precisely because this would not reproduce — five hypotheses measured and killed, with the note
-  *"the next occurrence has to explain itself instead."* This is that occurrence, and it does.
-  **⚠ ONE CAUSE OF THE STALE-PILE HALF WAS FOUND AND FIXED IN v1.33.14 (2026-10-12), AND IT WAS TWO AI DRIVERS.**
-  If you led round 1 and played while the "Round 1" card was still flying, your play started `runOpponents`,
-  and the card's own callback started a second loop, because by then the turn was an AI's. At 3+ players the
-  spare never dies, so an AI played the next round under the round ceremony: `⚠ ROUND BANNER FIRED WITH A PILE
-  STILL ON THE TABLE` in 4 of 6 such games, 0 of 6 that waited for the card. A timestamped trace showed it
-  directly: an AI's next-round lead logged *before* the previous round's "won" line. The callback now drives
-  only when an AI held the initiative at the deal (`openedBy`), `mptest`'s opening leg pins it both ways, and
-  `runOpponents` writes `⚠ TWO OPPONENT DRIVERS ARE RUNNING` to the ledger if any other path double-starts.
-  **WHY THIS STAYS OPEN:** Aj's r7 also printed `ROUND BANNER REPEATED`, which this path was never seen to do.
-  A recurrence on v1.33.14 or later will say which it is: a two-driver line names this class, and its absence
-  rules it out.
-  **NEXT (2026-10-13): FORCE THE QUESTION INSTEAD OF WAITING FOR IT.** "WHERE TO LOOK" below says a repeated
-  banner means a second ceremony started for one resolution, and two drivers each reaching the round's end is
-  exactly that. Aj's log predates the re-entry guard (it shipped the same day, after the log), so nothing would
-  have blocked it. In a scratch build of `main`, revert v1.33.14's `openedBy` and remove the `__ceremonyRan`
-  guard, start the second driver the way `mptest`'s opening leg does (play while the Round 1 card flies, 3
-  players), and count `ROUND BANNER REPEATED` in the ledger. **If it repeats, both halves have one cause and
-  this entry closes. If it never does, park it** with the guards as its detector.
-  **WHAT THE SAVED LOG CARRIES:**
-  ```
-  r7  ⚠ ROUND BEGAN WITH A STALE PILE — the clean-up boundary did not complete  round 7 · pile pair · turn 1
-  r7  ⚠ ROUND BANNER REPEATED — the round did not advance  round 7 announced twice
-  ```
-  and in the battle log, *"Round 7 begins. Each player draws 3."* appears **twice** — the second time
-  immediately after *"Vyers won with a Pair — You lost a shield"*, which is the play that ENDED round 7.
-  There is no "Round 8 begins" line at all.
-  **✅ BOTH OF THIS ENTRY'S ACTION ITEMS SHIPPED 2026-09-24 — what is left is the CAUSE, not the work.**
-  The wording was corrected (`⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`, which states the
-  observation instead of a hypothesis), and BOTH re-entry guards are in: `⚠ CLEAN-UP CONTINUATION FIRED
-  TWICE — blocked` on the queue's `done()`, and `⚠ ROUND CEREMONY RE-ENTERED for a result it already
-  played` via `res.__ceremonyRan`. So a recurrence is now BLOCKED and names the stale caller — the round
-  the closure was queued for against the round the board is on. **Nobody has found what makes the ceremony
-  re-enter**; the guards buy the next occurrence explaining itself, which is what the 2026-09-17 detector
-  bought for the boundary. Leave the entry open for the cause and do not redo the guards.
-  **THE DETECTOR'S OWN WORDING WAS WRONG AND HAS BEEN CORRECTED.** The ROUND BOUNDARY trace shows r7's
-  clean-up completing in full — `CLEANUP enter → initiative → pileClear → expire → temps → exit` — then
-  `r8 BEGIN · roundAdvance`. The boundary did complete. `⚠ CLEANUP LEFT A PILE` never fired either.
-  **AND THE ENGINE IS NOT DOUBLE-RESOLVING:** `⚠ DOUBLE RESOLUTION BLOCKED` has **zero** occurrences in the
-  file, and `roundAdvance` appears exactly once per round. The engine resolved once and advanced once.
-  **SO IT IS THE UI CEREMONY RE-ENTERING WITH A STALE `res`.** `logRoundDraw` has ONE call site, inside the
-  nested `playPreBeats → flushThreshold → endOfRoundTrimThen` chain, immediately after
-  `E.roundDraw(state, res)`. Its round number is `res.newRound || state.round`. The detector pins the
-  second banner to `turn 1` + `pile pair`, which is byte-for-byte `r7 CLEANUP enter` in the trace — i.e.
-  BEFORE `pileClear`, `initiative` and `roundAdvance`. At that instant `state.round` is still 7 and the
-  pile is still up, which is both warnings at once.
-  **WHERE TO LOOK:** that callback chain is guarded by `g!==gen` at every level, so a second entry means
-  either a second ceremony was started for one resolution or one closure was invoked twice. The `gen`
-  guard cannot see a re-entry within the same generation. Start by counting entries to
-  `resolveRoundCeremony` per resolved round — the engine side is already exonerated, so the instrument
-  belongs on the UI side.
-  **DO NOT RE-KILL THE FIVE DEAD HYPOTHESES.** The comment above the detector lists them (the untap move,
-  `pileClear` generally, the hand-limit trim, a falsy `cleanupResult`, a falsy return breaking
-  `settleWindows`); the trace now independently rules the whole clean-up path out as well.
-  **v1.32.23 CLOSED ONE CANDIDATE PATH, UNPROVEN AS THIS ONE'S CAUSE.** A client's board used to go live under
-  its own round ceremony, so a play could reach the host mid-ceremony and hand it its board back early through
-  `hostTakeBack`. The client now holds its board through its ceremony, and the host refuses a board op that
-  arrives mid-ceremony (`CEREMONY_REFUSE`). If this recurs on v1.32.23 or later, that path is ruled out.
-  `[id: round-ceremony-reruns-with-stale-res]`
+length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
+fixed v1.33.16 on the way). **The first entry is the next job.***
 
 - `needs a decision`    · **★ PRIORITY WINDOWS IN THE HAND: REPLACE THE PER-CARD MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE
   QUICKS", AND SHOW THE STACK INSTEAD OF NARRATING IT.** Three of Aj's asks, one change:
@@ -675,6 +612,73 @@ left. **The first entry is the next job.***
   and were not throttled, but this failure was inside `lessonlib`'s `finish()`, so neither is the unknown suite.)
   **Revives when a lesson suite fails its completion assertions in a sweep**; the red names the suite and the step.
   `[id: lesson-suite-lost-name]`
+
+- `parked`              · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
+  CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
+  built precisely because this would not reproduce — five hypotheses measured and killed, with the note
+  *"the next occurrence has to explain itself instead."* This is that occurrence, and it does.
+  **⚠ ONE CAUSE OF THE STALE-PILE HALF WAS FOUND AND FIXED IN v1.33.14 (2026-10-12), AND IT WAS TWO AI DRIVERS.**
+  If you led round 1 and played while the "Round 1" card was still flying, your play started `runOpponents`,
+  and the card's own callback started a second loop, because by then the turn was an AI's. At 3+ players the
+  spare never dies, so an AI played the next round under the round ceremony: `⚠ ROUND BANNER FIRED WITH A PILE
+  STILL ON THE TABLE` in 4 of 6 such games, 0 of 6 that waited for the card. A timestamped trace showed it
+  directly: an AI's next-round lead logged *before* the previous round's "won" line. The callback now drives
+  only when an AI held the initiative at the deal (`openedBy`), `mptest`'s opening leg pins it both ways, and
+  `runOpponents` writes `⚠ TWO OPPONENT DRIVERS ARE RUNNING` to the ledger if any other path double-starts.
+  **WHY THIS STAYS OPEN:** Aj's r7 also printed `ROUND BANNER REPEATED`, which this path was never seen to do.
+  A recurrence on v1.33.14 or later will say which it is: a two-driver line names this class, and its absence
+  rules it out.
+  **FORCED 2026-10-13: THE DOUBLE DRIVER DOES NOT REPEAT A BANNER, SO THIS HALF IS PARKED.** A scratch build of
+  `main` with v1.33.14's `openedBy` reverted and both re-entry guards made record-only, 12 three-player games
+  forcing the double driver the way `mptest`'s opening leg does: two drivers in all 12, the stale-pile banner in
+  11, and **no `ROUND BANNER REPEATED`, no ceremony re-entry and no clean-up continuation fired twice** in any.
+  So two drivers explain the stale-pile half and not the repeated banner. **Revives when the ledger shows
+  `⚠ ROUND CEREMONY RE-ENTERED` or `⚠ ROUND BANNER REPEATED`**: the guards block the re-entry and name the stale
+  caller.
+  **AND IT FOUND A SECOND STALE-PILE CAUSE ON `main`, FIXED IN v1.33.16.** The control games on unmodified
+  v1.33.15 still logged `⚠ TWO OPPONENT DRIVERS` in 7 of 30: after a round ended on an AI's pass, the
+  opponents' loop resumed from its ceremony with your board unlocked, and a loop resumed even when a newer one
+  had started. 0 of 36 with the fix. See the v1.33.16 changelog entry.
+  **WHAT THE SAVED LOG CARRIES:**
+  ```
+  r7  ⚠ ROUND BEGAN WITH A STALE PILE — the clean-up boundary did not complete  round 7 · pile pair · turn 1
+  r7  ⚠ ROUND BANNER REPEATED — the round did not advance  round 7 announced twice
+  ```
+  and in the battle log, *"Round 7 begins. Each player draws 3."* appears **twice** — the second time
+  immediately after *"Vyers won with a Pair — You lost a shield"*, which is the play that ENDED round 7.
+  There is no "Round 8 begins" line at all.
+  **✅ BOTH OF THIS ENTRY'S ACTION ITEMS SHIPPED 2026-09-24 — what is left is the CAUSE, not the work.**
+  The wording was corrected (`⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`, which states the
+  observation instead of a hypothesis), and BOTH re-entry guards are in: `⚠ CLEAN-UP CONTINUATION FIRED
+  TWICE — blocked` on the queue's `done()`, and `⚠ ROUND CEREMONY RE-ENTERED for a result it already
+  played` via `res.__ceremonyRan`. So a recurrence is now BLOCKED and names the stale caller — the round
+  the closure was queued for against the round the board is on. **Nobody has found what makes the ceremony
+  re-enter**; the guards buy the next occurrence explaining itself, which is what the 2026-09-17 detector
+  bought for the boundary. Leave the entry open for the cause and do not redo the guards.
+  **THE DETECTOR'S OWN WORDING WAS WRONG AND HAS BEEN CORRECTED.** The ROUND BOUNDARY trace shows r7's
+  clean-up completing in full — `CLEANUP enter → initiative → pileClear → expire → temps → exit` — then
+  `r8 BEGIN · roundAdvance`. The boundary did complete. `⚠ CLEANUP LEFT A PILE` never fired either.
+  **AND THE ENGINE IS NOT DOUBLE-RESOLVING:** `⚠ DOUBLE RESOLUTION BLOCKED` has **zero** occurrences in the
+  file, and `roundAdvance` appears exactly once per round. The engine resolved once and advanced once.
+  **SO IT IS THE UI CEREMONY RE-ENTERING WITH A STALE `res`.** `logRoundDraw` has ONE call site, inside the
+  nested `playPreBeats → flushThreshold → endOfRoundTrimThen` chain, immediately after
+  `E.roundDraw(state, res)`. Its round number is `res.newRound || state.round`. The detector pins the
+  second banner to `turn 1` + `pile pair`, which is byte-for-byte `r7 CLEANUP enter` in the trace — i.e.
+  BEFORE `pileClear`, `initiative` and `roundAdvance`. At that instant `state.round` is still 7 and the
+  pile is still up, which is both warnings at once.
+  **WHERE TO LOOK:** that callback chain is guarded by `g!==gen` at every level, so a second entry means
+  either a second ceremony was started for one resolution or one closure was invoked twice. The `gen`
+  guard cannot see a re-entry within the same generation. Start by counting entries to
+  `resolveRoundCeremony` per resolved round — the engine side is already exonerated, so the instrument
+  belongs on the UI side.
+  **DO NOT RE-KILL THE FIVE DEAD HYPOTHESES.** The comment above the detector lists them (the untap move,
+  `pileClear` generally, the hand-limit trim, a falsy `cleanupResult`, a falsy return breaking
+  `settleWindows`); the trace now independently rules the whole clean-up path out as well.
+  **v1.32.23 CLOSED ONE CANDIDATE PATH, UNPROVEN AS THIS ONE'S CAUSE.** A client's board used to go live under
+  its own round ceremony, so a play could reach the host mid-ceremony and hand it its board back early through
+  `hostTakeBack`. The client now holds its board through its ceremony, and the host refuses a board op that
+  arrives mid-ceremony (`CEREMONY_REFUSE`). If this recurs on v1.32.23 or later, that path is ruled out.
+  `[id: round-ceremony-reruns-with-stale-res]`
 
 #### When something exists first
 

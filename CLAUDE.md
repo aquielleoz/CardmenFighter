@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -244,7 +244,7 @@ node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHI
                                                 # UPKEEP INCLUDED (9). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
                                                 # STALLED Upkeep (nobody on priority) must stay live too
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (130).
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (133).
                                                 # Its forced-discard leg FORCES what its phase-strip driver once stalled on
                                                 # — an AI discard aimed at you — and drives it with that same `driveOnce`.
                                                 # The staging: the AI's hand holds nothing else castable and its own rule
@@ -253,7 +253,11 @@ node mptest.js                                  # free-for-all parity: pre-fight
                                                 # Its LAST leg plays your opening jab while the Round 1 card still flies and
                                                 # requires ONE opponent driver after it (v1.33.14's `openedBy`), read off
                                                 # the ledger's `⚠ TWO OPPONENT DRIVERS` line, which fires on every
-                                                # double start where the banner symptom fired in only 4 games of 6
+                                                # double start where the banner symptom fired in only 4 games of 6.
+                                                # It plays to ROUND 6, not 3: the second double-driver path (v1.33.16)
+                                                # lived in rounds the old reach never played. Then a SOURCE SCAN: the
+                                                # opponents' loop yields if superseded and re-locks before resuming
+                                                # after a ceremony — scanned because no staging opened that window on demand
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (32)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
@@ -894,6 +898,12 @@ the opponents' driver, and the callback started a SECOND one. At 3+ players the 
 played the next round under the round ceremony (`mptest`'s opening leg, A/B'd). A `dbg=1` host always opens,
 so that rescue no longer happens there. **A completion callback that starts a driver must decide from the state
 it was scheduled in, not the state it lands in** — your board is live while most of these animations play.
+**AND ONE THAT RESUMES A DRIVER MUST CHECK IT IS STILL THE DRIVER (v1.33.16).** `runOpponents` resumes after a
+round ceremony with `step()`, and `drainResolution` had already unlocked the board: the loop resumed unlocked, and
+resumed even when a newer loop had started while it waited — `⚠ TWO OPPONENT DRIVERS` in 7 of 30 three-player
+games on v1.33.15, 0 of 36 fixed. It now yields if superseded and re-locks before stepping. **A pause that releases
+the board and the resume that follows are one contract: whoever resumes re-takes what the pause released.** It was
+found by the v1.33.14 detector, in rounds no suite had reached — `mptest` stopped at round 3.
 
 **TWENTY GREEN NETPLAY SUITES COULD NOT SEE A FORKED DUEL, AND THE REASON IS STRUCTURAL.** Aj, 2026-08-28:
 *"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*. Two
@@ -2503,12 +2513,12 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.15 — last FULL sweep 2026-10-13, `npm run sweep`, 124/124 in 388s** (this line was
+Status as of **v1.33.16 — last FULL sweep 2026-10-13, `npm run sweep`, 124/124 in 387s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 11, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 8, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
@@ -2517,7 +2527,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 713, `netview` 74, `mptest` 130, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

@@ -7697,7 +7697,22 @@ __QR__
               if(g!==gen) return;
               announceRoundWin(fres);
               if(state.finished){ busy=false; render(); return endGame(); }
-              return resolveRoundCeremony(fres, g, function(){ if(g===gen) step(); });
+              /* ⚠ RE-LOCK THE BOARD WHEN THE LOOP RESUMES (2026-10-13). `drainResolution` clears `busy` before its
+                 continuation ("the ceremony manages `busy` itself" — it does not). The duel is safe because its
+                 continuation hands back to you or restarts `runRival`, which sets `busy` again; THIS loop
+                 resumes with `step()`, and nothing re-locked. So after an AI won a round, the AI's lead in the
+                 next round played with your board LIVE: its `takeTurn` hands you the turn while its beats are
+                 still animating, a Next or Pass there started a second `runOpponents`, and when the beats ended
+                 this loop stepped too — two drivers moving the same AI seats, and the next banner over a pile.
+                 Measured on v1.33.15 by playing as soon as the board allowed: `⚠ TWO OPPONENT DRIVERS` in 7 of
+                 30 three-player games, some with `⚠ ROUND BANNER FIRED WITH A PILE`; 0 of 36 with this.
+                 ⚠ AND A LOOP THAT WAS SUPERSEDED WHILE IT WAITED DOES NOT RESUME AT ALL. A trace of one doubled
+                 game showed your next play starting a newer loop while this one still waited on its ceremony;
+                 re-locking cannot help a loop that is no longer the driver. The ceremony is finished by the time
+                 this runs, so yielding drops nothing — the newer loop owns the table. `mptest` scans for both
+                 halves, because neither path could be staged on demand. The ceremony itself still runs
+                 unlocked, so your own clean-up pick inside it works as before. */
+              return resolveRoundCeremony(fres, g, function(){ if(g!==gen || me!==oppDriverSeq) return; busy=true; render(); step(); });
             });
           };
           if(res.needsLossTarget) return promptLossTarget(res, g, finishRound);   // YOU won with a Special → pick whose shield to strip

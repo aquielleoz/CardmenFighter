@@ -15,6 +15,31 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.16 — at 3+ players, an AI's round win no longer leaves two opponent loops running
+
+**What you'll see:** in a 3-6 player game, after an AI wins a round, the AIs again take the next round one turn at
+a time. Before, if you pressed Next or Pass while the winning AI was still leading the next round, a second copy of
+the opponents' turn loop could start beside the first. Both then moved the AIs, which could put an AI's play on the
+table under the round ceremony — the `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE` line in Aj's 2026-09-24
+log. v1.33.14 closed one way in (your opening play during the Round 1 card); this closes the other.
+- **Why it happened:** when a round ends on an AI's pass, the opponents' loop resolves it, plays the round
+  ceremony, and then resumes. Resolving it (`drainResolution`) unlocks your board, and the loop resumed without
+  locking it again, so the next AI turn played with your board live. A loop also resumed even when a newer one had
+  started while it waited. Duels never showed it: their loop restarts after the ceremony instead of resuming, and
+  restarting locks the board.
+- **Now:** a resuming loop locks your board before the next AI turn, and a loop that has been superseded doesn't
+  resume at all. Nothing else changes: the ceremony runs as before, your own clean-up pick inside it included.
+- **Measured** with a driver that plays the moment the board allows, three players, to round 8: `⚠ TWO OPPONENT
+  DRIVERS` in **7 of 30** games on v1.33.15, some with the stale-pile banner; **0 of 36** with the fix (18 with the re-lock alone, 18 with both halves). v1.33.14's
+  two-driver detector is what caught it; no suite played the rounds it needed.
+- **Testing.** `mptest` 130 → 133: a source scan asserts that the resume yields when superseded and re-locks
+  before stepping. Removing either half reds its own check, and v1.33.15's code reds both. The opening leg's natural
+  game now runs to round 6 instead of 3. Two stagings meant to open the window on demand didn't, so the scan, not a
+  played leg, is the guard, and the suite says so.
+- **Also found:** forcing the round-ceremony entry's other half, `ROUND BANNER REPEATED`, refuted its last
+  hypothesis. With v1.33.14's fix undone and both re-entry guards made record-only, the double driver repeated no
+  banner and re-entered no ceremony in 12 games. That half stays parked, with the guards as its detector.
+
 ### v1.33.15 — the tutorial's "glowing card" always glows
 
 **What you'll see:** when a lesson tells you to *"select the glowing card"* (How to Play step 8, and Energy &
