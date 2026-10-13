@@ -4004,6 +4004,8 @@ now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits
   the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
 - `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
   Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
+- `docs/DRAG-AND-STACK-DESIGN.md` — the design for `epic/drag-and-stack`: playing from the board instead of the
+  Respond? modal, with Aj's rulings. **Read it before touching the drag, `#stackView` or `promptHumanResponse`.**
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
   https origin actually unblock the camera? **Read it for the answer; do not summarise it here.** This line used
   to say *"results table still empty"* — it had been RUN AND SETTLED on 2026-08-28 and the summary rotted while

@@ -22,8 +22,9 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.16**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
-`fix/`/`feat/` branches.
+`main` is at **v1.33.16**. **`epic/drag-and-stack` is open** (2026-10-13): playing from the board, designed in
+[`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md), ruled by Aj the same day. Its steps PR into the epic;
+other work stays on `main` in ordinary `fix/`/`feat/` branches.
 
 **⚑ WHERE TO PICK UP: the first entry under `### Open` in `## BACKLOG` below.** Open is in the order Aj
 ranked it (2026-10-13); everything waiting on something sits under `### Parked`, grouped by what revives it.
@@ -119,36 +120,12 @@ re-read its tag.
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
-- `needs a decision`    · **★ PRIORITY WINDOWS IN THE HAND: REPLACE THE PER-CARD MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE
-  QUICKS", AND SHOW THE STACK INSTEAD OF NARRATING IT.** Three of Aj's asks, one change:
-  - *"can we redesign? instead of having a modal for each card... can we just like pause the game and
-    highlight the castable quicks?"* (2026-09-10)
-  - *"not elegant but it works haha i think we need to overhaul this with a stack visualizer in the future"*
-    (2026-09-11)
-  - *"there still are no animations for the answered quicks… maybe it's because we use modals instead of
-    prompt the user's hand"* (2026-09-18, from a side-by-side of both seats)
-
-  **WHY:** priority is a real go-round at several timings, and the window is a MODAL LISTING CARDS — a second
-  presentation of a hand you are already looking at. In a real game (his saved log, rounds 6 and 7) both
-  prompts were useless: Counter Spell offered against an empty stack (since refused at cast), and Leyline on a
-  jab win with nothing at stake — **legal and not a bug**, his words, but a modal you read and dismiss to learn
-  there was nothing to do. The stack is described in prose on a button (*"counter Holy Bow (Adell)"*) when it
-  is the one piece of state a player most needs laid out, and holding priority can now stack several Quicks.
-  **THE SHAPE:** pause, light up the castable cards in the hand you already have, tap one or pass, with the
-  stack shown beside it. **Do the two halves together** (Aj) — a visualiser plus in-hand highlighting IS the
-  replacement for the modal, and shipping one leaves the prose half in place.
-  **IT ALSO FIXES THE MISSING ANIMATION, FOR FREE:** a Quick chosen off a button in an overlay has no card in
-  the hand to fly from, so it never reaches `buildOppBeats`' `revealEffect` + `revealDwell`. Putting the card
-  back on the board lets those beats apply. Do NOT bolt an animation onto the modal path — that is a third
-  presentation to keep in step.
-  **THE SCOPE IS SMALLER THAN IT WAS:** the engine side is done (`E.canCastQuick` is the per-card predicate and
-  the offer list is exactly what it admits), and every seat's window — solo, the netplay host's own seat, and a
-  guest — is built in ONE function, `promptHumanResponse`. The stack rows come from `stackRowsHTML`, shared by
-  the board's `#stackView` and the modal. (This entry used to name three prompt paths; epic step 20 deleted
-  two.) The deferral — *"those starred entries… can actually be done after it's merged"* (2026-09-30) — is
-  satisfied: the epic merged as v1.32.0.
-  **WHAT IT NEEDS NEXT IS A DESIGN, NOT CODE:** what pauses, how castable cards light, how the stack is laid
-  out, phone and landscape. Draft it for Aj to rule on before building.
+- `ready to build`      · **★ PLAY FROM THE BOARD: DROP ZONES, A STACK VISUALIZER, AND ANSWERING FROM YOUR HAND —
+  `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
+  friction behind it (*"accidentally, pressing next and then being unable to go back to main to
+  activate abilities"*) and his eight rulings are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
+  **Next: step 1, two drop zones and no Next button.** One question is left for step 5 (where the visualizer
+  sits on a portrait phone). Nothing is built yet.
   `[id: priority-modal-redesign]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
