@@ -18,8 +18,8 @@
  * Run: node nettest_sync.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const { installPageHelpers, FIGHT_BUDGET } = require('./fightclick');
-const http=require('http'),fs=require('fs'),path=require('path'),{ spawn }=require('child_process');
-const DIR=__dirname,PORT=+(process.env.PORT||8335),MOCK=8835;
+const http=require('http'),fs=require('fs'),path=require('path'),startMock=require('../relay/startmock.js');
+const DIR=__dirname,PORT=+(process.env.PORT||8335),MOCK=PORT+500;   // the mock follows PORT, so two copies at once never share one — see relay/startmock.js
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const RELAY='http://127.0.0.1:'+MOCK;
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&stun=0&dbg=1&relay=${encodeURIComponent(RELAY)}`;
@@ -60,8 +60,8 @@ const act=p=>p.evaluate(async ()=>{
 
 let mock=null;
 (async()=>{
-  mock=spawn(process.execPath,[path.join(DIR,'..','relay','mock.js'),String(MOCK)],{stdio:'ignore'});
-  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); }); await wait(700);
+  mock=await startMock(MOCK);   // waits for the mock's listen line and fails loudly if its port is taken
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(Object.assign({}, LAUNCH, { args:['--disable-features=WebRtcHideLocalIpsWithMdns'] }));
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};

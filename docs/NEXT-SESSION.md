@@ -636,14 +636,6 @@ never read.*
 
 ### Tooling
 
-- `needs a measurement` · **`nettest_sync` SOMETIMES NEVER STARTS ITS GAME UNDER `-j 4` (2026-10-08).** Two runs
-  in 54 at four lanes, on v1.33.0 and v1.33.1 builds, timed out in `startDuel` (*"waited for both boards to
-  finish dealing, and they did not"*): round 0, no moves, both traces empty. So the room-code connection or
-  the opening deal never completed, and no game code ran. The suite's later checks then fail as a
-  consequence, not as findings. Measure the rate solo and at `-j 4`, and on a build before v1.33.0, before
-  reading anything into it: two sightings cannot say whether it is load, the relay mock, or new.
-  `[id: nettest-sync-never-deals]`
-
 - `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
   2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
   (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
