@@ -63,8 +63,6 @@ should be stopped only when something is at stake for you; anything else is wort
 
 **Other branches**, each with a note saying why it is not merged:
 - `feat/qr-scanning` — parked; its BACKLOG entry says what would revive it.
-- `exp/shield-gain-guard` — reviewed 2026-10-13 and superseded by the shipped game; its BACKLOG entry
-  (`shield-gain-guard-parked`) is the open question of whether to delete it.
 - `exp/ai-upkeep-cast` — recorded in [`DECISIONS.md#persona-traits`](DECISIONS.md#persona-traits).
 - `docs/second-set-class-design` — PR #295, an open and unreviewed design draft for a second set of classes.
 
@@ -395,22 +393,6 @@ them that day, once a hypothesis made it forceable. **The first entry is the nex
   gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
   `[id: client-animations-shanked]`
-
-- `needs a decision`    · **DELETE `exp/shield-gain-guard`? REVIEWED 2026-10-13: EVERYTHING IT WANTED HAS SHIPPED, AND THE ONE
-  THING IT ADDED BEYOND THAT CONTRADICTS ITS OWN REASON.** The branch is one commit (`943c3b4`), an unreviewed
-  stash recovered by accident on 2026-09-10. It widened `guardEffFor` so a shield GAIN counted as a guard and was
-  offered at the moment a shield is about to go. Aj's reasoning is in it: *"really since it's a quick it should
-  be offered everywhere the player gets priority."*
-  **What it wanted, the game now does through `lossAnswerFor`:** a gain answers an incoming loss at any shield
-  count; at 0 shields it is, with Leyline, the only thing that stops the Fighter Kick; prevention outranks a
-  gain; and only a Quick qualifies. So Hector's Sanctuary is offered and AUTO stops you for it. The function
-  and the window the stash patched were both deleted by the epic.
-  **What it added beyond that** is base Sanctuary, which is not a Quick, in the old window. "Since it's a
-  quick" does not ask for that, and it is what broke the epic's superset proof (`shadowtest`: 93
-  counterexamples).
-  The reasoning is now recorded at [`DECISIONS.md#shield-gain-answer`](DECISIONS.md#shield-gain-answer), so
-  deleting the branch loses no decision. **Aj's call: delete the remote branch and close this entry, or keep it.**
-  `[id: shield-gain-guard-parked]`
 
 ### Parked — each entry says what revives it
 

@@ -1289,7 +1289,8 @@ gain reaches the Rival too, and gating it to 0 shields was proposed and rejected
 count; at 0 shields it is, with Leyline's `cantLose`, the only thing that stops the Fighter Kick; prevention
 outranks a gain; and only a Quick qualifies. So Sanctuary under Hector is offered, and AUTO stops you for it,
 while base Sanctuary, which is not a Quick, is not.
-**The stash itself is not needed.** It patched `guardEffFor` and the shield-guard window, both deleted by the
+**The stash itself was not needed, and its branch was deleted at Aj's call (2026-10-13).** It was one commit,
+`943c3b4` on `exp/shield-gain-guard`. It patched `guardEffFor` and the shield-guard window, both deleted by the
 epic, and it also admitted base Sanctuary, which its own quoted reason ("since it's a quick") does not ask for
 and which broke the epic's superset proof (`shadowtest`: 93 counterexamples). Whether the AI should cast it is a
 separate, measured question: [`#ai-strength`](#ai-strength).
