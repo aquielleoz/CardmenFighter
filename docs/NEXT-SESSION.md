@@ -116,31 +116,8 @@ re-read its tag.
 ### Open — in priority order
 
 *Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
-length). The first six entries are all "force it rather than wait for it" work; the round-ceremony entry joined
+length). The first five entries are all "force it rather than wait for it" work; the round-ceremony entry joined
 them that day, once a hypothesis made it forceable. **The first entry is the next job.***
-
-- `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
-  fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,
-  0/10 on the shipped one**, so it is rare and NOT attributable to the icon row. Deliberately left unfixed:
-  there is no reproduction on the current build to verify a fix against, and changing a suite on a hunch is how
-  the throwaway-probe entries in CLAUDE.md got written.
-  **BOTH ASSERTIONS FAIL TOGETHER AND IT IS ONE CAUSE.** The recorded pair is
-  `shown=false visible=false` and `scrollTop 24` — i.e. **the log auto-followed to the bottom**, so
-  `logAtBottom()` was true and the ↓ New button correctly did not show. The bug is that the suite stopped
-  "reading history", not that the button is broken. Do not chase `setLogNewBtn`.
-  **NEXT (ranked first, 2026-10-13): FORCE IT, THEN FIX IT.** The condition is known well enough to stage, the
-  way the `nettest_sync` start-up flake was forced the same day: make the one action END the round (a Pass that
-  resolves it plays the whole ceremony), require that run to reproduce the recorded pair, then replace the
-  `wait(800)` with a poll that reads the line count and `scrollTop` in the same instant. Forcing first is what
-  makes a fix verifiable — the exact reason this entry gave for leaving it alone.
-  **The shape is the documented one, twice over** (`landscapetest.js` ~418, the "↓ New MUST BE REACHABLE" block): it takes a **deal-dependent action**
-  (`if(f&&!f.disabled) f.click(); else if(ps&&!ps.disabled) ps.click()` — Fight and Pass emit different numbers
-  of log lines, and a Fight that RESOLVES A ROUND emits a whole ceremony), and then it `wait(800)` before
-  asserting. A round that resolves re-renders the log repeatedly inside that window. **Poll for the line and
-  re-read `scrollTop` at the same instant**, rather than sleeping — the rule this file already carries.
-  Note the staging injects fake `.le` divs straight into `#log` to create the overflow; confirm a re-render does
-  not wipe them before assuming the scroll position is the whole story.
-  `[id: landscapetest-newlog-flaky]`
 
 - `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
   in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
@@ -685,6 +662,25 @@ them that day, once a hypothesis made it forceable. **The first entry is the nex
   the SECOND leg of a suite, run that leg FIRST, or give it a fresh round number** — one variable, two
   runs, four minutes.
   `[id: duplicate-turnop-double-resolves]`
+
+- `parked`              · **`landscapetest`'s ↓ New log assertion failed 2 in 26 runs on a build that no longer exists — FORCED
+  2026-10-13, IT CANNOT HAPPEN ON v1.33.15, AND THE ASSERTION NOW NAMES THE CAUSE IF IT EVER DOES.** Seen only while
+  building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build, 0/10 on the shipped one** — and that
+  intermediate build was squashed into `30f6894`, so it cannot be re-run.
+  **THE RECORDED RED IS THE LOG FOLLOWING A NEW LINE:** `shown=false visible=false`, `scrollTop 24`. `logMsg` follows only
+  when the log has no overflow left at the instant the line is appended, and the suite stages a SMALL one on purpose
+  (it must stay under the old 80px slack to discriminate). **Forcing exactly that reproduces it:** making the log box
+  40px taller just before the action leaves 0px of overflow, the jab line follows, the button stays hidden, and every
+  later line follows down.
+  **NOTHING ON v1.33.15 DOES IT** (a scratch probe sampling the log every 25ms): ending the round in the action passes;
+  ten natural runs stage 15px every time (pinned decks, you go first) and pass; squeezing the staged overflow to 5px
+  against the 7px the box really grows by when the jab lands still passes, because the line is appended BEFORE the
+  box grows (both visible in one 26ms sample, button up). The old remedy here — poll instead of `wait(800)` — would
+  not touch this: the follow is decided at the moment of the append, not at the reading.
+  **REVIVES WHEN IT GOES RED IN A SWEEP**, and the red now carries `[overflow: staged … · before the action … in a … box ·
+  at the reading …]`. Verified on a forced copy: it printed `staged 15px · before the action 0px in a 242px box`, which
+  names the mechanism in one run.
+  `[id: landscapetest-newlog-flaky]`
 
 #### When something exists first
 

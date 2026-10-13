@@ -408,21 +408,32 @@ const CASES=[
        needs the board already in the Fight Sub-Phase for `!f.disabled` to mean "this play is legal" again.
        See fightclick.js. */
     await enterFight(p);
+    /* ⚠ IF THIS GOES RED, THE GEOMETRY BELOW IS THE DIAGNOSIS (landscapetest-newlog-flaky, 2026-10-13). The only
+       recorded red was `shown=false`, `scrollTop 24`: one new line, and the log FOLLOWED it, which `logMsg` does
+       only when the log had no overflow left at that instant. Forced three ways on v1.33.15, it never reproduced:
+       ending the round in the action, ten natural runs (staged 15px every time), and the staged overflow squeezed
+       to 5px against the 7px the log box grows by when the jab lands, which still passed because the line is
+       appended BEFORE the box grows. The red came from an intermediate v1.31.104 build that was squashed away, so
+       it cannot be re-run. What can be done is make the next one explain itself: if the overflow had already gone
+       before the line arrived, `before` says so; if the box grew, the two box heights say so. */
     const acted=await p.evaluate(()=>{ const l=document.getElementById('log'), n0=l.children.length;
+      const pre={ max:Math.round(l.scrollHeight-l.clientHeight), box:l.clientHeight };
       const c=document.querySelector('#hand .card'); if(c)c.click();
       const f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
       if(f&&!f.disabled) f.click(); else if(ps&&!ps.disabled) ps.click();
       else { document.querySelectorAll('#hand .card.sel').forEach(e=>e.click());   // leave no selection behind
-             return {ok:false, why:'both Fight and Pass were disabled — game over?', n0}; }
-      return {ok:true, n0}; });
+             return {ok:false, why:'both Fight and Pass were disabled — game over?', n0, pre}; }
+      return {ok:true, n0, pre}; });
     await wait(800);
     const r=await p.evaluate(()=>{ const el=document.getElementById('logNewBtn'), l=document.getElementById('log');
       return { shown:el.classList.contains('show'), visible:el.offsetParent!==null,
-               lines:l.children.length, scrollTop:Math.round(l.scrollTop) }; });
+               lines:l.children.length, scrollTop:Math.round(l.scrollTop),
+               max:Math.round(l.scrollHeight-l.clientHeight), box:l.clientHeight }; });
+    const geo=`  [overflow: staged ${set.max}px · before the action ${acted.pre.max}px in a ${acted.pre.box}px box · at the reading ${r.max}px in ${r.box}px]`;
     ok(acted.ok && r.lines>acted.n0, `a real log line arrived while reading history (${acted.n0} → ${r.lines} lines${acted.ok?'':'; '+acted.why})`);
     ok(r.shown && r.visible,
-       `↓ New appears when a line arrives while you are reading history (shown=${r.shown} visible=${r.visible})`);
-    ok(r.scrollTop===0, `  → and you are NOT yanked to the bottom while reading (scrollTop ${r.scrollTop})`);
+       `↓ New appears when a line arrives while you are reading history (shown=${r.shown} visible=${r.visible})`+(r.shown&&r.visible?'':geo));
+    ok(r.scrollTop===0, `  → and you are NOT yanked to the bottom while reading (scrollTop ${r.scrollTop})`+(r.scrollTop===0?'':geo));
     await p.context().close();
   }
 
