@@ -262,7 +262,11 @@
   #stagedSlot.on{display:flex;}
   #stagedSlot .card{cursor:grab; touch-action:none; box-shadow:0 0 0 2px var(--gold), 0 0 14px rgba(232,195,122,.45);}
   #stagedSlot .stgNote{font-size:10px; line-height:1.25; text-align:center; opacity:.8; max-width:104px;}
-  #unstageBtn{font-size:11px; line-height:1; padding:4px 9px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.07); color:inherit; cursor:pointer;}
+  #stagedSlot .stgBtns{display:flex; gap:6px; align-items:center; justify-content:center;}
+  #stagedSlot .stgBtns button{width:30px; height:30px; padding:0; border-radius:999px; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); background:rgba(255,255,255,.07); color:inherit; cursor:pointer;}
+  #stagedCastBtn:not(:disabled):not(.off){border-color:rgba(232,195,122,.85); background:rgba(232,195,122,.16); box-shadow:0 0 9px rgba(232,195,122,.3);}   /* lit exactly when the action row's ⚡ is (`#ctxBtn`'s rule) */
+  #stagedCastBtn.off, #stagedCastBtn:disabled{opacity:.45;}
   #castZone #stackView{margin:0; width:100%; align-items:stretch; pointer-events:auto;}
   #castZone .stk{white-space:normal; text-align:center; font-size:10.5px; padding:2px 5px;}
   @media (max-width:1199px){ #castZone{width:104px;} }
@@ -272,11 +276,12 @@
   #table.colShown #message{padding-right:126px; box-sizing:border-box;}
   @media (max-width:1199px){ #table.colShown #message{padding-right:112px;} }
   @media (max-width:720px){ #castZone{width:76px; right:4px; padding:4px 2px;} #castZone .stk{font-size:9.5px;}
-    #stagedSlot .stgNote, #unstageBtn .tb{display:none;} #table.colShown #message{padding-right:82px;} }
+    #stagedSlot .stgNote{display:none;} #stagedSlot .stgBtns{gap:4px;} #stagedSlot .stgBtns button{width:27px; height:27px; font-size:13px;}
+    #table.colShown #message{padding-right:82px;} }
   /* A SHORT TABLE (the landscape bands) has the width and not the height: the column takes nearly the full height
      instead of the desktop's margin for the corner zones, and drops the words, keeping the card and its ✕. */
   @media (orientation:landscape) and (max-height:520px){ #castZone{max-height:calc(100% - 8px); width:88px; padding:3px 2px;} #castZone .czIn{gap:2px;}
-    #stagedSlot .stgNote, #unstageBtn .tb{display:none;}
+    #stagedSlot .stgNote{display:none;}
     #table.colShown #message{padding-right:96px;} }
   .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
@@ -1347,6 +1352,17 @@
     background:radial-gradient(ellipse at 50% 46%, rgba(9,5,18,.72), rgba(5,2,10,.88));   /* dim + vignette the board behind */
     backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); animation:rfBackdrop .26s ease-out both; }
   @keyframes rfBackdrop{ from{opacity:0;} to{opacity:1;} }
+  /* THE FIGHT BEAT DOES NOT DIM THE BOARD (Aj, 2026-10-14: *"having the fight sub-phase dim is kinda annoying.
+     letting the hand flash yellow for the fly in is fine tho"*). Since drag-and-stack ruling 10 it fires on every
+     crossing, so a dark, blurred board on every turn was the cost; the banner still flies in over the board and the
+     hand's strip still turns Fight-yellow. `.phasefx` is that beat alone (`announcePhase`); the round ceremonies
+     keep their dim — they are rare, and they own the stage. */
+  #roundfx.show.phasefx{ background:none; backdrop-filter:none; -webkit-backdrop-filter:none; animation:none; }
+  /* …BUT ITS WORDS GET A PLATE OF THEIR OWN. With no dim the banner printed straight over the pile's label and
+     cards ("throw your cards down" read through "Fight is open"), so the dark sits behind the line only and the
+     board around it stays as it is. */
+  #roundfx.phasefx .rfInner::before{ width:118%; height:150%;
+    background:radial-gradient(ellipse at center, rgba(10,5,20,.86) 0%, rgba(10,5,20,.62) 48%, transparent 72%); }
   /* `max-width:100%` and `box-sizing` so the banner cannot make the BOARD scroll sideways. Measured at 327px:
      the plate rendered 304px inside a 243px box (30px of padding each side plus the label), which put `main`
      into horizontal scroll for the ~1.3s the banner shows — briefly draggable, and a visible sideways jump at
@@ -10120,6 +10136,7 @@ window.CardFace = {};
     renderHand(yourTurn && !targeting && !targetPick);
     renderPlayMods(spectating);
     updateActions(yourTurn);
+    syncStagedCast();                                               // the column's ⚡ copies the Activate button updateActions just set
     refreshNewBtn();                                                // header button: "🏳 Concede" while a duel is live, else "New Duel"
     if(typeof TUT!=='undefined' && TUT.reapply) TUT.reapply();      // guided tutorial: re-add the spotlight the hand rebuild just wiped
     if(typeof NET!=='undefined' && NET.onRender) NET.onRender();   // host: keep the remote client's board in lockstep
@@ -10460,12 +10477,21 @@ window.CardFace = {};
       if(slot.getAttribute('data-key')!==key){
         slot.setAttribute('data-key', key); slot.innerHTML='';
         var el=cardEl(card, 'mini', YOU); el.addEventListener('pointerdown', onStagedDown); slot.appendChild(el);
-        var note=document.createElement('div'); note.className='stgNote';
-        note.textContent = (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
-                         : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '⚡ Activate casts it';
-        slot.appendChild(note);
-        var x=document.createElement('button'); x.id='unstageBtn'; x.type='button'; x.innerHTML='✕<span class="tb"> Take back</span>'; x.title='Take the card back — nothing is spent';
-        x.addEventListener('click', function(){ unstage(); }); slot.appendChild(x);
+        var choosing = (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
+                     : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '';
+        if(choosing){ var note=document.createElement('div'); note.className='stgNote'; note.textContent=choosing; slot.appendChild(note); }
+        /* ⚡ AND ✕, SIDE BY SIDE UNDER THE CARD (Aj, 2026-10-14: *"can we add a lightning bolt near the card … i'd like
+           another beside the take back. we can reduce the take back to an X button probably"*). The ⚡ is NOT a second
+           cast path: it runs the bottom ⚡ Activate's own handler, and `syncStagedCast` copies that button's state after
+           every render — so a card still waiting on its target shows 🎯 here exactly as it does there, never a ⚡ that
+           would not cast. It replaced the "⚡ Activate casts it" note, which said the same thing in words. */
+        var row=document.createElement('div'); row.className='stgBtns';
+        var go=document.createElement('button'); go.id='stagedCastBtn'; go.type='button'; go.textContent='⚡';
+        go.addEventListener('click', onStagedCastClick); row.appendChild(go);
+        var x=document.createElement('button'); x.id='unstageBtn'; x.type='button'; x.textContent='✕';
+        x.title='Take the card back — nothing is spent'; x.setAttribute('aria-label','Take back');
+        x.addEventListener('click', function(){ unstage(); }); row.appendChild(x);
+        slot.appendChild(row);
       }
       slot.className='on';
     } else { slot.className=''; slot.innerHTML=''; slot.removeAttribute('data-key'); }
@@ -10475,6 +10501,23 @@ window.CardFace = {};
     cz.classList.toggle('staging', !!card);
     $('table').classList.toggle('colShown', !!card || stackUp);
   }
+  /* THE COLUMN'S ⚡ MIRRORS WHICHEVER ACTIVATE BUTTON IS UP — the action row's (`#ctxBtn`), else the card reader's
+     (`#cardActivate`). Called after `updateActions`, because that is what sets them; `renderCastZone` runs before it. */
+  function stagedCastSource(){
+    var cb=$('ctxBtn'), ca=$('cardActivate');
+    if(cb && cb.style.display!=='none') return cb;
+    if(ca && ca.style.display!=='none') return ca;
+    return null; }
+  function syncStagedCast(){
+    var go=$('stagedCastBtn'); if(!go) return;
+    var src=stagedCastSource(); go.style.display = src ? '' : 'none'; if(!src) return;
+    go.textContent = src.getAttribute('data-icon') || (src.textContent||'').trim().split(' ')[0] || '⚡';
+    go.title = src.id==='ctxBtn' ? (src.textContent||'').trim() : (src.title || 'Activate'); go.setAttribute('aria-label', go.title);
+    go.disabled = !!src.disabled;
+    go.classList.toggle('gold', src.classList.contains('gold')); go.classList.toggle('off', src.classList.contains('off')); }
+  function onStagedCastClick(e){
+    var src=stagedCastSource(); if(!src) return;
+    if(src.id==='ctxBtn') onCtxClick(e); else onActivateClick(e); }
   /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
      shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
      is equipped — so a fixed CSS height either wasted the edge on a desktop or, on a 390px-tall landscape table,

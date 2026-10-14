@@ -33,8 +33,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     new MutationObserver(ms=>{ ms.forEach(m=>m.addedNodes.forEach(n=>{
       if(n.classList && n.classList.contains('rfBeat') && /Fight sub-phase/.test(n.textContent||'')){
         const st=window.__solo.st();
+        const cs=getComputedStyle(fx);
         window.__beats.push({ at:Date.now(), turn:st.turn, hand:st.players[0].hand.map(c=>c.id),
-                              strip:(document.getElementById('handWrap')||{}).className||'' }); } })); })
+                              strip:(document.getElementById('handWrap')||{}).className||'',
+                              dim:cs.backgroundImage, blur:cs.backdropFilter||cs.webkitBackdropFilter||'' }); } })); })
       .observe(fx,{childList:true, subtree:true}); });
 
   // a fresh Main Sub-Phase on your turn; `pile` optionally the Rival's 5 (so Pass means something)
@@ -84,6 +86,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
        name+': …BEFORE the move landed — the cards were still in hand at the beat'+(bs.length?'  [hand '+b0.hand.join(',')+']':''));
     ok(bs.length>0 && /spFight/.test(b0.strip), name+': …and the strip read Fight at that moment  ['+(b0.strip||'')+']');
     ok(landed, name+': …and then the move went through');
+    /* AND IT DOES NOT DIM THE BOARD (Aj, 2026-10-14: *"having the fight sub-phase dim is kinda annoying"*). Read in
+       the COMPUTED style at the beat — the class alone says nothing about what is painted. */
+    ok(bs.length>0 && b0.dim==='none' && (!b0.blur || b0.blur==='none'), name+': …and the board behind it was NOT dimmed  [bg '+(b0.dim||'').slice(0,40)+', blur '+(b0.blur||'none')+']');
   }
 
   // ---- leg 1: a quiet crossing — nobody can add to the stack, so it auto-advances inside one engine call
@@ -128,6 +133,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const bs4=await beats();
   ok(bs4.length===1, 'pass: the crossing raised EXACTLY ONE Fight beat ('+bs4.length+')');
   ok(bs4.length>0 && /spFight/.test(bs4[0].strip) && bs4[0].turn===0, 'pass: …on your turn, with the strip on Fight, before the pass handed the turn on');
+
+  /* THE CONTROL: the no-dim rule is the Fight beat's alone. A round ceremony (`#roundfx.show` without `.phasefx`)
+     still dims, so a build that dropped the dim everywhere does not pass the legs above by accident. */
+  const cer=await p.evaluate(()=>{ const fx=document.getElementById('roundfx'), was=fx.className; fx.className='show';
+    const bg=getComputedStyle(fx).backgroundImage; fx.className=was; return bg; });
+  ok(/gradient/.test(cer), 'CONTROL: a round ceremony still dims the board  ['+cer.slice(0,40)+']');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

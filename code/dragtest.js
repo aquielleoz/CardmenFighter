@@ -200,10 +200,19 @@ async function dragOnto(page, idA, idB){
   const b7=await snap();
   await dragTo(p,'act3C','column'); await wait(250);
   ok((await snap()).staged.indexOf('act3C')>=0, 'staged ♣3 in the column again');
+  /* AJ, 2026-10-14: *"i'd like another [lightning bolt] beside the take back. we can reduce the take back to an X
+     button"*. Read BEFORE the ✕ is pressed: both visible, on one row (their vertical centres within a few px), the
+     ✕ carrying no words. */
+  const r7=await p.evaluate(()=>{ const go=document.getElementById('stagedCastBtn'), x=document.getElementById('unstageBtn');
+    if(!go || !x || go.offsetParent===null || x.offsetParent===null) return { ok:false, go:!!go, x:!!x };
+    const a=go.getBoundingClientRect(), c=x.getBoundingClientRect(), dy=Math.abs((a.top+a.height/2)-(c.top+c.height/2));
+    const out={ go:go.textContent.trim(), x:x.textContent.trim(), dy:Math.round(dy), leftOf:a.right<=c.left+1 };
+    out.ok = out.go==='⚡' && out.x==='✕' && dy<4 && out.leftOf; return out; });
   const x7=await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(!x || x.offsetParent===null) return false; x.click(); return true; });
   await wait(250);
   const a7=await snap();
   ok(x7, 'the staged card carries its ✕');
+  ok(r7.ok, 'THE ⚡ SITS BESIDE THE ✕, UNDER THE CARD, and the ✕ is an icon  ['+JSON.stringify(r7)+']');
   ok(a7.staged.length===0 && a7.hand===b7.hand && a7.energy===b7.energy && a7.boost===0, 'THE ✕ TAKES IT BACK — the column is empty, the card is in hand, nothing was spent');
 
   // ═══ LEG 8 — …AND SO DOES DRAGGING IT BACK OUT OF THE COLUMN ═══
@@ -212,6 +221,19 @@ async function dragOnto(page, idA, idB){
   await dragTo(p,'act3C','hand','#stagedSlot'); await wait(250);
   const a8=await snap();
   ok(a8.staged.length===0 && a8.energy===b7.energy && a8.boost===0 && a8.pile===0, 'DRAGGING THE STAGED CARD OUT OF THE COLUMN TAKES IT BACK — nothing spent, nothing played  ['+JSON.stringify(a8)+']');
+
+  // ═══ LEG 8b — THE COLUMN'S OWN ⚡ CASTS THE STAGED CARD ═══
+  /* It must CAST, not just exist: a ⚡ wired to nothing would pass r7 above. Same card, same staging as leg 1, and
+     the same proof — the boost is banked and it cost energy, and the card never reached the pile. */
+  await settle(); await stage(); await wait(350);
+  const b8b=await snap();
+  await dragTo(p,'act3C','column'); await wait(250);
+  ok((await snap()).staged.indexOf('act3C')>=0, 'staged ♣3 for the column\'s ⚡');
+  const go8b=await p.evaluate(()=>{ const go=document.getElementById('stagedCastBtn'); if(!go || go.offsetParent===null || go.disabled) return false; go.click(); return true; });
+  const cast8b=await until(async()=>(await snap()).boost>0, 40);
+  const a8b=await snap();
+  ok(go8b && cast8b && a8b.energy<b8b.energy && a8b.pile===0 && a8b.staged.length===0,
+     'THE COLUMN\'S ⚡ CASTS IT — the boost is banked, it cost energy, the column is empty and nothing was played  ['+b8b.energy+' → '+a8b.energy+', boost '+a8b.boost+']');
 
   // ═══ LEG 9 — A CARD WITH A CHOICE STAGES INTO ITS PICKER, AND ✕ BACKS OUT OF BOTH ═══
   /* Ultima Attack (10♣) with TWO Broadway cards beside it, so its pitch has something to choose: dropped on the
@@ -234,10 +256,15 @@ async function dragOnto(page, idA, idB){
   const a9=await p.evaluate(()=>({ staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
     note:((document.querySelector('#stagedSlot .stgNote')||{}).textContent||'').trim(),
     ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(),
+    ctxIcon:((document.getElementById('ctxBtn')||{getAttribute:()=>''}).getAttribute('data-icon')||''),
+    go:((document.getElementById('stagedCastBtn')||{}).textContent||'').trim(),
     energy:window.__solo.st().players[0].energy.length }));
   ok(z9 && z9.colOk, 'Ultima Attack is offered to the column  ['+(z9?z9.hint:'no drag')+']');
   ok(a9.staged.indexOf('ult')>=0 && /^Choose/.test(a9.note), 'A CARD WITH A CHOICE STAGES INTO ITS PICKER — in the column, its first choice open  [note "'+a9.note+'", ⚡ "'+a9.ctx+'"]');
   ok(a9.energy===b9.energy, '  …and nothing is spent while the choice is open');
+  /* THE COLUMN'S ⚡ IS THE ACTION ROW'S BUTTON, NOT A SECOND ONE: while a choice is open it reads what that button
+     reads (🎯), never a ⚡ that would not cast. */
+  ok(!!a9.go && a9.go===a9.ctxIcon && a9.go!=='⚡', '  …and the column\'s button MIRRORS the action row\'s — "'+a9.go+'" beside "'+a9.ctx+'"');
   await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(x) x.click(); });
   await wait(250);
   const c9=await p.evaluate(()=>({ staged:document.querySelectorAll('#stagedSlot .card').length,
