@@ -166,6 +166,20 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
 
+- `root cause found`    · **AFTER A PHANTASMAL ILLUSION, THE NEXT SEAT'S TURN HAS NO MAIN.** `E.phantasm` hands the
+  turn on (`st.turn = nextPlayer(st, p)`) without the `st.subPhase = 'main'; st.toPlay = null;` that every other
+  hand-off writes (`play`, `pass`, the round reset). The AI always casts its Illusion after crossing into the
+  fight (`takeTurn` calls `E.moveToPlay` before `tryPhantasm`), so the next seat inherits `subPhase:'play'`:
+  every Main effect is refused with *"The Fight Sub-Phase has begun — play a card or pass."*, and the strip
+  paints Fight with no beat. **Measured in the engine, 4 of 4** (2026-10-13): seat 1 crosses and casts a swapped
+  Illusion over a 3-7 straight, seat 0's fresh turn reads `subPhase play`, and `E.activate` refuses its draw
+  card. A human's Illusion cast from Main does not leak, because it never crossed.
+  **Rare, but it costs a whole Main** (Illusions are cast a few times per 100 games). Found by the drag-and-stack
+  design recheck, whose step 1 will meet it, so it is filed here rather than fixed on the epic.
+  **The fix:** the missing reset beside the hand-off, and a `test.js` assertion that the seat after an Illusion
+  starts its turn in Main. Placed third by the session that filed it, below Aj's two ranked items; re-rank freely.
+  `[id: illusion-leaks-fight-subphase]`
+
 ### Parked — each entry says what revives it
 
 #### When it happens again — the detectors are live
