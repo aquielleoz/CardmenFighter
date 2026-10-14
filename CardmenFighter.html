@@ -274,6 +274,22 @@
   #stagedCastBtn.off, #stagedCastBtn:disabled{opacity:.45;}
   #castZone #stackView{margin:0; width:100%; align-items:stretch; pointer-events:auto;}
   #castZone .stk{white-space:normal; text-align:center; font-size:10.5px; padding:2px 5px;}
+  /* THE STACK AS CARDS (drag-and-stack step 3). Newest on top, the top one ringed gold because it resolves next;
+     each card captioned with the SAME phrase the Respond? box's rows use (`stackObjPhrase`), so the two cannot
+     drift. A triggered effect has no card to show (an Equipment's upkeep counter), so it gets a small tile instead. */
+  #stackView .stkCard{display:flex; flex-direction:column; align-items:center; gap:2px; width:100%;}
+  #stackView .stkCard .card{pointer-events:auto; cursor:help; flex:0 0 auto;}
+  #stackView .stkCard.top .card, #stackView .stkCard.top .stkTrig{box-shadow:0 0 0 2px var(--gold), 0 0 12px rgba(232,195,122,.45);}
+  #stackView .stkCard .stkCap{border:0; background:none; padding:0 2px; opacity:.88; box-shadow:none;}
+  #stackView .stkTrig{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; min-width:56px; max-width:100%; padding:6px 6px;
+    border-radius:9px; border:1px solid rgba(67,192,106,.7); background:linear-gradient(180deg,rgba(67,192,106,.16),rgba(20,18,32,.9)); font-size:10px; line-height:1.15; text-align:center;}
+  #stackView .stkTrig b{font-size:10.5px;}
+  #stackView .stkCard.inbound{visibility:hidden;}   /* the real card waits while its ghost is in the air */
+  .stkGhost{position:fixed; z-index:40; pointer-events:none; margin:0; will-change:transform, opacity;}
+  /* THE COLUMN STAYS ABOVE THE WAITING DIM (drag-and-stack step 3). While another seat holds priority the play area
+     dims under "<name> is deciding…" (`showTrimWait`), and the column sat under it — so the stack was hidden at
+     exactly the moment you are waiting on someone to answer it. */
+  #table.waitDim #castZone{z-index:8;}
   @media (max-width:1199px){ #castZone{width:104px;} }
   /* WHILE THE COLUMN IS UP THE CENTRED MESSAGE MAKES ROOM FOR IT, or the two print over each other on a narrow table
      (measured in the first screenshots: a phone's staged-card message ran under the column). Only while it shows,
@@ -9907,50 +9923,115 @@ window.CardFace = {};
     if(typeof t.seat==='number') return '<b>'+esc(logName(t.seat))+'</b>';
     return '';
   }
-  function stackRowsHTML(){
-    var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
-    var fe=state.resolution||null;
-    var pendingLoss = (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
-    if(objs.length<1 && !pendingLoss) return '';
-    var html='';
+  /* ONE PHRASE PER STACK OBJECT, used by the Respond? box's rows AND the board's cards (drag-and-stack step 3 split
+     `stackRowsHTML` so the board could show cards without a second definition of what each line says). */
+  function stackObjPhrase(o, isTop){
+    var eff=o.eff, who=logName(o.p);
     /* A TRIGGERED EFFECT HAS NO CAST CARD, SO IT HAS NO `eff` AND NO `card` (2026-09-14). It is
-       `kind:'effect'` like everything else — that is the point of the model — so this filter now admits it,
+       `kind:'effect'` like everything else — that is the point of the model — so the filter admits it,
        and `eff.name` threw on every render that had one on the stack. It reached the player as a page error
        and a wedged board, which is the deletion-shaped failure the parse check cannot see: the filter was
        correct, the assumption behind it silently stopped being true. Show it by its equipment's name. */
-    for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
-      var label = eff ? (eff.name||'?') : (esc(o.name||'Equipment')+' <span class="who">— upkeep counter</span>');
-      var sym = o.card ? (' · '+cardSym(o.card)) : '';
-      /* ⚠ NO `countered` STATE HERE ANY MORE (2026-09-25). This line used to strike the row through and —
-         for one commit, after Aj asked how a counter resolves — tag it "(countered — fizzles next)". Both
-         are unreachable now: a counter SPLICES its target off the stack, so a countered object is never
-         rendered at all. Keeping the branch would leave the UI describing a state the engine cannot
-         produce, which is the `spBegin` mistake of the same day in a different file. */
-      /* AND WHAT IT IS AIMED AT (stack-row-omits-target) — the noun the decision turns on. From
-         `E.stackTargetOf`, which reads resolution's own lookups, so the row cannot name a different piece
-         from the one answering will protect. Untargeted effects render exactly as before. */
-      var tTxt=stackTargetPhrase(E.stackTargetOf ? E.stackTargetOf(state, o) : null);
-      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(tTxt?' <span class="stkTgt">→ '+tTxt+'</span>':'')+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
-    }
-    if(pendingLoss){
-      var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
-      var lType=(state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special';
-      var lHit=(pendingLoss.strikeTargets||[]).map(function(sq){ return logName(sq); }).join(', ');
-      /* "You loses a shield" — the copula/agreement bug this repo has shipped four times, here in a
-         RENDERER rather than a `say()` template, which is why `nettest_narrate`'s static scan could never
-         see it: that scan reads `say(` call sites. The number was taken from the TARGET COUNT alone, so a
-         single target named "You" got the third-person verb. This string is local to the reader's own
-         frame — it is never broadcast — so agreeing with the reader is safe here in a way it never is in a
-         broadcast template; `announceRoundWin` one screen down already does exactly this. */
-      var lVerb=((pendingLoss.strikeTargets||[]).length>1 || (pendingLoss.strikeTargets||[]).indexOf(YOU)>=0) ? 'lose' : 'loses';
-      html+='<div class="stk pendingLoss"><span class="who">'+lWho+'’s '+lType+' ▸</span> 🛡 '+lHit+' '+lVerb+' a shield <span class="who">(when the stack clears)</span></div>';
-    }
+    var label = eff ? (eff.name||'?') : (esc(o.name||'Equipment')+' <span class="who">— upkeep counter</span>');
+    var sym = o.card ? (' · '+cardSym(o.card)) : '';
+    /* ⚠ NO `countered` STATE HERE ANY MORE (2026-09-25). This line used to strike the row through and —
+       for one commit, after Aj asked how a counter resolves — tag it "(countered — fizzles next)". Both
+       are unreachable now: a counter SPLICES its target off the stack, so a countered object is never
+       rendered at all. Keeping the branch would leave the UI describing a state the engine cannot
+       produce, which is the `spBegin` mistake of the same day in a different file. */
+    /* AND WHAT IT IS AIMED AT (stack-row-omits-target) — the noun the decision turns on. From
+       `E.stackTargetOf`, which reads resolution's own lookups, so the row cannot name a different piece
+       from the one answering will protect. Untargeted effects render exactly as before. */
+    var tTxt=stackTargetPhrase(E.stackTargetOf ? E.stackTargetOf(state, o) : null);
+    return '<span class="who">'+who+' ▸</span> '+label+sym+(tTxt?' <span class="stkTgt">→ '+tTxt+'</span>':'')+(isTop?' <span class="who">(resolves next)</span>':'');
+  }
+  function stackPendingLoss(){
+    var fe=state.resolution||null;
+    return (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
+  }
+  function pendingLossRowHTML(pendingLoss){
+    var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
+    var lType=(state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special';
+    var lHit=(pendingLoss.strikeTargets||[]).map(function(sq){ return logName(sq); }).join(', ');
+    /* "You loses a shield" — the copula/agreement bug this repo has shipped four times, here in a
+       RENDERER rather than a `say()` template, which is why `nettest_narrate`'s static scan could never
+       see it: that scan reads `say(` call sites. The number was taken from the TARGET COUNT alone, so a
+       single target named "You" got the third-person verb. This string is local to the reader's own
+       frame — it is never broadcast — so agreeing with the reader is safe here in a way it never is in a
+       broadcast template; `announceRoundWin` one screen down already does exactly this. */
+    var lVerb=((pendingLoss.strikeTargets||[]).length>1 || (pendingLoss.strikeTargets||[]).indexOf(YOU)>=0) ? 'lose' : 'loses';
+    return '<div class="stk pendingLoss"><span class="who">'+lWho+'’s '+lType+' ▸</span> 🛡 '+lHit+' '+lVerb+' a shield <span class="who">(when the stack clears)</span></div>';
+  }
+  function stackObjects(){ return (state.stack||[]).filter(function(o){return o.kind==='effect';}); }
+  // the Respond? box's "On the stack" rows — text, newest first (the board shows the same objects as cards)
+  function stackRowsHTML(){
+    var objs=stackObjects(), pendingLoss=stackPendingLoss();
+    if(objs.length<1 && !pendingLoss) return '';
+    var html='';
+    for(var i=objs.length-1;i>=0;i--){ var isTop=(i===objs.length-1);
+      html+='<div class="stk'+(isTop?' top':'')+'">'+stackObjPhrase(objs[i], isTop)+'</div>'; }
+    if(pendingLoss) html+=pendingLossRowHTML(pendingLoss);
     return html;
   }
+  /* THE BOARD'S STACK IS CARDS (drag-and-stack step 3): each object shows the card that was cast, newest on top,
+     captioned with `stackObjPhrase`. Rebuilt only when the stack CHANGES — a rebuild on every render would restart
+     the fly-in and make a hovered card flicker — and a new object FLIES IN from whoever cast it.
+     ONE PRESENTATION, BECAUSE IT IS READ OFF THE STATE: solo, an AI, the netplay host and a guest all render
+     the same `state.stack`, so a cast that is on the stack when a seat renders arrives the same way on every
+     seat, whichever code path put it there. A cast that resolves before any render (an AI's batch, an answer
+     nobody could follow) never reaches this function — that half is `showFx`'s. */
+  var stackSig=null, stackSeen={};
   function renderStack(){
-    var el=$('stackView'), html=stackRowsHTML();
-    if(!html){ el.style.display='none'; el.innerHTML=''; return; }
-    el.style.display='flex'; el.innerHTML=html;
+    var el=$('stackView'), objs=stackObjects(), pendingLoss=stackPendingLoss();
+    if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; stackSig=null; return; }
+    el.style.display='flex';
+    var sig=objs.map(function(o){ return o.oid; }).join(',')+'|'+(pendingLoss?pendingLossRowHTML(pendingLoss):'')+'|'+objs.map(function(o,i){ return stackObjPhrase(o, i===objs.length-1); }).join('§');
+    if(sig===stackSig) return;
+    stackSig=sig;
+    /* WHERE EACH NEW CARD FLIES FROM, read BEFORE the rebuild: the hand and the staged slot still hold their old
+       render at this point (both are drawn later in `render`), so the card you just cast is still there to start
+       from. Anyone else's comes from their seat. */
+    var fresh=objs.filter(function(o){ return o.oid!=null && !stackSeen[o.oid]; });
+    var from={};
+    fresh.forEach(function(o){ if(!o.card) return; from[o.oid]=stackSourceRect(o.p, o.card.id); });
+    el.innerHTML='';
+    for(var i=objs.length-1;i>=0;i--){ var o=objs[i], isTop=(i===objs.length-1);
+      var box=document.createElement('div'); box.className='stkCard'+(isTop?' top':''); if(o.oid!=null) box.setAttribute('data-oid', o.oid);
+      if(o.card){ var ce=cardEl(o.card, 'mini', o.p); (function(c){ ce.addEventListener('mouseenter', function(){ showCard(c); }); ce.addEventListener('click', function(){ showCard(c); }); })(o.card); box.appendChild(ce); }
+      else { var tr=document.createElement('div'); tr.className='stkTrig'; tr.innerHTML='<span>⏳</span><b>'+esc(o.name||'Equipment')+'</b>'; /* the caption says what it does */ box.appendChild(tr); }
+      var cap=document.createElement('div'); cap.className='stk stkCap'; cap.innerHTML=stackObjPhrase(o, isTop); box.appendChild(cap);
+      el.appendChild(box);
+    }
+    if(pendingLoss) el.insertAdjacentHTML('beforeend', pendingLossRowHTML(pendingLoss));
+    objs.forEach(function(o){ if(o.oid!=null) stackSeen[o.oid]=true; });
+    fresh.forEach(function(o){ if(from[o.oid]) flyStackCard(o, from[o.oid]); });
+  }
+  /* The rect a cast card leaves from, in the LOCAL frame: your own card's slot (the cast column's staged card, else
+     its place in your hand), else your hand; a duel rival's panel; at 3-6 players that seat's panel. */
+  function stackSourceRect(seat, cardId){
+    function r(el){ if(!el || el.offsetParent===null) return null; var b=el.getBoundingClientRect(); return (b.width>2 && b.height>2) ? b : null; }
+    if(seat===YOU){
+      return r(document.querySelector('#stagedSlot .card[data-id="'+cardId+'"]')) || r(document.querySelector('#hand .card[data-id="'+cardId+'"]')) || r($('hand'));
+    }
+    return r(document.querySelector('.oppPanel[data-seat="'+seat+'"]')) || r($('rival'));
+  }
+  /* A GHOST FLIES, NOT THE CARD: the column clips its own overflow, so the real card would be invisible until it
+     entered the column. The ghost lives in the page's top layer, lands on the real card's spot, and hands over. */
+  function flyStackCard(o, src){
+    if(reduceMotion()) return;
+    var box=document.querySelector('#stackView .stkCard[data-oid="'+o.oid+'"]'), real=box && box.querySelector('.card');
+    if(!real) return;
+    var to=real.getBoundingClientRect(); if(!to.width) return;
+    var g=cardEl(o.card, 'mini', o.p); g.classList.add('stkGhost'); g.setAttribute('data-oid', o.oid);
+    g.style.left=to.left+'px'; g.style.top=to.top+'px'; g.style.width=to.width+'px'; g.style.height=to.height+'px';
+    document.body.appendChild(g); box.classList.add('inbound');
+    var dx=(src.left+src.width/2)-(to.left+to.width/2), dy=(src.top+src.height/2)-(to.top+to.height/2);
+    var gg=gen, done=function(){ if(g.parentNode) g.parentNode.removeChild(g); if(box) box.classList.remove('inbound'); };
+    if(!g.animate){ done(); return; }
+    var a=g.animate([{ transform:'translate('+dx+'px,'+dy+'px) scale(.75)', opacity:.35 }, { transform:'none', opacity:1 }],
+                    { duration:460, easing:'cubic-bezier(.2,.9,.3,1)' });
+    a.onfinish=done; a.oncancel=done;
+    setTimeout(function(){ if(gg!==gen || g.parentNode) done(); }, 900);   // never leave a ghost behind
   }
   // Active-modifier readout on your hand: what's changing YOUR plays right now and from where. Value (Giant Boar,
   // equipment ±, a charged play) and cost (Giant Owl / Giant Ram) are shown as separate chips, netted and with
@@ -12060,6 +12141,7 @@ window.CardFace = {};
    * overwrites a ceremony beat that is already showing, and `clearTrimWait` only takes down a banner it put up. */
   function showTrimWait(txt){
     var fx=$('roundfx'); if(!fx) return;
+    var tbw=$('table'); if(tbw) tbw.classList.add('waitDim');   // the cast column stays above this dim (drag-and-stack step 3)
     /* IT TAKES OVER A LEFTOVER CEREMONY BEAT, on purpose. `playPreBeats` deliberately leaves its last beat
      * ("… seizes the initiative!") on stage for the Round-N plate to swap into, so by the time a clean-up pick
      * opens the stage is showing something stale — and refusing to overwrite it meant the notice never appeared
@@ -12129,7 +12211,7 @@ window.CardFace = {};
     var inner=fx.querySelector('.rfInner'); if(inner) inner.removeAttribute('data-trim');
     clearRoundfx();
   }
-  function clearRoundfx(){ var fx=$('roundfx'); if(!fx) return; fx.className=''; fx.onclick=null; var inner=fx.querySelector('.rfInner'); if(inner){ inner.className='rfInner'; inner.innerHTML=''; } }
+  function clearRoundfx(){ var fx=$('roundfx'); if(!fx) return; var tbw=$('table'); if(tbw) tbw.classList.remove('waitDim'); fx.className=''; fx.onclick=null; var inner=fx.querySelector('.rfInner'); if(inner){ inner.className='rfInner'; inner.innerHTML=''; } }
   function snapDrawnCards(){ Array.prototype.forEach.call(document.querySelectorAll('#hand .card.enter'), function(el){ el.classList.remove('enter'); el.style.animationDelay=''; }); }
 
   // Phase 1: the pre-draw beats. Reveals the deferred shield shatter on the shield beat. Leaves the banner
@@ -13515,6 +13597,7 @@ window.CardFace = {};
     pendingEnter={}; flipFrom=null;                      // the deal-in queue (it also drives the Beginning tint via `dealingIn`) and the FLIP source rect
     equipFx={}; equipOpen=null; formsOpen=null;          // zone flash layer + which zones are expanded
     drag=null;                                           // any drag still in flight when the board went away
+    stackSig=null; stackSeen={};   // the stack's card rebuild + which objects have already flown in (drag-and-stack step 3)
     lastSubPhase=null;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
     ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
     var af=$('artFlash'); if(af) af.classList.remove('show','you');
