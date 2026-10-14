@@ -27,11 +27,10 @@ const { openLesson } = require('./lessonlib');
    * retried for 2014ms. So: wait for Pass to be enabled, click it exactly ONCE, and require the game to move.
    * Not vacuous in either direction — if Pass were never enabled the wait times out, and on the pre-fix build
    * the single click is swallowed. */
-  /* PASS LIVES IN THE FIGHT SUB-PHASE NOW (epic step 20), so the move-to-Fight press comes first — it plays
-   * nothing, it only changes sub-phase. The invariant below is untouched and is still the point: whatever
+  /* PASS RENDERS IN MAIN (the auto-pass), so there is nothing to step through first. This used to wait for
+   * Fight to go live and press `Next`; with Next gone (drag-and-stack step 1) Fight rests DISABLED with nothing
+   * selected, so that wait would hang. The invariant below is untouched and is still the point: whatever
    * renders ENABLED must work on a single click. */
-  await until(()=>{ const f=document.getElementById('fightBtn'); return !!f && !f.disabled; },'the turn comes back and Fight goes live');
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
   ok(await until(()=>{ const b=document.getElementById('passBtn'); return !!b && b.offsetParent!==null && !b.disabled; },'Pass becomes enabled'),
     'Pass eventually renders enabled');
   const shot=await p.evaluate(()=>{ const s=window.__solo.st(), me=s.players[0];

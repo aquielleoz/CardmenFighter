@@ -11,7 +11,6 @@
  * Every case is the WORST case for its size: battle log OPEN, hand stuffed to MAX_HAND, 5-card pile staged.
  * Run: node landscapetest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
-const { enterFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // [w, h, players, label]
@@ -403,11 +402,9 @@ const CASES=[
       return { max:Math.round(l.scrollHeight-l.clientHeight), lines:l.children.length }; });
     ok(set.max>4 && set.max<80,
        `log staged with a small overflow: ${set.max}px over ${set.lines} lines (must be under the old 80px slack to discriminate)`);
-    /* THE ACTION HAS TO BE A REAL PLAY, or no log line arrives and this measures nothing (epic step 20).
-       A single Fight press in the Main Sub-Phase is the PHASE MOVE — it logs nothing — so the probe below
-       needs the board already in the Fight Sub-Phase for `!f.disabled` to mean "this play is legal" again.
-       See fightclick.js. */
-    await enterFight(p);
+    /* THE ACTION HAS TO BE A REAL PLAY, or no log line arrives and this measures nothing. Fight is enabled
+       only for a legal selection in either sub-phase (drag-and-stack step 1), so the probe below reads
+       `!f.disabled` as "this play is legal" straight from Main. */
     /* ⚠ IF THIS GOES RED, THE GEOMETRY BELOW IS THE DIAGNOSIS (landscapetest-newlog-flaky, 2026-10-13). The only
        recorded red was `shown=false`, `scrollTop 24`: one new line, and the log FOLLOWED it, which `logMsg` does
        only when the log had no overflow left at that instant. Forced three ways on v1.33.15, it never reproduced:

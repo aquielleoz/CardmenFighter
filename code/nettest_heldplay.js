@@ -85,7 +85,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(await isSel(host,'h10C'), 'A: …and it is STILL SELECTED');
   ok(a.beat, 'A: the Fight sub-phase beat flew in — the host was moved over, not asked to press Next');
   ok(/Someone answered/.test(ab.msg) && /still selected/.test(ab.msg) && /Fight/.test(ab.msg), 'A: the message says why and what to do ("'+ab.msg+'")');
-  ok(!/Next|Main/.test(ab.hint) && ab.hint.length>0, 'A: the hint reads for the FIGHT sub-phase, not Main ("'+ab.hint+'")');
+  ok(!/Main/.test(ab.hint) && ab.hint.length>0, 'A: the hint reads for the FIGHT sub-phase, not Main ("'+ab.hint+'")');   // `Next` dropped from the pattern: it can no longer appear (drag-and-stack step 1)
   ok(/Fight/.test(ab.label) && !ab.fightOff, 'A: the button reads Fight and is live — one press plays it ('+ab.label+')');
   await host.evaluate(()=>document.getElementById('fightBtn').click());
   ok(await until(async()=>!(await inHand(host,'h10C'))), 'A: …and that press played the 10');
@@ -101,7 +101,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(await isSel(join,'c11C'), 'B: …and it is STILL SELECTED');
   ok(bb0.beat, 'B: the Fight sub-phase beat flew in on the client');
   ok(/Someone answered/.test(bb.msg) && /still selected/.test(bb.msg), 'B: the message says why and what to do ("'+bb.msg+'")');
-  ok(!/Next|Main/.test(bb.hint) && bb.hint.length>0, 'B: the hint reads for the FIGHT sub-phase, not Main ("'+bb.hint+'")');
+  ok(!/Main/.test(bb.hint) && bb.hint.length>0, 'B: the hint reads for the FIGHT sub-phase, not Main ("'+bb.hint+'")');   // `Next` dropped from the pattern: it can no longer appear (drag-and-stack step 1)
   ok(/Fight/.test(bb.label) && !bb.fightOff, 'B: the button reads Fight and is live ('+bb.label+')');
   await join.evaluate(()=>document.getElementById('fightBtn').click());
   ok(await until(async()=>!(await inHand(join,'c11C'))), 'B: …and one press played the Jack through the host');

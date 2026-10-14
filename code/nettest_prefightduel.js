@@ -96,9 +96,7 @@ const why=p=>p.evaluate(()=>{
     const clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
     const c=document.querySelector('#hand .card[data-id="h16D"]'); const g=c && c.closest('.group'); if(g) g.click();
   });
-  await clickFight(host);
-  await wait(600);
-  await clickFight(host);                                   // two-state button: Next then Fight (see fightclick.js)
+  await clickFight(host);                                   // one press crosses Main → Fight and plays (see fightclick.js)
 
   const offered = await until(async()=>(await respQuicks(join)).length>0, 60);
   const names = await respQuicks(join);
