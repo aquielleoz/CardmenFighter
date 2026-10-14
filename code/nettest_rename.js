@@ -118,28 +118,37 @@ const renameVia=(p,name)=>p.evaluate(n=>{
   await host.evaluate(()=>window.__cmf.renameBase(400));
   const send = (p,n) => p.evaluate(nm=>window.__cmf.clientSend({op:'rename', name:nm}), n);
 
+  /* THE BURST IS ANCHORED TO A RENAME MADE HERE, NOT TO LEG 1's (2026-10-14). The cooldown is computed when a rename
+     ARRIVES, from the base in force then, so after the shrink to 400ms leg 1's `Zed` cools for only 400ms — and the
+     burst was refused only because leg 2 happened to finish inside that window. Drag-and-stack step 1 made every
+     crossing show the Fight Sub-Phase for ~700ms before the play lands, leg 2 grew by two of them, and one Spam
+     landed: a timing coincidence, not a cooldown. So `Kit` is accepted first (the 2nd rename: an 800ms window),
+     and the burst follows it at once. */
+  const base0 = await renamed();
+  await send(join,'Kit');
+  ok(await until(async()=>await renamed() > base0, 40), 'a rename once leg 1\'s 400ms window has passed is accepted (Kit, the 2nd)');
   const base = await renamed();
   await join.evaluate(()=>{ for(let i=0;i<4;i++) window.__cmf.clientSend({op:'rename', name:'Spam'+i}); });
-  await wait(900);
+  await wait(500);
   const burst = await renamed() - base;
   ok(burst === 0,
      `a burst of four is refused outright — the previous rename is still cooling (${burst} landed)` +
      (burst ? '  ← REPRODUCED: no host cooldown, so a client can flood the table' : ''));
 
-  await wait(700);                                    // past the n=1 window (400ms)
+  await wait(600);                                    // past Kit's 800ms window (the burst was ~500ms after it)
   ok(await send(join,'Ann')==null || true, 'after the window, a rename is accepted again');
   const two = await until(async()=>await renamed() > base, 40);
   ok(two, 'Ann landed — the cooldown EXPIRES, it does not lock renaming for the game' +
      (two ? '' : '  ← a cooldown that never lets go is a ban'));
 
-  /* THE ESCALATION ITSELF, and the only assertion that can see it. `Ann` was the second rename, so the
-     next window is 800ms rather than 400 — a FLAT cooldown would let this through at 700ms. */
+  /* THE ESCALATION ITSELF, and the only assertion that can see it. `Ann` was the third rename, so the next window
+     is 1600ms rather than 800 — a FLAT cooldown would let this through at 1200ms. */
   const afterAnn = await renamed();
-  await wait(700);
+  await wait(1200);
   await send(join,'Bob');
-  await wait(600);
+  await wait(400);
   const grew = await renamed() === afterAnn;
-  ok(grew, 'a rename 700ms later is STILL refused — the window GREW from 400ms to 800ms' +
+  ok(grew, 'a rename 1200ms later is STILL refused — the window GREW from 800ms to 1600ms' +
      (grew ? '' : '  ← a flat cooldown would have let this through; the escalation is not happening'));
 
   /* AND A REFUSAL IS PRIVATE. Announcing one would hand a flooder exactly the attention they were denied,

@@ -18,6 +18,7 @@
  * IT REPORTS WHAT IT DID, for the same reason every other helper here does: a red run should explain itself.
  *   'played'    — the selected cards left the hand (or a window opened over the board on our press)
  *   'confirmed' — the button was a `Confirm` and was pressed
+ *   'waiting'   — the press took effect and the table is waiting on ANOTHER seat's answer at the crossing
  *   'no-move'   — the click did nothing: refused, held, not your turn, or the board is someone else's
  *   'no-button' — absent or disabled before we touched it (with nothing selected, it always is)
  */
@@ -40,7 +41,11 @@ async function clickFight(page, budgetMs) {
     const modalUp0 = function () { const o = document.getElementById('overlay'); return !!(o && o.classList.contains('show')); };
     /* REMEMBER WHAT WE ARE PLAYING, so a swallowed `Fight` can be told from a played one (2026-09-16) —
        the cards leaving the hand is the only evidence that distinguishes them. */
-    const sel = [].slice.call(document.querySelectorAll('#hand .card.sel')).map(function (c) { return c.dataset.id; });
+    /* A GROUP SELECTION MARKS THE GROUP (`.gsel`), NOT ITS CARDS (`.sel`), so read both — reading `.card.sel`
+       alone saw a selected PAIR as "nothing selected" (measured: four lesson suites reported a pair that had in
+       fact been played as never landing). The old helper hid it by calling any such press 'played'. */
+    const sel = [].slice.call(document.querySelectorAll('#hand .card.sel, #hand .group.gsel .card')).map(function (c) { return c.dataset.id; })
+      .filter(function (id, i, a) { return id && a.indexOf(id) === i; });
     const stillHeld = function () { return sel.some(function (id) { return !!document.querySelector('#hand .card[data-id="' + id + '"]'); }); };
     first.click();
     /* ONLY A `Fight` PRESS HAS ANYTHING TO WAIT FOR. `Play` and `Confirm` ARE the action, so polling after
@@ -70,9 +75,15 @@ async function clickFight(page, budgetMs) {
       if (!sel.length) return 'no-move';                    // unreachable while enabled — the button needs a legal selection
       const until = Date.now() + budget;
       let tries = 0;
+      /* ANOTHER SEAT DECIDING IS AN ANSWER TOO. When the crossing opens a window for a REMOTE seat, the host parks
+         and its play waits on that seat; the page says so ("<name> is deciding…" on the play area's notice
+         layer). Waiting out the whole budget there blocked the caller past `netwindows`' 6s grace, so the
+         window it meant to drive was auto-passed before it could look (`nettest_prefightduel`). Report it. */
+      const othersDeciding = () => { const fx = document.getElementById('roundfx'); return !!(fx && /trimwait/.test(fx.className) && /deciding/.test(fx.textContent || '')); };
       while (Date.now() < until) {
         if (modalUp0()) return 'played';
         if (!stillHeld()) return 'played';
+        if (othersDeciding()) return 'waiting';
         const g2 = btn();
         if (g2 && !g2.disabled && g2.textContent === 'Fight') { if (++tries > 8) return 'no-move'; g2.click(); }
         await new Promise(r => setTimeout(r, 60));
@@ -166,7 +177,8 @@ async function installPageHelpers(page, budgetMs) {
          COUNT can be restored by the round draw, and the label reads `Fight` either way. An enabled `Fight`
          always has a selection since drag-and-stack step 1 — the empty crossing that was `Next` is gone. */
       if (a.textContent === 'Fight') {
-        const selIds = [].slice.call(document.querySelectorAll('#hand .card.sel')).map(e => e.dataset.id).filter(Boolean);
+        const selIds = [].slice.call(document.querySelectorAll('#hand .card.sel, #hand .group.gsel .card')).map(e => e.dataset.id)
+          .filter((id, i, a) => id && a.indexOf(id) === i);           // a group selection marks the GROUP — see clickFight
         if (!selIds.length) return false;                         // unreachable while enabled; never a move
         a.click();
         for (let i = 0, lim = Math.ceil(budget / 50); i < lim; i++) {

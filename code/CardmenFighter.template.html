@@ -5937,7 +5937,15 @@ __QR__
        AND IT KILLS A REPORTED BUG ON THE WAY: the dead first press is what Aj saw as *"no animations when
        pressing fight"*. There were none because nothing had been played yet. */
     if(!selectedCards().length) return;                    // no empty crossing any more — see doFight
-    moveToPlayThen(g, function(){ if(g===gen) playCards(selectedCards()); }, function(){
+    /* THE CARDS ARE TAKEN AT THE PRESS, NOT WHEN THE PLAY LANDS (drag-and-stack ruling 10). The crossing now
+       shows the Fight Sub-Phase for a beat before the play lands, so reading the LIVE selection then would play
+       whatever the selection had become in the meantime — nothing at all, after a Clear. If a pressed card left
+       the hand during the beat, the play you chose no longer exists, so it is not replaced by a different one. */
+    var pressed=selectedCards().slice();
+    moveToPlayThen(g, function(){ if(g!==gen) return;
+      var hand=state.players[YOU].hand, still=pressed.filter(function(c){ return hand.indexOf(c)>=0; });
+      if(still.length!==pressed.length){ setMessage('Your cards changed during the crossing — pick your play again.'); render(); return; }
+      playCards(still); }, function(){
       render();                                            // held: you ARE in the Fight Sub-Phase with nothing played; render's edge announces it
       setMessage(heldPlayMessage());
     }, null, 'Fight');
@@ -7547,7 +7555,7 @@ __QR__
   function crossDwellMs(){ return reduceMotion() ? 300 : 700; }
   function afterCrossing(me, g, proceed){
     if(me!==YOU){
-      if(typeof NET!=='undefined' && NET.sendCrossed) NET.sendCrossed(me);
+      if(typeof NET!=='undefined' && NET.hostCrossThen) return NET.hostCrossThen(me, g, proceed);
       return proceed();
     }
     busy=true; render();
@@ -9650,7 +9658,7 @@ __QR__
   $('rivalExBtn').addEventListener('click', function(){ openPileView('exile', RIVAL); });
   $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });
   $('youWho').addEventListener('click', function(){ if(!peeking) openNameEditor(); });   // your name, editable from the board   // energy piles are open information — view only
-  $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
+  $('clearBtn').addEventListener('click', function(){ if(busy) return;   /* a play mid-crossing still owns its cards — see doFightBody */ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   /* A wrapped handler, never the bare function: `cyclePromptMode` takes no arguments today, but this file
      has already shipped fifteen versions of a saved battle log reading "[object PointerEvent]" because a
@@ -10413,12 +10421,28 @@ __QR__
       if(hubMode){ for(var i=0;i<dcs.length;i++){ if(chanSeat[i]===seat){ try{ if(dcs[i].readyState==='open') dcs[i].send(JSON.stringify(m)); }catch(e){} return; } } return; }
       send(m);
     }
-    /* "YOU JUST CROSSED INTO THE FIGHT SUB-PHASE" — for a remote seat whose crossing never reaches a mirror
-       (drag-and-stack ruling 10; see `afterCrossing`). A quiet crossing and the play it carries land in ONE host
-       call, so the next mirror already shows the play; this tells the seat to show its Fight beat first and hold
-       that mirror for the dwell. Sent BEFORE anything renders, since both transports deliver in order. ABSOLUTE
-       seat, like every other seat-addressed message. */
+    /* A REMOTE SEAT'S CROSSING, SHOWN BEFORE ITS MOVE LANDS (drag-and-stack ruling 10; see `afterCrossing`). The
+       host has just crossed the seat into the Fight Sub-Phase. It tells the seat (`t:'crossed'`, so the seat
+       locks its own board — its mirror is about to say "your turn, Fight Sub-Phase" and must not read as live),
+       broadcasts the crossed board (the seat's own `notePhaseEdge` plays the beat off it), waits the dwell the
+       local seat waits, and only then lands the move. THE HOST WAITS, NOT THE CLIENT: a client that held its
+       mirrors instead was measured 691ms behind the host's ceremony, and every seat must see the move land at
+       the same moment. ABSOLUTE seat, like every other seat-addressed message. */
+    var crossingSeat=null;
     function sendCrossed(seat){ if(!hostLive()) return; trace('crossed OUT', 'seat='+seat); sendTo(seat, {t:'crossed', seat:seat}); }
+    function hostCrossThen(seat, g, then){
+      sendCrossed(seat);
+      crossingSeat=seat; render();
+      setTimeout(function(){ crossingSeat=null; if(g!==gen || !hostState) return; then(); }, crossDwellMs());
+    }
+    /* A BOARD INTENT FROM THE CROSSING SEAT DURING THE DWELL IS DROPPED. Its move is already in hand and lands
+       when the dwell ends; a second one would be applied first and the first would then be refused. The client
+       is locked meanwhile, so this only meets a stale or modified one. */
+    function crossingRefuses(seat, it){
+      if(crossingSeat==null || crossingSeat!==seat || !it) return false;
+      if(!(it.op==='play' || it.op==='pass' || it.op==='activate' || it.op==='phantasm')) return false;
+      trace('move IGNORED — crossing beat', 'seat='+seat+' op='+it.op); return true;
+    }
     // a PRIVATE log line for one seat — advice that only helps the player it names (see logRoundDraw)
     function noteTo(seat, text, cls){ sendTo(seat, {t:'note', seat:seat, text:String(text||''), cls:cls||''}); }
     function sendTo0(chan, m){ if(hubMode && chan){ try{ if(chan.readyState==='open') chan.send(JSON.stringify(m)); }catch(e){} } else send(m); }   // to one specific (not-yet-seated) channel
@@ -11122,7 +11146,7 @@ __QR__
           if(m.cer!=null){ hostCerKnown=true; hostCer=!!m.cer; }   // the host's own ceremony, on or over — what the hold's release waits for
           applyMirror(m.st);
           maybeReleaseCeremony(); }
-        else if(m.t==='ceremony' && m.seat===mySeat){ if(crossHold){ crossHold.q.push({ cer:m.res }); return; } clientPlayCeremony(m.res); }   // a crossing beat holds it in order — see clientCrossed
+        else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='refused'){                             // the host threw a play away — say so, or it reads as a dropped click
           /* THE LEDGER GETS IT TOO, or a client's record shows "you CAST X — sent" with nothing after it
              and the next reader cannot tell a landed cast from a discarded one. */
@@ -11168,7 +11192,7 @@ __QR__
         else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; setMessage('⚠ '+(m.reason||'Illegal move.')); } }
         else if(m.t==='note'){ if(m.seat===mySeat) logMsg(esc(m.text), m.cls||''); }   // a private line from the host — escaped: it is data, never markup
         else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }
-        else if(m.t==='crossed'){ if(m.seat==null || m.seat===mySeat){ clientCrossed(); } }   // our move crossed into the Fight Sub-Phase — show it first (ruling 10)   // the host held our Fight — see heldPlayMessage
+        else if(m.t==='crossed'){ if(m.seat==null || m.seat===mySeat){ clientCrossed(); } }   // the host crossed our move — lock the board until it lands (ruling 10)   // the host held our Fight — see heldPlayMessage
       }
     }
 
@@ -11636,6 +11660,7 @@ __QR__
         var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
       // ---- turn actions ----
+      if(crossingRefuses(1, it)) return;   // its move is already in hand, landing after the crossing beat
       /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
       if(it.op==='phantasm'){ return hostPhantasmIntent(1, it) ? (hostAfterOwnCast?hostAfterOwnCast():undefined) : undefined; }
       if(it.op==='activate'){
@@ -11647,17 +11672,27 @@ __QR__
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
-      /* A QUIET CROSSING AND ITS MOVE LAND IN THIS ONE `E.play` / `E.pass` CALL, so the remote seat would never see
-         its Fight Sub-Phase (drag-and-stack ruling 10). Sampled BEFORE the call, which is the only moment it is
-         knowable; told to the seat after a legal result, below. A locked seat skips the crossing in the engine. */
-      var crossesNow = hostState.subPhase!=='play' && !E.isLocked(hostState, 1);
-      try{
-        switch(it.op){
-          case 'play': r=E.play(hostState, 1, resolveIds(1, it.ids)); break;   // engine rejects out-of-turn / illegal combos → r.ok===false
-          case 'pass': r=E.pass(hostState, 1); break;
-          default: return;   // unknown op ignored
-        }
-      }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }   // never let a malformed remote payload crash the host
+      /* THE HOST CROSSES A REMOTE SEAT ITSELF, SO THE CROSSING CAN BE SEEN (drag-and-stack ruling 10). Inside
+         `E.play` / `E.pass` a quiet crossing and the move it carries happen in ONE call, so no mirror ever showed
+         the seat its own Fight Sub-Phase. So the host crosses first: quiet, it tells the seat, broadcasts the
+         crossed board and waits the dwell the local seat waits (`hostCrossThen`), then re-applies the very intent
+         — the same re-apply the go-round path below has always used. Both seats therefore see the move land
+         TOGETHER; a client-side hold was tried first and put the client 691ms behind the host's ceremony
+         (`nettest_ceremony`). A locked seat skips the crossing in the engine, so it skips this too. */
+      if((it.op==='play' || it.op==='pass') && hostState.subPhase!=='play' && !E.isLocked(hostState, 1)){
+        var mv=E.moveToPlay(hostState, 1);
+        if(mv && mv.ok===false){ send({t:'err', reason:mv.reason||'Illegal move.'}); broadcastMirror(); return; }
+        if(hostState.respondFor==null) return hostCrossThen(1, g, function(){ hostApplyMove(it); });
+        r={ ok:false, transition:'play', state:hostState };     // a go-round opened at the crossing — settled just below
+      } else {
+        try{
+          switch(it.op){
+            case 'play': r=E.play(hostState, 1, resolveIds(1, it.ids)); break;   // engine rejects out-of-turn / illegal combos → r.ok===false
+            case 'pass': r=E.pass(hostState, 1); break;
+            default: return;   // unknown op ignored
+          }
+        }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }   // never let a malformed remote payload crash the host
+      }
       /* A TRANSITION IS NOT A REFUSAL (epic step 20). `E.play`/`E.pass` open the Main → Play go-round when
          the seat is still in the Main Sub-Phase, and return `ok:false, transition:'play'` while anyone can
          still act. That is the rules working, and reporting it to the client as "Illegal move." is how the
@@ -11676,12 +11711,11 @@ __QR__
         return hostSettle(g, function(){
           if(g!==gen) return;
           if(stackMark(hostState, 1)!==passMark && !E.isLocked(hostState, 1)){ broadcastMirror(); if(it.op==='play') send({t:'held', seat:1}); return; }   // a LOCKED client is force-skipped by the re-apply, never held — see hostApplyMoveN   // someone ELSE acted: a pass is spent, a play is HELD (the client reselects)
-          if(!E.isLocked(hostState, 1)) sendCrossed(1);   // the go-round closed quietly: the crossing is done, and the re-apply below lands the move in the same task
-          hostApplyMove(it);
+          if(E.isLocked(hostState, 1)) return hostApplyMove(it);   // locked at the crossing: the re-apply force-skips, nothing to show
+          hostCrossThen(1, g, function(){ hostApplyMove(it); });   // the go-round closed quietly: show the crossing, then land the move
         });
       }
       if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-      if(crossesNow) sendCrossed(1);   // BEFORE `say` and the render that broadcasts — see `sendCrossed`
       if(it.op==='play'){ say(1, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); bumpFight(1, r.combo && r.combo.type); }
       else if(it.op==='pass'){ say(1, '{who} passed.', 'rival'); }
       hostAfterRivalMove(r, g);
@@ -12009,6 +12043,7 @@ __QR__
         var nr=netReact; netReact=null; return nr.resume();
       }
       // ---- TURN ops: valid only for the seat whose turn it is ----
+      if(crossingRefuses(seat, it)) return;   // its move is already in hand, landing after the crossing beat
       if(hostState.turn!==seat){ sendTo(seat, {t:'err', seat:seat, reason:'Not your turn.'}); return; }
       var g=(netParked&&netParked.g)||gen;
       /* THE `toFight` ARM WAS HERE AND IS DELETED (drag-and-stack step 1), with its sender: it was a remote
@@ -12097,30 +12132,22 @@ __QR__
     }
 
     // ---- CLIENT: render the real board from each mirror; send inputs as intents. ----
-    /* THE CLIENT'S HALF OF RULING 10 (drag-and-stack, 2026-10-13). The host tells this seat that its move just
-       crossed into the Fight Sub-Phase (`t:'crossed'`, see `sendCrossed`) BEFORE the mirror that shows the move
-       landed, because a quiet crossing and its move happen in one host call and no mirror ever carries the
-       crossed board. So this seat shows the crossing itself: it puts its own copy of the board into the Fight
-       Sub-Phase — the host's state as it stood between the two halves of that call, a fact the host stated, not
-       a guess — renders (the strip paints Fight and `notePhaseEdge` plays the beat), and holds what arrives for
-       the same dwell the local seat uses. EVERYTHING HELD IS REPLAYED IN ORDER, mirrors and the round ceremony
-       alike: collapsing to the latest mirror would apply a round-ending deal before its own ceremony started. */
-    var crossHold=null;
+    /* THE CLIENT'S HALF OF RULING 10 (drag-and-stack, 2026-10-13). The host crosses this seat's move into the
+       Fight Sub-Phase, tells it so (`t:'crossed'`, see `hostCrossThen`), broadcasts the crossed board — which is
+       where this seat's beat comes from, off the ordinary edge — and lands the move after the dwell. Meanwhile
+       that mirror says "your turn, Fight Sub-Phase" with the cards still in hand, so on its own it would render
+       a LIVE board inviting a second press. This holds the board locked from the notice until a mirror shows the
+       move has landed (the turn moved on, or the sub-phase did). A short safety timer means a lost landing mirror
+       can only cost a second, never the board. */
+    var crossingLock=false;
     function clientCrossed(){
-      if(crossHold || !state || state.finished || state.turn!==YOU) return;
-      crossHold={ q:[] };
-      trace('crossed IN', 'holding mirrors for the Fight beat');
-      state.subPhase='play'; render();
-      setTimeout(releaseCrossHold, crossDwellMs());
-    }
-    function releaseCrossHold(){
-      var h=crossHold; crossHold=null; if(!h) return;
-      trace('crossed RELEASE', h.q.length+' held');
-      h.q.forEach(function(x){ if(x.st) applyMirror(x.st); else if(x.cer) clientPlayCeremony(x.cer); });
+      if(!state || state.finished || state.turn!==YOU) return;
+      crossingLock=true; trace('crossed IN', 'board locked until the move lands');
+      busy=true; render();
+      setTimeout(function(){ if(crossingLock){ crossingLock=false; trace('crossed SAFETY', 'no landing mirror in 3s — unlocked'); if(state && !state.finished) render(); } }, 3000);
     }
     function applyMirror(st){
       if(iConceded) return;   // we forfeited — stay on our concede screen, ignore the ongoing game
-      if(crossHold){ crossHold.q.push({ st:st }); trace('mirror HELD', 'for the crossing beat'); return; }
       // During the round ceremony, hold the NEW-ROUND deal (the mirror the host's deal count names — see
       // `isRoundDeal`) so its card fly-in waits for the banner; every other mirror (shield drop, pile clear,
       // trims) still applies, so the shatter animates on the beat.
@@ -12193,6 +12220,7 @@ __QR__
          going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
       var waitingOnRound = !trimFirst && !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
       busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
+      if(crossingLock){ if(state.turn===YOU && state.subPhase==='play' && !state.finished) busy=true; else crossingLock=false; }   // the host is showing our crossing — see clientCrossed
       /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
          says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
          went live under its own Round banner and a quick player could play round N+1 before round N had finished
@@ -12899,7 +12927,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, sendCrossed:sendCrossed, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:!!(clientCer && clientCer.stage==='opening'), stage:(clientCer?clientCer.stage:null), roundCard:!!(clientCer && clientCer.stage==='card'), hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!(clientCer && clientCer.held), awaiting:!!(clientCer && clientCer.stage==='deal') }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostCrossThen:hostCrossThen, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:!!(clientCer && clientCer.stage==='opening'), stage:(clientCer?clientCer.stage:null), roundCard:!!(clientCer && clientCer.stage==='card'), hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!(clientCer && clientCer.held), awaiting:!!(clientCer && clientCer.stage==='deal') }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
