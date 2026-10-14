@@ -178,6 +178,11 @@
   /* equipment sits out of the way on the RIGHT edge (rival top-right, you bottom-right), stacking downward */
   .equipZone{position:absolute; right:8px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; z-index:3; pointer-events:none; max-width:min(48%,180px);}
   #rivalEquipZone{top:4px;} #youEquipZone{bottom:4px;}
+  /* …AND ON THE LEFT, BESIDE FORMS & RIDES, WHEREVER THE TABLE HAS THE ROOM (drag-and-stack ruling 15). Aj, seeing
+     Hero's Javelin under the cast column: *"the equips should not sit there. they look like they're still
+     resolving"*, then *"Left, beside Forms & Rides"*. `placeEquipZones` sets the class and the measured `left`; the
+     right-corner rules above are what remains wherever it does not (the landscape band). */
+  .equipZone.leftSide{right:auto; align-items:flex-start;}
   .equipZone .eq{pointer-events:auto; cursor:pointer; position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; gap:2px; min-width:104px; max-width:168px; padding:7px 12px; border-radius:11px; background-color:var(--panel); background-size:cover; background-position:center 30%; border:1px solid var(--line); box-shadow:0 2px 6px rgba(0,0,0,.3);}
   .equipZone .eq.buff:not(.hasArt){border-color:rgba(67,192,106,.7); background-image:linear-gradient(180deg,rgba(67,192,106,.16),rgba(20,18,32,.9));}
   .equipZone .eq.debuff:not(.hasArt){border-color:rgba(226,98,74,.7); background-image:linear-gradient(180deg,rgba(226,98,74,.16),rgba(20,18,32,.9));}
@@ -4771,6 +4776,7 @@ __QR__
     Array.prototype.forEach.call(pileEl.children, function(el){ if(!el.dataset || !el.dataset.id) return;
       el.classList.toggle('copyable', copying && targeting.chosen!==el.dataset.id); el.classList.toggle('copyAim', copying && targeting.chosen===el.dataset.id); });
     renderStack();
+    placeEquipZones();                    // Equipment beside Forms & Rides (ruling 15) — before the column measures the right edge
     renderCastZone();                     // after the stack: the column shows while either it or a staged card has something
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
@@ -5175,6 +5181,27 @@ __QR__
   function onStagedCastClick(e){
     var src=stagedCastSource(); if(!src) return;
     if(src.id==='ctxBtn') onCtxClick(e); else onActivateClick(e); }
+  /* EQUIPMENT SITS BESIDE ITS SEAT'S FORMS & RIDES, ON THE LEFT (drag-and-stack ruling 15). Measured, because the
+     Forms zone's width moves with what it holds (chips, the INCARNATION line, expanded cards): the Equipment starts
+     12px past its right edge, or at the corner when that seat has no Forms. The rival's sits at the Forms' own
+     height (below the round tag), yours at the bottom like its Forms. Only on the table — a portrait phone moves
+     both into the seat panels (`placeZones`) — and NOT in the landscape band, where the left column is already
+     full and the pile's channel is measured against it (see the band's CSS); that layout is step 5's. */
+  function placeEquipZones(){
+    var tb=$('table'); if(!tb) return;
+    var onLeft=!shortLandscape(), tr=null;
+    [['rivalFormZone','rivalEquipZone'],['youFormZone','youEquipZone']].forEach(function(pr){
+      var fz=$(pr[0]), ez=$(pr[1]); if(!ez) return;
+      if(!onLeft || ez.parentNode!==tb){
+        if(ez.classList.contains('leftSide')){ ez.classList.remove('leftSide'); ez.style.left=''; ez.style.top=''; }
+        return; }
+      tr=tr||tb.getBoundingClientRect();
+      var x=8;
+      if(fz && fz.parentNode===tb && fz.offsetParent!==null && fz.childElementCount){ var fr=fz.getBoundingClientRect(); if(fr.width) x=Math.round(fr.right-tr.left)+12; }
+      ez.classList.add('leftSide'); ez.style.left=x+'px';
+      if(pr[1]==='rivalEquipZone') ez.style.top='30px';
+    });
+  }
   /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
      shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
      is equipped — so a fixed CSS height either wasted the edge on a desktop or, on a 390px-tall landscape table,
@@ -5184,7 +5211,7 @@ __QR__
     var tb=$('table'); if(!tb) return;
     var tr=tb.getBoundingClientRect(); if(!tr.height) return;
     var top=6, bottom=6;
-    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null) return null; return z.getBoundingClientRect(); }
+    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null || z.classList.contains('leftSide')) return null; return z.getBoundingClientRect(); }
     var rz=edge('rivalEquipZone'), yz=edge('youEquipZone');
     if(rz) top=Math.max(top, Math.round(rz.bottom - tr.top) + 4);
     if(yz) bottom=Math.max(bottom, Math.round(tr.bottom - yz.top) + 4);

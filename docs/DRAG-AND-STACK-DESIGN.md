@@ -199,8 +199,11 @@ The three earlier asks this answers:
 15. **Equipment moves left, beside Forms & Rides; the right edge holds only the stack** (2026-10-14). Seeing
     Hero's Javelin sit under the cast column: *"the equips should not sit there. they look like they're still
     resolving"*. Asked where it should go, Aj chose *"Left, beside Forms & Rides"* over chips in the seat bars.
-    What is in play sits on the left and what is resolving on the right. Built as step 3's first piece, before the
-    column grows into card art; the landscape band's left column is tight and is measured there first.
+    What is in play sits on the left and what is resolving on the right. Built in step 2 (#422), on Aj's call to do
+    it then (*"nope, do it now please"*): `placeEquipZones` sets each seat's Equipment 12px past its own Forms zone,
+    on desktop and tablet. **The landscape band keeps the right corners for now**: its left column already holds
+    both Forms zones, and a five-card pile is about 203px wide and centred, so Equipment beside the Forms there would
+    run under the pile. That band, where the column also has only the gap between the two Equipment chips, is step 5.
 16. **A ⚡ tap on a card with a choice shows it in the column while you choose** (2026-10-14). Seeing the targeting
     screenshots, Aj noted *"your screenshots don't show the stack visualizer"*; asked whether a tapped card that
     needs a target should also sit in the column while its target is picked, Aj chose *"Yes, show it in the
@@ -355,7 +358,8 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    out; one distinct card on the pile is staged for you. It reuses the removal's `targeting` state, so every guard
    that holds the board for a removal holds it for this. A guest's Counterfeit now names the copied card in every
    log, which only the local path did before (`sayCounterfeit`). Ruling 16 rides with it: a tapped card that
-   opens a picker sits in the column while you choose, as a dropped one does. (Staging itself
+   opens a picker sits in the column while you choose, as a dropped one does. And ruling 15's Equipment move,
+   everywhere but the landscape band. (Staging itself
    moved into step 1 by ruling 9; the step keeps its number so references to later steps stay true.)
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
    presentation, which needs the host to announce answers to the other seats. Some stack rows have no card to

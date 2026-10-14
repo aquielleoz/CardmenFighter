@@ -67,7 +67,7 @@ node dragtest.js                                # WHERE YOU DROP DECIDES WHAT A 
                                                 # release will ask and writes the reason while the card is
                                                 # in the air. Asserting a post-release `#message` waits
                                                 # for something that by design never comes
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (245)
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (263)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (26)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
@@ -2545,7 +2545,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 24, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

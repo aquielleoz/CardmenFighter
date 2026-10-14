@@ -493,7 +493,7 @@ const CASES=[
                            [568,320,'SE-1st landscape'],[640,360,'budget Android landscape'],
                            [667,375,'iPhone SE landscape'],[800,360,'Android landscape'],
                            [844,390,'iPhone 13/14 landscape'],[932,430,'14 Pro Max landscape'],
-                           [1280,800,'desktop']]){
+                           [768,1024,'tablet portrait'],[1280,800,'desktop']]){
     const p=await open(w,h,2); const tag=`${what} ${w}x${h}`;
     await p.evaluate(()=>{
       const st=window.__solo.st();
@@ -570,6 +570,21 @@ const CASES=[
        **176% covered** at 800x360, in a band the suite named and never measured for this. */
     ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%${m.worst?' — '+m.who:''})`);
     ok(m.zz<5, `${tag}: no two zones overlap each other (worst ${m.zz}%${m.zzPair?' — '+m.zzPair:''})`);
+    /* EQUIPMENT SITS BESIDE ITS FORMS & RIDES, ON THE LEFT (drag-and-stack ruling 15), wherever the zones are on the
+       table outside the landscape band, which keeps the right corners until step 5. Read off the GEOMETRY, not the
+       class: each seat's Equipment starts at or past its own Forms zone's right edge, in the table's left half. In
+       the band the opposite must hold, so a build that moved it there too fails here rather than in the pile check. */
+    const band=(h<=520 && w>h);
+    const eqp=await p.evaluate(()=>{ const tb=document.getElementById('table'), tr=tb.getBoundingClientRect(), out=[];
+      [['rivalFormZone','rivalEquipZone'],['youFormZone','youEquipZone']].forEach(pr=>{ const f=document.getElementById(pr[0]), e=document.getElementById(pr[1]);
+        if(!e || e.parentNode!==tb || !e.offsetParent || !e.childElementCount) return;
+        const er=e.getBoundingClientRect(), fr=(f && f.parentNode===tb && f.offsetParent)?f.getBoundingClientRect():null;
+        out.push({ id:pr[1], left:Math.round(er.left-tr.left), right:Math.round(er.right-tr.left), formsRight:fr?Math.round(fr.right-tr.left):null, mid:Math.round(tr.width/2) }); });
+      return out; });
+    if(eqp.length){
+      if(band) ok(eqp.every(e=>e.left>e.mid), `${tag}: in the landscape band the Equipment keeps the right corners for now (step 5)  [${JSON.stringify(eqp)}]`);
+      else ok(eqp.every(e=>e.left<e.mid && (e.formsRight==null || e.left>=e.formsRight)), `${tag}: the Equipment sits on the LEFT, beside its Forms & Rides (ruling 15)  [${JSON.stringify(eqp)}]`);
+    }
     /* THE ROUND MESSAGE STAYS OUT OF YOUR PANEL (expanding-zone-pushes-board, 2026-10-05). The real collision
        on a portrait phone was never the expand: the three-line round-1 message ("You have the initiative — lead
        the fight. Only Jabs are allowed in Round 1.") drew ON TOP of your panel, because `#message`'s box is one
