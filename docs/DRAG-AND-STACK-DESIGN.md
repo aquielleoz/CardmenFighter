@@ -1,7 +1,7 @@
 # Drag and stack: playing from the board
 
 **Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Step 1 is BUILT and merged into
-the epic (PR #421, 2026-10-14, v1.33.16.1); step 2 is next.** The work lives on `epic/drag-and-stack`: every step
+the epic (PR #421, 2026-10-14, v1.33.16.1), and step 2 is built (v1.33.16.2); step 3 is next.** The work lives on `epic/drag-and-stack`: every step
 PRs into it, and `main` sees one merge at the end. The recheck corrected several counts in this doc and found traps
 it had missed; Aj ruled four more questions on the back of it (rulings 9 to 12; 9 and 10 make step 1 larger), and
 two more after playing step 1 (13 and 14). Two questions are still open: whether a cast
@@ -68,7 +68,8 @@ The three earlier asks this answers:
 - **Main's casting choices are already on the board, in three stagers.** `targetPick` stages a rival and
   `confirmTargetPick` spends; `targeting` stages an Equipment, Ride or Form for a `removeEquip` card
   (`stageRemove`, confirmed through `doRemove`, a third cast tail); `pick` modes cover the Broadway pitch, the
-  Phantasmal swap and discards. The one Main-side choice made in a dialog is Counterfeit's (`promptCounterfeit`).
+  Phantasmal swap and discards. The one Main-side choice made in a dialog was Counterfeit's (`promptCounterfeit`, deleted at step 2: the copy is
+  picked on the pile now).
   Phantasmal Illusion is the odd one out today: it has its own intent (`{op:'phantasm'}`), never goes on the
   stack and ends like a play. Ruling 12 puts it on the stack.
 - **One window builder for every seat.** `promptHumanResponse` renders the window for solo, the netplay host's
@@ -224,7 +225,6 @@ The three earlier asks this answers:
   **Recommendation: one design everywhere**, with the visualizer on the right where there is width and under the
   pile on a portrait phone. No layout keeps the old modal, because two answer screens drift apart. The
   Respond? box itself is a small modal on every layout.
-- **Counterfeit's picker.** Not ruled. Default: its choice moves onto the board like the other Main pickers.
 - **Glow in Main.** Aj's glow is for answering. In Main the board already greys the effects you cannot afford
   (`markAfford`). Default: glow only when answering, unless Aj wants it in Main too.
 
@@ -340,7 +340,11 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    by `phonetest` and `landscapetest` rather than merely not breaking them; step 5 refines it. Phantasmal
    Illusion takes the column (ruling 12); its engine change is filed on `main`, not built here. It plays on its
    own, so Aj can try it first.
-2. **Counterfeit's picker moves onto the board**, the last Main-side choice made in a dialog. (Staging itself
+2. **Counterfeit's picker moves onto the board**, the last Main-side choice made in a dialog. *Built (v1.33.16.2):*
+   the cards in the Rival's play pulse as targets, a tap stages one (gold), ⚡ Activate copies it and Clear backs
+   out; one distinct card on the pile is staged for you. It reuses the removal's `targeting` state, so every guard
+   that holds the board for a removal holds it for this. A guest's Counterfeit now names the copied card in every
+   log, which only the local path did before (`sayCounterfeit`). (Staging itself
    moved into step 1 by ruling 9; the step keeps its number so references to later steps stay true.)
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
    presentation, which needs the host to announce answers to the other seats. Some stack rows have no card to
