@@ -235,6 +235,49 @@
   @media (min-width:1200px){ #pile{ width:100%; box-sizing:border-box; max-width:calc(100% - 260px); margin-inline:auto; } }
   #pile .empty{opacity:.4; font-style:italic; font-size:13px;}
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
+  /* THE CAST COLUMN (drag-and-stack step 1, ruling 1: *"drag cards to the right side of the play area to activate
+     and drag to the middle of the play area to fight"*). The right edge of the play area, between the two corner
+     Equipment zones: it holds a card you have dropped there but not yet cast (`#stagedSlot`, ruling 2/9) and the
+     stack rows that used to sit above the pile (`#stackView`, same id, same display toggle, so every reader of it
+     is unchanged). ABSOLUTE, so it takes no room from the flow: the pile, the hand and the card-reader pane keep
+     theirs, and a board with nothing to show looks exactly as it did. It is drawn only while you drag (as the
+     drop target), while a card is staged, or while the stack has something on it — `.show`.
+     A BASIC PLACE IN EVERY LAYOUT, refined in step 5: narrower below 1200px and narrower again on a phone, where
+     the zones live in the seat panels and the right edge is free. */
+  #castZone{position:absolute; right:8px; top:50%; transform:translateY(-50%); width:118px; max-height:calc(100% - 132px);
+            box-sizing:border-box; display:flex; flex-direction:column; align-items:stretch; padding:6px 4px;
+            border-radius:12px; border:1.5px dashed transparent; z-index:4; pointer-events:none; opacity:0;
+            overflow-y:auto; overflow-x:hidden; transition:opacity .15s ease, border-color .15s ease, background-color .15s ease;}
+  /* ONE INNER BOX WITH AUTO MARGINS, NOT `justify-content:center`: centred overflow spills ABOVE the box where no
+     scroll can reach it, which clipped the top stack row on a short landscape table. Auto margins centre while
+     there is room and fall back to the top, scrollable, when there is not. */
+  #castZone .czIn{margin:auto 0; display:flex; flex-direction:column; align-items:center; gap:4px; width:100%;}
+  #castZone.show, #table.dragging #castZone{opacity:1;}
+  #table.dragging #castZone{border-color:rgba(232,195,122,.5); background-color:rgba(232,195,122,.07);}
+  #table.dragging #castZone.cz-ok{border-color:var(--good); background-color:rgba(67,192,106,.12);}
+  #table.dragging #castZone.cz-no{border-color:var(--bad); background-color:rgba(226,98,74,.10);}
+  #castZone .czLbl{display:none; font-size:.62rem; letter-spacing:.09em; text-transform:uppercase; opacity:.65; font-weight:700;}
+  #table.dragging #castZone .czLbl, #castZone.staging .czLbl{display:block;}
+  #stagedSlot{display:none; flex-direction:column; align-items:center; gap:4px; pointer-events:auto;}
+  #stagedSlot.on{display:flex;}
+  #stagedSlot .card{cursor:grab; touch-action:none; box-shadow:0 0 0 2px var(--gold), 0 0 14px rgba(232,195,122,.45);}
+  #stagedSlot .stgNote{font-size:10px; line-height:1.25; text-align:center; opacity:.8; max-width:104px;}
+  #unstageBtn{font-size:11px; line-height:1; padding:4px 9px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.07); color:inherit; cursor:pointer;}
+  #castZone #stackView{margin:0; width:100%; align-items:stretch; pointer-events:auto;}
+  #castZone .stk{white-space:normal; text-align:center; font-size:10.5px; padding:2px 5px;}
+  @media (max-width:1199px){ #castZone{width:104px;} }
+  /* WHILE THE COLUMN IS UP THE CENTRED MESSAGE MAKES ROOM FOR IT, or the two print over each other on a narrow table
+     (measured in the first screenshots: a phone's staged-card message ran under the column). Only while it shows,
+     so a board with nothing staged lays out exactly as before. */
+  #table.colShown #message{padding-right:126px; box-sizing:border-box;}
+  @media (max-width:1199px){ #table.colShown #message{padding-right:112px;} }
+  @media (max-width:720px){ #castZone{width:76px; right:4px; padding:4px 2px;} #castZone .stk{font-size:9.5px;}
+    #stagedSlot .stgNote, #unstageBtn .tb{display:none;} #table.colShown #message{padding-right:82px;} }
+  /* A SHORT TABLE (the landscape bands) has the width and not the height: the column takes nearly the full height
+     instead of the desktop's margin for the corner zones, and drops the words, keeping the card and its ✕. */
+  @media (orientation:landscape) and (max-height:520px){ #castZone{max-height:calc(100% - 8px); width:88px; padding:3px 2px;} #castZone .czIn{gap:2px;}
+    #stagedSlot .stgNote, #unstageBtn .tb{display:none;}
+    #table.colShown #message{padding-right:96px;} }
   .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
@@ -1913,7 +1956,7 @@
       <div id="roundTag"></div>
       <div id="beaten"></div>
       <div id="pileLabel"></div>
-      <div id="stackView"></div>
+      <div id="castZone"><div class="czIn"><div class="czLbl">⚡ Cast</div><div id="stagedSlot"></div><div id="stackView"></div></div></div>
       <div id="pile"><span class="empty">Fight is open</span></div>
       <div id="message"></div>
       <div id="stagefx"></div>
@@ -4402,6 +4445,7 @@ __QR__
      at the deal (`engine.js` ~597) and again at every draw — so an unscrambled hand reaches the screen in
      ascending order, and only the host's `syncOrder(true)` ever made a dealt hand look dealt. */
   function resetHandPresentation(){
+    staged=null;                          // a card staged in the last game's cast column is not this game's
     handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++; uiPhase=null; dealHoldUntil=0;
     sortState='unsorted'; updateSortLabel();
   }
@@ -4694,6 +4738,7 @@ __QR__
     } else { $('pileLabel').textContent=state.finished?'':'New fight'; pileEl.classList.remove('boosted','reduced'); }
     pileEl.classList.toggle('noCards', !state.pile);   // drives the rail reserve off when there is nothing to collide with
     renderStack();
+    renderCastZone();                     // after the stack: the column shows while either it or a staged card has something
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
     document.body.classList.toggle('spectating', spectating);
@@ -4991,12 +5036,135 @@ __QR__
     if(peeking) return;                                     // while peeking: inspect only (show the card) — never select/play
     onTap(gid);
   }
+  /* ---- STAGING A CAST (drag-and-stack step 1, rulings 2, 9 and 11) ----
+     Aj, ruling 2: *"drop to the stack vis and then activate. or you can drag it out to clear, or there will be an x
+     button to cancel your attempt. once you activate, that x button disappears."* A card DROPPED on the cast column
+     waits there, staged, with nothing spent; ⚡ Activate casts it. A ⚡ TAP is unchanged (ruling 11) — selecting the
+     card was already the moment to change your mind — so staging is the drop's alone.
+     IT IS UI STATE AND NEVER TOUCHES `st`: everything on state travels in netplay snapshots, and a staged card is
+     yours alone. ⚡ Activate sends today's intent with today's choices, so nothing new goes on the wire.
+     ONE FUNNEL, NOT A FOURTH CAST TAIL. A staged card is just the selection plus a flag: a card with a choice goes
+     straight into the stager it already had (`targeting`, `targetPick`, a `pick`, Counterfeit's dialog), and a card
+     with none waits for the ⚡ that already casts a selected card. So `staged` only has to know whether something
+     still holds its card, and it rebuilds that answer on every render instead of keeping a second copy. */
+  var staged=null;   // {cardId} — a card dropped on the cast column, waiting for ⚡ Activate
+  function stagedHeld(){
+    if(!staged || !state || !state.players || !state.players[YOU]) return false;
+    var id=staged.cardId;
+    if(!state.players[YOU].hand.some(function(c){ return c.id===id; })) return false;
+    return !!(selected[id] || (targeting && targeting.cardId===id) || (targetPick && targetPick.cardId===id) || (pick && pick.cardId===id));
+  }
+  // does casting this card open a choice first? Mirrors `activate`'s own routing, which decides it there
+  function castNeedsChoice(card){
+    var eff=card?E.effectOf(card):null; if(!eff) return false;
+    if(eff.kind==='removeEquip' || eff.kind==='counterfeit' || eff.kind==='phantasm') return true;
+    if(isHostileSingular(eff)) return true;
+    return !!(eff.pitchHigh && E.pitchCands(state.players[YOU], card.id).length>1);
+  }
+  function stageCard(card){
+    staged={ cardId:card.id };
+    selected={}; selected[card.id]=true; showCard(card);
+    if(castNeedsChoice(card)){ var a=ctxAction(); render(); if(a && a.ok && a.run) a.run(); return; }
+    setMessage('<b>'+esc(E.cardName(card))+'</b> is staged — ⚡ <b>Activate</b> casts it, ✕ takes it back. Nothing is spent yet.');
+    render();
+  }
+  function unstage(){
+    if(!staged) return;
+    var id=staged.cardId; staged=null;
+    if(targeting && targeting.cardId===id) targeting=null;
+    if(targetPick && targetPick.cardId===id) targetPick=null;
+    if(pick && pick.cardId===id && (pick.kind==='pitch' || pick.kind==='phantasm')) pick=null;
+    if(selected[id]) selected={};
+    setMessage('Taken back — nothing was spent.');
+    render();
+  }
+  function renderCastZone(){
+    var cz=$('castZone'), slot=$('stagedSlot'); if(!cz || !slot) return;
+    if(staged && !stagedHeld()) staged=null;
+    var card=staged ? cardById(staged.cardId) : null;
+    if(card){
+      var key=card.id+'|'+(targeting?'t':'')+(targetPick?'p':'')+(pick?pick.kind:'');
+      if(slot.getAttribute('data-key')!==key){
+        slot.setAttribute('data-key', key); slot.innerHTML='';
+        var el=cardEl(card, 'mini', YOU); el.addEventListener('pointerdown', onStagedDown); slot.appendChild(el);
+        var note=document.createElement('div'); note.className='stgNote';
+        note.textContent = (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
+                         : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '⚡ Activate casts it';
+        slot.appendChild(note);
+        var x=document.createElement('button'); x.id='unstageBtn'; x.type='button'; x.innerHTML='✕<span class="tb"> Take back</span>'; x.title='Take the card back — nothing is spent';
+        x.addEventListener('click', function(){ unstage(); }); slot.appendChild(x);
+      }
+      slot.className='on';
+    } else { slot.className=''; slot.innerHTML=''; slot.removeAttribute('data-key'); }
+    var sv=$('stackView'), stackUp=!!(sv && sv.style.display && sv.style.display!=='none');
+    placeCastZone(cz);
+    cz.classList.toggle('show', !!card || stackUp);
+    cz.classList.toggle('staging', !!card);
+    $('table').classList.toggle('colShown', !!card || stackUp);
+  }
+  /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
+     shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
+     is equipped — so a fixed CSS height either wasted the edge on a desktop or, on a 390px-tall landscape table,
+     ran straight over an equipped Holy Bow (measured in the first screenshots). A zone that is empty, hidden, or
+     moved out of the table (a portrait phone puts them in the seat panels) does not count. Step 5 refines this. */
+  function placeCastZone(cz){
+    var tb=$('table'); if(!tb) return;
+    var tr=tb.getBoundingClientRect(); if(!tr.height) return;
+    var top=6, bottom=6;
+    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null) return null; return z.getBoundingClientRect(); }
+    var rz=edge('rivalEquipZone'), yz=edge('youEquipZone');
+    if(rz) top=Math.max(top, Math.round(rz.bottom - tr.top) + 4);
+    if(yz) bottom=Math.max(bottom, Math.round(tr.bottom - yz.top) + 4);
+    cz.style.top=top+'px'; cz.style.bottom=bottom+'px'; cz.style.transform='none'; cz.style.maxHeight='none';
+  }
+  /* DRAGGING A STAGED CARD OUT OF THE COLUMN TAKES IT BACK (ruling 2). Its own small gesture rather than the hand's,
+     because the hand's refuses to start while a stager is open — and a staged card with a choice IS one. A release
+     inside the column keeps it; anywhere else unstages it. */
+  var stagedDrag=null;
+  function onStagedDown(e){
+    if(!staged || peeking || busy) return;
+    if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
+    var el=e.currentTarget; stagedDrag={ el:el, x:e.clientX, y:e.clientY, ghost:null };
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    el.addEventListener('pointermove', onStagedMove); el.addEventListener('pointerup', onStagedUp); el.addEventListener('pointercancel', onStagedUp);
+    e.preventDefault();
+  }
+  function onStagedMove(e){
+    var d=stagedDrag; if(!d) return;
+    if(!d.ghost && Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y)>8){
+      var r=d.el.getBoundingClientRect(); d.ghost=d.el.cloneNode(true); d.ghost.classList.add('ghost'); d.ghost.style.position='fixed';
+      d.ghost.style.left=r.left+'px'; d.ghost.style.top=r.top+'px'; d.ghost.style.pointerEvents='none'; d.ghost.style.zIndex='9000';
+      d.offX=d.x-r.left; d.offY=d.y-r.top; document.body.appendChild(d.ghost); }
+    if(d.ghost){ d.ghost.style.left=(e.clientX-d.offX)+'px'; d.ghost.style.top=(e.clientY-d.offY)+'px'; }
+  }
+  function onStagedUp(e){
+    var d=stagedDrag; stagedDrag=null; if(!d) return;
+    d.el.removeEventListener('pointermove', onStagedMove); d.el.removeEventListener('pointerup', onStagedUp); d.el.removeEventListener('pointercancel', onStagedUp);
+    if(!d.ghost) return;                                        // a tap, not a drag
+    if(d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
+    var cr=$('castZone').getBoundingClientRect();
+    var inside = e.clientX>=cr.left && e.clientX<=cr.right && e.clientY>=cr.top && e.clientY<=cr.bottom;
+    if(!inside) unstage();
+  }
+  /* WHAT A DROP IN THE MIDDLE WOULD SAY. `canHumanPlay` is the whole question (turn, busy, stagers, lock, the
+     lesson's card list, legality) — this only names the refusal, in the same words the Fight hint uses. */
+  function fightDropVerdict(cards){
+    var tutSpecial=(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && cards.length<2);
+    if(canHumanPlay(cards) && !tutSpecial) return { ok:true, txt:'▲ release to fight' };
+    if(tutSpecial) return { ok:false, txt:'this step wants a Special' };
+    if(E.isLocked(state, YOU)) return { ok:false, txt:'locked out this round' };
+    var combo=E.detectCombo(cards);
+    if(!combo) return { ok:false, txt:'not a legal combination' };
+    if(state.round<2 && combo.size>1) return { ok:false, txt:'round 1 is jabs only' };
+    if(state.pile && !fightLegal(cards)) return { ok:false, txt:'doesn’t beat the '+kindLabel(state.pile.combo.type) };
+    return { ok:false, txt:'can’t fight with that here' };
+  }
   function onPointerDown(e, gid, el){
     if(peeking) return;                                     // no drag-to-play while reviewing
     if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var g=groupById(gid); if(g && g.cards[0]) showCard(g.cards[0]);
-    drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, hl:null };
+    drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, zone:null, hl:null };
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
     el.addEventListener('pointermove', onPointerMove);
     el.addEventListener('pointerup', onPointerUp);
@@ -5017,22 +5185,22 @@ __QR__
     if(d.moved){                                       // a real drag → play or merge (the follow-up click is suppressed)
       justDragged=true; setTimeout(function(){ justDragged=false; }, 0);
       endGhost(d);
-      /* THE SUB-PHASE DECIDES WHAT A DRAG MEANS (epic step 20, Aj: *"dragging to play activates card
-         effects now, except when in the fight sub-phase"*). In Main it is how you USE a card — including
-         the ones that need choices, so it is also the way into targeting and the Phantasmal picker.
-         IT RUNS `ctxAction()`'s OWN `run`, IT DOES NOT REIMPLEMENT ACTIVATION. That is the v1.31.56 rule
-         and Aj named the drag path explicitly for exactly this reason: the last time these two diverged,
-         the drag called `playCards` directly, skipped the netplay client guard, and produced phantom
-         rounds on the client. Two gestures, one funnel. */
+      /* WHERE YOU DROP DECIDES WHAT A DRAG MEANS (drag-and-stack step 1, replacing epic step 20's "the sub-phase
+         decides"): the MIDDLE fights, the CAST COLUMN on the right takes casts. Aj: *"drag cards to the right side
+         of the play area to activate and drag to the middle of the play area to fight"*. The sub-phase still
+         decides what is LEGAL — the column refuses in the Fight Sub-Phase, where effects are over — and
+         `highlightTarget` asked that question while the card was in the air, so `playZone` already says yes or no.
+         EACH ZONE GOES THROUGH THE FUNNEL ITS BUTTON USES, never a copy of it (the v1.31.56 rule; the last time a
+         drag reimplemented an action it skipped the netplay client guard and produced phantom rounds):
+           - the middle selects the group and calls `doFight` — the crossing, the held-fight rule, the client's
+             intent and the Fight beat all come with it;
+           - the column STAGES the card (`stageCard`): a card with a choice enters the stager it already had, one
+             without waits for the ⚡ that already casts a selected card. */
       if(d.playZone==='ok' && groupById(d.gid)){
         var dg=groupById(d.gid);
-        if(state.subPhase==='play'){ playCards(dg.cards.slice()); return; }
-        if(dg.cards.length>1){ setMessage('One card at a time in the Main sub-phase — press <b>Next</b> to move to the Fight sub-phase.'); render(); return; }
-        selected={}; selected[dg.cards[0].id]=true; showCard(dg.cards[0]);
-        var da=ctxAction();
-        if(da && da.ok && da.run){ render(); da.run(); }
-        else { setMessage(da && da.reason ? da.reason : 'That card has nothing to activate — press <b>Next</b> to move to the Fight sub-phase.'); render(); }
-        return;
+        if(d.zone==='column'){ stageCard(dg.cards[0]); return; }
+        selected={}; dg.cards.forEach(function(c){ selected[c.id]=true; }); render();
+        doFight(); return;
       }
       if(d.targetGid!=null && groupById(d.gid) && groupById(d.targetGid) && canMergeKF(groupById(d.gid).cards, groupById(d.targetGid).cards)){
         withFlip(function(){ mergeGroups(d.gid, d.targetGid); });
@@ -5048,6 +5216,7 @@ __QR__
     document.body.appendChild(ghost);
     drag.ghost=ghost; drag.offX=drag.startX-rect.left; drag.offY=drag.startY-rect.top;
     drag.el.classList.add('dragging');
+    $('table').classList.add('dragging');                // shows the cast column as a drop target while a card is in the air
   }
   function moveGhost(e){ if(!drag.ghost) return; drag.ghost.style.left=(e.clientX-drag.offX)+'px'; drag.ghost.style.top=(e.clientY-drag.offY)+'px'; }
   function highlightTarget(e){
@@ -5064,24 +5233,31 @@ __QR__
       tgt.classList.add(ok?'drop-ok':'drop-no'); drag.hl=tgt; if(ok) drag.targetGid=tgid;
       return;
     }
-    var tr=$('table').getBoundingClientRect();
-    if(e.clientY>=tr.top && e.clientY<=tr.bottom && e.clientX>=tr.left && e.clientX<=tr.right){
-      /* THE ZONE MUST ASK WHAT THE RELEASE WILL ASK, and since step 20 that is two different questions:
-         in the Fight Sub-Phase a release PLAYS, in the Main Sub-Phase it ACTIVATES. Asking `canHumanPlay`
-         in both is what made the zone glow for an unaffordable Quick. */
+    var tr=$('table').getBoundingClientRect(), cz=$('castZone'), cr=cz ? cz.getBoundingClientRect() : null;
+    var inTable = e.clientY>=tr.top && e.clientY<=tr.bottom && e.clientX>=tr.left && e.clientX<=tr.right;
+    var inCol = !!(cr && cr.width>0 && e.clientX>=cr.left && e.clientX<=cr.right && e.clientY>=cr.top && e.clientY<=cr.bottom);
+    if(inTable || inCol){
+      /* THE ZONE MUST ASK WHAT THE RELEASE WILL ASK, and there are two zones with two questions (drag-and-stack
+         step 1). Over the COLUMN: may this ONE card be cast now (`ctxActionFor`, the ⚡ button's own funnel, so the
+         sub-phase, energy, the lesson and every other gate are already in it). Over the MIDDLE: would this be a
+         legal fight (`fightDropVerdict`). The answer goes into `#dropHint` while the card is still in the air,
+         because a refused release does nothing — there is no tooltip on a phone. */
       var g=groupById(drag.gid), canPlay, dropTxt;
-      if(state.subPhase==='play'){
-        canPlay = !!(g && canHumanPlay(g.cards));
-        dropTxt = canPlay ? '▲ release to fight' : 'can’t fight with that here';
-      } else if(g && g.cards.length>1){
-        canPlay = false; dropTxt = 'one card at a time in the Main sub-phase';
+      if(inCol){
+        if(g && g.cards.length>1){ canPlay=false; dropTxt='one card at a time on the cast column'; }
+        else {
+          var ca = g ? ctxActionFor(g.cards) : null;
+          canPlay = !!(ca && ca.ok && ca.run);
+          dropTxt = canPlay ? '⚡ release to stage it' : ((ca && ca.reason) || 'nothing to activate on that card');
+        }
+        drag.zone='column';
       } else {
-        var ca = g ? ctxActionFor(g.cards) : null;
-        canPlay = !!(ca && ca.ok && ca.run);
-        dropTxt = canPlay ? '▲ release to use' : ((ca && ca.reason) || 'nothing to activate on that card');
+        var fv = g ? fightDropVerdict(g.cards) : { ok:false, txt:'can’t fight with that here' };
+        canPlay = fv.ok; dropTxt = fv.txt; drag.zone='middle';
       }
       drag.playZone=canPlay?'ok':'no';
-      $('table').classList.toggle('pz-ok', canPlay); $('table').classList.toggle('pz-no', !canPlay);
+      $('table').classList.toggle('pz-ok', !inCol && canPlay); $('table').classList.toggle('pz-no', !inCol && !canPlay);
+      if(cz){ cz.classList.toggle('cz-ok', inCol && canPlay); cz.classList.toggle('cz-no', inCol && !canPlay); }
       var dh=$('dropHint'); dh.className='show '+(canPlay?'ok':'no'); dh.textContent=dropTxt;
       return;
     }
@@ -5093,8 +5269,8 @@ __QR__
      in progress and nothing on screen to explain it. The cap above makes a long reason readable; this line
      is what stops an invisible one costing you the board. Verify by MEASURING `scrollWidth` against
      `clientWidth` after the drag ends — the element is invisible by then, so looking proves nothing. */
-  function clearZone(){ $('table').classList.remove('pz-ok','pz-no'); var dh=$('dropHint'); dh.className=''; dh.textContent=''; }
-  function endGhost(d){ d=d||drag; if(!d) return; if(d.ghost&&d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost); if(d.hl) d.hl.classList.remove('drop-ok','drop-no'); if(d.el) d.el.classList.remove('dragging'); clearZone(); }
+  function clearZone(){ $('table').classList.remove('pz-ok','pz-no'); var cz=$('castZone'); if(cz) cz.classList.remove('cz-ok','cz-no'); var dh=$('dropHint'); dh.className=''; dh.textContent=''; if(drag) drag.zone=null; }
+  function endGhost(d){ d=d||drag; if(!d) return; if(d.ghost&&d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost); if(d.hl) d.hl.classList.remove('drop-ok','drop-no'); if(d.el) d.el.classList.remove('dragging'); $('table').classList.remove('dragging'); clearZone(); }
   function onTap(gid){
     var g=groupById(gid); if(!g) return;
     if(g.cards.length>1){
@@ -5432,7 +5608,11 @@ __QR__
          under you, because then the decision you made was about a different board. MTG Arena's model.
          THE STOP IS IN `doPass`, NOT HERE, and it keys on `stackMark` — see that function for why a
          go-round where everyone merely declined must NOT interrupt you. */
-      pass.disabled=!state.pile; setActionLabel(pass, state.pile?'Pass':'Skip');
+      pass.disabled=!state.pile || !!targeting || !!targetPick; setActionLabel(pass, state.pile?'Pass':'Skip');   // a target being chosen owns the board: `doPass` refuses then, so an enabled Pass would be inert
+      /* A STAGED CARD IS NOT A PLAY (drag-and-stack step 1). Fight stays off while a card sits in the cast column, so it
+         cannot be thrown down by accident, and the hint says the two ways out. */
+      if(staged && selected[staged.cardId] && !targeting && !targetPick && !pick){
+        hint.textContent='Staged — ⚡ Activate casts it, ✕ takes it back.'; hint.className='pick'; return; }
       /* SHORT, BECAUSE THIS LINE IS PINNED TO ONE ROW IN THE LANDSCAPE BANDS and the vertical budget there
          has no slack — the first draft spelled out all three controls and five `landscapetest` assertions
          went red at 800x360 and 932x430, including the 327x660 ratchet (63px -> 78px). The controls are on
@@ -5465,7 +5645,7 @@ __QR__
         var tutGated = (typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate());
         var canUseAny = tutGated || (state.players[YOU].hand||[]).some(function(c){
           var a=ctxActionFor([c]); return !!(a && a.ok && a.run); });
-        hint.textContent=(canUseAny ? 'Main sub-phase — drag a card to use it, or pick a play.'
+        hint.textContent=(canUseAny ? 'Main sub-phase — drag right to use a card, or pick a play.'
                                     : 'Main sub-phase — nothing to use yet; pick a play.')+
                          ((state.players[YOU].nextPlayBoost||0)?(' ⚡+'+state.players[YOU].nextPlayBoost+' charged'):'');
         hint.className='';
@@ -5909,7 +6089,10 @@ __QR__
          chosen, `{op:'play', ids}` is a complete statement of intent: `hostApplyMove`'s transition branch
          re-applies the very intent object the client sent (`E.play` → `ok:false, transition:'play'` →
          `hostSettle` → `hostApplyMove(it)`), and holds it (`t:'held'`) if someone else cast into the window. */
-      sendClientPlay(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
+      /* THROUGH `playCards`, NOT STRAIGHT TO `sendClientPlay`, so the FLIP capture comes with it: a client's own
+         Fight-button play used to skip it and slide in like a rival's, which only surfaced once the drag (whose
+         path `nettest_drag` films) started going through this function too (drag-and-stack step 1). */
+      playCards(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
     }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;

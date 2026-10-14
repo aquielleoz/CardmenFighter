@@ -228,17 +228,21 @@ async function dragOnto(page, idA, idB){
   const b9=await snap();
   const z9=await dragTo(p,'ult','column');
   await wait(300);
+  /* ITS FIRST CHOICE IS THE TARGET, then the pitch — `activate`'s own order (a hostile single-target card picks the
+     rival before anything else). So the leg asserts "a picker opened", read off the staged card's note, rather than
+     naming one: the column's job is to hand the card to whichever stager it already had. */
   const a9=await p.evaluate(()=>({ staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
-    fight:(document.getElementById('fightBtn').textContent||'').trim(), pass:(document.getElementById('passBtn').textContent||'').trim(),
+    note:((document.querySelector('#stagedSlot .stgNote')||{}).textContent||'').trim(),
+    ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(),
     energy:window.__solo.st().players[0].energy.length }));
   ok(z9 && z9.colOk, 'Ultima Attack is offered to the column  ['+(z9?z9.hint:'no drag')+']');
-  ok(a9.staged.indexOf('ult')>=0 && a9.fight==='Confirm' && a9.pass==='Cancel', 'A CARD WITH A CHOICE STAGES INTO ITS PICKER — in the column, with the pitch pick open  [fight '+a9.fight+', pass '+a9.pass+']');
+  ok(a9.staged.indexOf('ult')>=0 && /^Choose/.test(a9.note), 'A CARD WITH A CHOICE STAGES INTO ITS PICKER — in the column, its first choice open  [note "'+a9.note+'", ⚡ "'+a9.ctx+'"]');
   ok(a9.energy===b9.energy, '  …and nothing is spent while the choice is open');
   await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(x) x.click(); });
   await wait(250);
   const c9=await p.evaluate(()=>({ staged:document.querySelectorAll('#stagedSlot .card').length,
-    fight:(document.getElementById('fightBtn').textContent||'').trim(), energy:window.__solo.st().players[0].energy.length }));
-  ok(c9.staged===0 && c9.fight!=='Confirm' && c9.energy===b9.energy, '  …and ✕ backs out of the picker AND the column, nothing spent  [fight '+c9.fight+']');
+    ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(), energy:window.__solo.st().players[0].energy.length }));
+  ok(c9.staged===0 && !/Pick a target|Choose target/.test(c9.ctx) && c9.energy===b9.energy, '  …and ✕ backs out of the picker AND the column, nothing spent  [⚡ "'+c9.ctx+'"]');
 
   /* ---------- LEG 10: A LONG REFUSAL MUST NOT COST YOU THE BOARD (2026-09-30).
      The live refusal feeds `ctxActionFor(...).reason` into the pill, and the pill was built for short strings:
