@@ -50,9 +50,17 @@ async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
      with nothing on the stack — and then one round window opened on top, owed to the HOST (seat 1). */
   const rows = await join.evaluate(()=>{
     const base=JSON.parse(JSON.stringify(window.__cmfNetState));
+    /* LIVENESS IS "SELECT A CARD, DOES FIGHT LIGHT UP" (CLAUDE.md), AND SINCE drag-and-stack step 1 THAT IS THE
+       ONLY READING. This used to count the board live when Fight was enabled with nothing selected — which was
+       `Next`, the empty crossing. With Next gone a leader on an empty pile has BOTH buttons disabled at rest
+       (Skip, and a Fight waiting for a selection), so the CONTROL and STALLED rows would read dead on a live
+       board. Probe with one card, and click it back: a probe that clicks must leave no selection behind. */
     const board=()=>{ const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
-      return { fight: fb ? fb.textContent.trim()+(fb.disabled?' (off)':' (on)') : null, pass: pb ? (pb.disabled?'off':'on') : null,
-               live: !!((fb && !fb.disabled && fb.offsetParent) || (pb && !pb.disabled && pb.offsetParent)) }; };
+      const g=document.querySelector('#hand .group'); if(g) g.click();
+      const res={ fight: fb ? fb.textContent.trim()+(fb.disabled?' (off)':' (on)') : null, pass: pb ? (pb.disabled?'off':'on') : null,
+               live: !!((fb && !fb.disabled && fb.offsetParent) || (pb && !pb.disabled && pb.offsetParent)) };
+      [].slice.call(document.querySelectorAll('#hand .group.gsel')).forEach(x=>x.click());
+      return res; };
     const row=(name, set, want)=>{
       const s=JSON.parse(JSON.stringify(base));
       Object.assign(s, { round:2, turn:0, initiative:0, pile:null, passes:0, lastPlayer:null, subPhase:'main', finished:false,

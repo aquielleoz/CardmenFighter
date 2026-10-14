@@ -9,7 +9,7 @@
  * never written down. Exactly the pre-v1.31.5 mistake.
  * Run: node rulestest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
-const { clickFight, enterFight } = require('./fightclick');
+const { clickFight } = require('./fightclick');
 const HTML='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* PAINTED, NOT SLEPT. Fifty sites sat on a fixed 120-300ms after a click — 15.1s of this suite's 25s. The
@@ -529,11 +529,8 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
     st.round=3; st.pile=null; st.turn=0; window.__solo.render();
   });
   await wait(350);
-  /* THE HINT NAMES THE SHAPE ONLY IN THE FIGHT SUB-PHASE (epic step 20). In Main the same line explains the
-     phase move instead ("Main sub-phase — drag a card to activate it…"), because that is what the controls
-     do there — so reading it for "Consecutive Trios" was asserting against the wrong sub-phase's copy, not
-     against a lost rename. Enter first, then select; the selection survives the transition either way. */
-  await enterFight(p5);
+  /* THE HINT NAMES THE SHAPE FROM MAIN TOO. With cards selected the Main branch falls through to the shared
+     verdict (2026-09-16), and since drag-and-stack step 1 there is no `Next` to step through first. */
   const picked = await p5.evaluate(()=>{
     [].forEach.call(document.querySelectorAll('#hand .group'), g=>g.click());
     return document.querySelectorAll('#hand .group.gsel').length;

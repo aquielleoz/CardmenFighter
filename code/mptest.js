@@ -608,7 +608,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(/nothing to use yet/i.test(mainHint.dead),
      `a dead Main sub-phase says so  ["${mainHint.dead.slice(0,64)}"]` +
      (/nothing to use yet/i.test(mainHint.dead) ? '' : '  ← REPRODUCED: offers a sub-phase in which nothing can be used'));
-  ok(/drag a card to use it/i.test(mainHint.live),
+  ok(/drag right to use a card/i.test(mainHint.live),   // the cast column's wording since drag-and-stack step 1
      `  …and a LIVE one still invites you in — the control  ["${mainHint.live.slice(0,64)}"]`);
 
   /* ============ EVERY WINDOW NAMES ITSELF — THE STRIP AND THE PASS BUTTON (2026-10-07) ============
@@ -841,13 +841,22 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     /* PLAY THE MOMENT A CARD IS CLICKABLE — no settle wait, because the wait IS the fix's absence of a
        trigger. One press of Fight with a card selected plays from the Main Sub-Phase when the transition
        auto-advances, so a single evaluate both plays and reads whether the opening card was still up. */
+    /* ⚠ THE PLAY LANDS AFTER THE CROSSING BEAT, NOT ON THE PRESS (drag-and-stack ruling 10). Your crossing now
+       shows the Fight Sub-Phase for ~700ms before the card goes down, so "played" is read by polling after the
+       press — and "the card was still up" is read at the LANDING, because the hazard is a play that lands while
+       the opening card is on screen; a press under the card whose play lands after it would stage nothing. */
     let early=null;
     for(let i=0;i<80 && !early;i++){
-      early = await p.evaluate(()=>{ const st=window.__solo && window.__solo.st(); if(!st || st.numPlayers!==3 || st.turn!==0) return null;
+      early = await p.evaluate(async ()=>{ const st=window.__solo && window.__solo.st(); if(!st || st.numPlayers!==3 || st.turn!==0) return null;
         const f=document.getElementById('fightBtn'), rf=document.getElementById('roundfx'), clr=document.getElementById('clearBtn');
         for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){   // round 1 is jabs only: a pair's group leaves Fight dark
           g.click();
-          if(f && !f.disabled){ const cardUp=!!(rf && rf.className); f.click(); return { cardUp:cardUp, played:!!(st.pile && st.pile.byPlayer===0) }; }
+          if(f && !f.disabled){
+            f.click();
+            for(let k=0;k<100;k++){ const s=window.__solo.st();
+              if(s.pile && s.pile.byPlayer===0) return { cardUp:!!(rf && rf.className), played:true };
+              await new Promise(r=>setTimeout(r,30)); }
+            return { cardUp:!!(rf && rf.className), played:false }; }
           if(clr) clr.click();
         }
         return null; });

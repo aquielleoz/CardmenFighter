@@ -62,7 +62,12 @@ function installFilm(me, them){
   /* THE CONTROLS, filmed as LIVE/DEAD edges: "can this seat act right now". A board that goes live under its
      own ceremony is the bug this suite found first; the timestamps are checked against the ceremony windows. */
   const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn'); let ctl=null;
-  const live=()=>!!((fb && !fb.disabled && fb.offsetParent) || (pb && !pb.disabled && pb.offsetParent));
+  /* `#actions[data-live]` IS THE GAME'S OWN ANSWER, read beside the buttons. Since drag-and-stack step 1 a
+     leading seat's Fight waits for a selection, so "an enabled button" alone would film a live leader as
+     DEAD, and the check below would stop seeing the very seat that leads the next round. */
+  const acts=document.getElementById('actions');
+  const live=()=>!!((fb && !fb.disabled && fb.offsetParent) || (pb && !pb.disabled && pb.offsetParent) ||
+                    (acts && acts.getAttribute('data-live')==='1'));
   /* …AND SO DOES EACH CONTROLS EDGE, plus this seat's ceremony hold, so a board that goes live under a ceremony
      says which mirror let it: printed by the controls check when it fails. */
   const snap=()=>{ let fl=null; try{ fl=window.__cmf&&window.__cmf.roundFlags?window.__cmf.roundFlags():null;

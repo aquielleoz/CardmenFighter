@@ -235,6 +235,54 @@
   @media (min-width:1200px){ #pile{ width:100%; box-sizing:border-box; max-width:calc(100% - 260px); margin-inline:auto; } }
   #pile .empty{opacity:.4; font-style:italic; font-size:13px;}
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
+  /* THE CAST COLUMN (drag-and-stack step 1, ruling 1: *"drag cards to the right side of the play area to activate
+     and drag to the middle of the play area to fight"*). The right edge of the play area, between the two corner
+     Equipment zones: it holds a card you have dropped there but not yet cast (`#stagedSlot`, ruling 2/9) and the
+     stack rows that used to sit above the pile (`#stackView`, same id, same display toggle, so every reader of it
+     is unchanged). ABSOLUTE, so it takes no room from the flow: the pile, the hand and the card-reader pane keep
+     theirs, and a board with nothing to show looks exactly as it did. It is drawn only while you drag (as the
+     drop target), while a card is staged, or while the stack has something on it — `.show`.
+     A BASIC PLACE IN EVERY LAYOUT, refined in step 5: narrower below 1200px and narrower again on a phone, where
+     the zones live in the seat panels and the right edge is free. */
+  #castZone{position:absolute; right:8px; top:50%; transform:translateY(-50%); width:118px; max-height:calc(100% - 132px);
+            box-sizing:border-box; display:flex; flex-direction:column; align-items:stretch; padding:6px 4px;
+            border-radius:12px; border:1.5px dashed transparent; z-index:4; pointer-events:none; opacity:0;
+            overflow-y:auto; overflow-x:hidden; transition:opacity .15s ease, border-color .15s ease, background-color .15s ease;}
+  /* ONE INNER BOX WITH AUTO MARGINS, NOT `justify-content:center`: centred overflow spills ABOVE the box where no
+     scroll can reach it, which clipped the top stack row on a short landscape table. Auto margins centre while
+     there is room and fall back to the top, scrollable, when there is not. */
+  #castZone .czIn{margin:auto 0; display:flex; flex-direction:column; align-items:center; gap:4px; width:100%;}
+  #castZone.show, #table.dragging #castZone{opacity:1;}
+  #table.dragging #castZone{border-color:rgba(232,195,122,.5); background-color:rgba(232,195,122,.07);}
+  #table.dragging #castZone.cz-ok{border-color:var(--good); background-color:rgba(67,192,106,.12);}
+  #table.dragging #castZone.cz-no{border-color:var(--bad); background-color:rgba(226,98,74,.10);}
+  #castZone .czLbl{display:none; font-size:.62rem; letter-spacing:.09em; text-transform:uppercase; opacity:.65; font-weight:700;}
+  #table.dragging #castZone .czLbl, #castZone.staging .czLbl{display:block;}
+  #stagedSlot{display:none; flex-direction:column; align-items:center; gap:4px; pointer-events:auto;}
+  #stagedSlot.on{display:flex;}
+  #stagedSlot .card{cursor:grab; touch-action:none; box-shadow:0 0 0 2px var(--gold), 0 0 14px rgba(232,195,122,.45);}
+  #stagedSlot .stgNote{font-size:10px; line-height:1.25; text-align:center; opacity:.8; max-width:104px;}
+  #stagedSlot .stgBtns{display:flex; gap:6px; align-items:center; justify-content:center;}
+  #stagedSlot .stgBtns button{width:30px; height:30px; padding:0; border-radius:999px; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); background:rgba(255,255,255,.07); color:inherit; cursor:pointer;}
+  #stagedCastBtn:not(:disabled):not(.off){border-color:rgba(232,195,122,.85); background:rgba(232,195,122,.16); box-shadow:0 0 9px rgba(232,195,122,.3);}   /* lit exactly when the action row's ⚡ is (`#ctxBtn`'s rule) */
+  #stagedCastBtn.off, #stagedCastBtn:disabled{opacity:.45;}
+  #castZone #stackView{margin:0; width:100%; align-items:stretch; pointer-events:auto;}
+  #castZone .stk{white-space:normal; text-align:center; font-size:10.5px; padding:2px 5px;}
+  @media (max-width:1199px){ #castZone{width:104px;} }
+  /* WHILE THE COLUMN IS UP THE CENTRED MESSAGE MAKES ROOM FOR IT, or the two print over each other on a narrow table
+     (measured in the first screenshots: a phone's staged-card message ran under the column). Only while it shows,
+     so a board with nothing staged lays out exactly as before. */
+  #table.colShown #message{padding-right:126px; box-sizing:border-box;}
+  @media (max-width:1199px){ #table.colShown #message{padding-right:112px;} }
+  @media (max-width:720px){ #castZone{width:76px; right:4px; padding:4px 2px;} #castZone .stk{font-size:9.5px;}
+    #stagedSlot .stgNote{display:none;} #stagedSlot .stgBtns{gap:4px;} #stagedSlot .stgBtns button{width:27px; height:27px; font-size:13px;}
+    #table.colShown #message{padding-right:82px;} }
+  /* A SHORT TABLE (the landscape bands) has the width and not the height: the column takes nearly the full height
+     instead of the desktop's margin for the corner zones, and drops the words, keeping the card and its ✕. */
+  @media (orientation:landscape) and (max-height:520px){ #castZone{max-height:calc(100% - 8px); width:88px; padding:3px 2px;} #castZone .czIn{gap:2px;}
+    #stagedSlot .stgNote{display:none;}
+    #table.colShown #message{padding-right:96px;} }
   .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
@@ -1304,6 +1352,17 @@
     background:radial-gradient(ellipse at 50% 46%, rgba(9,5,18,.72), rgba(5,2,10,.88));   /* dim + vignette the board behind */
     backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); animation:rfBackdrop .26s ease-out both; }
   @keyframes rfBackdrop{ from{opacity:0;} to{opacity:1;} }
+  /* THE FIGHT BEAT DOES NOT DIM THE BOARD (Aj, 2026-10-14: *"having the fight sub-phase dim is kinda annoying.
+     letting the hand flash yellow for the fly in is fine tho"*). Since drag-and-stack ruling 10 it fires on every
+     crossing, so a dark, blurred board on every turn was the cost; the banner still flies in over the board and the
+     hand's strip still turns Fight-yellow. `.phasefx` is that beat alone (`announcePhase`); the round ceremonies
+     keep their dim — they are rare, and they own the stage. */
+  #roundfx.show.phasefx{ background:none; backdrop-filter:none; -webkit-backdrop-filter:none; animation:none; }
+  /* …BUT ITS WORDS GET A PLATE OF THEIR OWN. With no dim the banner printed straight over the pile's label and
+     cards ("throw your cards down" read through "Fight is open"), so the dark sits behind the line only and the
+     board around it stays as it is. */
+  #roundfx.phasefx .rfInner::before{ width:118%; height:150%;
+    background:radial-gradient(ellipse at center, rgba(10,5,20,.86) 0%, rgba(10,5,20,.62) 48%, transparent 72%); }
   /* `max-width:100%` and `box-sizing` so the banner cannot make the BOARD scroll sideways. Measured at 327px:
      the plate rendered 304px inside a 243px box (30px of padding each side plus the label), which put `main`
      into horizontal scroll for the ~1.3s the banner shows — briefly draggable, and a visible sideways jump at
@@ -1913,7 +1972,7 @@
       <div id="roundTag"></div>
       <div id="beaten"></div>
       <div id="pileLabel"></div>
-      <div id="stackView"></div>
+      <div id="castZone"><div class="czIn"><div class="czLbl">⚡ Cast</div><div id="stagedSlot"></div><div id="stackView"></div></div></div>
       <div id="pile"><span class="empty">Fight is open</span></div>
       <div id="message"></div>
       <div id="stagefx"></div>
@@ -4402,6 +4461,7 @@ __QR__
      at the deal (`engine.js` ~597) and again at every draw — so an unscrambled hand reaches the screen in
      ascending order, and only the host's `syncOrder(true)` ever made a dealt hand look dealt. */
   function resetHandPresentation(){
+    staged=null;                          // a card staged in the last game's cast column is not this game's
     handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++; uiPhase=null; dealHoldUntil=0;
     sortState='unsorted'; updateSortLabel();
   }
@@ -4563,7 +4623,6 @@ __QR__
        rather than explained. */
     syncOrder(false);
     paintPhaseStrip();
-    notePhaseEdge();
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
      * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
      * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
@@ -4612,6 +4671,12 @@ __QR__
       if(tp2 && /is discarding|is deciding|is choosing a target/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR messages
       clearTrimWait();
     }
+    /* THE FIGHT BEAT'S EDGE IS READ AFTER THE WAITING NOTICE IS SETTLED, not before it (drag-and-stack ruling 10).
+       A crossing that opened a window shows "Rival 2 is deciding…" on `#roundfx` while the window is open, and
+       `announcePhase` will not talk over that stage. Read first, the edge saw the notice still up, the beat was
+       refused and the edge was spent — measured: a crossing through a declined window raised NO beat. Read
+       here, the notice has just been cleared because nobody is deciding any more. */
+    notePhaseEdge();
     /* BEFORE the seat panels, and NOT gated on `holdShields`: that flag defers the SHATTER, which is
        presentation. The tally and the threshold are bookkeeping and must land when the state changes. */
     noteShieldChanges();
@@ -4689,6 +4754,7 @@ __QR__
     } else { $('pileLabel').textContent=state.finished?'':'New fight'; pileEl.classList.remove('boosted','reduced'); }
     pileEl.classList.toggle('noCards', !state.pile);   // drives the rail reserve off when there is nothing to collide with
     renderStack();
+    renderCastZone();                     // after the stack: the column shows while either it or a staged card has something
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
     document.body.classList.toggle('spectating', spectating);
@@ -4697,6 +4763,7 @@ __QR__
     renderHand(yourTurn && !targeting && !targetPick);
     renderPlayMods(spectating);
     updateActions(yourTurn);
+    syncStagedCast();                                               // the column's ⚡ copies the Activate button updateActions just set
     refreshNewBtn();                                                // header button: "🏳 Concede" while a duel is live, else "New Duel"
     if(typeof TUT!=='undefined' && TUT.reapply) TUT.reapply();      // guided tutorial: re-add the spotlight the hand rebuild just wiped
     if(typeof NET!=='undefined' && NET.onRender) NET.onRender();   // host: keep the remote client's board in lockstep
@@ -4986,12 +5053,161 @@ __QR__
     if(peeking) return;                                     // while peeking: inspect only (show the card) — never select/play
     onTap(gid);
   }
+  /* ---- STAGING A CAST (drag-and-stack step 1, rulings 2, 9 and 11) ----
+     Aj, ruling 2: *"drop to the stack vis and then activate. or you can drag it out to clear, or there will be an x
+     button to cancel your attempt. once you activate, that x button disappears."* A card DROPPED on the cast column
+     waits there, staged, with nothing spent; ⚡ Activate casts it. A ⚡ TAP is unchanged (ruling 11) — selecting the
+     card was already the moment to change your mind — so staging is the drop's alone.
+     IT IS UI STATE AND NEVER TOUCHES `st`: everything on state travels in netplay snapshots, and a staged card is
+     yours alone. ⚡ Activate sends today's intent with today's choices, so nothing new goes on the wire.
+     ONE FUNNEL, NOT A FOURTH CAST TAIL. A staged card is just the selection plus a flag: a card with a choice goes
+     straight into the stager it already had (`targeting`, `targetPick`, a `pick`, Counterfeit's dialog), and a card
+     with none waits for the ⚡ that already casts a selected card. So `staged` only has to know whether something
+     still holds its card, and it rebuilds that answer on every render instead of keeping a second copy. */
+  var staged=null;   // {cardId} — a card dropped on the cast column, waiting for ⚡ Activate
+  function stagedHeld(){
+    if(!staged || !state || !state.players || !state.players[YOU]) return false;
+    var id=staged.cardId;
+    if(!state.players[YOU].hand.some(function(c){ return c.id===id; })) return false;
+    return !!(selected[id] || (targeting && targeting.cardId===id) || (targetPick && targetPick.cardId===id) || (pick && pick.cardId===id));
+  }
+  // does casting this card open a choice first? Mirrors `activate`'s own routing, which decides it there
+  function castNeedsChoice(card){
+    var eff=card?E.effectOf(card):null; if(!eff) return false;
+    if(eff.kind==='removeEquip' || eff.kind==='counterfeit' || eff.kind==='phantasm') return true;
+    if(isHostileSingular(eff)) return true;
+    return !!(eff.pitchHigh && E.pitchCands(state.players[YOU], card.id).length>1);
+  }
+  function stageCard(card){
+    staged={ cardId:card.id };
+    selected={}; selected[card.id]=true; showCard(card);
+    if(castNeedsChoice(card)){ var a=ctxAction(); render(); if(a && a.ok && a.run) a.run(); return; }
+    setMessage('<b>'+esc(E.cardName(card))+'</b> is staged — ⚡ <b>Activate</b> casts it, ✕ takes it back. Nothing is spent yet.');
+    render();
+  }
+  function unstage(){
+    if(!staged) return;
+    var id=staged.cardId; staged=null;
+    if(targeting && targeting.cardId===id) targeting=null;
+    if(targetPick && targetPick.cardId===id) targetPick=null;
+    if(pick && pick.cardId===id && (pick.kind==='pitch' || pick.kind==='phantasm')) pick=null;
+    if(selected[id]) selected={};
+    setMessage('Taken back — nothing was spent.');
+    render();
+  }
+  function renderCastZone(){
+    var cz=$('castZone'), slot=$('stagedSlot'); if(!cz || !slot) return;
+    if(staged && !stagedHeld()) staged=null;
+    var card=staged ? cardById(staged.cardId) : null;
+    if(card){
+      var key=card.id+'|'+(targeting?'t':'')+(targetPick?'p':'')+(pick?pick.kind:'');
+      if(slot.getAttribute('data-key')!==key){
+        slot.setAttribute('data-key', key); slot.innerHTML='';
+        var el=cardEl(card, 'mini', YOU); el.addEventListener('pointerdown', onStagedDown); slot.appendChild(el);
+        var choosing = (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
+                     : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '';
+        if(choosing){ var note=document.createElement('div'); note.className='stgNote'; note.textContent=choosing; slot.appendChild(note); }
+        /* ⚡ AND ✕, SIDE BY SIDE UNDER THE CARD (Aj, 2026-10-14: *"can we add a lightning bolt near the card … i'd like
+           another beside the take back. we can reduce the take back to an X button probably"*). The ⚡ is NOT a second
+           cast path: it runs the bottom ⚡ Activate's own handler, and `syncStagedCast` copies that button's state after
+           every render — so a card still waiting on its target shows 🎯 here exactly as it does there, never a ⚡ that
+           would not cast. It replaced the "⚡ Activate casts it" note, which said the same thing in words. */
+        var row=document.createElement('div'); row.className='stgBtns';
+        var go=document.createElement('button'); go.id='stagedCastBtn'; go.type='button'; go.textContent='⚡';
+        go.addEventListener('click', onStagedCastClick); row.appendChild(go);
+        var x=document.createElement('button'); x.id='unstageBtn'; x.type='button'; x.textContent='✕';
+        x.title='Take the card back — nothing is spent'; x.setAttribute('aria-label','Take back');
+        x.addEventListener('click', function(){ unstage(); }); row.appendChild(x);
+        slot.appendChild(row);
+      }
+      slot.className='on';
+    } else { slot.className=''; slot.innerHTML=''; slot.removeAttribute('data-key'); }
+    var sv=$('stackView'), stackUp=!!(sv && sv.style.display && sv.style.display!=='none');
+    placeCastZone(cz);
+    cz.classList.toggle('show', !!card || stackUp);
+    cz.classList.toggle('staging', !!card);
+    $('table').classList.toggle('colShown', !!card || stackUp);
+  }
+  /* THE COLUMN'S ⚡ MIRRORS WHICHEVER ACTIVATE BUTTON IS UP — the action row's (`#ctxBtn`), else the card reader's
+     (`#cardActivate`). Called after `updateActions`, because that is what sets them; `renderCastZone` runs before it. */
+  function stagedCastSource(){
+    var cb=$('ctxBtn'), ca=$('cardActivate');
+    if(cb && cb.style.display!=='none') return cb;
+    if(ca && ca.style.display!=='none') return ca;
+    return null; }
+  function syncStagedCast(){
+    var go=$('stagedCastBtn'); if(!go) return;
+    var src=stagedCastSource(); go.style.display = src ? '' : 'none'; if(!src) return;
+    go.textContent = src.getAttribute('data-icon') || (src.textContent||'').trim().split(' ')[0] || '⚡';
+    go.title = src.id==='ctxBtn' ? (src.textContent||'').trim() : (src.title || 'Activate'); go.setAttribute('aria-label', go.title);
+    go.disabled = !!src.disabled;
+    go.classList.toggle('gold', src.classList.contains('gold')); go.classList.toggle('off', src.classList.contains('off')); }
+  function onStagedCastClick(e){
+    var src=stagedCastSource(); if(!src) return;
+    if(src.id==='ctxBtn') onCtxClick(e); else onActivateClick(e); }
+  /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
+     shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
+     is equipped — so a fixed CSS height either wasted the edge on a desktop or, on a 390px-tall landscape table,
+     ran straight over an equipped Holy Bow (measured in the first screenshots). A zone that is empty, hidden, or
+     moved out of the table (a portrait phone puts them in the seat panels) does not count. Step 5 refines this. */
+  function placeCastZone(cz){
+    var tb=$('table'); if(!tb) return;
+    var tr=tb.getBoundingClientRect(); if(!tr.height) return;
+    var top=6, bottom=6;
+    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null) return null; return z.getBoundingClientRect(); }
+    var rz=edge('rivalEquipZone'), yz=edge('youEquipZone');
+    if(rz) top=Math.max(top, Math.round(rz.bottom - tr.top) + 4);
+    if(yz) bottom=Math.max(bottom, Math.round(tr.bottom - yz.top) + 4);
+    cz.style.top=top+'px'; cz.style.bottom=bottom+'px'; cz.style.transform='none'; cz.style.maxHeight='none';
+  }
+  /* DRAGGING A STAGED CARD OUT OF THE COLUMN TAKES IT BACK (ruling 2). Its own small gesture rather than the hand's,
+     because the hand's refuses to start while a stager is open — and a staged card with a choice IS one. A release
+     inside the column keeps it; anywhere else unstages it. */
+  var stagedDrag=null;
+  function onStagedDown(e){
+    if(!staged || peeking || busy) return;
+    if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
+    var el=e.currentTarget; stagedDrag={ el:el, x:e.clientX, y:e.clientY, ghost:null };
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    el.addEventListener('pointermove', onStagedMove); el.addEventListener('pointerup', onStagedUp); el.addEventListener('pointercancel', onStagedUp);
+    e.preventDefault();
+  }
+  function onStagedMove(e){
+    var d=stagedDrag; if(!d) return;
+    if(!d.ghost && Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y)>8){
+      var r=d.el.getBoundingClientRect(); d.ghost=d.el.cloneNode(true); d.ghost.classList.add('ghost'); d.ghost.style.position='fixed';
+      d.ghost.style.left=r.left+'px'; d.ghost.style.top=r.top+'px'; d.ghost.style.pointerEvents='none'; d.ghost.style.zIndex='9000';
+      d.offX=d.x-r.left; d.offY=d.y-r.top; document.body.appendChild(d.ghost); }
+    if(d.ghost){ d.ghost.style.left=(e.clientX-d.offX)+'px'; d.ghost.style.top=(e.clientY-d.offY)+'px'; }
+  }
+  function onStagedUp(e){
+    var d=stagedDrag; stagedDrag=null; if(!d) return;
+    d.el.removeEventListener('pointermove', onStagedMove); d.el.removeEventListener('pointerup', onStagedUp); d.el.removeEventListener('pointercancel', onStagedUp);
+    if(!d.ghost) return;                                        // a tap, not a drag
+    if(d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
+    var cr=$('castZone').getBoundingClientRect();
+    var inside = e.clientX>=cr.left && e.clientX<=cr.right && e.clientY>=cr.top && e.clientY<=cr.bottom;
+    if(!inside) unstage();
+  }
+  /* WHAT A DROP IN THE MIDDLE WOULD SAY. `canHumanPlay` is the whole question (turn, busy, stagers, lock, the
+     lesson's card list, legality) — this only names the refusal, in the same words the Fight hint uses. */
+  function fightDropVerdict(cards){
+    var tutSpecial=(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && cards.length<2);
+    if(canHumanPlay(cards) && !tutSpecial) return { ok:true, txt:'▲ release to fight' };
+    if(tutSpecial) return { ok:false, txt:'this step wants a Special' };
+    if(E.isLocked(state, YOU)) return { ok:false, txt:'locked out this round' };
+    var combo=E.detectCombo(cards);
+    if(!combo) return { ok:false, txt:'not a legal combination' };
+    if(state.round<2 && combo.size>1) return { ok:false, txt:'round 1 is jabs only' };
+    if(state.pile && !fightLegal(cards)) return { ok:false, txt:'doesn’t beat the '+kindLabel(state.pile.combo.type) };
+    return { ok:false, txt:'can’t fight with that here' };
+  }
   function onPointerDown(e, gid, el){
     if(peeking) return;                                     // no drag-to-play while reviewing
     if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var g=groupById(gid); if(g && g.cards[0]) showCard(g.cards[0]);
-    drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, hl:null };
+    drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, zone:null, hl:null };
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
     el.addEventListener('pointermove', onPointerMove);
     el.addEventListener('pointerup', onPointerUp);
@@ -5012,22 +5228,22 @@ __QR__
     if(d.moved){                                       // a real drag → play or merge (the follow-up click is suppressed)
       justDragged=true; setTimeout(function(){ justDragged=false; }, 0);
       endGhost(d);
-      /* THE SUB-PHASE DECIDES WHAT A DRAG MEANS (epic step 20, Aj: *"dragging to play activates card
-         effects now, except when in the fight sub-phase"*). In Main it is how you USE a card — including
-         the ones that need choices, so it is also the way into targeting and the Phantasmal picker.
-         IT RUNS `ctxAction()`'s OWN `run`, IT DOES NOT REIMPLEMENT ACTIVATION. That is the v1.31.56 rule
-         and Aj named the drag path explicitly for exactly this reason: the last time these two diverged,
-         the drag called `playCards` directly, skipped the netplay client guard, and produced phantom
-         rounds on the client. Two gestures, one funnel. */
+      /* WHERE YOU DROP DECIDES WHAT A DRAG MEANS (drag-and-stack step 1, replacing epic step 20's "the sub-phase
+         decides"): the MIDDLE fights, the CAST COLUMN on the right takes casts. Aj: *"drag cards to the right side
+         of the play area to activate and drag to the middle of the play area to fight"*. The sub-phase still
+         decides what is LEGAL — the column refuses in the Fight Sub-Phase, where effects are over — and
+         `highlightTarget` asked that question while the card was in the air, so `playZone` already says yes or no.
+         EACH ZONE GOES THROUGH THE FUNNEL ITS BUTTON USES, never a copy of it (the v1.31.56 rule; the last time a
+         drag reimplemented an action it skipped the netplay client guard and produced phantom rounds):
+           - the middle selects the group and calls `doFight` — the crossing, the held-fight rule, the client's
+             intent and the Fight beat all come with it;
+           - the column STAGES the card (`stageCard`): a card with a choice enters the stager it already had, one
+             without waits for the ⚡ that already casts a selected card. */
       if(d.playZone==='ok' && groupById(d.gid)){
         var dg=groupById(d.gid);
-        if(state.subPhase==='play'){ playCards(dg.cards.slice()); return; }
-        if(dg.cards.length>1){ setMessage('One card at a time in the Main sub-phase — press <b>Next</b> to move to the Fight sub-phase.'); render(); return; }
-        selected={}; selected[dg.cards[0].id]=true; showCard(dg.cards[0]);
-        var da=ctxAction();
-        if(da && da.ok && da.run){ render(); da.run(); }
-        else { setMessage(da && da.reason ? da.reason : 'That card has nothing to activate — press <b>Next</b> to move to the Fight sub-phase.'); render(); }
-        return;
+        if(d.zone==='column'){ stageCard(dg.cards[0]); return; }
+        selected={}; dg.cards.forEach(function(c){ selected[c.id]=true; }); render();
+        doFight(); return;
       }
       if(d.targetGid!=null && groupById(d.gid) && groupById(d.targetGid) && canMergeKF(groupById(d.gid).cards, groupById(d.targetGid).cards)){
         withFlip(function(){ mergeGroups(d.gid, d.targetGid); });
@@ -5043,6 +5259,7 @@ __QR__
     document.body.appendChild(ghost);
     drag.ghost=ghost; drag.offX=drag.startX-rect.left; drag.offY=drag.startY-rect.top;
     drag.el.classList.add('dragging');
+    $('table').classList.add('dragging');                // shows the cast column as a drop target while a card is in the air
   }
   function moveGhost(e){ if(!drag.ghost) return; drag.ghost.style.left=(e.clientX-drag.offX)+'px'; drag.ghost.style.top=(e.clientY-drag.offY)+'px'; }
   function highlightTarget(e){
@@ -5059,24 +5276,31 @@ __QR__
       tgt.classList.add(ok?'drop-ok':'drop-no'); drag.hl=tgt; if(ok) drag.targetGid=tgid;
       return;
     }
-    var tr=$('table').getBoundingClientRect();
-    if(e.clientY>=tr.top && e.clientY<=tr.bottom && e.clientX>=tr.left && e.clientX<=tr.right){
-      /* THE ZONE MUST ASK WHAT THE RELEASE WILL ASK, and since step 20 that is two different questions:
-         in the Fight Sub-Phase a release PLAYS, in the Main Sub-Phase it ACTIVATES. Asking `canHumanPlay`
-         in both is what made the zone glow for an unaffordable Quick. */
+    var tr=$('table').getBoundingClientRect(), cz=$('castZone'), cr=cz ? cz.getBoundingClientRect() : null;
+    var inTable = e.clientY>=tr.top && e.clientY<=tr.bottom && e.clientX>=tr.left && e.clientX<=tr.right;
+    var inCol = !!(cr && cr.width>0 && e.clientX>=cr.left && e.clientX<=cr.right && e.clientY>=cr.top && e.clientY<=cr.bottom);
+    if(inTable || inCol){
+      /* THE ZONE MUST ASK WHAT THE RELEASE WILL ASK, and there are two zones with two questions (drag-and-stack
+         step 1). Over the COLUMN: may this ONE card be cast now (`ctxActionFor`, the ⚡ button's own funnel, so the
+         sub-phase, energy, the lesson and every other gate are already in it). Over the MIDDLE: would this be a
+         legal fight (`fightDropVerdict`). The answer goes into `#dropHint` while the card is still in the air,
+         because a refused release does nothing — there is no tooltip on a phone. */
       var g=groupById(drag.gid), canPlay, dropTxt;
-      if(state.subPhase==='play'){
-        canPlay = !!(g && canHumanPlay(g.cards));
-        dropTxt = canPlay ? '▲ release to fight' : 'can’t fight with that here';
-      } else if(g && g.cards.length>1){
-        canPlay = false; dropTxt = 'one card at a time in the Main sub-phase';
+      if(inCol){
+        if(g && g.cards.length>1){ canPlay=false; dropTxt='one card at a time on the cast column'; }
+        else {
+          var ca = g ? ctxActionFor(g.cards) : null;
+          canPlay = !!(ca && ca.ok && ca.run);
+          dropTxt = canPlay ? '⚡ release to stage it' : ((ca && ca.reason) || 'nothing to activate on that card');
+        }
+        drag.zone='column';
       } else {
-        var ca = g ? ctxActionFor(g.cards) : null;
-        canPlay = !!(ca && ca.ok && ca.run);
-        dropTxt = canPlay ? '▲ release to use' : ((ca && ca.reason) || 'nothing to activate on that card');
+        var fv = g ? fightDropVerdict(g.cards) : { ok:false, txt:'can’t fight with that here' };
+        canPlay = fv.ok; dropTxt = fv.txt; drag.zone='middle';
       }
       drag.playZone=canPlay?'ok':'no';
-      $('table').classList.toggle('pz-ok', canPlay); $('table').classList.toggle('pz-no', !canPlay);
+      $('table').classList.toggle('pz-ok', !inCol && canPlay); $('table').classList.toggle('pz-no', !inCol && !canPlay);
+      if(cz){ cz.classList.toggle('cz-ok', inCol && canPlay); cz.classList.toggle('cz-no', inCol && !canPlay); }
       var dh=$('dropHint'); dh.className='show '+(canPlay?'ok':'no'); dh.textContent=dropTxt;
       return;
     }
@@ -5088,8 +5312,8 @@ __QR__
      in progress and nothing on screen to explain it. The cap above makes a long reason readable; this line
      is what stops an invisible one costing you the board. Verify by MEASURING `scrollWidth` against
      `clientWidth` after the drag ends — the element is invisible by then, so looking proves nothing. */
-  function clearZone(){ $('table').classList.remove('pz-ok','pz-no'); var dh=$('dropHint'); dh.className=''; dh.textContent=''; }
-  function endGhost(d){ d=d||drag; if(!d) return; if(d.ghost&&d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost); if(d.hl) d.hl.classList.remove('drop-ok','drop-no'); if(d.el) d.el.classList.remove('dragging'); clearZone(); }
+  function clearZone(){ $('table').classList.remove('pz-ok','pz-no'); var cz=$('castZone'); if(cz) cz.classList.remove('cz-ok','cz-no'); var dh=$('dropHint'); dh.className=''; dh.textContent=''; if(drag) drag.zone=null; }
+  function endGhost(d){ d=d||drag; if(!d) return; if(d.ghost&&d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost); if(d.hl) d.hl.classList.remove('drop-ok','drop-no'); if(d.el) d.el.classList.remove('dragging'); $('table').classList.remove('dragging'); clearZone(); }
   function onTap(gid){
     var g=groupById(gid); if(!g) return;
     if(g.cards.length>1){
@@ -5159,7 +5383,7 @@ __QR__
     var hand=state.players[YOU].hand; selected={};
     (heldIds||[]).forEach(function(id){ if(hand.some(function(c){ return c.id===id; })) selected[id]=true; });
     heldIds=null;
-    var sw=(commitCrossing==='used'); commitCrossing=false; render(); if(sw) announceFight();
+    render();                                    // the mirror before this message already crossed, so the edge announced the Fight beat
     setMessage(heldPlayMessage());
   }
   function heldPlayMessage(){
@@ -5298,7 +5522,7 @@ __QR__
    * ⏭ with VS16 renders as a boxed media glyph on its own grey rounded plate: a button inside a button. So it
    * stays text presentation, where it is a clean monochrome bar that inherits `color` and greys out with the
    * button. Do not "fix" the inconsistency — look at it first. */
-  var ACTION_ICONS={ 'Fight':'⚔️', 'Next':'▶', 'Confirm':'✓', 'Pass':'⏭', 'Skip':'⏭', 'Cancel':'↩', 'Clear':'✕',
+  var ACTION_ICONS={ 'Fight':'⚔️', 'Confirm':'✓', 'Pass':'⏭', 'Skip':'⏭', 'Cancel':'↩', 'Clear':'✕',
                      '⚡ Activate':'⚡', '🎯 Pick a target':'🎯', '🎯 Choose target':'🎯', 'Phantasm':'🌀' };
   /* Sets BOTH, always. The text stays in the DOM at every width — `font-size:0` hides it, so the accessible name
    * and every suite that reads `textContent` are untouched, and the row re-expands to words on a wider screen
@@ -5306,6 +5530,11 @@ __QR__
   function setActionLabel(btn, label){ btn.textContent=label; btn.setAttribute('data-icon', ACTION_ICONS[label]||label); }
   function updateActions(yourTurn){
     var hint=$('hint'), fight=$('fightBtn'), pass=$('passBtn'), sort=$('sortBtn'), clear=$('clearBtn'), ctxBtn=$('ctxBtn'), cardAct=$('cardActivate');
+    /* `data-live` SAYS WHETHER THIS SEAT COULD ACT RIGHT NOW, set by the same branch that enables the controls.
+       Until drag-and-stack step 1 "Fight or Pass is enabled" answered that, because Fight was `Next` and lived
+       with nothing selected; now a leader's Fight waits for a selection, so a board can be live with both
+       buttons disabled. Passive observers (`nettest_parity`'s film) read this instead of guessing. Inert. */
+    var actRow=$('actions'); if(actRow) actRow.setAttribute('data-live','0');
     hint.className=''; fight.classList.remove('confirm'); ctxBtn.style.display='none'; ctxBtn.classList.remove('gold','off'); cardAct.style.display='none';
     if(pick){
       // selection mode — Sort still works (tidies the cards; your picks are kept)
@@ -5340,10 +5569,13 @@ __QR__
       return;
     }
     sort.style.display=''; pass.style.display=''; clear.style.display='';
-    /* THE RESTING LABEL IS `Next`, because the resting sub-phase is Main. This default is what the
-       `!yourTurn`, busy, locked-out and tutorial-hold branches all render, and leaving it as `Fight` would
-       show the COMMIT word on a board where the next press can only ever be the phase move. */
-    setActionLabel(fight,'Next'); setActionLabel(pass,'Pass');
+    /* THE RESTING LABEL IS `Fight`, AND THERE IS NO OTHER ONE (drag-and-stack step 1, ruling 3: *"Maybe we
+       remove Next button... But we still keep the fight sub-phase of course"*). It used to be `Next`, the
+       phase move out of Main, and pressing it by accident ended your Main for the turn with no way back —
+       the friction the epic exists to remove. You now leave Main by fighting or by Pass, so the one word
+       this button ever says is the one it does. This default is what the `!yourTurn`, busy, locked-out and
+       tutorial-hold branches all render. */
+    setActionLabel(fight,'Fight'); setActionLabel(pass,'Pass');
     fight.disabled=true; pass.disabled=true;
     if(state.finished){ hint.textContent=''; return; }
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()){          // tutorial read step — hold the board until they press the button
@@ -5394,14 +5626,14 @@ __QR__
       fight.disabled=true; pass.disabled=false; setActionLabel(pass, state.pile?'Pass':'Skip');
       return;
     }
-    /* IN THE MAIN SUB-PHASE, FIGHT IS A PHASE MOVE, NOT A PLAY (epic step 20, Aj's design after MTG
-       Arena's move-to-combat button: *"fight now would only initiate moving to the play sub-phase"*).
-       So it is LIVE WITH NOTHING SELECTED — there is nothing to select yet — and the hint says what the
-       button will do rather than what to pick. Dragging a card here activates it instead of playing it,
-       which is the other half of "the sub-phase decides what a gesture means".
-       The whole `sel`/`combo`/`legal` apparatus below belongs to the Play Sub-Phase and is skipped: it
-       would otherwise disable Fight for having no selection, which is exactly the control this branch
-       exists to keep alive. */
+    /* IN THE MAIN SUB-PHASE, FIGHT IS LIVE ONLY FOR A PLAY THAT WILL LAND (drag-and-stack step 1). It used
+       to be live with NOTHING selected, as the `Next` phase move (epic step 20), and it stayed live for an
+       ILLEGAL selection too — `doFightBody` crosses into the Fight Sub-Phase BEFORE `playCards` refuses, so a
+       red-hinted pick plus Fight ended your Main and played nothing: Next's no-takeback accident under the
+       Fight label. Found by the 2026-10-13 design recheck. Now the button rests disabled (the default above)
+       and only the shared verdict below enables it, for a legal selection — so the irreversible crossing can
+       only be started by a play that lands, or by Pass. */
+    if(actRow) actRow.setAttribute('data-live','1');          // every gate above passed: a selection would get a verdict
     if(state.subPhase !== 'play'){
       var ctxM=ctxAction();
       ctxBtn.style.display=''; ctxBtn.disabled=false; setActionLabel(ctxBtn, ctxM.label);
@@ -5409,7 +5641,6 @@ __QR__
       ctxBtn.title = ctxM.ok ? "Activate this card's effect" : ctxM.reason;
       var actM=activatableCardSelected(), blockM=actM?activateBlock(actM):null;
       if(actM){ cardAct.style.display=''; cardAct.classList.toggle('off', !!blockM); cardAct.disabled=false; cardAct.title=blockM||'Activate'; cardAct.textContent='⚡'; }
-      setActionLabel(fight,'Next'); fight.disabled=false;
       /* PASS IS AN AUTO-PASS IN THE MAIN SUB-PHASE (Aj, 2026-09-11: *"how about we have a pass even from
          main and if you click it it auto passes your priorities. but if something happens, you will stop
          autopassing until you click it again?"*). It was briefly HIDDEN here — the literal reading of "Pass
@@ -5420,7 +5651,11 @@ __QR__
          under you, because then the decision you made was about a different board. MTG Arena's model.
          THE STOP IS IN `doPass`, NOT HERE, and it keys on `stackMark` — see that function for why a
          go-round where everyone merely declined must NOT interrupt you. */
-      pass.disabled=!state.pile; setActionLabel(pass, state.pile?'Pass':'Skip');
+      pass.disabled=!state.pile || !!targeting || !!targetPick; setActionLabel(pass, state.pile?'Pass':'Skip');   // a target being chosen owns the board: `doPass` refuses then, so an enabled Pass would be inert
+      /* A STAGED CARD IS NOT A PLAY (drag-and-stack step 1). Fight stays off while a card sits in the cast column, so it
+         cannot be thrown down by accident, and the hint says the two ways out. */
+      if(staged && selected[staged.cardId] && !targeting && !targetPick && !pick){
+        hint.textContent='Staged — ⚡ Activate casts it, ✕ takes it back.'; hint.className='pick'; return; }
       /* SHORT, BECAUSE THIS LINE IS PINNED TO ONE ROW IN THE LANDSCAPE BANDS and the vertical budget there
          has no slack — the first draft spelled out all three controls and five `landscapetest` assertions
          went red at 800x360 and 932x430, including the 327x660 ratchet (63px -> 78px). The controls are on
@@ -5453,32 +5688,20 @@ __QR__
         var tutGated = (typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate());
         var canUseAny = tutGated || (state.players[YOU].hand||[]).some(function(c){
           var a=ctxActionFor([c]); return !!(a && a.ok && a.run); });
-        hint.textContent=(canUseAny ? 'Main sub-phase — drag a card to use it, or Next to move on.'
-                                    : 'Main sub-phase — nothing to use yet, press Next to move on.')+
+        hint.textContent=(canUseAny ? 'Main sub-phase — drag right to use a card, or pick a play.'
+                                    : 'Main sub-phase — nothing to use yet; pick a play.')+
                          ((state.players[YOU].nextPlayBoost||0)?(' ⚡+'+state.players[YOU].nextPlayBoost+' charged'):'');
         hint.className='';
         return;
       }
     }
-    /* THE SECOND STATE OF ONE BUTTON, AND THE LABELS ARE `Next` THEN `Fight` (Aj, 2026-09-11: *"the fight
-       button to move to the fight sub phase is throwing me off. Let's use Next and then Fight instead of
-       Fight and Play"*). They were Fight then Play, and that reads backwards once you are playing it: the
-       word FIGHT belongs on the press that actually throws the cards down, not on the one that walks you
-       to the sub-phase. `▶ Next` moves, `⚔️ Fight` commits — and the sub-phase names still line up, since
-       Next is what takes you INTO the Fight Sub-Phase.
-       `#fightBtn` keeps its id: 50 suites and five lessons address it, and only the label moves. */
+    /* ONE BUTTON, ONE WORD, ON EVERY SEAT. It was `Next` then `Fight` (Aj, 2026-09-11), and on a netplay
+       client `Next` lingered after the host's seat had lost it, because the client's empty press sent
+       `toFight`; `nettest_clientwin` once went 6/4 on a label that promised the wrong action. With Next gone
+       (drag-and-stack step 1) a press with cards chosen fights from either sub-phase on every seat, and an
+       empty press is impossible because the button is disabled. `#fightBtn` keeps its id: suites and
+       lessons address it. */
     setActionLabel(fight,'Fight');
-    /* …EXCEPT ON A NETPLAY CLIENT, WHERE ONE PRESS STILL ONLY CROSSES OVER. The Main branch now falls
-       through to here so a client gets the selection verdict too — that part is worth having on every
-       seat — but the LABEL has to describe what this seat's press actually does, and a client's press
-       sends `toFight` and waits for a mirror. Caught by `nettest_clientwin` (6/4): `__pressFight` reads
-       the label, saw `Fight`, clicked once and then waited for cards that were never going to leave the
-       hand. A label that promises the wrong action is worse than the extra press it was hiding. */
-    /* …AND WITH A SELECTION IT REALLY IS `Fight` NOW (2026-09-18). `doFight`'s client branch sends the
-       PLAY when cards are chosen — the host transitions and re-applies it — so one press fights, exactly
-       as it does on the host's own seat. The label tracks the same condition, because the 6/4 above was
-       not "the label said Fight", it was the label saying Fight while the branch still sent `toFight`. */
-    if(isNetClient() && state.subPhase!=='play' && !selectedCards().length) setActionLabel(fight,'Next');
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
     /* THE AMOUNT IS DATA, NOT A LITERAL (2026-09-24). `finishingBlow` is a COUNT now — it reads the
@@ -5899,43 +6122,20 @@ __QR__
   function doFight(){
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
-    /* A CLIENT'S FIGHT IS TWO DIFFERENT INTENTS NOW, AND SENDING THE WRONG ONE IS SILENT (epic step 20).
-       In the Main Sub-Phase nothing is selected — that is the point of the button — so `sendClientPlay`
-       refuses with "Select a card or combo to play." and the client can never leave Main. Sending
-       `{op:'play', ids:[]}` is no better: the engine's transition check sits ABOVE its `No cards.` check,
-       so the host would transition, re-apply, and then report "No cards." for a move that worked.
-       `toFight` says what the press means. `subPhase` is PUBLIC in the mirror (netview), so the client can
-       read which of the two it is holding. */
+    /* AN EMPTY PRESS IS NOT A MOVE (drag-and-stack step 1). It used to be `Next`, the phase move out of Main,
+       and a client sent `toFight` for it. The button is disabled with nothing chosen now, so a call that gets
+       here empty-handed is stray (a keyboard press on a stale focus, a harness) and does nothing — crossing
+       on it would be the very accident Next was removed for. */
+    if(!selectedCards().length) return;
     if(isNetClient()){
-      /* ⚠ A CLIENT STILL PAYS TWO PRESSES, AND THE HOST NO LONGER DOES (2026-09-16). One press fights from
-         Main on every LOCAL seat now; this branch returns before that, so a netplay client sends `toFight`,
-         waits for the mirror, and presses again. Deliberate, not missed: collapsing it means the client
-         must remember the play it intended ACROSS a host round-trip and send it when the mirror arrives
-         showing `subPhase === 'play'` — plus hold it if the board moved, which is `stopIfActed` over the
-         wire with no `stackMark` to read locally. That is netplay behaviour I cannot verify without two
-         devices, and the seat that would eat a mis-fire is the player's. Filed; see the BACKLOG. */
-      /* ONE PRESS FOR A CLIENT TOO, WHEN IT HAS ACTUALLY CHOSEN SOMETHING (Aj, 2026-09-18, with a
-         screenshot of each seat in the same position: *"it's already live right now that the host has a
-         fight button in main SP… what i'm reporting is that the client doesn't have that button"*).
-         THE BLOCKER THIS ENTRY CLAIMED DOES NOT EXIST, AND THAT IS THE WHOLE FIX. It said the client
-         *"must remember the play it intended ACROSS a host round-trip"* — it does not: the HOST remembers
-         it. `hostApplyMove`'s transition branch re-applies the very intent object the client already sent
-         (`E.play` → `ok:false, transition:'play'` → `hostSettle` → `hostApplyMove(it)`), and its own
-         comment says why re-applying a PLAY unconditionally is right: *"the client named its cards and
-         they are still its cards."* That machinery landed at epic step 20 for the `nettest_guard` wedge,
-         two days before this was filed as hard, and nobody connected them — the same two-changes-nobody-
-         joined shape as the prompt default outliving its predicate.
-         SO THE SELECTION IS THE WHOLE CONDITION. With cards chosen, `{op:'play', ids}` is a complete
-         statement of intent and the host finishes it; with nothing chosen it is not, which is what the
-         `ids:[]` objection above is really about — the engine's transition check sits ABOVE its `No cards.`
-         check, so an empty play transitions and then reports an error for a move that worked. `toFight`
-         stays for exactly that case, and it is what `Next` means.
-         AND THE LABEL HAS TO MOVE WITH IT (see `updateActions`): the 6/4 that `nettest_clientwin` once
-         scored was the label saying `Fight` while this branch still sent `toFight` — a promise the code
-         did not keep. Conditioning both on the same selection makes the promise true. */
-      if(state.subPhase !== 'play' && !selectedCards().length){ NET.clientSend({op:'toFight'}); busy=true; render(); return; }
-      if(state.subPhase !== 'play' && selectedCards().length) commitCrossing=true;   // crosses AND plays — no Fight beat
-      sendClientPlay(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
+      /* ONE INTENT, THE PLAY, AND THE HOST REMEMBERS IT ACROSS THE CROSSING (Aj, 2026-09-18). With cards
+         chosen, `{op:'play', ids}` is a complete statement of intent: `hostApplyMove`'s transition branch
+         re-applies the very intent object the client sent (`E.play` → `ok:false, transition:'play'` →
+         `hostSettle` → `hostApplyMove(it)`), and holds it (`t:'held'`) if someone else cast into the window. */
+      /* THROUGH `playCards`, NOT STRAIGHT TO `sendClientPlay`, so the FLIP capture comes with it: a client's own
+         Fight-button play used to skip it and slide in like a rival's, which only surfaced once the drag (whose
+         path `nettest_drag` films) started going through this function too (drag-and-stack step 1). */
+      playCards(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
     }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;
@@ -5944,11 +6144,9 @@ __QR__
     }
     doFightBody(g);
   }
-  /* FIGHT MEANS TWO DIFFERENT THINGS, AND THE SUB-PHASE PICKS (epic step 20). In the Main Sub-Phase it is
-     the move-to-Fight button: it announces the TRANSITION, priority is passed, and nothing is played —
-     which is why no selection is required and why nothing has to be CANCELLED when someone responds (an
-     announced play has no state anywhere; §1 — the stack holds effects, and a shedding play is not one).
-     In the Fight Sub-Phase it plays what is selected, exactly as it always did, under the label `Play`. */
+  /* FIGHT PLAYS WHAT IS SELECTED, FROM EITHER SUB-PHASE. From Main it crosses into the Fight Sub-Phase first
+     (a priority point) and then plays; in the Fight Sub-Phase it just plays. The empty-selection crossing
+     that `Next` used to make is gone (drag-and-stack step 1) — `doFight` refuses an empty press. */
   function doFightBody(g){
     if(state.subPhase === 'play') return playCards(selectedCards());
     /* ONE PRESS FIGHTS, THE SAME WAY ONE PRESS PASSES (Aj, 2026-09-16: *"adding a fight button back in main
@@ -5963,15 +6161,19 @@ __QR__
        press you already made; when somebody really acts, `stopIfActed` holds the play and hands the board
        back so you can look at what changed — identical to Pass, down to the `stackMark` test.
        AND IT KILLS A REPORTED BUG ON THE WAY: the dead first press is what Aj saw as *"no animations when
-       pressing fight"*. There were none because nothing had been played yet.
-       AN EMPTY SELECTION STILL JUST CROSSES OVER, which is what the `Next` label is for — moving to the
-       Fight Sub-Phase without committing is a legitimate thing to want. */
-    var selNow=selectedCards();
-    if(!selNow.length) return moveToPlayThen(g, function(){ if(g===gen) render(); }, null, null, 'Next');
-    commitCrossing=true;                                   // crosses AND plays — no Fight beat (see notePhaseEdge)
-    moveToPlayThen(g, function(){ if(g===gen) playCards(selectedCards()); }, function(){
-      var sw=(commitCrossing==='used'); commitCrossing=false; render(); if(sw) announceFight();
-      setMessage(heldPlayMessage());   // held: you ARE in the Fight Sub-Phase with nothing played — announce if the edge was swallowed (else render's edge does it)
+       pressing fight"*. There were none because nothing had been played yet. */
+    if(!selectedCards().length) return;                    // no empty crossing any more — see doFight
+    /* THE CARDS ARE TAKEN AT THE PRESS, NOT WHEN THE PLAY LANDS (drag-and-stack ruling 10). The crossing now
+       shows the Fight Sub-Phase for a beat before the play lands, so reading the LIVE selection then would play
+       whatever the selection had become in the meantime — nothing at all, after a Clear. If a pressed card left
+       the hand during the beat, the play you chose no longer exists, so it is not replaced by a different one. */
+    var pressed=selectedCards().slice();
+    moveToPlayThen(g, function(){ if(g!==gen) return;
+      var hand=state.players[YOU].hand, still=pressed.filter(function(c){ return hand.indexOf(c)>=0; });
+      if(still.length!==pressed.length){ setMessage('Your cards changed during the crossing — pick your play again.'); render(); return; }
+      playCards(still); }, function(){
+      render();                                            // held: you ARE in the Fight Sub-Phase with nothing played; render's edge announces it
+      setMessage(heldPlayMessage());
     }, null, 'Fight');
   }
   function doPass(){
@@ -6458,32 +6660,21 @@ __QR__
    * the new sub-phase through `moveToPlayThen`; a netplay CLIENT never runs that function at all — it
    * learns the transition from a MIRROR (`subPhase` is public in netview for exactly this) — so a call
    * placed in the funnel would announce on two seats of three. Everything renders; nothing else does. */
-  /* ⚠ A PRESS THAT CROSSES OVER AND COMMITS IS NOT ANNOUNCED (fight-announce-on-commit, Aj 2026-10-02:
-     *"fight sub phase announcement flew in when i clicked fight. it should only fly in for next"*). With
-     cards selected in Main the button reads `Fight`, and that ONE press transitions and then plays — so
-     the beat narrated something the player had just done on purpose. (Pass is not rendered in Main since
-     step 20, so it cannot cross and commit — no flag there; an unreachable branch is not a safeguard.)
-     `commitCrossing` is a ONE-SHOT the committing press sets, and the next Main → Fight edge
-     consumes it instead of announcing. ANY other edge clears it, so a commit that never crossed cannot
-     swallow a later `Next`.
-     SET ON EVERY SEAT THAT CAN COMMIT, including the netplay CLIENT's send — the client learns the edge
-     from a MIRROR, which is the whole reason this detector lives in `render()`; a flag set only in the
-     local funnel would leave the client announcing (the "two parks of nine" shape).
-     A HELD commit ("Someone answered — your play is on hold") DOES land you in the Fight Sub-Phase with
-     nothing played, which is exactly what the beat is for, so the hold path announces explicitly. */
-  var lastSubPhase=null, commitCrossing=false;
+  /* EVERY CROSSING OF YOURS IS ANNOUNCED (drag-and-stack ruling 10, 2026-10-13: Aj picked *"Show Fight briefly
+     every turn"*). This REPLACES the 2026-10-02 rule (*"it should only fly in for next"*), which swallowed the
+     beat on a press that crossed and committed in one go — and with Next removed in step 1, that rule would
+     have left the Fight Sub-Phase invisible on almost every turn, because a quiet crossing auto-advances inside
+     one call. So there is no one-shot flag any more: every Main → Fight edge on your turn announces, the held
+     paths included (they land in the Fight Sub-Phase through the same edge).
+     THE EDGE HAS TO BE RENDERED TO BE SEEN, and a quiet crossing never was. `afterCrossing` is what makes it
+     visible: it renders the crossed board and holds it briefly before the play lands, on the local seat; a
+     remote seat is told by the host (`t:'crossed'`) and holds its own mirror the same way. */
+  var lastSubPhase=null;
   function notePhaseEdge(){
-    /* THE FLAG LIVES ONLY WHILE THE TURN IS YOURS. A QUIET commit crosses and plays inside one call, so no
-       render ever sees the Main → Fight edge and nothing consumes the flag — measured: it then swallowed
-       the NEXT `Next`. The play hands the turn on, so clearing it here retires it on the first render
-       after the commit, on every seat (a client sees the turn move in the mirror the same way). */
-    if(!state || state.turn!==YOU) commitCrossing=false;
     var now=(state && state.subPhase) || null;
     if(now===lastSubPhase) return;
     var was=lastSubPhase; lastSubPhase=now;
-    if(!(was==='main' && now==='play')){ commitCrossing=false; return; }
-    if(commitCrossing===true){ commitCrossing='used'; return; }        // 'used' tells a HELD commit the beat was swallowed
-    commitCrossing=false;
+    if(!(was==='main' && now==='play')) return;
     if(state && state.turn===YOU && !state.finished && !E.isLocked(state, YOU)) announceFight();
   }
   function announceFight(){ announcePhase('⚔️ <b>Fight sub-phase</b> — throw your cards down.', 'you'); }
@@ -7576,6 +7767,26 @@ __QR__
      funnel for a REMOTE seat's play or pass (`hostApplyMoveN`). The brake subtracts the ACTOR's own casts,
      so passing the wrong seat would measure the host's casts against a client's pass and brake on exactly
      the wrong events. Defaults to YOU, which is right for solo and for the host's own turn. */
+  /* THE CROSSING IS SHOWN BEFORE THE PLAY LANDS (drag-and-stack ruling 10, 2026-10-13: *"Show Fight briefly
+     every turn"*). A quiet crossing auto-advances inside one `E.moveToPlay` call, so without this no render ever
+     painted the Fight Sub-Phase on a turn nobody contested — and with `Next` gone that is nearly every turn.
+     ONE FUNCTION FOR BOTH OF `moveToPlayThen`'s EXITS (the quiet auto-advance and a go-round that closed with
+     nobody acting), so the two cannot drift:
+       - the LOCAL seat renders the crossed board (the strip paints Fight and `notePhaseEdge` plays the beat),
+         stays `busy` for a short dwell so nothing can be pressed into it, then lands the play;
+       - a REMOTE seat on the host is TOLD (`t:'crossed'`) and shows its own crossing while it holds the mirror
+         that follows. The host never delays a remote seat's move: "the host says so, a client never guesses",
+         and a host that sat on a remote play would have to refuse that seat's every intent until it landed.
+     The AI is not shown: ruling 10 is about the player's own crossing. */
+  function crossDwellMs(){ return reduceMotion() ? 300 : 700; }
+  function afterCrossing(me, g, proceed){
+    if(me!==YOU){
+      if(typeof NET!=='undefined' && NET.hostCrossThen) return NET.hostCrossThen(me, g, proceed);
+      return proceed();
+    }
+    busy=true; render();
+    setTimeout(function(){ if(g!==gen) return; busy=false; proceed(); }, crossDwellMs());
+  }
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
     /* A REFUSED TRANSITION STOPS HERE (the round-end freeze, v1.32.21). This read `E.moveToPlay(state);`
@@ -7597,14 +7808,13 @@ __QR__
        it. The auto-advance is the case worth logging: it is 19 turns in 20, and its absence is exactly
        what an unreachable transition would look like. */
     /* AND IT RECORDS WHICH PRESS OPENED IT (Aj, 2026-09-11: *"can't remember if it was offered when i
-       pressed the next button tho..."*). Pressing Next plays nothing, so the BATTLE log has no line for it —
-       this ledger entry is the only record that the transition happened at all, and without the trigger the
-       reader still cannot tell a Next from a Pass. Both reach this funnel. */
-    var viaTxt = '  [' + (via || 'Next') + ']';
+       pressed the next button tho..."*), so the reader can tell a Fight from a Pass. Every caller names its
+       press; `Next`, the third one, was removed in drag-and-stack step 1. */
+    var viaTxt = '  [' + (via || 'Fight') + ']';
     prioSay('MAIN → FIGHT' + viaTxt, state.respondFor != null
       ? ('go-round opened  origin={s' + me + '}  priority→{s' + state.respondFor + '}')
       : ('auto-advanced — nobody could add to the stack  (origin={s' + me + '})'));
-    if(state.respondFor == null) return proceed();
+    if(state.respondFor == null) return afterCrossing(me, g, proceed);
     busy=true; render();
     settleWindows(g, function(){
       if(g!==gen) return;
@@ -7615,7 +7825,7 @@ __QR__
          intended. Everything else just proceeds, with the board the responses left behind. */
       if(E.isLocked(state, YOU)) return finishPassRound(E.pass(state, YOU));
       if(stopIfActed && stackMark(state, me)!==mark) return stopIfActed();
-      proceed();
+      afterCrossing(me, g, proceed);
     });
   }
 
@@ -7872,7 +8082,7 @@ __QR__
     pendingEnter={}; flipFrom=null;                      // the deal-in queue (it also drives the Beginning tint via `dealingIn`) and the FLIP source rect
     equipFx={}; equipOpen=null; formsOpen=null;          // zone flash layer + which zones are expanded
     drag=null;                                           // any drag still in flight when the board went away
-    lastSubPhase=null; commitCrossing=false;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
+    lastSubPhase=null;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
     ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
     var af=$('artFlash'); if(af) af.classList.remove('show','you');
     document.body.classList.remove('kicking');
@@ -8270,25 +8480,28 @@ __QR__
     return [
       { text:"Welcome! You’re a <b>Cardmen Fighter</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
       { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn, #menuWrap:has(#specialsRefBtn) > #menuBtn', btn:"Got it ▸" },
-      /* THE TURN HAS TWO HALVES AND THE BUTTON SAYS SO (epic step 20; taught here 2026-09-16). Pressing
-         Fight in the Main Sub-Phase plays NOTHING — it moves you to the Fight Sub-Phase, and the button
-         relabels itself `Next` → `Fight` to say which press you are on. Measured: select a card in Main
-         and the button reads **Next**; one press leaves the card in hand and flips the label to **Fight**;
-         the second press plays it.
-         EVERY LESSON STILL SAID "press Fight" AT A MOMENT THE BUTTON READS "Next", which is the exact
-         shape of a dead end for a beginner — told to press a button that is not on screen. The suites
-         never caught it because their helper (`__pressFight`) drives both presses by design, so this is
-         the *"assert what the lesson CLAIMS, not that the panel rendered"* rule in its newest clothes.
+      /* THE BUTTON ONLY EVER SAYS `Fight` NOW (drag-and-stack step 1), and it is grey until a card it can play
+         is picked — so the rNote below teaches that, where it used to explain why the button read `Next` with
+         nothing selected. The step also names the drag, because the middle of the table is where a dropped
+         card fights. This used to be the epic-step-20 two-press note (*"EVERY LESSON STILL SAID 'press Fight'
+         AT A MOMENT THE BUTTON READS 'Next'"* — a beginner told to press a button not on screen); with one
+         label that dead end cannot recur, which is the rule this comment was guarding.
          ⚠ IT IS TAUGHT INSIDE AN EXISTING STEP, NOT A NEW ONE, AND THAT IS NOT A STYLE CHOICE.
          `lessontest_howto` asserts step NUMBERS — `atStep(2)` through `atStep(10)` — so inserting a step
          renumbers every assertion below it: measured, **7 pass / 17 fail** on the first attempt. Anyone
          adding a step to any lesson pays that; check the suite before reaching for one. */
-      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead. <span class=\"rNote\">(Lead a middling card — save that 2! With nothing selected that button reads <b>Next</b> — it only moves you on.)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead — or drag it into the middle of the table. <span class=\"rNote\">(Lead a middling card — save that 2! Fight stays grey until you pick a card it can play.)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"You led a <b>jab</b>. <b>Every card you play banks into your ⚡ energy</b> — win or lose. But a jab only <b>takes the round</b>; it never breaks a shield. Jabs are your <b>safe</b> way to bank energy.", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"To <b>break shields</b> you need a <b>Special</b>, and those unlock from <b>Round 2</b>. The simplest is a <b>pair</b> — two cards of the <b>same number</b>. Select two and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"That’s a <b>Special</b>! Winning it made the Rival <b>lose a shield</b> 🛡. <b>Only Specials break shields</b> — that’s the whole game plan.", hi:'#rivalShields', btn:"Next ▸" },
       { text:"Strip <b>both</b> shields and your next Special win lands the <b>Fighter Kick</b> 🦵 — the finisher that ends the duel. That’s your win condition.", hi:'#rivalShields', btn:"Next ▸" },
-      { text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you press <b>Next</b> the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      /* `only:[]` ON EVERY STEP THAT TEACHES ⚡ ACTIVATE (drag-and-stack step 1, recheck finding Z4). Until step 1 a
+         Main drag of the glowing card ACTIVATED it, which satisfied the gate; a drop in the middle now FIGHTS, so
+         without a card list the one card the rig placed could be thrown away as a jab and the step never finish.
+         `only:[]` disables Fight and Pass and refuses the middle drop (`canHumanPlay` reads the same list), while
+         ⚡ and the cast column stay live because the spotlight names `#ctxBtn` (`acceptsActivate`). Same as the
+         twos lesson's boost step. Copied on the Energy, Rides and Forms activate steps. */
+      { only:function(){ return []; }, text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you fight or pass, the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"Quick tour of your <b>zones</b>: your <b>hand</b> (the cards you hold), your <b>🂠 deck</b> (draw 2 each round), your <b>⚡ energy</b> (cards you’ve fought), and your <b>♻ shuffle pile</b> (spent energy). Spend energy → it goes to the shuffle pile; when your deck empties, the shuffle pile becomes your new deck. Keep the cycle turning and you won’t run dry.", hi:['#youNrgSuits','#handMeta .stat.deck','#youShuf'], btn:"Next ▸" },
       { text:"That’s the loop: <b>fight</b> → bank <b>energy</b> → spend it on <b>effects</b> → win <b>Specials</b> to break shields → land the <b>Kick</b>. You won’t always win an exchange — when you can’t, <b>pass</b> and still bank energy (that’s the <b>Initiative</b> lesson). Need a refresher on card ranks or Specials? Tap <b>🃏 Specials list</b> above your hand any time. Now play this out and land the Kick! 🥊", btn:"Finish" }
     ];
@@ -8320,7 +8533,8 @@ __QR__
       { text:"Every card you <b>fight</b> — win or lose — banks into your ⚡ <b>energy pile</b>. Energy is the fuel for card <b>effects</b>. <span class=\"rNote\">(In a real duel you start at <b>0</b> and build it by fighting — we’ve pre-stocked some here just to demo.)</span>", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"Leading a <b>jab</b> is the <b>safe</b> way to stock energy: a jab risks no shield, and even a losing jab refuels you. Lead a jab now.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"See the ⚡ box pulse with a <b>+N</b>? That card just banked. Now let’s <b>spend</b> some.", hi:'#youNrgSuits', btn:"Next ▸" },
-      { text:"Each card carries its own <b>effect</b>. Spend it in the <b>Main</b> half, before you press <b>Next</b> — once the fight starts you may only play or pass. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
+      { only:function(){ return []; }, text:"Each card carries its own <b>effect</b>. Spend it in the <b>Main</b> half, before you fight or pass — once the fight starts you may only play or pass. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"One more source: when you <b>lose</b> a round, the catch-up <b>moves cards straight from your 🂠 deck into energy</b> (you’ll see a <b>−N</b> there). So even losing fuels you.", hi:['#handMeta .stat.deck'], btn:"Next ▸" },
       { text:"Spent energy moves to your <b>♻ shuffle pile</b>; when your <b>🂠 deck</b> empties, the shuffle pile becomes your new deck. So <b>fight and spend</b> — never spending can starve your deck. That’s the energy cycle!", hi:['#handMeta .stat.deck'], btn:"Finish" }
     ];
@@ -8366,7 +8580,8 @@ __QR__
   function lessonRidesSteps(){
     return [
       { text:"This is the <b>Full</b> game. A <b>J</b> can <b>transform</b> into your <b>Forms &amp; Rides zone</b> as a <b>Ride</b> — instead of fighting with it, you park it there for a <b>persistent aura</b> that buffs your plays.", prep:tutPrepRide, hi:function(){ return tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand'; }, btn:"Show me ▸" },
-      { text:"Transforms unlock as the table loses shields — the <b>J (Ride)</b> tier is open now. <b>Read it</b>, then select your glowing <b>J</b> and tap <b>⚡ Activate</b> to call your Ride.", hi:function(){ return [ tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your J…" },
+      /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
+      { only:function(){ return []; }, text:"Transforms unlock as the table loses shields — the <b>J (Ride)</b> tier is open now. <b>Read it</b>, then select your glowing <b>J</b> and tap <b>⚡ Activate</b> to call your Ride.", hi:function(){ return [ tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your J…" },
       { text:"Your <b>Ride</b> now sits in the zone on the left. It <b>persists</b> (no decay) and its aura keeps working <b>every fight</b> while it’s there — e.g. your plays fight at +1. You hold <b>one per rank</b>: calling a new J banks the old one to energy.", hi:'#youFormZone', btn:"Next ▸" },
       { text:"That’s Rides. The <b>Q</b> and <b>K</b> — called <b>Forms</b> — work <b>differently</b>: instead of a standing aura, they <b>upgrade your cards’ effects</b>. That’s the next lesson. 🏍", btn:"Finish" }
     ];
@@ -8398,7 +8613,8 @@ __QR__
   function lessonFormsSteps(){
     return [
       { text:"<b>Forms</b> are the <b>Q</b> and <b>K</b>. Unlike a Ride’s standing aura, a Form <b>upgrades your cards’ effects</b> while it sits in the zone — it makes what you already do <b>hit harder</b>.", prep:tutPrepForm, hi:function(){ return tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand'; }, btn:"Show me ▸" },
-      { text:"The <b>Form</b> tier is open (the table’s bled enough shields). First <b>read it</b> — then select your glowing <b>Q</b> and tap <b>⚡ Activate</b> to transform it.", hi:function(){ return [ tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your Q…" },
+      /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
+      { only:function(){ return []; }, text:"The <b>Form</b> tier is open (the table’s bled enough shields). First <b>read it</b> — then select your glowing <b>Q</b> and tap <b>⚡ Activate</b> to transform it.", hi:function(){ return [ tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your Q…" },
       { text:"Your <b>Form</b> is in the zone. Now <b>hover any card</b> — its description shows an <b>upgraded</b> effect line (marked active). Forms empower a whole set of your cards at once, no decay.", hi:'#youFormZone', btn:"Next ▸" },
       { text:"Top tier: hold a <b>Ride + two different Forms</b> (a Q <i>and</i> a K) and you ignite <b>Super Mode</b> — the strongest boost of all. Deciding “fight now, or build my zone?” is the heart of the Full game. That’s Forms!", btn:"Finish" }
     ];
@@ -8875,28 +9091,15 @@ __QR__
          reminder text avoids by DERIVING every claim from the live rule. Point at the strip and name the
          phase; the strip can then be any colour the player likes. */
       { text:"Every round runs the same four phases: <b>Beginning → Play → Resolution → Clean-up</b>. You don’t have to memorise them — <b>the strip behind your cards changes colour</b> for each one, and rests while the board is the Rival’s. Watch it. Watch the strip behind your cards.", hi:hw, btn:"Start the round ▸" },
-      { text:"You’re in the <b>Main sub-phase</b>, the first half of the Play Phase. Here you may use <b>effects</b>, but you can’t fight yet.", hi:hw, btn:"Next ▸" },
-      /* ⚠ `only:[]` — NOTHING MAY BE SELECTED, AND THE STEP'S WHOLE CLAIM DEPENDS ON IT (Aj, 2026-09-25:
-         *"i should not be able to click outside of the tutorial's intent here … and yep, when i pressed
-         fight it skipped through the fight phase"*). `doFight` only acts as a doorway on an EMPTY
-         selection — with a card staged it transitions AND plays it in one press. So the step said
-         "nothing gets played" over a board where pressing Fight would play the Ace, and the player who
-         tried it skipped the beat the lesson exists to show.
-         `only:[]` disables Fight and Pass exactly while something IS selected, and leaves them live when
-         nothing is — which is the doorway, so the step keeps working and can no longer be broken. */
-      /* NAME THE BUTTON THAT IS ON SCREEN, AND AT THIS STEP THAT IS `Next` (2026-09-29). This step REQUIRES
-         an empty selection (`only:[]`, because `doFight` is a doorway only on one), and an empty selection
-         in Main returns early from `updateActions` with the resting label — so the button reads `▶ Next`
-         while this copy used to say "press Fight". The board's own hint says so two lines away: *"Main
-         sub-phase — drag a card to use it, or Next to move on."*
-         IT IS THE DEFECT THE HOW-TO LESSON FIXED FOR ITSELF ON 2026-09-16, reintroduced nine days later by
-         the lesson written to teach this very transition — and the comment recording that fix is ~500 lines
-         above. Aj's framing then is the test: *told to press a button that is not on screen.* */
-      { text:"Press <b>▶ Next</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The strip shifts with you. <br><br>Crossing it is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you. <span class=\"rNote\">(It is the same button as <b>Fight</b>. With nothing selected it reads <b>Next</b>, because moving you on is the only thing the press can do.)</span>",
-        only:function(){ return []; }, onlyHint:"Not this step — clear your selection, then press Next.",
-        hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Next to step through…" },
-      { text:"The strip moved — this is the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
-        only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
+      { text:"You’re in the <b>Main sub-phase</b>, the first half of the Play Phase. This is where you use <b>effects</b>. You leave it by <b>fighting</b> or <b>passing</b> — and once you do, you can’t come back to Main this turn.", hi:hw, btn:"Next ▸" },
+      /* THE DOORWAY STEP IS GONE, AND THE ACE STEP TEACHES THE CROSSING INSTEAD (drag-and-stack step 1). The doorway
+         was `▶ Next` with nothing selected: "press it and watch closely: nothing gets played". With Next removed
+         there is no way to cross without playing, so the step that said "nothing gets played" would be false. What
+         the lesson still has to teach is true on every turn now (ruling 10): ONE press of Fight first crosses you
+         into the Fight sub-phase — the strip changes and the beat plays — and only then does your card go down.
+         `only` names the Ace, so the step cannot be satisfied by anything else; its gate is the play. */
+      { text:"Now leave Main the way you always will: select your <b>Ace</b> and press <b>⚔️ Fight</b> — or drag it into the middle of the table. Watch the strip as you do: <b>one press first crosses you into the Fight sub-phase</b>, then the Ace goes down. <br><br>Crossing over is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you.",
+        only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?['#hand .card[data-id="'+tutPhAce+'"]','#fightBtn']:['#hand','#fightBtn']; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
         hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
@@ -8931,11 +9134,8 @@ __QR__
         hi:hw, hold:'resolve', btn:"Next ▸" },
       { text:"<b>Clean-up.</b> The round closes out: anything over the hand limit is pitched, and equipment timers tick down.<br><br>Next comes the <b>Beginning Phase</b>, dealing the new round in — and the strip rests again whenever the board is the Rival’s rather than yours.",
         hi:hw, hold:'cleanup', btn:"Next ▸" },
-      /* AND THE SAME CARE ONE STEP LATER, FOR THE OPPOSITE REASON. Here cards ARE chosen, so the label really
-         is `⚔️ Fight` and ONE press both crosses over and leads them (the 2026-09-18 client note above says
-         the same of a client's seat). The old copy said "Press it, then lead", which describes the two-press
-         route — and that first press, made with nothing selected, shows `Next`. Name the route the step
-         actually wants. */
+      /* ONE PRESS CROSSES OVER AND LEADS THEM, which is the only route there is since drag-and-stack step 1 (the
+         old copy described a two-press route through `Next`). */
       { text:"This time there’s nothing worth activating — and that’s fine. <b>You still have to leave Main.</b> Select your <b>pair of 3s</b> and press <b>⚔️ Fight</b>: with cards chosen, one press crosses over <i>and</i> leads them.",
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
@@ -9674,7 +9874,7 @@ __QR__
   $('rivalExBtn').addEventListener('click', function(){ openPileView('exile', RIVAL); });
   $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });
   $('youWho').addEventListener('click', function(){ if(!peeking) openNameEditor(); });   // your name, editable from the board   // energy piles are open information — view only
-  $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
+  $('clearBtn').addEventListener('click', function(){ if(busy) return;   /* a play mid-crossing still owns its cards — see doFightBody */ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   /* A wrapped handler, never the bare function: `cyclePromptMode` takes no arguments today, but this file
      has already shipped fifteen versions of a saved battle log reading "[object PointerEvent]" because a
@@ -10437,6 +10637,28 @@ __QR__
       if(hubMode){ for(var i=0;i<dcs.length;i++){ if(chanSeat[i]===seat){ try{ if(dcs[i].readyState==='open') dcs[i].send(JSON.stringify(m)); }catch(e){} return; } } return; }
       send(m);
     }
+    /* A REMOTE SEAT'S CROSSING, SHOWN BEFORE ITS MOVE LANDS (drag-and-stack ruling 10; see `afterCrossing`). The
+       host has just crossed the seat into the Fight Sub-Phase. It tells the seat (`t:'crossed'`, so the seat
+       locks its own board — its mirror is about to say "your turn, Fight Sub-Phase" and must not read as live),
+       broadcasts the crossed board (the seat's own `notePhaseEdge` plays the beat off it), waits the dwell the
+       local seat waits, and only then lands the move. THE HOST WAITS, NOT THE CLIENT: a client that held its
+       mirrors instead was measured 691ms behind the host's ceremony, and every seat must see the move land at
+       the same moment. ABSOLUTE seat, like every other seat-addressed message. */
+    var crossingSeat=null;
+    function sendCrossed(seat){ if(!hostLive()) return; trace('crossed OUT', 'seat='+seat); sendTo(seat, {t:'crossed', seat:seat}); }
+    function hostCrossThen(seat, g, then){
+      sendCrossed(seat);
+      crossingSeat=seat; render();
+      setTimeout(function(){ crossingSeat=null; if(g!==gen || !hostState) return; then(); }, crossDwellMs());
+    }
+    /* A BOARD INTENT FROM THE CROSSING SEAT DURING THE DWELL IS DROPPED. Its move is already in hand and lands
+       when the dwell ends; a second one would be applied first and the first would then be refused. The client
+       is locked meanwhile, so this only meets a stale or modified one. */
+    function crossingRefuses(seat, it){
+      if(crossingSeat==null || crossingSeat!==seat || !it) return false;
+      if(!(it.op==='play' || it.op==='pass' || it.op==='activate' || it.op==='phantasm')) return false;
+      trace('move IGNORED — crossing beat', 'seat='+seat+' op='+it.op); return true;
+    }
     // a PRIVATE log line for one seat — advice that only helps the player it names (see logRoundDraw)
     function noteTo(seat, text, cls){ sendTo(seat, {t:'note', seat:seat, text:String(text||''), cls:cls||''}); }
     function sendTo0(chan, m){ if(hubMode && chan){ try{ if(chan.readyState==='open') chan.send(JSON.stringify(m)); }catch(e){} } else send(m); }   // to one specific (not-yet-seated) channel
@@ -10918,7 +11140,7 @@ __QR__
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
     // ---------- messages ----------
-    var CEREMONY_REFUSE={ play:1, pass:1, activate:1, phantasm:1, toFight:1 };   // board ops refused while the host's ceremony is on screen — see the move dispatch
+    var CEREMONY_REFUSE={ play:1, pass:1, activate:1, phantasm:1 };   // board ops refused while the host's ceremony is on screen — see the move dispatch
     function onMsg(m, srcChan){
       if(!m) return;
       if(isHost()){
@@ -11023,7 +11245,7 @@ __QR__
              ⚠ REFUSED, NOT HELD — and holding was built first and measured wrong: a held duplicate pass was
              replayed after the ceremony as a real pass in the NEXT round (`nettest_parkclobber`: a second
              resolution). Refusal is right for a duplicate, and an older client is told why, the way the
-             stale-play refusal above tells it. Only the BOARD ops (`toFight` is the Next/Fight advance): a respond/decline/discard answers a
+             stale-play refusal above tells it. Only the BOARD ops: a respond/decline/discard answers a
              window the ceremony itself can open (the clean-up go-round, the remote trim). */
           /* …AND WHILE THE ROUND IS OVER BUT ITS CEREMONY HAS NOT STARTED: the Resolution go-round, Clean-up and a
              pending strike choice. The engine refuses these too (no transition, so nothing to re-apply into the
@@ -11185,7 +11407,8 @@ __QR__
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
         else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; setMessage('⚠ '+(m.reason||'Illegal move.')); } }
         else if(m.t==='note'){ if(m.seat===mySeat) logMsg(esc(m.text), m.cls||''); }   // a private line from the host — escaped: it is data, never markup
-        else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }   // the host held our Fight — see heldPlayMessage
+        else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }
+        else if(m.t==='crossed'){ if(m.seat==null || m.seat===mySeat){ clientCrossed(); } }   // the host crossed our move — lock the board until it lands (ruling 10)   // the host held our Fight — see heldPlayMessage
       }
     }
 
@@ -11653,25 +11876,7 @@ __QR__
         var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
       // ---- turn actions ----
-      /* MOVE TO THE FIGHT SUB-PHASE (epic step 20). A remote seat pressing Fight in its Main Sub-Phase is
-         asking for the transition and nothing else — it plays on a SECOND press, which is the whole point
-         of the two-state button. The seat gate lives in `E.moveToPlay`, not here, so the duel and the
-         N-player handler cannot drift. `hostSettle` is the same funnel every other window uses: the host's
-         own priority pops its modal, the remote seat parks on `netSettle`. Nothing is played either way —
-         the client's next intent is the play, formed against the mirror this broadcasts. */
-      if(it.op==='toFight'){
-        var tf=E.moveToPlay(hostState, 1);
-        if(tf && tf.ok===false){ send({t:'err', reason:tf.reason||'Illegal move.'}); broadcastMirror(); return; }
-        return hostSettle(g, function(){
-          if(g!==gen) return;
-          /* THE SAME FORCE-SKIP AS THE N-PLAYER HANDLER — see it for why. A locked seat's turn is skipped,
-             and leaving the client to press Pass would be a different rule on a different transport. */
-          if(!E.isLocked(hostState, 1)) return broadcastMirror();
-          var lr=E.pass(hostState, 1);
-          say(1, 'Back Stab locked {who} out — turn skipped.', 'warn');
-          hostAfterRivalMove(lr, g);
-        });
-      }
+      if(crossingRefuses(1, it)) return;   // its move is already in hand, landing after the crossing beat
       /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
       if(it.op==='phantasm'){ return hostPhantasmIntent(1, it) ? (hostAfterOwnCast?hostAfterOwnCast():undefined) : undefined; }
       if(it.op==='activate'){
@@ -11683,13 +11888,27 @@ __QR__
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
-      try{
-        switch(it.op){
-          case 'play': r=E.play(hostState, 1, resolveIds(1, it.ids)); break;   // engine rejects out-of-turn / illegal combos → r.ok===false
-          case 'pass': r=E.pass(hostState, 1); break;
-          default: return;   // unknown op ignored
-        }
-      }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }   // never let a malformed remote payload crash the host
+      /* THE HOST CROSSES A REMOTE SEAT ITSELF, SO THE CROSSING CAN BE SEEN (drag-and-stack ruling 10). Inside
+         `E.play` / `E.pass` a quiet crossing and the move it carries happen in ONE call, so no mirror ever showed
+         the seat its own Fight Sub-Phase. So the host crosses first: quiet, it tells the seat, broadcasts the
+         crossed board and waits the dwell the local seat waits (`hostCrossThen`), then re-applies the very intent
+         — the same re-apply the go-round path below has always used. Both seats therefore see the move land
+         TOGETHER; a client-side hold was tried first and put the client 691ms behind the host's ceremony
+         (`nettest_ceremony`). A locked seat skips the crossing in the engine, so it skips this too. */
+      if((it.op==='play' || it.op==='pass') && hostState.subPhase!=='play' && !E.isLocked(hostState, 1)){
+        var mv=E.moveToPlay(hostState, 1);
+        if(mv && mv.ok===false){ send({t:'err', reason:mv.reason||'Illegal move.'}); broadcastMirror(); return; }
+        if(hostState.respondFor==null) return hostCrossThen(1, g, function(){ hostApplyMove(it); });
+        r={ ok:false, transition:'play', state:hostState };     // a go-round opened at the crossing — settled just below
+      } else {
+        try{
+          switch(it.op){
+            case 'play': r=E.play(hostState, 1, resolveIds(1, it.ids)); break;   // engine rejects out-of-turn / illegal combos → r.ok===false
+            case 'pass': r=E.pass(hostState, 1); break;
+            default: return;   // unknown op ignored
+          }
+        }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }   // never let a malformed remote payload crash the host
+      }
       /* A TRANSITION IS NOT A REFUSAL (epic step 20). `E.play`/`E.pass` open the Main → Play go-round when
          the seat is still in the Main Sub-Phase, and return `ok:false, transition:'play'` while anyone can
          still act. That is the rules working, and reporting it to the client as "Illegal move." is how the
@@ -11708,7 +11927,8 @@ __QR__
         return hostSettle(g, function(){
           if(g!==gen) return;
           if(stackMark(hostState, 1)!==passMark && !E.isLocked(hostState, 1)){ broadcastMirror(); if(it.op==='play') send({t:'held', seat:1}); return; }   // a LOCKED client is force-skipped by the re-apply, never held — see hostApplyMoveN   // someone ELSE acted: a pass is spent, a play is HELD (the client reselects)
-          hostApplyMove(it);
+          if(E.isLocked(hostState, 1)) return hostApplyMove(it);   // locked at the crossing: the re-apply force-skips, nothing to show
+          hostCrossThen(1, g, function(){ hostApplyMove(it); });   // the go-round closed quietly: show the crossing, then land the move
         });
       }
       if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
@@ -12039,29 +12259,12 @@ __QR__
         var nr=netReact; netReact=null; return nr.resume();
       }
       // ---- TURN ops: valid only for the seat whose turn it is ----
+      if(crossingRefuses(seat, it)) return;   // its move is already in hand, landing after the crossing beat
       if(hostState.turn!==seat){ sendTo(seat, {t:'err', seat:seat, reason:'Not your turn.'}); return; }
       var g=(netParked&&netParked.g)||gen;
-      // MOVE TO THE FIGHT SUB-PHASE — the remote seat's first Fight press. See the duel handler.
-      if(it.op==='toFight'){
-        if(hostState.turn!==seat){ sendTo(seat,{t:'err',seat:seat,reason:'Not your turn.'}); return; }
-        /* A QUICK SPRUNG AT THE TRANSITION CAN LOCK THE SEAT THAT ASKED FOR IT, AND THEN NOBODY MOVES.
-           Back Stab is the whole point of this window: the seat presses Fight, the go-round opens, a rival
-           locks it out — and `lockSkip` means the turn is SKIPPED, not "you may pass at your leisure". The
-           `play`/`pass` branch below has always force-skipped for exactly this reason; `toFight` is a third
-           way to reach the same window and shipped without it, so a remote seat sat on a dead board with
-           Fight disabled and the table waiting on it (`nettest_prefight`, path B).
-           It goes through `moveToPlayThen` rather than a bare `hostSettleN` so the transition, the park and
-           the brake are the same ones every other intent uses. */
-        return moveToPlayThen(g, function(){
-          if(g!==gen) return;
-          if(!E.isLocked(hostState, seat)) return broadcastMirror();   // arrived in the Fight Sub-Phase; the seat plays next
-          var lr=E.pass(hostState, seat);
-          say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn');
-          netParked=null;
-          if(lr && (lr.roundWinner!=null || lr.resolution || lr.fizzled)) return hostResolveWin(lr, g, function(fr){ hostSettleRoundThenCeremony(fr, g); });
-          driveN();
-        }, null, seat, 'Next');
-      }
+      /* THE `toFight` ARM WAS HERE AND IS DELETED (drag-and-stack step 1), with its sender: it was a remote
+         seat's `Next`, a crossing with nothing played. The locked-out force-skip it carried is not lost — the
+         `play`/`pass` branch below has always force-skipped a seat that a Back Stab locked at the crossing. */
       // A fight or a pass first opens the pre-fight (Back Stab) window for the next seat; only then does it resolve.
       if(it.op==='play' || it.op==='pass'){
         /* THE AUTO-PASS BRAKE REACHES A REMOTE SEAT TOO (epic step 20). Without the third argument this
@@ -12145,6 +12348,20 @@ __QR__
     }
 
     // ---- CLIENT: render the real board from each mirror; send inputs as intents. ----
+    /* THE CLIENT'S HALF OF RULING 10 (drag-and-stack, 2026-10-13). The host crosses this seat's move into the
+       Fight Sub-Phase, tells it so (`t:'crossed'`, see `hostCrossThen`), broadcasts the crossed board — which is
+       where this seat's beat comes from, off the ordinary edge — and lands the move after the dwell. Meanwhile
+       that mirror says "your turn, Fight Sub-Phase" with the cards still in hand, so on its own it would render
+       a LIVE board inviting a second press. This holds the board locked from the notice until a mirror shows the
+       move has landed (the turn moved on, or the sub-phase did). A short safety timer means a lost landing mirror
+       can only cost a second, never the board. */
+    var crossingLock=false;
+    function clientCrossed(){
+      if(!state || state.finished || state.turn!==YOU) return;
+      crossingLock=true; trace('crossed IN', 'board locked until the move lands');
+      busy=true; render();
+      setTimeout(function(){ if(crossingLock){ crossingLock=false; trace('crossed SAFETY', 'no landing mirror in 3s — unlocked'); if(state && !state.finished) render(); } }, 3000);
+    }
     function applyMirror(st){
       if(iConceded) return;   // we forfeited — stay on our concede screen, ignore the ongoing game
       // During the round ceremony, hold the NEW-ROUND deal (the mirror the host's deal count names — see
@@ -12219,6 +12436,7 @@ __QR__
          going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
       var waitingOnRound = !trimFirst && !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
       busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
+      if(crossingLock){ if(state.turn===YOU && state.subPhase==='play' && !state.finished) busy=true; else crossingLock=false; }   // the host is showing our crossing — see clientCrossed
       /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
          says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
          went live under its own Round banner and a quick player could play round N+1 before round N had finished
@@ -12925,7 +13143,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:!!(clientCer && clientCer.stage==='opening'), stage:(clientCer?clientCer.stage:null), roundCard:!!(clientCer && clientCer.stage==='card'), hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!(clientCer && clientCer.held), awaiting:!!(clientCer && clientCer.stage==='deal') }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostCrossThen:hostCrossThen, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:!!(clientCer && clientCer.stage==='opening'), stage:(clientCer?clientCer.stage:null), roundCard:!!(clientCer && clientCer.stage==='card'), hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!(clientCer && clientCer.held), awaiting:!!(clientCer && clientCer.stage==='deal') }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the

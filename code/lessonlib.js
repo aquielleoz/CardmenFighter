@@ -163,7 +163,7 @@ async function openLesson(id, viewport){
         seen.add(g); if(!g.classList.contains('gsel')) g.click(); }
       return null; }, ids);
     if(selErr) return selErr;
-    if(await clickFight(p) === 'played') return null;
+    { const r=await clickFight(p); if(r === 'played' || r === 'waiting') return null; }   // 'waiting': it took effect; another seat answers the crossing
     return p.evaluate(list=>{
       const lay=[].map.call(document.querySelectorAll('#hand .group'),g=>
         (g.classList.contains('gsel')?'[SEL]':'')+[].map.call(g.querySelectorAll('.card'),c=>c.dataset.id).join('+')).join(' ');
@@ -203,9 +203,16 @@ async function openLesson(id, viewport){
           const g=el.closest('.group'); if(!g) return 'card '+id+' has no group';
           if(!g.classList.contains('gsel')) g.click(); }
         return null; }, ids);
-      if(last===null && await clickFight(p) !== 'played')            // epic step 20: only `played` means cards really went down
-        last=await p.evaluate(()=>'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||''));
+      if(last===null && !/^(played|waiting)$/.test(await clickFight(p)))   // only these mean the press took effect — see fightclick.js
+        /* AND SAY WHAT THE BOARD WAS DOING, because "did not land" alone cannot tell a refused play from one the
+           crossing lost: the sub-phase, whose turn, the pile, what is still selected and the ledger's last line. */
+        last=await p.evaluate(()=>{ const s=(window.__solo&&window.__solo.st())||{}, led=(window.__solo&&window.__solo.prioLog?window.__solo.prioLog():[])||[];
+          return 'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||'')+
+            ' | sub='+s.subPhase+' turn='+s.turn+' pile='+(s.pile?s.pile.combo.type+' by '+s.pile.byPlayer:'none')+
+            ' sel='+document.querySelectorAll('#hand .group.gsel .card, #hand .card.sel').length+
+            ' | ledger: '+String(led[led.length-1]||'').slice(0,110); });
       if(last===null) return null;
+      if(process.env.LESSONDBG) console.log('   playIds attempt @'+(Date.now()-t0)+'ms: '+last);
       if(/has no group/.test(last)) last=(await pickMode())||last;   // name the board state, not the symptom
       await answerWindow();
       await p.waitForTimeout(200);
@@ -225,11 +232,18 @@ async function openLesson(id, viewport){
      * beat happened to land between the snapshot and the check — a false positive that then surfaced as an
      * unrelated assertion failing further down. A pass either bumps `passes` or ends the round. */
     const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, passes:s.passes||0}; });
+    const movedNow=()=>p.evaluate(b=>{ const s=window.__solo.st();
+      return s.round!==b.round || (s.passes||0)>b.passes; }, before);
     while(Date.now()-t0<ms){
-      await clickPass(p);   // Pass only exists in the Fight Sub-Phase now — the helper moves there first
-      const moved=await p.evaluate(b=>{ const s=window.__solo.st();
-        return s.round!==b.round || (s.passes||0)>b.passes; }, before);
-      if(moved) return Date.now()-t0;
+      const r=await clickPass(p);
+      /* A PRESSED PASS LANDS AFTER THE CROSSING BEAT, SO WAIT FOR IT BEFORE PRESSING AGAIN (drag-and-stack ruling
+         10). From Main a Pass crosses into the Fight Sub-Phase and shows it for ~700ms before the pass goes
+         through, so checking straight after the press read "not yet" and the retry pressed AGAIN — and that
+         second press waited on the button until the NEXT turn of yours and passed THAT one. Measured: it skipped
+         the twos lesson's full-house step, so the lesson stalled on a board it had already moved past. Only a
+         press that did not register is retried. */
+      const landBy=Date.now()+(r==='passed'?4000:0);
+      for(;;){ if(await movedNow()) return Date.now()-t0; if(Date.now()>=landBy) break; await p.waitForTimeout(80); }
       await answerWindow();
       await p.waitForTimeout(150);
     }

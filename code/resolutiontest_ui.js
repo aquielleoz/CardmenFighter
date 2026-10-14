@@ -842,10 +842,14 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
     /* NOW CROSS MAIN -> FIGHT THROUGH THE REAL BUTTON, which is what the discriminator needs: a boundary
        window with no cast of yours on the stack. It has to be the BUTTON — `clearTransition` calls
        `E.moveToPlay` directly and so never reaches the UI path that writes the ledger, which would leave
-       the assertion below failing for a staging reason and reading as a product one. */
+       the assertion below failing for a staging reason and reading as a product one.
+       AND IT CROSSES WITH A PLAY: until drag-and-stack step 1 this pressed Fight with nothing selected,
+       which was `Next`; the cast cleared the selection, so it now picks the plain 6♣ and fights with it. You
+       lead, so any single card is legal, and the crossing still opens the same window. */
     await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && d.offsetParent !== null) d.click(); });
     await wait(400);
-    await p.evaluate(() => { const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
+    await p.evaluate(() => { const c = document.querySelector('#hand .card[data-id="x6C"]'); const g = c && c.closest('.group'); if (g) g.click();
+      const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
     await wait(1200);
     const ledH = await p.evaluate(() => window.__solo.prioLog());
     const own = ledH.filter(l => /\[respond\]/.test(l) && /YOUR OWN CAST/.test(l));

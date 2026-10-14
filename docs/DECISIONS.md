@@ -582,6 +582,9 @@ has.** Aj: *"there's a separate pass button and if they wanted to, they could ha
 instead"*, then plainly: *"don't auto advance @\_@ they can pass from fight."* A dead Main is not a
 dead end — Next and Pass are different buttons, and the player can leave by either. Removing the press
 removes a control, not a chore.
+**THE NEXT BUTTON ITSELF IS GONE SINCE DRAG-AND-STACK STEP 1 (2026-10-14), AND THE DECISION STANDS.** A
+dead Main is now left by fighting or by Pass, and nothing skips it: the player still chooses. The hint
+quoted above went with the button and reads *"nothing to use yet; pick a play."*
 
 **AND THE PRIORITY DANCE WAS NEVER THE PROBLEM, which is what the discussion clarified.** It already
 auto-advances at the boundary when nobody can add to the stack — that is the

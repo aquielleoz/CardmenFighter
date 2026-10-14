@@ -15,7 +15,7 @@
  *
  * Run: node nettest_prioledger.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { enterFight } = require('./fightclick');
+const { selectAndFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8397),ROOM='PL'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let f=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(f,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -38,10 +38,10 @@ const walk=p=>p.evaluate(()=>{ try{ return (window.__cmf.prioLog()||[]).filter(f
   await startDuel(host, join);
   ok(await until(async()=>(await host.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'duel started');
 
-  /* Drive the host through ONE Main → Fight transition. `enterFight` is the shared helper for the
-     two-state button, so this makes no assumption about which press opens it. */
+  /* Drive the host through ONE Main → Fight transition: a real play from Main, since the empty crossing
+     that `Next` made is gone (drag-and-stack step 1). The host leads, so any single card is legal. */
   ok(await until(async()=>await host.evaluate(()=>window.__cmf.turn())===0, 60), "it is the host's turn");
-  await enterFight(host).catch(()=>{});
+  await selectAndFight(host).catch(()=>{});
   const hostWalk = await until(async()=>(await walk(host)).length>0, 60);
   ok(hostWalk, 'the HOST records the phase walk, as it always did  ['+((await walk(host))[0]||'')+']');
 

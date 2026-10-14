@@ -4,7 +4,7 @@
  * seat-rotated. That rotation is the part most likely to be wrong, so it is asserted from both ends.
  * Run: node nettest_names.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8314),ROOM='NM'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -52,10 +52,8 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
 
   // the CLIENT plays: the host must see "Bea"
   for(let i=0;i<60 && (await join.evaluate(()=>window.__cmf?window.__cmf.turn():null))!==0;i++) await wait(150);
-  await enterFight(join);
-   /* `#fightBtn.disabled` only means "this play is legal" in the FIGHT Sub-Phase — in Main the same
-      button is the phase move and is always enabled, so the probe below would click it on the first
-      card it tried and report a play that never happened. See fightclick.js. */
+   /* `#fightBtn.disabled` means "this play is legal" in either sub-phase (drag-and-stack step 1), so the
+      probe below tries each card from Main and presses the first that enables the button. */
   await join.evaluate(()=>{
     const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn');
     const cards=[].slice.call(document.querySelectorAll('#hand .card'));
