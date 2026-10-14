@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.16.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -47,8 +47,10 @@ The facts people trip over:
 - **The Play Phase is Main · Fight · Resolution** (renamed from "Fight Phase"; the old Fight End is Resolution).
   `fightEnd` in a `.js` file is a leftover. The one surviving `'fightend'` is the `localStorage` prompt-timing
   migration, which must know the old key.
-- **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move, Fight commits the cards.
-  Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
+- **There is no Next button (drag-and-stack step 1).** `#fightBtn` only reads Fight: one press with a play
+  selected crosses Main → Fight and then plays it, and every crossing shows Fight for a beat. **Where you drop
+  decides what a drag means:** the middle of the play area fights, and the cast column on the right stages a
+  cast that ⚡ Activate sends.
 - **Pass is an auto-pass with a brake:** one press carries you through, and it stops if anyone ELSE acts in the
   window it opened (`stackMark`).
 - **The equipment counter tick is the game's first triggered ability.** A trigger is an effect carrying `trig`.
@@ -124,8 +126,9 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
   friction behind it (*"accidentally, pressing next and then being unable to go back to main to
   activate abilities"*) and his eight rulings are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
-  **Next: step 1, two drop zones and no Next button.** One question is left for step 5 (where the visualizer
-  sits on a portrait phone). Nothing is built yet.
+  **Step 1 is built** — two drop zones, no Next, staging, and the Fight beat on every crossing — on
+  `feat/drop-zones-no-next`, in review as a PR into the epic. **Next: step 2**, in the design doc's build
+  order. One question is left for step 5 (where the visualizer sits on a portrait phone).
   `[id: priority-modal-redesign]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the

@@ -8437,25 +8437,28 @@ __QR__
     return [
       { text:"Welcome! You’re a <b>Cardmen Fighter</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
       { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn, #menuWrap:has(#specialsRefBtn) > #menuBtn', btn:"Got it ▸" },
-      /* THE TURN HAS TWO HALVES AND THE BUTTON SAYS SO (epic step 20; taught here 2026-09-16). Pressing
-         Fight in the Main Sub-Phase plays NOTHING — it moves you to the Fight Sub-Phase, and the button
-         relabels itself `Next` → `Fight` to say which press you are on. Measured: select a card in Main
-         and the button reads **Next**; one press leaves the card in hand and flips the label to **Fight**;
-         the second press plays it.
-         EVERY LESSON STILL SAID "press Fight" AT A MOMENT THE BUTTON READS "Next", which is the exact
-         shape of a dead end for a beginner — told to press a button that is not on screen. The suites
-         never caught it because their helper (`__pressFight`) drives both presses by design, so this is
-         the *"assert what the lesson CLAIMS, not that the panel rendered"* rule in its newest clothes.
+      /* THE BUTTON ONLY EVER SAYS `Fight` NOW (drag-and-stack step 1), and it is grey until a card it can play
+         is picked — so the rNote below teaches that, where it used to explain why the button read `Next` with
+         nothing selected. The step also names the drag, because the middle of the table is where a dropped
+         card fights. This used to be the epic-step-20 two-press note (*"EVERY LESSON STILL SAID 'press Fight'
+         AT A MOMENT THE BUTTON READS 'Next'"* — a beginner told to press a button not on screen); with one
+         label that dead end cannot recur, which is the rule this comment was guarding.
          ⚠ IT IS TAUGHT INSIDE AN EXISTING STEP, NOT A NEW ONE, AND THAT IS NOT A STYLE CHOICE.
          `lessontest_howto` asserts step NUMBERS — `atStep(2)` through `atStep(10)` — so inserting a step
          renumbers every assertion below it: measured, **7 pass / 17 fail** on the first attempt. Anyone
          adding a step to any lesson pays that; check the suite before reaching for one. */
-      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead. <span class=\"rNote\">(Lead a middling card — save that 2! With nothing selected that button reads <b>Next</b> — it only moves you on.)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead — or drag it into the middle of the table. <span class=\"rNote\">(Lead a middling card — save that 2! Fight stays grey until you pick a card it can play.)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"You led a <b>jab</b>. <b>Every card you play banks into your ⚡ energy</b> — win or lose. But a jab only <b>takes the round</b>; it never breaks a shield. Jabs are your <b>safe</b> way to bank energy.", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"To <b>break shields</b> you need a <b>Special</b>, and those unlock from <b>Round 2</b>. The simplest is a <b>pair</b> — two cards of the <b>same number</b>. Select two and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"That’s a <b>Special</b>! Winning it made the Rival <b>lose a shield</b> 🛡. <b>Only Specials break shields</b> — that’s the whole game plan.", hi:'#rivalShields', btn:"Next ▸" },
       { text:"Strip <b>both</b> shields and your next Special win lands the <b>Fighter Kick</b> 🦵 — the finisher that ends the duel. That’s your win condition.", hi:'#rivalShields', btn:"Next ▸" },
-      { text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you press <b>Next</b> the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      /* `only:[]` ON EVERY STEP THAT TEACHES ⚡ ACTIVATE (drag-and-stack step 1, recheck finding Z4). Until step 1 a
+         Main drag of the glowing card ACTIVATED it, which satisfied the gate; a drop in the middle now FIGHTS, so
+         without a card list the one card the rig placed could be thrown away as a jab and the step never finish.
+         `only:[]` disables Fight and Pass and refuses the middle drop (`canHumanPlay` reads the same list), while
+         ⚡ and the cast column stay live because the spotlight names `#ctxBtn` (`acceptsActivate`). Same as the
+         twos lesson's boost step. Copied on the Energy, Rides and Forms activate steps. */
+      { only:function(){ return []; }, text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you fight or pass, the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"Quick tour of your <b>zones</b>: your <b>hand</b> (the cards you hold), your <b>🂠 deck</b> (draw 2 each round), your <b>⚡ energy</b> (cards you’ve fought), and your <b>♻ shuffle pile</b> (spent energy). Spend energy → it goes to the shuffle pile; when your deck empties, the shuffle pile becomes your new deck. Keep the cycle turning and you won’t run dry.", hi:['#youNrgSuits','#handMeta .stat.deck','#youShuf'], btn:"Next ▸" },
       { text:"That’s the loop: <b>fight</b> → bank <b>energy</b> → spend it on <b>effects</b> → win <b>Specials</b> to break shields → land the <b>Kick</b>. You won’t always win an exchange — when you can’t, <b>pass</b> and still bank energy (that’s the <b>Initiative</b> lesson). Need a refresher on card ranks or Specials? Tap <b>🃏 Specials list</b> above your hand any time. Now play this out and land the Kick! 🥊", btn:"Finish" }
     ];
@@ -8487,7 +8490,8 @@ __QR__
       { text:"Every card you <b>fight</b> — win or lose — banks into your ⚡ <b>energy pile</b>. Energy is the fuel for card <b>effects</b>. <span class=\"rNote\">(In a real duel you start at <b>0</b> and build it by fighting — we’ve pre-stocked some here just to demo.)</span>", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"Leading a <b>jab</b> is the <b>safe</b> way to stock energy: a jab risks no shield, and even a losing jab refuels you. Lead a jab now.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"See the ⚡ box pulse with a <b>+N</b>? That card just banked. Now let’s <b>spend</b> some.", hi:'#youNrgSuits', btn:"Next ▸" },
-      { text:"Each card carries its own <b>effect</b>. Spend it in the <b>Main</b> half, before you press <b>Next</b> — once the fight starts you may only play or pass. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
+      { only:function(){ return []; }, text:"Each card carries its own <b>effect</b>. Spend it in the <b>Main</b> half, before you fight or pass — once the fight starts you may only play or pass. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"One more source: when you <b>lose</b> a round, the catch-up <b>moves cards straight from your 🂠 deck into energy</b> (you’ll see a <b>−N</b> there). So even losing fuels you.", hi:['#handMeta .stat.deck'], btn:"Next ▸" },
       { text:"Spent energy moves to your <b>♻ shuffle pile</b>; when your <b>🂠 deck</b> empties, the shuffle pile becomes your new deck. So <b>fight and spend</b> — never spending can starve your deck. That’s the energy cycle!", hi:['#handMeta .stat.deck'], btn:"Finish" }
     ];
@@ -8533,7 +8537,8 @@ __QR__
   function lessonRidesSteps(){
     return [
       { text:"This is the <b>Full</b> game. A <b>J</b> can <b>transform</b> into your <b>Forms &amp; Rides zone</b> as a <b>Ride</b> — instead of fighting with it, you park it there for a <b>persistent aura</b> that buffs your plays.", prep:tutPrepRide, hi:function(){ return tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand'; }, btn:"Show me ▸" },
-      { text:"Transforms unlock as the table loses shields — the <b>J (Ride)</b> tier is open now. <b>Read it</b>, then select your glowing <b>J</b> and tap <b>⚡ Activate</b> to call your Ride.", hi:function(){ return [ tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your J…" },
+      /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
+      { only:function(){ return []; }, text:"Transforms unlock as the table loses shields — the <b>J (Ride)</b> tier is open now. <b>Read it</b>, then select your glowing <b>J</b> and tap <b>⚡ Activate</b> to call your Ride.", hi:function(){ return [ tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your J…" },
       { text:"Your <b>Ride</b> now sits in the zone on the left. It <b>persists</b> (no decay) and its aura keeps working <b>every fight</b> while it’s there — e.g. your plays fight at +1. You hold <b>one per rank</b>: calling a new J banks the old one to energy.", hi:'#youFormZone', btn:"Next ▸" },
       { text:"That’s Rides. The <b>Q</b> and <b>K</b> — called <b>Forms</b> — work <b>differently</b>: instead of a standing aura, they <b>upgrade your cards’ effects</b>. That’s the next lesson. 🏍", btn:"Finish" }
     ];
@@ -8565,7 +8570,8 @@ __QR__
   function lessonFormsSteps(){
     return [
       { text:"<b>Forms</b> are the <b>Q</b> and <b>K</b>. Unlike a Ride’s standing aura, a Form <b>upgrades your cards’ effects</b> while it sits in the zone — it makes what you already do <b>hit harder</b>.", prep:tutPrepForm, hi:function(){ return tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand'; }, btn:"Show me ▸" },
-      { text:"The <b>Form</b> tier is open (the table’s bled enough shields). First <b>read it</b> — then select your glowing <b>Q</b> and tap <b>⚡ Activate</b> to transform it.", hi:function(){ return [ tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your Q…" },
+      /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
+      { only:function(){ return []; }, text:"The <b>Form</b> tier is open (the table’s bled enough shields). First <b>read it</b> — then select your glowing <b>Q</b> and tap <b>⚡ Activate</b> to transform it.", hi:function(){ return [ tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your Q…" },
       { text:"Your <b>Form</b> is in the zone. Now <b>hover any card</b> — its description shows an <b>upgraded</b> effect line (marked active). Forms empower a whole set of your cards at once, no decay.", hi:'#youFormZone', btn:"Next ▸" },
       { text:"Top tier: hold a <b>Ride + two different Forms</b> (a Q <i>and</i> a K) and you ignite <b>Super Mode</b> — the strongest boost of all. Deciding “fight now, or build my zone?” is the heart of the Full game. That’s Forms!", btn:"Finish" }
     ];
@@ -9042,28 +9048,15 @@ __QR__
          reminder text avoids by DERIVING every claim from the live rule. Point at the strip and name the
          phase; the strip can then be any colour the player likes. */
       { text:"Every round runs the same four phases: <b>Beginning → Play → Resolution → Clean-up</b>. You don’t have to memorise them — <b>the strip behind your cards changes colour</b> for each one, and rests while the board is the Rival’s. Watch it. Watch the strip behind your cards.", hi:hw, btn:"Start the round ▸" },
-      { text:"You’re in the <b>Main sub-phase</b>, the first half of the Play Phase. Here you may use <b>effects</b>, but you can’t fight yet.", hi:hw, btn:"Next ▸" },
-      /* ⚠ `only:[]` — NOTHING MAY BE SELECTED, AND THE STEP'S WHOLE CLAIM DEPENDS ON IT (Aj, 2026-09-25:
-         *"i should not be able to click outside of the tutorial's intent here … and yep, when i pressed
-         fight it skipped through the fight phase"*). `doFight` only acts as a doorway on an EMPTY
-         selection — with a card staged it transitions AND plays it in one press. So the step said
-         "nothing gets played" over a board where pressing Fight would play the Ace, and the player who
-         tried it skipped the beat the lesson exists to show.
-         `only:[]` disables Fight and Pass exactly while something IS selected, and leaves them live when
-         nothing is — which is the doorway, so the step keeps working and can no longer be broken. */
-      /* NAME THE BUTTON THAT IS ON SCREEN, AND AT THIS STEP THAT IS `Next` (2026-09-29). This step REQUIRES
-         an empty selection (`only:[]`, because `doFight` is a doorway only on one), and an empty selection
-         in Main returns early from `updateActions` with the resting label — so the button reads `▶ Next`
-         while this copy used to say "press Fight". The board's own hint says so two lines away: *"Main
-         sub-phase — drag a card to use it, or Next to move on."*
-         IT IS THE DEFECT THE HOW-TO LESSON FIXED FOR ITSELF ON 2026-09-16, reintroduced nine days later by
-         the lesson written to teach this very transition — and the comment recording that fix is ~500 lines
-         above. Aj's framing then is the test: *told to press a button that is not on screen.* */
-      { text:"Press <b>▶ Next</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The strip shifts with you. <br><br>Crossing it is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you. <span class=\"rNote\">(It is the same button as <b>Fight</b>. With nothing selected it reads <b>Next</b>, because moving you on is the only thing the press can do.)</span>",
-        only:function(){ return []; }, onlyHint:"Not this step — clear your selection, then press Next.",
-        hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Next to step through…" },
-      { text:"The strip moved — this is the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
-        only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
+      { text:"You’re in the <b>Main sub-phase</b>, the first half of the Play Phase. This is where you use <b>effects</b>. You leave it by <b>fighting</b> or <b>passing</b> — and once you do, you can’t come back to Main this turn.", hi:hw, btn:"Next ▸" },
+      /* THE DOORWAY STEP IS GONE, AND THE ACE STEP TEACHES THE CROSSING INSTEAD (drag-and-stack step 1). The doorway
+         was `▶ Next` with nothing selected: "press it and watch closely: nothing gets played". With Next removed
+         there is no way to cross without playing, so the step that said "nothing gets played" would be false. What
+         the lesson still has to teach is true on every turn now (ruling 10): ONE press of Fight first crosses you
+         into the Fight sub-phase — the strip changes and the beat plays — and only then does your card go down.
+         `only` names the Ace, so the step cannot be satisfied by anything else; its gate is the play. */
+      { text:"Now leave Main the way you always will: select your <b>Ace</b> and press <b>⚔️ Fight</b> — or drag it into the middle of the table. Watch the strip as you do: <b>one press first crosses you into the Fight sub-phase</b>, then the Ace goes down. <br><br>Crossing over is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you.",
+        only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?['#hand .card[data-id="'+tutPhAce+'"]','#fightBtn']:['#hand','#fightBtn']; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
         hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
@@ -9098,11 +9091,8 @@ __QR__
         hi:hw, hold:'resolve', btn:"Next ▸" },
       { text:"<b>Clean-up.</b> The round closes out: anything over the hand limit is pitched, and equipment timers tick down.<br><br>Next comes the <b>Beginning Phase</b>, dealing the new round in — and the strip rests again whenever the board is the Rival’s rather than yours.",
         hi:hw, hold:'cleanup', btn:"Next ▸" },
-      /* AND THE SAME CARE ONE STEP LATER, FOR THE OPPOSITE REASON. Here cards ARE chosen, so the label really
-         is `⚔️ Fight` and ONE press both crosses over and leads them (the 2026-09-18 client note above says
-         the same of a client's seat). The old copy said "Press it, then lead", which describes the two-press
-         route — and that first press, made with nothing selected, shows `Next`. Name the route the step
-         actually wants. */
+      /* ONE PRESS CROSSES OVER AND LEADS THEM, which is the only route there is since drag-and-stack step 1 (the
+         old copy described a two-press route through `Next`). */
       { text:"This time there’s nothing worth activating — and that’s fine. <b>You still have to leave Main.</b> Select your <b>pair of 3s</b> and press <b>⚔️ Fight</b>: with cards chosen, one press crosses over <i>and</i> leads them.",
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
