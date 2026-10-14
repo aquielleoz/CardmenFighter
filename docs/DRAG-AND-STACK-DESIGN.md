@@ -4,7 +4,7 @@
 the epic (PR #421, 2026-10-14, v1.33.16.1), and step 2 is built (v1.33.16.2); step 3 is next.** The work lives on `epic/drag-and-stack`: every step
 PRs into it, and `main` sees one merge at the end. The recheck corrected several counts in this doc and found traps
 it had missed; Aj ruled four more questions on the back of it (rulings 9 to 12; 9 and 10 make step 1 larger), and
-two more after playing step 1 (13 and 14). Two questions are still open: whether a cast
+four more after playing step 1 (13 to 16). Two questions are still open: whether a cast
 passes priority in AUTO (step 4), and where the stack visualizer sits on a portrait phone (step 5).
 
 ## In Aj's words
@@ -196,6 +196,16 @@ The three earlier asks this answers:
     sub-phase dim is kinda annoying. letting the hand flash yellow for the fly in is fine tho"*, then *"keep the
     round banners dimmed"*. Ruling 10 made the beat fire on every crossing, which is why its dim became the
     cost. Built in #421: the banner keeps a dark plate behind its words only.
+15. **Equipment moves left, beside Forms & Rides; the right edge holds only the stack** (2026-10-14). Seeing
+    Hero's Javelin sit under the cast column: *"the equips should not sit there. they look like they're still
+    resolving"*. Asked where it should go, Aj chose *"Left, beside Forms & Rides"* over chips in the seat bars.
+    What is in play sits on the left and what is resolving on the right. Built as step 3's first piece, before the
+    column grows into card art; the landscape band's left column is tight and is measured there first.
+16. **A ⚡ tap on a card with a choice shows it in the column while you choose** (2026-10-14). Seeing the targeting
+    screenshots, Aj noted *"your screenshots don't show the stack visualizer"*; asked whether a tapped card that
+    needs a target should also sit in the column while its target is picked, Aj chose *"Yes, show it in the
+    column"*. This refines ruling 11 and does not reverse it: a card with nothing to choose still casts on the
+    tap. Built in step 2: the card a picker holds is the staged card, whichever gesture opened the picker.
 
 ## Still open
 
@@ -344,7 +354,8 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    the cards in the Rival's play pulse as targets, a tap stages one (gold), ⚡ Activate copies it and Clear backs
    out; one distinct card on the pile is staged for you. It reuses the removal's `targeting` state, so every guard
    that holds the board for a removal holds it for this. A guest's Counterfeit now names the copied card in every
-   log, which only the local path did before (`sayCounterfeit`). (Staging itself
+   log, which only the local path did before (`sayCounterfeit`). Ruling 16 rides with it: a tapped card that
+   opens a picker sits in the column while you choose, as a dropped one does. (Staging itself
    moved into step 1 by ruling 9; the step keeps its number so references to later steps stay true.)
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
    presentation, which needs the host to announce answers to the other seats. Some stack rows have no card to

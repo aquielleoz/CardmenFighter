@@ -5114,6 +5114,15 @@ __QR__
   }
   function renderCastZone(){
     var cz=$('castZone'), slot=$('stagedSlot'); if(!cz || !slot) return;
+    /* A TAP THAT OPENS A PICKER SHOWS ITS CARD HERE TOO (drag-and-stack step 2). Asked whether a ⚡ tap on a card that
+       needs a target should also put it in the cast column while you pick, Aj chose *"Yes, show it in the column"*
+       (2026-10-14). A drop already did; the tap opened the same picker with the card nowhere on the board. So the
+       card a picker is holding IS the staged card, whichever gesture opened it — and it goes again the moment the
+       picker resolves or is cancelled, because `stagedHeld` answers that on every render. Ruling 11 is unchanged:
+       a card with nothing to choose still casts on the tap and never reaches this column. */
+    if(!staged){ var held=(targeting && targeting.cardId) || (targetPick && targetPick.cardId)
+                      || (pick && (pick.kind==='pitch' || pick.kind==='phantasm') && pick.cardId) || null;
+      if(held!=null) staged={ cardId:held }; }
     if(staged && !stagedHeld()) staged=null;
     var card=staged ? cardById(staged.cardId) : null;
     if(card){

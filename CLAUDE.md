@@ -49,12 +49,14 @@ node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (42 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (26)
 node dragtest.js                                # WHERE YOU DROP DECIDES WHAT A DRAG MEANS, NOT THE SUB-PHASE
-                                                # (40). Drag-and-stack step 1: the MIDDLE fights, the cast
+                                                # (43). Drag-and-stack step 1: the MIDDLE fights, the cast
                                                 # column (`#castZone`) STAGES a cast that ⚡ Activate sends,
                                                 # and ✕ or a drag back out cancels it with nothing spent.
                                                 # The column's own ⚡ (beside the ✕) MIRRORS the action row's
                                                 # button rather than casting by itself: it must cast, and it
-                                                # must read 🎯 while a choice is open.
+                                                # must read 🎯 while a choice is open. A ⚡ TAP on a card with a
+                                                # choice shows it in the column too (ruling 16), against the
+                                                # control that a no-choice tap still casts at once (ruling 11).
                                                 # Every claim is a pair off ONE staging — the same card
                                                 # dropped in both zones, in Main and again in the Fight
                                                 # Sub-Phase — because "a drag cast" is also true of a build
@@ -2545,7 +2547,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 40, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 24, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 24, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

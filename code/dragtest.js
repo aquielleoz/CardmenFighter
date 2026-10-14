@@ -271,6 +271,41 @@ async function dragOnto(page, idA, idB){
     ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(), energy:window.__solo.st().players[0].energy.length }));
   ok(c9.staged===0 && !/Pick a target|Choose target/.test(c9.ctx) && c9.energy===b9.energy, '  …and ✕ backs out of the picker AND the column, nothing spent  [⚡ "'+c9.ctx+'"]');
 
+  // ═══ LEG 9b — A ⚡ TAP ON A CARD WITH A CHOICE SHOWS IT IN THE COLUMN TOO ═══
+  /* Aj, 2026-10-14, asked whether a tapped card that needs a target should also sit in the column while you pick:
+     *"Yes, show it in the column"*. The SAME Ultima board, opened by selecting it and pressing the action row's ⚡
+     rather than by a drop. The card a picker holds is the staged card whichever gesture opened it. */
+  await settle();
+  await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="ult"]'))[0]; if(g) g.click(); });
+  await wait(250);
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && !c.disabled) c.click(); });
+  await wait(350);
+  const a9b=await p.evaluate(()=>({ staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
+    note:((document.querySelector('#stagedSlot .stgNote')||{}).textContent||'').trim(),
+    shown:document.getElementById('castZone').classList.contains('show'), energy:window.__solo.st().players[0].energy.length }));
+  ok(a9b.shown && a9b.staged.indexOf('ult')>=0 && /^Choose/.test(a9b.note) && a9b.energy===b9.energy,
+     'A ⚡ TAP ON A CARD WITH A CHOICE SHOWS IT IN THE COLUMN while its picker is open, nothing spent  ['+JSON.stringify(a9b)+']');
+  await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(x) x.click(); });
+  await wait(250);
+  const c9b=await p.evaluate(()=>({ staged:document.querySelectorAll('#stagedSlot .card').length,
+    ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(), energy:window.__solo.st().players[0].energy.length }));
+  ok(c9b.staged===0 && !/Pick a target|Choose target/.test(c9b.ctx) && c9b.energy===b9.energy, '  …and its ✕ backs out of the tap\'s picker too, nothing spent  [⚡ "'+c9b.ctx+'"]');
+  // a red run must not leave the picker open for the legs below — back out with Clear if the ✕ was not there
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && /Pick a target|Choose target/.test(c.textContent||'')){ const k=document.getElementById('clearBtn'); if(k && !k.disabled) k.click(); } });
+  await wait(200);
+  /* THE CONTROL — ruling 11's other half: a card with NOTHING to choose still casts on the tap and never reaches the
+     column. Without it, a build that staged every tap would pass the leg above. */
+  await settle(); await stage(); await wait(350);
+  const b9c=await snap();
+  await p.evaluate(()=>{ window.__colSeen=false; const cz=document.getElementById('stagedSlot');
+    window.__colObs=new MutationObserver(()=>{ if(cz.querySelector('.card[data-id="act3C"]')) window.__colSeen=true; }); window.__colObs.observe(cz,{childList:true,subtree:true});
+    const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="act3C"]'))[0]; if(g) g.click(); });
+  await wait(250);
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && !c.disabled) c.click(); });
+  const cast9c=await until(async()=>(await snap()).boost>0, 40);
+  const seen9c=await p.evaluate(()=>{ window.__colObs.disconnect(); return window.__colSeen; });
+  ok(cast9c && (await snap()).energy<b9c.energy && !seen9c, '  CONTROL: a ⚡ tap on a card with nothing to choose still CASTS AT ONCE and never enters the column (ruling 11)  [column seen: '+seen9c+']');
+
   /* ---------- LEG 10: A LONG REFUSAL MUST NOT COST YOU THE BOARD (2026-09-30).
      The live refusal feeds `ctxActionFor(...).reason` into the pill, and the pill was built for short strings:
      a full engine sentence once hung off both edges of the play area, and because the pill is hidden by
