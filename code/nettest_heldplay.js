@@ -49,7 +49,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   while(Date.now()-t0<14000){
     if(!cast) cast=!!(await clickQuick(caster, null, '.respQuick[data-id="'+casterQuick+'"]'));
     if(await committer.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d && d.offsetParent && !d.disabled) d.click();
-        const fx=document.getElementById('roundfx'); return !!(fx && /phasefx/.test(fx.className) && /Fight sub-phase/.test(fx.textContent||'')); })) beat=true;
+        const hw=document.getElementById('handWrap'); return !!(hw && hw.classList.contains('fightFlash'));   /* the Fight Sub-Phase is a strip flash since 2026-10-14 */ })) beat=true;
     if(cast && beat && /Someone answered/.test((await board(committer)).msg)) break;
     await wait(50);
   }
@@ -83,7 +83,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(a.cast, 'A: …and the client cast Leyline into that go-round');
   ok(await inHand(host,'h10C'), 'A: the host was HELD — its 10 did not go down');
   ok(await isSel(host,'h10C'), 'A: …and it is STILL SELECTED');
-  ok(a.beat, 'A: the Fight sub-phase beat flew in — the host was moved over, not asked to press Next');
+  ok(a.beat, 'A: the Fight sub-phase flashed on the strip — the host was moved over, not asked to press Next');
   ok(/Someone answered/.test(ab.msg) && /still selected/.test(ab.msg) && /Fight/.test(ab.msg), 'A: the message says why and what to do ("'+ab.msg+'")');
   ok(!/Main/.test(ab.hint) && ab.hint.length>0, 'A: the hint reads for the FIGHT sub-phase, not Main ("'+ab.hint+'")');   // `Next` dropped from the pattern: it can no longer appear (drag-and-stack step 1)
   ok(/Fight/.test(ab.label) && !ab.fightOff, 'A: the button reads Fight and is live — one press plays it ('+ab.label+')');
@@ -99,7 +99,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(bb0.cast, 'B: …and the host cast Leyline into that go-round');
   ok(await inHand(join,'c11C'), 'B: the CLIENT was HELD — its Jack did not go down'+((await inHand(join,'c11C'))?'':' ← the host re-applied the play over what resolved'));
   ok(await isSel(join,'c11C'), 'B: …and it is STILL SELECTED');
-  ok(bb0.beat, 'B: the Fight sub-phase beat flew in on the client');
+  ok(bb0.beat, 'B: the Fight sub-phase flashed on the strip on the client');
   ok(/Someone answered/.test(bb.msg) && /still selected/.test(bb.msg), 'B: the message says why and what to do ("'+bb.msg+'")');
   ok(!/Main/.test(bb.hint) && bb.hint.length>0, 'B: the hint reads for the FIGHT sub-phase, not Main ("'+bb.hint+'")');   // `Next` dropped from the pattern: it can no longer appear (drag-and-stack step 1)
   ok(/Fight/.test(bb.label) && !bb.fightOff, 'B: the button reads Fight and is live ('+bb.label+')');

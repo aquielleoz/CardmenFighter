@@ -132,15 +132,14 @@ node roartest.js                                # THE ROAR BANNER ON THE HOST/SO
                                                 # banner), never overlap the round banner, and fire ONCE.
                                                 # `nettest_ceremony` owns the netplay CLIENT's flush
 node fightbeattest.js                           # EVERY CROSSING SHOWS THE FIGHT SUB-PHASE BEFORE THE PLAY LANDS
-                                                # (24). Drag-and-stack ruling 10: a quiet crossing auto-advances
-                                                # inside one engine call, so with Next gone the sub-phase would
-                                                # have been invisible on most turns. `afterCrossing` holds the
-                                                # strip on Fight for a beat, then plays. Asserts the ORDER — the
-                                                # card still in hand while the strip reads Fight, exactly once —
-                                                # because "both happened" is true of a build with no beat. Quiet,
-                                                # two kinds of window, and Pass. A/B'd by removing the dwell.
-                                                # The beat does NOT dim the board (Aj, 2026-10-14), read in the
-                                                # computed style, with a round ceremony as the dimmed control.
+                                                # (21). Drag-and-stack ruling 10, as ruling 17 SHOWS it: a quiet
+                                                # crossing auto-advances inside one engine call, so with Next gone
+                                                # the sub-phase would be invisible on most turns. Every crossing
+                                                # flashes the hand yellow (`flashFight`) exactly once, BEFORE the
+                                                # play lands (`__solo.fightFlashes()` logs each flash with the
+                                                # hand), and with NO banner and NO pause (Aj, 2026-10-14: *"like
+                                                # hitting a speed bump at full speed"*). Quiet, two kinds of
+                                                # window, and Pass. The flash does not dim the board.
                                                 # `nettest_fightbeat` is the netplay client, which cannot see its
                                                 # own crossing and needs the host to say so (`t:'crossed'`) (16)
 node nettest_heldplay.js                        # A HELD FIGHT, BOTH SEATS (22). Someone ELSE casts into your
@@ -2553,7 +2552,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 24, `stackrowtest` 15, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 15, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

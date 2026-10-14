@@ -1377,17 +1377,15 @@
     background:radial-gradient(ellipse at 50% 46%, rgba(9,5,18,.72), rgba(5,2,10,.88));   /* dim + vignette the board behind */
     backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); animation:rfBackdrop .26s ease-out both; }
   @keyframes rfBackdrop{ from{opacity:0;} to{opacity:1;} }
-  /* THE FIGHT BEAT DOES NOT DIM THE BOARD (Aj, 2026-10-14: *"having the fight sub-phase dim is kinda annoying.
-     letting the hand flash yellow for the fly in is fine tho"*). Since drag-and-stack ruling 10 it fires on every
-     crossing, so a dark, blurred board on every turn was the cost; the banner still flies in over the board and the
-     hand's strip still turns Fight-yellow. `.phasefx` is that beat alone (`announcePhase`); the round ceremonies
-     keep their dim — they are rare, and they own the stage. */
-  #roundfx.show.phasefx{ background:none; backdrop-filter:none; -webkit-backdrop-filter:none; animation:none; }
-  /* …BUT ITS WORDS GET A PLATE OF THEIR OWN. With no dim the banner printed straight over the pile's label and
-     cards ("throw your cards down" read through "Fight is open"), so the dark sits behind the line only and the
-     board around it stays as it is. */
-  #roundfx.phasefx .rfInner::before{ width:118%; height:150%;
-    background:radial-gradient(ellipse at center, rgba(10,5,20,.86) 0%, rgba(10,5,20,.62) 48%, transparent 72%); }
+  /* THE FIGHT SUB-PHASE IS A YELLOW FLASH ON YOUR HAND, NOT A BANNER AND NOT A PAUSE (drag-and-stack, Aj 2026-10-14:
+     *"the pause for the announcement for the fight is really jarring... can we just keep the yellow color and skip
+     the announcement?"*). Ruling 10 showed the Fight Sub-Phase on every crossing by holding the board ~700ms under a
+     banner; a quiet crossing and the play it carries land in one call, so the pause was the only way the yellow
+     could be SEEN — and the pause was the jarring part. So the strip flashes the Fight yellow (`flashFight`) and the
+     play lands at once. An inset shadow over the strip's own background, so the sub-phase classes stay untouched. */
+  #handWrap.fightFlash{ animation:fightFlash .75s ease-out; }
+  @keyframes fightFlash{ 0%{ box-shadow:inset 0 0 0 9999px rgba(198,172,40,.34), inset 0 2px 0 0 rgba(248,228,120,.75); }
+                         100%{ box-shadow:inset 0 0 0 9999px rgba(198,172,40,0), inset 0 2px 0 0 rgba(248,228,120,0); } }
   /* `max-width:100%` and `box-sizing` so the banner cannot make the BOARD scroll sideways. Measured at 327px:
      the plate rendered 304px inside a 243px box (30px of padding each side plus the label), which put `main`
      into horizontal scroll for the ~1.3s the banner shows — briefly draggable, and a visible sideways jump at
@@ -4806,11 +4804,10 @@ __QR__
       if(tp2 && /is discarding|is deciding|is choosing a target/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR messages
       clearTrimWait();
     }
-    /* THE FIGHT BEAT'S EDGE IS READ AFTER THE WAITING NOTICE IS SETTLED, not before it (drag-and-stack ruling 10).
-       A crossing that opened a window shows "Rival 2 is deciding…" on `#roundfx` while the window is open, and
-       `announcePhase` will not talk over that stage. Read first, the edge saw the notice still up, the beat was
-       refused and the edge was spent — measured: a crossing through a declined window raised NO beat. Read
-       here, the notice has just been cleared because nobody is deciding any more. */
+    /* THE FIGHT EDGE IS READ AFTER THE WAITING NOTICE IS SETTLED (drag-and-stack ruling 10). It used to matter
+       because the banner refused to talk over that notice and the edge was spent; the edge only flashes the strip
+       now (2026-10-14), which nothing can refuse, but reading it here still means it fires once the window has
+       closed rather than while "Rival 2 is deciding…" is up. */
     notePhaseEdge();
     /* BEFORE the seat panels, and NOT gated on `holdShields`: that flag defers the SHATTER, which is
        presentation. The tally and the threshold are bookkeeping and must land when the state changes. */
@@ -6855,21 +6852,24 @@ __QR__
     if(now===lastSubPhase) return;
     var was=lastSubPhase; lastSubPhase=now;
     if(!(was==='main' && now==='play')) return;
-    if(state && state.turn===YOU && !state.finished && !E.isLocked(state, YOU)) announceFight();
+    if(state && state.turn===YOU && !state.finished && !E.isLocked(state, YOU)) flashFight();
   }
-  function announceFight(){ announcePhase('⚔️ <b>Fight sub-phase</b> — throw your cards down.', 'you'); }
-  var phaseFxT=null;
-  function announcePhase(txt, cls){
-    var fx=$('roundfx'); if(!fx) return;
-    var inner=fx.querySelector('.rfInner'); if(!inner) return;
-    if(fx.className && !/phasefx/.test(fx.className)) return;        // a ceremony owns the stage — never talk over it
-    clearTimeout(phaseFxT);
-    inner.className='rfInner'+(cls?' '+cls:''); inner.innerHTML='<div class="rfBeat">'+txt+'</div>';
-    void inner.offsetWidth; inner.classList.add('in');
-    fx.className='show phasefx';
-    var g=gen;
-    phaseFxT=setTimeout(function(){ if(g===gen && /phasefx/.test($('roundfx').className||'')) clearRoundfx(); },
-                        reduceMotion()?400:900);
+  /* `announceFight` AND `announcePhase` WERE HERE AND ARE DELETED (Aj, 2026-10-14: *"keep the yellow color and skip
+     the announcement"*). The edge above flashes the strip instead — a held crossing reaches the Fight Sub-Phase
+     through it, a quiet one through `afterCrossing`. */
+  var fightFlashT=null, fightFlashLog=[], fightFlashAt=0;
+  function flashFight(){
+    var hw=$('handWrap'); if(!hw) return;
+    /* ONE FLASH PER CROSSING: a crossing through a window reaches here twice — the rendered Main → Fight edge, then
+       `afterCrossing` landing the play a moment later — so a flash still playing absorbs the second call. */
+    if(Date.now()-fightFlashAt<600) return;
+    fightFlashAt=Date.now();
+    /* WHAT THE BOARD HELD AT THE FLASH, for the suites: the flash and the play land in one task now, so by the time
+       any observer runs the cards have already moved, and only this can say the crossing came first. Capped; read
+       through `__solo.fightFlashes()` / `__cmf.fightFlashes()`, and inert otherwise. */
+    if(state && state.players && state.players[YOU]){ fightFlashLog.push({ at:Date.now(), turn:state.turn, sub:state.subPhase, hand:state.players[YOU].hand.map(function(c){ return c.id; }) }); if(fightFlashLog.length>20) fightFlashLog.shift(); }
+    hw.classList.remove('fightFlash'); void hw.offsetWidth; hw.classList.add('fightFlash');
+    clearTimeout(fightFlashT); fightFlashT=setTimeout(function(){ hw.classList.remove('fightFlash'); }, 850);
   }
   function clearTrimWait(){
     var fx=$('roundfx'); if(!fx || !/trimwait/.test(fx.className)) return;
@@ -7959,14 +7959,16 @@ __QR__
          that follows. The host never delays a remote seat's move: "the host says so, a client never guesses",
          and a host that sat on a remote play would have to refuse that seat's every intent until it landed.
      The AI is not shown: ruling 10 is about the player's own crossing. */
-  function crossDwellMs(){ return reduceMotion() ? 300 : 700; }
+  /* …AND SINCE 2026-10-14 IT FLASHES RATHER THAN HOLDS (Aj: *"the pause for the announcement for the fight is really
+     jarring"*). The dwell (`crossDwellMs`) is deleted with the banner: the local seat's strip flashes yellow and the
+     play lands at once; a remote seat is still TOLD (`t:'crossed'`) and flashes its own strip, and the host applies
+     its move at once. */
   function afterCrossing(me, g, proceed){
     if(me!==YOU){
       if(typeof NET!=='undefined' && NET.hostCrossThen) return NET.hostCrossThen(me, g, proceed);
       return proceed();
     }
-    busy=true; render();
-    setTimeout(function(){ if(g!==gen) return; busy=false; proceed(); }, crossDwellMs());
+    flashFight(); proceed();
   }
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
@@ -9280,7 +9282,7 @@ __QR__
          the lesson still has to teach is true on every turn now (ruling 10): ONE press of Fight first crosses you
          into the Fight sub-phase — the strip changes and the beat plays — and only then does your card go down.
          `only` names the Ace, so the step cannot be satisfied by anything else; its gate is the play. */
-      { text:"Now leave Main the way you always will: select your <b>Ace</b> and press <b>⚔️ Fight</b> — or drag it into the middle of the table. Watch the strip as you do: <b>one press first crosses you into the Fight sub-phase</b>, then the Ace goes down. <br><br>Crossing over is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you.",
+      { text:"Now leave Main the way you always will: select your <b>Ace</b> and press <b>⚔️ Fight</b> — or drag it into the middle of the table. Watch your hand flash yellow as you do: that is <b>the crossing into the Fight sub-phase</b>, and the Ace goes down with it. <br><br>Crossing over is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you.",
         only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?['#hand .card[data-id="'+tutPhAce+'"]','#fightBtn']:['#hand','#fightBtn']; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
@@ -10826,21 +10828,10 @@ __QR__
        local seat waits, and only then lands the move. THE HOST WAITS, NOT THE CLIENT: a client that held its
        mirrors instead was measured 691ms behind the host's ceremony, and every seat must see the move land at
        the same moment. ABSOLUTE seat, like every other seat-addressed message. */
-    var crossingSeat=null;
     function sendCrossed(seat){ if(!hostLive()) return; trace('crossed OUT', 'seat='+seat); sendTo(seat, {t:'crossed', seat:seat}); }
-    function hostCrossThen(seat, g, then){
-      sendCrossed(seat);
-      crossingSeat=seat; render();
-      setTimeout(function(){ crossingSeat=null; if(g!==gen || !hostState) return; then(); }, crossDwellMs());
-    }
-    /* A BOARD INTENT FROM THE CROSSING SEAT DURING THE DWELL IS DROPPED. Its move is already in hand and lands
-       when the dwell ends; a second one would be applied first and the first would then be refused. The client
-       is locked meanwhile, so this only meets a stale or modified one. */
-    function crossingRefuses(seat, it){
-      if(crossingSeat==null || crossingSeat!==seat || !it) return false;
-      if(!(it.op==='play' || it.op==='pass' || it.op==='activate' || it.op==='phantasm')) return false;
-      trace('move IGNORED — crossing beat', 'seat='+seat+' op='+it.op); return true;
-    }
+    function hostCrossThen(seat, g, then){ sendCrossed(seat); then(); }   // told, then applied at once (2026-10-14: no pause)
+    /* `crossingRefuses` WAS HERE AND IS DELETED with the dwell it guarded (2026-10-14): with the move applied the
+       moment the seat is told, there is no window in which a second intent could arrive. */
     // a PRIVATE log line for one seat — advice that only helps the player it names (see logRoundDraw)
     function noteTo(seat, text, cls){ sendTo(seat, {t:'note', seat:seat, text:String(text||''), cls:cls||''}); }
     function sendTo0(chan, m){ if(hubMode && chan){ try{ if(chan.readyState==='open') chan.send(JSON.stringify(m)); }catch(e){} } else send(m); }   // to one specific (not-yet-seated) channel
@@ -12058,7 +12049,6 @@ __QR__
         var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
       // ---- turn actions ----
-      if(crossingRefuses(1, it)) return;   // its move is already in hand, landing after the crossing beat
       /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
       if(it.op==='phantasm'){ return hostPhantasmIntent(1, it) ? (hostAfterOwnCast?hostAfterOwnCast():undefined) : undefined; }
       if(it.op==='activate'){
@@ -12442,7 +12432,6 @@ __QR__
         var nr=netReact; netReact=null; return nr.resume();
       }
       // ---- TURN ops: valid only for the seat whose turn it is ----
-      if(crossingRefuses(seat, it)) return;   // its move is already in hand, landing after the crossing beat
       if(hostState.turn!==seat){ sendTo(seat, {t:'err', seat:seat, reason:'Not your turn.'}); return; }
       var g=(netParked&&netParked.g)||gen;
       /* THE `toFight` ARM WAS HERE AND IS DELETED (drag-and-stack step 1), with its sender: it was a remote
@@ -12539,13 +12528,9 @@ __QR__
        a LIVE board inviting a second press. This holds the board locked from the notice until a mirror shows the
        move has landed (the turn moved on, or the sub-phase did). A short safety timer means a lost landing mirror
        can only cost a second, never the board. */
-    var crossingLock=false;
-    function clientCrossed(){
-      if(!state || state.finished || state.turn!==YOU) return;
-      crossingLock=true; trace('crossed IN', 'board locked until the move lands');
-      busy=true; render();
-      setTimeout(function(){ if(crossingLock){ crossingLock=false; trace('crossed SAFETY', 'no landing mirror in 3s — unlocked'); if(state && !state.finished) render(); } }, 3000);
-    }
+    /* THE CLIENT FLASHES ITS OWN STRIP WHEN TOLD, AND NO LONGER LOCKS (2026-10-14: no pause). The host applies the
+       move the moment it says so, so the next mirror already shows it landed; there is no crossed board to guard. */
+    function clientCrossed(){ if(!state || state.finished || state.turn!==YOU) return; trace('crossed IN', 'flash'); flashFight(); }
     function applyMirror(st){
       if(iConceded) return;   // we forfeited — stay on our concede screen, ignore the ongoing game
       // During the round ceremony, hold the NEW-ROUND deal (the mirror the host's deal count names — see
@@ -12620,7 +12605,6 @@ __QR__
          going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
       var waitingOnRound = !trimFirst && !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
       busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
-      if(crossingLock){ if(state.turn===YOU && state.subPhase==='play' && !state.finished) busy=true; else crossingLock=false; }   // the host is showing our crossing — see clientCrossed
       /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
          says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
          went live under its own Round banner and a quick player could play round N+1 before round N had finished
@@ -13361,7 +13345,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ fightFlashes:function(){ return fightFlashLog.slice(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
@@ -13408,7 +13392,7 @@ __QR__
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ fightFlashes:function(){ return fightFlashLog.slice(); }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give

@@ -173,7 +173,7 @@ The three earlier asks this answers:
     straight from Main to the next player, Aj picked *"Show Fight briefly every turn"*: your strip paints Fight and
     the beat plays on every crossing of yours, not only a contested or held one. This replaces the 2026-10-02 rule
     that the beat *"should only fly in for next"*, which has no Next left to apply to. Opponents' crossings were not
-    asked about.
+    asked about. **Ruling 17 changes how it shows: a flash on the hand, no banner, no pause.**
 11. **A ⚡ tap still casts at once; only a drop stages** (2026-10-14). Asked whether select + ⚡ should also put
     the card in the column and need a second ⚡, Aj picked *"Tap casts at once"*: selecting the card is already
     the moment to change your mind (Clear undoes it), as today. Cards with a choice still enter today's stagers
@@ -210,6 +210,20 @@ The three earlier asks this answers:
     needs a target should also sit in the column while its target is picked, Aj chose *"Yes, show it in the
     column"*. This refines ruling 11 and does not reverse it: a card with nothing to choose still casts on the
     tap. Built in step 2: the card a picker holds is the staged card, whichever gesture opened the picker.
+17. **The Fight Sub-Phase is a yellow flash on the hand, with no banner and no pause** (2026-10-14, after playing
+    step 3). Aj: *"the pause for the announcement for the fight is really jarring... can we just keep the yellow
+    color and skip the announcement?"* and *"if no one plays a card it's like hitting a speed bump at full
+    speed"*. This replaces ruling 10's beat: every crossing still SHOWS, as `flashFight()` on `#handWrap`, but
+    the play lands at once. Built in step 3.
+18. **A shield loss is not drawn in the stack visualizer** (2026-10-14). Aj: *"pending shield loss? those aren't
+    part of the stack!"* PHASES-AND-PRIORITY §1 and §4 say the same: the Stack holds effects only. The red
+    "loses a shield" row (`pendingLossRowHTML`) still renders in the column and under the Respond? box's "On the
+    stack" label. To build in step 3: take it out of both, and say what is at stake in the box's sentence instead.
+19. **A triggered ability shows the card it comes from** (2026-10-14). Aj, on the Equipment upkeep tick: *"since
+    we have a visualizer now, let's add the cursed pendant card image to the visualizer"*. The tick shows as a
+    text tile today (`.stkTrig`). To build in step 3: draw the equipment's card, captioned as a trigger. The tick
+    belongs only at Upkeep (Aj: *"upkeep tick... should happen during the upkeep"*); check that it is never on
+    the stack at any other moment.
 
 ## Still open
 
@@ -239,6 +253,14 @@ The three earlier asks this answers:
   **Recommendation: one design everywhere**, with the visualizer on the right where there is width and under the
   pile on a portrait phone. No layout keeps the old modal, because two answer screens drift apart. The
   Respond? box itself is a small modal on every layout.
+- **Let the visualizer breathe (asked 2026-10-14).** Aj: *"what step in ou devt, let's the visualizer breathe so
+  that people can see what's being cast?"* No step plans it. Today a cast nobody answers resolves in the same
+  engine call, so its card is on the column for only the ghost's ~1.5s rest. Recommendation: build it in step 3,
+  where the cards arrive, as a minimum time each object stays on the column before it resolves. Open: how long,
+  and whether it holds the game or only the picture.
+- **The art pop covers the column (step 3).** `#artFlash` is a centred full-screen layer, so the big card art
+  sits over the cast column while a card arrives there. Aj: *"shift if there's enough space, shrink if not?"*
+  To build: move the art left of the column when it fits, shrink it when it does not.
 - **Glow in Main.** Aj's glow is for answering. In Main the board already greys the effects you cannot afford
   (`markAfford`). Default: glow only when answering, unless Aj wants it in Main too.
 

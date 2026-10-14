@@ -682,7 +682,10 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       window.__seqStop=()=>{ clearInterval(window.__seqT); close(performance.now()); return { seq:window.__seq, dur:window.__dur }; };
       window.__seqT=setInterval(()=>{
         const hw=document.getElementById('handWrap'); if(!hw) return;
-        const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
+        /* THE FIGHT SUB-PHASE IS A FLASH SINCE 2026-10-14 (Aj: "keep the yellow color and skip the announcement"):
+           a quiet crossing and its play land in one call, so the strip shows the Fight yellow as `fightFlash`
+           rather than holding `spFight`. Either is the yellow the player sees, so either counts as reaching it. */
+        const c=hw.classList.contains('fightFlash') ? 'spFight' : (hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
         if(c!==window.__cur){ close(now); window.__cur=c; t0=now; window.__seq.push(c); } }, 12); });
     /* ⚠ BOUND BY UNPRODUCTIVE ITERATIONS, NEVER A RAW COUNT — and this file's own history says so
        (v1.31.85: `exporttest` looped `i<160`, went red under `-j 4` and 5/5 green alone, because an
