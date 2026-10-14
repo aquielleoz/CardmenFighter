@@ -153,10 +153,15 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      same window is asked for TWO COPIES of one card (expect 1) and then for TWO DIFFERENT Quicks (expect
      2). A dedupe keyed on the wrong thing passes the first and fails the second. */
   const dup=await ctx.newPage(); const derrs=[]; dup.on('pageerror',e=>derrs.push(e.message));
-  await dup.goto(URL); await wait(700);
-  await dup.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
-  await dup.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1200);
+  /* ⚠ A FRESH GAME PER LEG (drag-and-stack step 1). With Next gone, declining the first leg's window completes
+     the crossing AND plays the 2 in one press, so the Rival's turn runs next — and restaging the same page
+     under that left the seat in the Fight Sub-Phase with the board busy: the click was dropped, no window
+     could open, and the leg read as the product deduping two different Quicks into nothing. Same STAGE, same
+     hand, a board nothing is still resolving on. */
   async function offersFor(hand){
+    await dup.goto(URL); await wait(700);
+    await dup.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await dup.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1200);
     await dup.evaluate(STAGE); await wait(150);
     await dup.evaluate((h)=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
       st.players[0].hand=[{rank:2,suit:'S',id:'y2'}].concat(h.map((c,i)=>mk(c[0],c[1],'q'+i)));
@@ -171,7 +176,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     await wait(200);
     await dup.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')]
       .filter(el=>el.querySelector('.card[data-id="y2"]'))[0]; if(g) g.click(); }); await wait(250);
-    await clickFight(dup);
+    lastPress = await clickFight(dup);
     for(let i=0;i<160;i++){
       const got=await dup.evaluate(()=>{ const m=document.getElementById('modal');
         if(!m || !m.offsetParent) return null;
@@ -179,15 +184,20 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       if(got && got.length){ return got; }
       await wait(60);
     }
+    lastWhy = await dup.evaluate(()=>{ const st=window.__solo.st();
+      return 'sub='+st.subPhase+' turn='+st.turn+' respondFor='+st.respondFor+' pending='+!!st.pending+' pile='+(st.pile?st.pile.combo.cards.map(c=>c.id).join(','):'-')
+        +' hand='+st.players[0].hand.map(c=>c.id).join(',')+' hint="'+((document.getElementById('hint')||{}).textContent||'').trim().slice(0,70)+'"'; });
     return [];
   }
+  let lastPress=null, lastWhy='';
   const twoSame = await offersFor([[10,'H'],[10,'H']]);      // two Sanctuaries — one PLAY
   ok(twoSame.length===1,
      `TWO COPIES OF ONE QUICK OFFER ONE BUTTON (${twoSame.length}: [${twoSame.join('|')}]) — which copy leaves your hand changes nothing`);
   await clickDecline(dup); await wait(400);
   const twoDiff = await offersFor([[10,'H'],[9,'D']]);       // Sanctuary + Leyline — two PLAYS
   ok(twoDiff.length===2,
-     `  …and two DIFFERENT Quicks still offer two (${twoDiff.length}: [${twoDiff.join('|')}]) — the dedupe is on the effect, not on "a card"`);
+     `  …and two DIFFERENT Quicks still offer two (${twoDiff.length}: [${twoDiff.join('|')}]) — the dedupe is on the effect, not on "a card"`
+     + (twoDiff.length ? '' : '\n   WHY: press='+lastPress+' '+lastWhy));
   ok(derrs.length===0,'no JS errors on the dedupe leg'+(derrs.length?': '+derrs.slice(0,2).join(' | '):''));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));

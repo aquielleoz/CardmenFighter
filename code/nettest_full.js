@@ -99,8 +99,11 @@ async function playLanded(p, before){
       beaten[role+':'+s.round]=1;
       const beatId=await beatAny(p);
       if(beatId){
-        await wait(300);
-        const s2=await snap(p);
+        /* POLL FOR THE LANDING, never a fixed wait. This was `wait(300)`, which was longer than a beat took
+           until drag-and-stack step 1 gave every crossing a Fight beat (700ms): a beat still in its crossing
+           then read as "the click did not take", was passed over and never credited, and a seat that never
+           held the lead scored 0 — 1 run in 4. */
+        let s2=s; for(let k=0;k<40;k++){ s2=await snap(p); if(!s2.yourTurn || s2.hand.length<s.hand.length) break; await wait(100); }
         // still our turn with the same hand = the click did not take; treat it as no beat, never as a play
         if(s2.yourTurn && s2.hand.length===s.hand.length){ await clear(p); await passT(p); }
         else { role==='host'?hostPlayed++:joinPlayed++; progressed(); }

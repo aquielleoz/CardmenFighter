@@ -608,7 +608,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(/nothing to use yet/i.test(mainHint.dead),
      `a dead Main sub-phase says so  ["${mainHint.dead.slice(0,64)}"]` +
      (/nothing to use yet/i.test(mainHint.dead) ? '' : '  ← REPRODUCED: offers a sub-phase in which nothing can be used'));
-  ok(/drag a card to use it/i.test(mainHint.live),
+  ok(/drag right to use a card/i.test(mainHint.live),   // the cast column's wording since drag-and-stack step 1
      `  …and a LIVE one still invites you in — the control  ["${mainHint.live.slice(0,64)}"]`);
 
   /* ============ EVERY WINDOW NAMES ITSELF — THE STRIP AND THE PASS BUTTON (2026-10-07) ============
