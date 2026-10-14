@@ -224,6 +224,11 @@ The three earlier asks this answers:
     text tile today (`.stkTrig`). To build in step 3: draw the equipment's card, captioned as a trigger. The tick
     belongs only at Upkeep (Aj: *"upkeep tick... should happen during the upkeep"*); check that it is never on
     the stack at any other moment.
+20. **Every cast holds the game for the art flash** (2026-10-14). Asked how long a cast should stay in the
+    visualizer, Aj: *"as long as the art flash should be good"*. Asked whether your own casts and other humans'
+    casts should also hold the game for it (today only an AI's cast does, through `revealDwell`), Aj: *"yes"*.
+    So the card stays in the column for the flash's length (`flashArt`'s 2500ms with effect text, 1350ms
+    without, 900ms reduced motion) and nobody acts until it ends, on every seat. To build in step 3.
 
 ## Still open
 
@@ -253,11 +258,6 @@ The three earlier asks this answers:
   **Recommendation: one design everywhere**, with the visualizer on the right where there is width and under the
   pile on a portrait phone. No layout keeps the old modal, because two answer screens drift apart. The
   Respond? box itself is a small modal on every layout.
-- **Let the visualizer breathe (asked 2026-10-14).** Aj: *"what step in ou devt, let's the visualizer breathe so
-  that people can see what's being cast?"* No step plans it. Today a cast nobody answers resolves in the same
-  engine call, so its card is on the column for only the ghost's ~1.5s rest. Recommendation: build it in step 3,
-  where the cards arrive, as a minimum time each object stays on the column before it resolves. Open: how long,
-  and whether it holds the game or only the picture.
 - **The art pop covers the column (step 3).** `#artFlash` is a centred full-screen layer, so the big card art
   sits over the cast column while a card arrives there. Aj: *"shift if there's enough space, shrink if not?"*
   To build: move the art left of the column when it fits, shrink it when it does not.
