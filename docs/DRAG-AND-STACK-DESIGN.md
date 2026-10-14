@@ -2,10 +2,9 @@
 
 **Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Nothing is built yet; step 1 is
 next.** The work lives on `epic/drag-and-stack`: every step PRs into it, and `main` sees one merge at the end.
-The recheck corrected several counts in this doc and found traps it had missed; Aj ruled two more questions on
-the back of it (rulings 9 and 10, which make step 1 larger). Three questions are still open: how a human's
-Phantasmal Illusion crosses into the fight (it touches step 1), whether a cast passes priority in AUTO (step 4),
-and where the stack visualizer sits on a portrait phone (step 5).
+The recheck corrected several counts in this doc and found traps it had missed; Aj ruled four more questions on
+the back of it (rulings 9 to 12; 9 and 10 make step 1 larger). Two questions are still open: whether a cast
+passes priority in AUTO (step 4), and where the stack visualizer sits on a portrait phone (step 5).
 
 ## In Aj's words
 
@@ -69,8 +68,8 @@ The three earlier asks this answers:
   `confirmTargetPick` spends; `targeting` stages an Equipment, Ride or Form for a `removeEquip` card
   (`stageRemove`, confirmed through `doRemove`, a third cast tail); `pick` modes cover the Broadway pitch, the
   Phantasmal swap and discards. The one Main-side choice made in a dialog is Counterfeit's (`promptCounterfeit`).
-  Phantasmal Illusion is the odd one out: it has its own intent (`{op:'phantasm'}`), never goes on the stack and
-  ends like a play.
+  Phantasmal Illusion is the odd one out today: it has its own intent (`{op:'phantasm'}`), never goes on the
+  stack and ends like a play. Ruling 12 puts it on the stack.
 - **One window builder for every seat.** `promptHumanResponse` renders the window for solo, the netplay host's
   own seat and a guest. It offers the engine's eligibility (`eligibleQuicks` → `E.canCastQuick`) and asks the
   notification setting only whether to stop you (`promptedQuicks`). Answers go through `humanResponds` /
@@ -114,9 +113,10 @@ The three earlier asks this answers:
 
 ### Staging a cast
 
-- Drop a card on the visualizer, or select it and press ⚡: it sits there **staged**, visible only to you, with
-  nothing spent. A card with nothing to choose waits too. This ships in step 1 (ruling 9), so the first build
-  never casts on release.
+- Drop a card on the visualizer: it sits there **staged**, visible only to you, with nothing spent. A card with
+  nothing to choose waits too. This ships in step 1 (ruling 9), so the first build never casts on release.
+  A tap is unchanged (ruling 11): select a card and press ⚡, and it casts at once, or enters today's stager if it
+  has something to choose.
 - Make its choices on the board with the existing pickers (a rival's panel, an Equipment, a Broadway card in
   your hand) or, new in step 4, a card in the visualizer, for Counter Spell. Counter Spell is never castable in
   Main (`activateBlock` refuses it there), so that picker has nothing to do before answering moves onto the
@@ -171,17 +171,23 @@ The three earlier asks this answers:
     the beat plays on every crossing of yours, not only a contested or held one. This replaces the 2026-10-02 rule
     that the beat *"should only fly in for next"*, which has no Next left to apply to. Opponents' crossings were not
     asked about.
+11. **A ⚡ tap still casts at once; only a drop stages** (2026-10-14). Asked whether select + ⚡ should also put
+    the card in the column and need a second ⚡, Aj picked *"Tap casts at once"*: selecting the card is already
+    the moment to change your mind (Clear undoes it), as today. Cards with a choice still enter today's stagers
+    on the tap, as they do now.
+12. **Phantasmal Illusion is a cast that goes on the stack, and its resolution crosses into the fight**
+    (2026-10-14). In Aj's words: *"fully activating the phastasmal illusion puts the effect on the stack. it's a
+    copy+fight as you mentioned. an opponent can still try to backstab you at that point. and since we resolve
+    in lifo, back stab effectively cancels the fight part of the phantasmal illusion. also, resolving phantasmal
+    illusion also causes the phase change, and resolving it does the priority dance before changing subphases and
+    before it resolves. this is just a complex card"*. So it takes the cast column, not the middle. The engine half
+    is a rules change: today `E.phantasm` never touches the stack and resolves on the spot. It is not part of step
+    1, which keeps today's engine behaviour and only routes the drop to the column; it is filed with the Illusion
+    sub-phase leak in `main`'s BACKLOG (`illusion-leaks-fight-subphase`), since the code it touches is unchanged
+    by the epic.
 
 ## Still open
 
-- **How a human's Phantasmal Illusion enters play (step 1).** It copies the Special on the pile and takes the
-  lead, so it behaves like a play, and every other play crosses into the fight first, which gives the other
-  players their chance to answer before it lands. A human's Illusion cast from Main skips that crossing today
-  (neither `E.phantasm` nor `doPhantasm` calls `moveToPlay`) unless the player presses Next first; with Next gone
-  it would always skip it. The AI's Illusion always crosses first (`takeTurn` calls `E.moveToPlay` before
-  `tryPhantasm`). Two questions: should a human's Illusion cross first too, and which zone takes it, the middle
-  (it is a play) or the column (it is an effect paid for with energy)? Until ruled, step 1 keeps today's
-  behaviour.
 - **Does a cast on the board pass priority in AUTO (step 4)?** "Activate does not pass" holds only in ON (see
   above). Keeping it in AUTO means changing the 2026-09-24 rule that AUTO never stops you for your own cast;
   keeping that rule means a cast in AUTO or OFF passes for you, and you cannot stack a second Quick there.
@@ -314,14 +320,16 @@ epic's fourth number. The full sweep runs on the epic before it merges.
 
 1. **The friction fix: two drop zones, no Next, and staging.** The middle fights; a column on the right takes
    casts, with today's stack rows moved into it; the big button is Fight only, live only for a legal play; and
-   your own crossing shows the Fight Sub-Phase every time (ruling 10). A card dropped on the column, or selected
-   and ⚡'d, waits there staged with its ✕, its choices made on the board, until ⚡ Activate (ruling 9).
+   your own crossing shows the Fight Sub-Phase every time (ruling 10). A card dropped on the column waits there
+   staged with its ✕, its choices made on the board, until ⚡ Activate (ruling 9); a ⚡ tap still casts at once
+   (ruling 11).
    Everything that says or presses Next changes in the same step: the hints, the three lessons' Next steps and
    the four Activate steps' `only`, the three live docs, `fightclick` (`enterFight`, `driveStep`, the in-page
    helpers) and the ~22 suites in the traps, the `toFight` sender, handlers and `CEREMONY_REFUSE` key, and
    `dragtest` rewritten for "where you drop decides". Every layout gets a basic place for the column, measured
    by `phonetest` and `landscapetest` rather than merely not breaking them; step 5 refines it. Phantasmal
-   Illusion keeps today's behaviour until ruled. It plays on its own, so Aj can try it first.
+   Illusion takes the column (ruling 12); its engine change is filed on `main`, not built here. It plays on its
+   own, so Aj can try it first.
 2. **Counterfeit's picker moves onto the board**, the last Main-side choice made in a dialog. (Staging itself
    moved into step 1 by ruling 9; the step keeps its number so references to later steps stay true.)
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
