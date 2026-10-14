@@ -1,8 +1,11 @@
 # Drag and stack: playing from the board
 
-**Status: RULED by Aj, 2026-10-13. Nothing is built yet; step 1 is next.** The work lives on
-`epic/drag-and-stack`: every step PRs into it, and `main` sees one merge at the end. One question is still open,
-and it belongs to step 5: where the stack visualizer sits on a portrait phone.
+**Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Nothing is built yet; step 1 is
+next.** The work lives on `epic/drag-and-stack`: every step PRs into it, and `main` sees one merge at the end.
+The recheck corrected several counts in this doc and found traps it had missed; Aj ruled two more questions on
+the back of it (rulings 9 and 10, which make step 1 larger). Three questions are still open: how a human's
+Phantasmal Illusion crosses into the fight (it touches step 1), whether a cast passes priority in AUTO (step 4),
+and where the stack visualizer sits on a portrait phone (step 5).
 
 ## In Aj's words
 
@@ -36,9 +39,13 @@ The three earlier asks this answers:
 1. **An irreversible press that is easy to make by accident.** In Main the big gold button reads ▶ Next
    whenever nothing is selected, and pressing it ends your chance to use anything Main-only this turn. That
    is the rule, and it stays. What changes is how easy it is to do by mistake.
-   **Dragging makes it worse.** In Main a drag can only activate, so a dragged pair is refused with *"One card
-   at a time in the Main sub-phase — press Next to move to the Fight sub-phase."*, and a dragged card that has
-   an effect gets activated instead of played. A player who drags learns to press Next every turn.
+   **Dragging makes it worse.** In Main a drag can only activate, so a dragged pair is refused while it is still
+   in the air (`#dropHint`: *"one card at a time in the Main sub-phase"*), and a dragged card that has an effect
+   gets activated instead of played. A player who drags learns to press Next every turn. (The two release
+   messages that say *"press Next"*, in `onPointerUp`, are unreachable: the hover refuses first.)
+   **Fight in Main has the same accident.** It stays enabled for an *illegal* selection: pressing it crosses into
+   the Fight Sub-Phase (`moveToPlayThen` runs before `playCards` refuses) and then plays nothing. Removing Next
+   does not fix that on its own.
 2. **A window that hides the board it is about.** The Respond? modal covers the middle of the table and dims
    everything behind it, so it carries copies of the board: `tableContextHTML` repeats the pile, your energy
    and the stack *"because this box is shown in the Respond modal and the board's copy is behind it"*, and a
@@ -58,14 +65,18 @@ The three earlier asks this answers:
   gets put onto the stack"* — and says *"targeting is confirm-first (`targetPick.chosen`, then the context
   button reads ⚡ Activate), so nothing is spent until the pick is confirmed."* Placing a card on the stack
   before pressing Activate is that rule, made visible.
-- **Main's casting choices are already on the board.** `targetPick` stages a target and `confirmTargetPick`
-  spends; `pick` modes cover the Broadway pitch, the Phantasmal swap and discards. The one Main-side choice
-  made in a dialog is Counterfeit's (`promptCounterfeit`).
+- **Main's casting choices are already on the board, in three stagers.** `targetPick` stages a rival and
+  `confirmTargetPick` spends; `targeting` stages an Equipment, Ride or Form for a `removeEquip` card
+  (`stageRemove`, confirmed through `doRemove`, a third cast tail); `pick` modes cover the Broadway pitch, the
+  Phantasmal swap and discards. The one Main-side choice made in a dialog is Counterfeit's (`promptCounterfeit`).
+  Phantasmal Illusion is the odd one out: it has its own intent (`{op:'phantasm'}`), never goes on the stack and
+  ends like a play.
 - **One window builder for every seat.** `promptHumanResponse` renders the window for solo, the netplay host's
   own seat and a guest. It offers the engine's eligibility (`eligibleQuicks` → `E.canCastQuick`) and asks the
   notification setting only whether to stop you (`promptedQuicks`). Answers go through `humanResponds` /
-  `humanDeclines`; a guest sends `{op:'respond', id, coid, pitch, target}` or `{op:'decline'}`, and the host
-  re-validates.
+  `humanDeclines`; a guest sends `{op:'respond', id, coid, pitch, target}` or `{op:'decline'}` (with `auto:true`
+  on an auto-pass, and `clientSend` adds the `pg` grant to both), and the host re-validates. A board answer must
+  keep sending all of them.
 - **Stack rows already name their targets** (`stackRowsHTML`, shared by `#stackView` and the modal).
 - **Drags already explain a refusal in the air.** `highlightTarget` asks the question the release will ask
   and writes the reason into `#dropHint` while the card is still being dragged.
@@ -80,6 +91,12 @@ The three earlier asks this answers:
   select and press Fight) or by Pass. Crossing into the fight is still a priority point: if someone casts there,
   your cards stay selected and you choose again, as today (`nettest_heldplay`).
 - **⚡ Activate and Fight stay**, so every drag has a tap equivalent.
+- **Fight in Main is live only for a legal play.** With nothing selected, or a selection that cannot be played,
+  it is disabled, so the irreversible crossing can only be started by a play that will land (or by Pass). A
+  middle drop asks the same whole question while the card is in the air.
+- **The Fight Sub-Phase shows on every crossing** (ruling 10). Today a quiet crossing auto-advances inside one
+  engine call, so no render ever paints Fight; after step 1 your own crossing paints the Fight colour and its
+  beat briefly every time, before the play lands.
 - **Where you drop decides what a drag means, not the sub-phase.** That replaces Aj's epic-step-20 rule,
   *"dragging to play activates card effects now, except when in the fight sub-phase"*, and inverts
   `dragtest`'s premise with it.
@@ -92,13 +109,20 @@ The three earlier asks this answers:
 - **Do not bolt an animation onto the modal path instead.** That would be a third presentation to keep in step.
   And the visualizer and the glow ship together, as Aj asked: shipping one leaves the modal's prose half in place.
 - The right edge of the table is also where the Equipment zones sit today, so the visualizer shares that side.
+  That is true of a duel on desktop and in landscape; on a portrait phone the zones live in the seat panels, and
+  at 3-6 players only your own Equipment sits there (bottom right).
 
 ### Staging a cast
 
 - Drop a card on the visualizer, or select it and press ⚡: it sits there **staged**, visible only to you, with
-  nothing spent. A card with nothing to choose waits too.
+  nothing spent. A card with nothing to choose waits too. This ships in step 1 (ruling 9), so the first build
+  never casts on release.
 - Make its choices on the board with the existing pickers (a rival's panel, an Equipment, a Broadway card in
-  your hand) or, new, a card in the visualizer, for Counter Spell.
+  your hand) or, new in step 4, a card in the visualizer, for Counter Spell. Counter Spell is never castable in
+  Main (`activateBlock` refuses it there), so that picker has nothing to do before answering moves onto the
+  board.
+- Today's stagers refuse a new drag while they are open (`onPointerDown` returns on `pick`, `targeting` and
+  `targetPick`), so dragging a staged card back out needs a pointer source in the column itself.
 - **⚡ Activate sends it**, and only then does it appear for everyone. Until then its ✕, or dragging it back out,
   cancels it. The ✕ goes once it is activated: no takebacks.
 
@@ -112,7 +136,12 @@ The three earlier asks this answers:
   "Move to the fight", "Start the round", "Let the round resolve", "End the round", "Let the counter come off").
 - **No** passes, the same as Pass.
 - **Activate does not pass.** You keep priority after a cast and can stack another (§2 step 2, *"holding
-  priority"*); only Pass or No hands it on.
+  priority"*); only Pass or No hands it on. **True today only in ON**: in AUTO, the default, your own cast never
+  stops you (`promptWanted` returns false when `state.pending.p===YOU`), so you are passed straight on. See
+  "Still open".
+- **Pass in a window must decline priority.** Today's Pass button runs `doPass` → `E.pass`, which sits you out of
+  the round; answering on the board needs it to call `humanDeclines` → `E.declineResponse` while a window is
+  yours.
 - **Notifications are unchanged.** ON · AUTO · OFF decide whether the box appears at all.
 - The box drops the per-card buttons, the copied table summary and the Peek button: your hand and the board
   are the list now.
@@ -134,9 +163,28 @@ The three earlier asks this answers:
    think that's for every activated card. select no, and it's the same as pass. when you can view your hand..
    pass also is pass."* Confirmed as a Yes / No box when asked.
 8. **Phones and landscape: open.** Aj asked *"i guess landscape keeps the modals?"*; the measurements are below.
+9. **Staging moves into step 1** (2026-10-13, after the recheck). Asked whether step 1 should cast a no-choice
+   card the moment it is dropped (today's Main drag) or wait for ⚡, Aj picked *"Pull staging into step 1"*: every
+   drop on the column waits for ⚡ Activate and has its ✕ from the first build.
+10. **Show the Fight Sub-Phase briefly on every crossing** (2026-10-13). Asked whether a quiet turn should go
+    straight from Main to the next player, Aj picked *"Show Fight briefly every turn"*: your strip paints Fight and
+    the beat plays on every crossing of yours, not only a contested or held one. This replaces the 2026-10-02 rule
+    that the beat *"should only fly in for next"*, which has no Next left to apply to. Opponents' crossings were not
+    asked about.
 
 ## Still open
 
+- **How a human's Phantasmal Illusion enters play (step 1).** It copies the Special on the pile and takes the
+  lead, so it behaves like a play, and every other play crosses into the fight first, which gives the other
+  players their chance to answer before it lands. A human's Illusion cast from Main skips that crossing today
+  (neither `E.phantasm` nor `doPhantasm` calls `moveToPlay`) unless the player presses Next first; with Next gone
+  it would always skip it. The AI's Illusion always crosses first (`takeTurn` calls `E.moveToPlay` before
+  `tryPhantasm`). Two questions: should a human's Illusion cross first too, and which zone takes it, the middle
+  (it is a play) or the column (it is an effect paid for with energy)? Until ruled, step 1 keeps today's
+  behaviour.
+- **Does a cast on the board pass priority in AUTO (step 4)?** "Activate does not pass" holds only in ON (see
+  above). Keeping it in AUTO means changing the 2026-09-24 rule that AUTO never stops you for your own cast;
+  keeping that rule means a cast in AUTO or OFF passes for you, and you cannot stack a second Quick there.
 - **Where the visualizer sits on a portrait phone (step 5).** Measured with a full five-card play on the table:
 
   | viewport | play area | room right of the pile | card size there |
@@ -148,6 +196,13 @@ The three earlier asks this answers:
   | portrait 390×844 | 320×267 | 53px | 38×55 |
   | portrait 360×740 | 290×353 | 38px | 38×55 |
 
+  The "room" column is measured to the pile's cards, so it is a fixed slot only from 1200px wide, where
+  `#pile{max-width:calc(100% - 260px)}` keeps the pile box 130px clear of each edge whatever it holds. Below that
+  it shrinks as the pile grows, and custom rules allow plays of up to ten cards (by the CSS, a ten-card straight
+  at 844×390 leaves about 21px). On a portrait phone `placeZones` moves the Equipment and Forms zones out of the
+  table into the seat panels, and a 3-6 player table hides the rival zones, so neither has anything on the
+  table's right edge. At 800×360 the band between the two corner Equipment chips is ~31-33px by the CSS, not
+  enough for one card. Re-measure all of this in a browser before step 5 builds against it.
   Landscape has the width; what it lacks is height, so several cards in the visualizer would overlap sideways.
   A portrait phone has no width for a right-hand column, but it has spare height under the pile.
   **Recommendation: one design everywhere**, with the visualizer on the right where there is width and under the
@@ -175,51 +230,109 @@ These are rules this repo already has (CLAUDE.md):
 
 ## What it does not change
 
-The rules, `engine.js`, `ai.js`, `netview.js` and the wire, as far as this draft can see. The engine already
-has the stack, the go-round, per-card castability and cast-time targets, and the AI never touches the UI. The
-one wire change is a deletion: see the first trap below.
+The rules, `ai.js` and `netview.js`. The engine already has the stack, the go-round, per-card castability and
+cast-time targets, and the AI never touches the UI; removing Next changes nothing the AI does (`takeTurn` calls
+`E.moveToPlay` itself). Two places the recheck found it is not quite "nothing":
 
-## Traps found while drafting
+- **`engine.js`, optionally.** `E.play` crosses into the Fight Sub-Phase *before* it checks the play (its
+  `moveToPlay` call comes ahead of the combo and `beats` checks), so a guest's stale or illegal play still
+  crosses. Step 1's disabled Fight covers every honest client; validating before crossing is the only engine
+  change in sight, and it is hardening rather than a requirement.
+- **The wire, at step 3.** Staging adds nothing (it is UI state, sent as today's intents), and step 1's one wire
+  change is a deletion (`toFight`). But step 3's "every cast lands through one presentation" needs the host to
+  tell the other seats when an *answer* is cast, and nothing does today (see the traps).
 
-- **Next has its own wire op.** A guest's Next press sends `{op:'toFight'}`, and both host drivers handle it
-  (`hostApplyMove` and `hostApplyMoveN`). With Next gone the op has no sender: delete both handlers in step 1,
-  then run the `name:name` grep and a UI suite, per CLAUDE.md's deletion rules.
-- **Next is load-bearing in the harness and the lessons.** 9 suites step out of Main through `fightclick`'s
-  `enterFight`, which presses Next; 7 more read its label (`fightbeattest`, `nettest_fightbeat`, `phonetest`,
-  `peektest` and three lesson suites); 16 template lines tell the player to press it, including the Phases and
-  Quicks lesson's "doorway" step. With Next gone, nothing enters the Fight Sub-Phase without playing except the
-  held-fight case, so that is the Fight Sub-Phase beat's one remaining trigger.
-- **A drag only starts on your turn.** `onPointerDown` returns unless `state.turn === YOU`, and a response is
-  usually cast on someone else's turn.
-- **`updateActions` turns everything off when it is not your turn** (*"Rival is fighting…"*), so holding
-  priority on another seat's turn needs its own branch.
-- **`netwindows` answers a window by clicking `#respDecline`, and 64 suites install it.** Its list still names
-  two deleted modals (`pfDecline`, `sgNo`).
+## Traps
+
+Found while drafting, then corrected and extended by the 2026-10-13 recheck against the code.
+
+- **Next has its own wire op.** A guest's Next press sends `{op:'toFight'}` (the client branch of `doFight` is
+  its only sender), both host drivers handle it inline (`hostApplyMove` and `hostApplyMoveN`), and the NET-scope
+  `CEREMONY_REFUSE` map names it too. Delete the sender, both handlers and the key in step 1. The handlers are
+  inline blocks, not functions, so the `name:name` grep has nothing to find; run a UI suite afterwards anyway.
+  `moveToPlayThen`'s ledger default `via||'Next'` is left naming a deleted button.
+- **Next is load-bearing in the harness, more than first counted: about 22 suites.**
+  - 9 step out of Main through `fightclick`'s `enterFight`, which presses Next (`nettest_ridewedge` only
+    imports it).
+  - 6 depend on the Next label: `fightbeattest`, `nettest_fightbeat`, `phonetest`, `peektest`,
+    `lessontest_phases` and `lessontest_initiative`. `lessontest_howto` reads the label with a card selected,
+    so it reads "Fight" and is unaffected.
+  - More read "Fight is enabled with nothing selected" as a live board, which is Next's state:
+    `fightclick`'s `driveStep` (so `mptest`, whose phase-strip leg needs that press to ever see Fight, and
+    `nettest_ceremony`), `nettest_roundlock` and `nettest_parity`.
+  - `resolutiontest_ui` scenario H presses Next to cross; `nettest_prefightduel` has a dead second press.
+  - `lessontest_phases` cannot wait for step 6: its doorway leg presses Next.
+  - `fightbeattest`'s positive legs are the only solo proof that the beat fires, and a held fight cannot be
+    staged solo. Ruling 10 gives them a new trigger: every crossing.
+- **10 template lines put the board's Next in front of the player, not 16**: the two dead release messages in
+  `onPointerUp`, the two Main hints in `updateActions` (`mptest` asserts their wording), and steps of three
+  lessons: How to Play (two), Energy & Effects (one), and the Phases and Quicks doorway (its text, `onlyHint` and
+  `wait`). Seven more sites put the word on a label or in the ledger: `ACTION_ICONS`, three `setActionLabel`
+  calls (one of them the resting default every disabled state shows), and the ledger's `[Next]`.
+- **Three live docs state the rules step 1 deletes**, and change in the same PR: `PHASES-AND-PRIORITY.md` §3
+  (Fight "plays nothing"; "THE SUB-PHASE DECIDES WHAT A GESTURE MEANS"), which is the spec and says the code is
+  the bug wherever they disagree; `NEXT-SESSION.md`'s facts block (`#fightBtn` has two states); and
+  `DECISIONS.md#main-autoadvance` ("Next and Pass are different buttons").
+- **Four lesson steps that teach ⚡ Activate carry no `only`**: How to Play, Energy & Effects, Rides and Forms.
+  Today a Main drag of the glowing card activates it; after step 1 a middle drop fights it away and the step
+  cannot finish (a Ride needs a second J to recover). They need `only:[]`, or the middle must refuse the
+  spotlit card.
+- **A held Pass also leaves you in the Fight Sub-Phase with nothing played** (`doPass`: *"your pass is on
+  hold"*), so the held fight was never the beat's only remaining trigger. Ruling 10 settles it: every crossing
+  shows Fight.
+- **A drag only starts on your turn, and that is one of three gates.** `onPointerDown` returns unless
+  `state.turn === YOU` (and on `busy` and the three stagers); `#hand.disabled` takes pointer events away
+  entirely off your turn; and tap-to-select (`toggle`, `toggleGroupSelect`) is turn-gated too. A response is
+  usually cast on someone else's turn, so step 4 has to lift all three.
+- **`updateActions` turns everything off when it is not your turn** (*"Rival is fighting…"*), and its `busy`
+  branch does the same, and `busy` is true in every window you are asked to answer (the solo drivers, the
+  host's parks, and on a guest `busy = owedModal`). Holding priority needs its own branch.
+- **`#stackView` is `display:none` while the stack is empty**, so it cannot be the drop target itself: the column
+  is a box that is always there, with the rows moved inside it. No suite measures such a box today, so
+  `phonetest` and `landscapetest` staying green means nothing until the column joins their overlap checks.
+- **`netwindows` answers a window by clicking `#respDecline`, and 63 suites install it** (54 through
+  `nettest_lobby`, 10 directly, one both). Its list still names two deleted modals (`pfDecline`, `sgNo`), and so
+  do `lessonlib`'s `answerWindow` and several suites that hand-roll the same list.
 - **About 36 suites drive the Respond? window**, through `fightclick`'s `windowUp` / `respQuicks` /
-  `clickQuick` / `clickDecline` or straight through its DOM. `lessontest_phases` drives it most: the Phases and
+  `clickQuick` / `clickDecline` or straight through its DOM, and `lessonlib`'s `answerWindow` is a third helper
+  that answers it for the lesson suites. `lessontest_phases` drives it most among the lessons: the Phases and
   Quicks lesson has the player spring Counter Spell and then Leyline Ascension from it.
+- **Nothing tells the other seats to animate an answer (step 3).** The host's respond handlers only `say()`,
+  `t:'fx'` is sent only for activations, and an answer that resolves inside one `E.respond` call never reaches
+  a mirror at all.
 - **`lessonQuicksSteps` is dead code.** It holds the deleted Quicks lesson's steps, still describing *"When
   the Respond? prompt pops up…"*, and nothing calls it. Step 6 deletes it.
+- **A shipped bug the recheck found on the way, routed to `main`.** `E.phantasm` hands the turn on without
+  resetting `subPhase`, where every other hand-off does, so after an AI's Illusion the next seat's turn starts in
+  the Fight Sub-Phase and every Main effect is refused. Measured in the engine, 4 of 4. It is not this design's
+  to fix, but step 1's tests will meet it.
 
 ## Steps
 
 Each step PRs into the epic and keeps the sweep green on its own; a merge that changes the page bumps the
 epic's fourth number. The full sweep runs on the epic before it merges.
 
-1. **The friction fix: two drop zones, and no Next.** The middle fights; a column on the right takes casts,
-   with today's stack rows moved into it; the big button is Fight only. Everything that says or presses Next
-   changes in the same step: the hint, the lessons' Next steps, `enterFight` and the in-page helpers,
-   `fightbeattest`, `nettest_fightbeat`, the `toFight` handlers, and `dragtest` rewritten. Every layout gets a
-   basic place for the column, so `phonetest` and `landscapetest` stay green; step 5 refines it. It plays on
-   its own, so Aj can try it first.
-2. **Staging in Main.** A dropped card waits in the column with its ✕, its choices made on the board, until
-   ⚡ Activate. Counterfeit's picker moves onto the board.
+1. **The friction fix: two drop zones, no Next, and staging.** The middle fights; a column on the right takes
+   casts, with today's stack rows moved into it; the big button is Fight only, live only for a legal play; and
+   your own crossing shows the Fight Sub-Phase every time (ruling 10). A card dropped on the column, or selected
+   and ⚡'d, waits there staged with its ✕, its choices made on the board, until ⚡ Activate (ruling 9).
+   Everything that says or presses Next changes in the same step: the hints, the three lessons' Next steps and
+   the four Activate steps' `only`, the three live docs, `fightclick` (`enterFight`, `driveStep`, the in-page
+   helpers) and the ~22 suites in the traps, the `toFight` sender, handlers and `CEREMONY_REFUSE` key, and
+   `dragtest` rewritten for "where you drop decides". Every layout gets a basic place for the column, measured
+   by `phonetest` and `landscapetest` rather than merely not breaking them; step 5 refines it. Phantasmal
+   Illusion keeps today's behaviour until ruled. It plays on its own, so Aj can try it first.
+2. **Counterfeit's picker moves onto the board**, the last Main-side choice made in a dialog. (Staging itself
+   moved into step 1 by ruling 9; the step keeps its number so references to later steps stay true.)
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
-   presentation.
+   presentation, which needs the host to announce answers to the other seats. Some stack rows have no card to
+   show (a triggered Equipment upkeep counter), and the play-area dim covers the visualizer while another seat
+   holds priority.
 4. **The Respond? box and answering on the board.** The box shrinks to its sentence and Yes / No; Yes lights
-   the castable cards (asserted by computed style); No and Pass pass. The test helpers change first
-   (`fightclick`, `netwindows`), so most suites follow with no edits; then every seat at once, through
-   `promptHumanResponse`.
+   the castable cards (asserted by computed style); No and Pass pass, and Pass in a window declines priority
+   rather than sitting the round out. Counter Spell's target is picked from a card in the visualizer. The test
+   helpers change first (`fightclick`, `netwindows`, `lessonlib`), so most suites follow with no edits; then
+   every seat at once, through `promptHumanResponse`. Needs the AUTO question ruled first.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
