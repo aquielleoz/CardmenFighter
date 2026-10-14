@@ -1,9 +1,10 @@
 # Drag and stack: playing from the board
 
-**Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Nothing is built yet; step 1 is
-next.** The work lives on `epic/drag-and-stack`: every step PRs into it, and `main` sees one merge at the end.
-The recheck corrected several counts in this doc and found traps it had missed; Aj ruled four more questions on
-the back of it (rulings 9 to 12; 9 and 10 make step 1 larger). Two questions are still open: whether a cast
+**Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Step 1 is BUILT and merged into
+the epic (PR #421, 2026-10-14, v1.33.16.1); step 2 is next.** The work lives on `epic/drag-and-stack`: every step
+PRs into it, and `main` sees one merge at the end. The recheck corrected several counts in this doc and found traps
+it had missed; Aj ruled four more questions on the back of it (rulings 9 to 12; 9 and 10 make step 1 larger), and
+two more after playing step 1 (13 and 14). Two questions are still open: whether a cast
 passes priority in AUTO (step 4), and where the stack visualizer sits on a portrait phone (step 5).
 
 ## In Aj's words
@@ -185,6 +186,15 @@ The three earlier asks this answers:
     1, which keeps today's engine behaviour and only routes the drop to the column; it is filed with the Illusion
     sub-phase leak in `main`'s BACKLOG (`illusion-leaks-fight-subphase`), since the code it touches is unchanged
     by the epic.
+13. **A staged card carries ⚡ and ✕ side by side** (2026-10-14, after playing step 1): *"can we add a lightning
+    bolt near the card. i know the description box already has a lightning bolt but i'd like another beside the
+    take back. we can reduce the take back to an X button probably"*. Built in #421: the column's ⚡ runs the
+    action row's own ⚡ Activate and copies its state (gold when it would cast, 🎯 while a target is owed), so it
+    is a second place to press, not a second cast path.
+14. **The Fight beat does not dim the board; the round banners still do** (2026-10-14): *"having the fight
+    sub-phase dim is kinda annoying. letting the hand flash yellow for the fly in is fine tho"*, then *"keep the
+    round banners dimmed"*. Ruling 10 made the beat fire on every crossing, which is why its dim became the
+    cost. Built in #421: the banner keeps a dark plate behind its words only.
 
 ## Still open
 
