@@ -98,6 +98,24 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     st.respondFor=null; st.pending=null; window.__solo.render(); return out; });
   ok(dim.dimmed && dim.onColumn, 'WHILE ANOTHER SEAT DECIDES, THE STACK IS ABOVE THE DIM — a hit test on a stack card lands on the column  ['+JSON.stringify(dim)+']');
 
+  /* A CAST THAT RESOLVES AT ONCE STILL ARRIVES (drag-and-stack step 3). Nobody can answer a boost here, so it
+     resolves inside the same call and is never on the stack at a render — the case `renderStack` cannot see.
+     Its card must still fly into the column (and leave): `presentStackArrival`, through the own-cast tail. */
+  await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+    st.stack=[]; st.respondFor=null; st.pending=null; st.round=4; st.turn=0; st.subPhase='main'; st.pile=null; st.lastPlayer=null; st.passes=0;
+    st.players.forEach((pl,i)=>{ if(i){ pl.hand=[mk(3,'S','o'+i+'a'),mk(6,'H','o'+i+'b')]; pl.energy=[]; } });
+    st.players[0].hand=[mk(3,'C','bt3C'),mk(9,'H','x9H')]; st.players[0].energy=[3,4,5,6,7,8].map(n=>mk(n,'C','e'+n)); st.players[0].nextPlayBoost=0;
+    window.__arrive=[]; new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{ if(n.classList && n.classList.contains('stkGhost')) window.__arrive.push({card:n.getAttribute('data-card'), arrive:n.hasAttribute('data-arrive')}); }))).observe(document.body,{childList:true});
+    window.__solo.render(); });
+  await wait(400);
+  await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="bt3C"]'))[0]; if(g) g.click(); });
+  await wait(250);
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && !c.disabled) c.click(); });
+  await wait(2700);
+  const arr=await p.evaluate(()=>({ seen:window.__arrive.filter(a=>a.card==='bt3C'), left:document.querySelectorAll('.stkGhost').length, boost:window.__solo.st().players[0].nextPlayBoost||0 }));
+  ok(arr.boost>0 && arr.seen.some(a=>a.arrive), 'A CAST THAT RESOLVED AT ONCE STILL ARRIVES IN THE COLUMN — its card flew in though it was never on the stack  ['+JSON.stringify(arr)+']');
+  ok(arr.left===0, '  …and nothing is left behind once it has faded');
+
   await p.evaluate(()=>{ window.__solo.st().stack=[]; window.__solo.render(); });
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

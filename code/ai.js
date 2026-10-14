@@ -933,7 +933,7 @@
       var roundAt = (st.resolvedRound != null && st.resolution) ? st.resolvedRound : st.round;
       var rr = respondDecision(st, q);
       if (!rr) break;
-      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null });
+      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respCard: rr.respondCard || null, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null });
     }
   }
 

@@ -1,7 +1,8 @@
 # Drag and stack: playing from the board
 
 **Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Step 1 is BUILT and merged into
-the epic (PR #421, 2026-10-14, v1.33.16.1), and step 2 is built (v1.33.16.2); step 3 is next.** The work lives on `epic/drag-and-stack`: every step
+the epic (PR #421, 2026-10-14, v1.33.16.1), step 2 merged (#422, v1.33.16.2), and step 3 is built (v1.33.16.3);
+step 4 is next.** The work lives on `epic/drag-and-stack`: every step
 PRs into it, and `main` sees one merge at the end. The recheck corrected several counts in this doc and found traps
 it had missed; Aj ruled four more questions on the back of it (rulings 9 to 12; 9 and 10 make step 1 larger), and
 four more after playing step 1 (13 to 16). Two questions are still open: whether a cast
@@ -364,7 +365,13 @@ epic's fourth number. The full sweep runs on the epic before it merges.
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
    presentation, which needs the host to announce answers to the other seats. Some stack rows have no card to
    show (a triggered Equipment upkeep counter), and the play-area dim covers the visualizer while another seat
-   holds priority.
+   holds priority. *Built (v1.33.16.3):* each object shows its card, newest on top, captioned with the row's own
+   phrase (`stackObjPhrase`, shared with the Respond? box); a trigger shows as a tile; the column sits above the
+   waiting dim. A cast on the stack flies in from its caster, read off `state.stack` so every seat presents it the
+   same way; a cast that resolves before any render arrives through `presentStackArrival`, which every presentation
+   path calls (`showFx`, the cast tails, an AI's cast and answer, the tutorial). The host now announces the cast
+   tails that never did (Equipment removal, Counterfeit, your own answer) and every guest's answer, and an AI's
+   answer carries its card (`respondCard`).
 4. **The Respond? box and answering on the board.** The box shrinks to its sentence and Yes / No; Yes lights
    the castable cards (asserted by computed style); No and Pass pass, and Pass in a window declines priority
    rather than sitting the round out. Counter Spell's target is picked from a card in the visualizer. The test

@@ -290,6 +290,7 @@
      dims under "<name> is deciding…" (`showTrimWait`), and the column sat under it — so the stack was hidden at
      exactly the moment you are waiting on someone to answer it. */
   #table.waitDim #castZone{z-index:8;}
+  #castZone.arriving{opacity:1;}   /* a cast that already resolved still lands here, briefly (`presentStackArrival`) */
   @media (max-width:1199px){ #castZone{width:104px;} }
   /* WHILE THE COLUMN IS UP THE CENTRED MESSAGE MAKES ROOM FOR IT, or the two print over each other on a narrow table
      (measured in the first screenshots: a phone's staged-card message ran under the column). Only while it shows,
@@ -4403,6 +4404,7 @@ __QR__
     var eff=E.effectOf(card), who=logName(seat);
     if(eff && eff.kind==='transform') flashArt(card, who);
     else revealEffect(card, who);
+    presentStackArrival(seat, card);   // …and the card lands in the cast column (drag-and-stack step 3)
   }
   // Play a sequence of timed "beats" (the Rival's actions), one after another, so each
   // effect gets a reading beat before the next thing happens. gen-guarded so a New Duel cancels it.
@@ -4620,7 +4622,7 @@ __QR__
        from. Anyone else's comes from their seat. */
     var fresh=objs.filter(function(o){ return o.oid!=null && !stackSeen[o.oid]; });
     var from={};
-    fresh.forEach(function(o){ if(!o.card) return; from[o.oid]=stackSourceRect(o.p, o.card.id); });
+    fresh.forEach(function(o){ if(!o.card || cardFlewRecently(o.card.id)) return; from[o.oid]=stackSourceRect(o.p, o.card.id); });
     el.innerHTML='';
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], isTop=(i===objs.length-1);
       var box=document.createElement('div'); box.className='stkCard'+(isTop?' top':''); if(o.oid!=null) box.setAttribute('data-oid', o.oid);
@@ -4633,6 +4635,42 @@ __QR__
     objs.forEach(function(o){ if(o.oid!=null) stackSeen[o.oid]=true; });
     fresh.forEach(function(o){ if(from[o.oid]) flyStackCard(o, from[o.oid]); });
   }
+  /* ONE PRESENTATION FOR EVERY CAST AND ANSWER, INCLUDING ONES THAT NEVER SIT ON THE STACK AT A RENDER (drag-and-stack
+     step 3). `renderStack` flies whatever it finds on `state.stack`; a cast that resolved inside the same call — an
+     AI's batch, a Technique nobody could answer, an answer the go-round closed behind — is never there to find, and
+     it used to reach the board as a log line at most. Every presentation path calls this: if the card IS on the
+     stack it does nothing (the stack's own diff flies it, or already did); otherwise a ghost flies from the caster
+     into the column, rests a moment and fades — resolved. `recentlyFlown` keeps one arrival per card when a netplay
+     announcement (`t:'fx'`) and the mirror that also carries the card arrive in either order. */
+  var recentlyFlown={};
+  function cardFlewRecently(id){ return !!(recentlyFlown[id] && Date.now()-recentlyFlown[id]<2500); }
+  function presentStackArrival(seat, card){
+    if(!card || card.rank==null || !state || reduceMotion()) return;
+    if((state.stack||[]).some(function(o){ return o.card && o.card.id===card.id; })) return;
+    if(cardFlewRecently(card.id)) return;
+    var cz=$('castZone'), src=stackSourceRect(seat, card.id); if(!cz || !src) return;
+    recentlyFlown[card.id]=Date.now();
+    cz.classList.add('arriving');
+    var zr=cz.getBoundingClientRect(), ref=document.querySelector('#hand .card'), rr=ref?ref.getBoundingClientRect():null;
+    var gw=(rr&&rr.width)||56, gh=(rr&&rr.height)||80;
+    var g=cardEl(card, 'mini', seat); g.classList.add('stkGhost'); g.setAttribute('data-card', card.id); g.setAttribute('data-arrive', '1');
+    var tx=zr.left+zr.width/2-gw/2, ty=zr.top+zr.height/2-gh/2;
+    g.style.left=tx+'px'; g.style.top=ty+'px'; g.style.width=gw+'px'; g.style.height=gh+'px';
+    document.body.appendChild(g);
+    var dx=(src.left+src.width/2)-(tx+gw/2), dy=(src.top+src.height/2)-(ty+gh/2), gg=gen, gone=false;
+    var done=function(){ if(gone) return; gone=true; if(g.parentNode) g.parentNode.removeChild(g); if(!document.querySelector('.stkGhost[data-arrive]')) cz.classList.remove('arriving'); };
+    if(!g.animate){ done(); return; }
+    var a=g.animate([{ transform:'translate('+dx+'px,'+dy+'px) scale(.75)', opacity:.35 }, { transform:'none', opacity:1, offset:.35 },
+                     { transform:'none', opacity:1, offset:.8 }, { transform:'scale(.9)', opacity:0 }], { duration:1500, easing:'ease-out' });
+    a.onfinish=done; a.oncancel=done;
+    setTimeout(function(){ if(gg!==gen || !gone) done(); }, 2200);   // never leave a ghost behind
+  }
+  // your own cast or answer: shown here, and announced to the table when you are the netplay host
+  /* `NET.sendFx` IS THE HOST'S EXISTING ANNOUNCEMENT (v1.31.93, `fxSend`), and the cast tails reach it through here —
+     all but the transform branch, which announces on its own line. The ordinary tail used to call it directly, and
+     the removal and Counterfeit tails never did, so a guest never saw the host's Sabotage or Counterfeit at all. A guest's own cast returns at its client guard before any tail,
+     and is echoed back by the host, so this is a no-op off the host. */
+  function presentOwnCast(card){ presentStackArrival(YOU, card); if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card); }
   /* The rect a cast card leaves from, in the LOCAL frame: your own card's slot (the cast column's staged card, else
      its place in your hand), else your hand; a duel rival's panel; at 3-6 players that seat's panel. */
   function stackSourceRect(seat, cardId){
@@ -4649,7 +4687,8 @@ __QR__
     var box=document.querySelector('#stackView .stkCard[data-oid="'+o.oid+'"]'), real=box && box.querySelector('.card');
     if(!real) return;
     var to=real.getBoundingClientRect(); if(!to.width) return;
-    var g=cardEl(o.card, 'mini', o.p); g.classList.add('stkGhost'); g.setAttribute('data-oid', o.oid);
+    var g=cardEl(o.card, 'mini', o.p); g.classList.add('stkGhost'); g.setAttribute('data-oid', o.oid); g.setAttribute('data-card', o.card.id);
+    recentlyFlown[o.card.id]=Date.now();
     g.style.left=to.left+'px'; g.style.top=to.top+'px'; g.style.width=to.width+'px'; g.style.height=to.height+'px';
     document.body.appendChild(g); box.classList.add('inbound');
     var dx=(src.left+src.width/2)-(to.left+to.width/2), dy=(src.top+src.height/2)-(to.top+to.height/2);
@@ -6108,7 +6147,7 @@ __QR__
       }
       setMessage(msg); say(YOU, logTxt, 'you');   // say(), not logMsg: a Ride/transform is public and every seat needs it
       if(typeof TUT!=='undefined' && TUT.note) TUT.note('activate', eff);   // Rides lesson: the transform step gates here (eff.kind==='transform')
-      flashArt(card, 'You');                    // center-stage art pop only — a Form's full text is read by hovering it in the Forms & Rides zone, not shoved into the description box
+      flashArt(card, 'You'); presentStackArrival(YOU, card);   // center-stage art pop, and the card lands in the cast column — a Form's full text is read by hovering it in the Forms & Rides zone, not shoved into the description box
       if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card);   // ...and to the other seats, who have no driver of their own to show it
       /* A TRANSFORM OPENS A WINDOW LIKE ANY OTHER CAST, AND THIS BRANCH FORGOT TO HAND CONTROL BACK
          (2026-09-16). The comment above still said "persists, no response window" — true once, false since
@@ -6134,8 +6173,7 @@ __QR__
     setMessage('You played <b>'+eff.name+'</b>.'+pitchNote);
     sayCast(YOU, card, r, 'you');   // the pitch is named by sayCast itself now, on every path (pitchTail)
     TUT.note('activate', eff);
-    revealEffect(card, 'You');              // quick flash of what you just played
-    if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card);
+    revealEffect(card, 'You'); presentOwnCast(card);              // quick flash of what you just played — and the table's announcement
     // the Rival (and then you again) may answer on the stack — Counter, spring Leyline, etc.
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
@@ -6213,7 +6251,7 @@ __QR__
     selected={}; targeting=null;
     setMessage('You played <b>'+eff.name+'</b>.');
     sayCast(YOU, card, r, 'you');
-    revealEffect(card, 'You');
+    revealEffect(card, 'You'); presentOwnCast(card);
     /* THE HOST MUST TAKE CONTROL BACK, AND THIS CONTINUATION FORGOT TO — SEVENTH INSTANCE (2026-09-18).
        `doRemove` is the `removeEquip` tail, a near-copy of the ordinary effect tail thirty lines up, and it
        dropped exactly one line: the `NET.hostAfterOwnCast(gen)` hop that reaches `hostTakeBack()` — the only
@@ -6446,7 +6484,7 @@ __QR__
     selected={}; targeting=null;
     setMessage('You <b>counterfeited</b> a '+(src?cardSym(src):'card')+' — play the copy before the round ends.');
     sayCounterfeit(YOU, state, copyId, 'you');
-    revealEffect(card, 'You');
+    revealEffect(card, 'You'); presentOwnCast(card);
     rivalMayRespond(eff.name);
     if(state.finished){ render(); return endGame(); }
     render();
@@ -7259,7 +7297,7 @@ __QR__
           var eff=e.card?E.effectOf(e.card):null;
           beats.push({ dwell: revealDwell(e.card), run:function(){
             sayCast(seat, e.card, e, 'rival');   // `e.target` is the AI's activation result's aim
-            if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
+            if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } presentStackArrival(seat, e.card); setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
           }});
         }
         else if(e.useEquip){ beats.push({ dwell:750, run:function(){ say(seat, '{who} spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
@@ -7289,7 +7327,7 @@ __QR__
            mid-turn and left this entry, and nothing read it. `respBy` is the seat that answered, usually NOT `seat`;
            the timing and round were sampled before the answer, the way `settleWindows` samples them. Same words,
            ledger line, cue and hold as an answer on your side of the table. */
-        else if(e.respond){ beats.push({ dwell:(reduceMotion()?300:1400), run:function(){ noteAIAnswer(e.respBy, e.respName, e.countered, e.transition, e.round, e.pitched); cueAIAnswer(e.respBy, e.respName, e.countered); render(); } }); }
+        else if(e.respond){ beats.push({ dwell:(reduceMotion()?300:1400), run:function(){ noteAIAnswer(e.respBy, e.respName, e.countered, e.transition, e.round, e.pitched); cueAIAnswer(e.respBy, e.respName, e.countered, e.respCard); render(); } }); }
       });
     return beats;
   }
@@ -7434,9 +7472,10 @@ __QR__
     else if(atTransition) say(q, '{who} sprang '+name+' before the fight'+pt+'.', 'rival');
     else say(q, '{who} answered at instant speed with '+name+pt+'.', 'rival');
   }
-  function cueAIAnswer(q, name, countered){   // the on-screen half: the caption and the QUICK flash, which the caller then holds
+  function cueAIAnswer(q, name, countered, card){   // the on-screen half: the caption and the QUICK flash, which the caller then holds
     setMessage(countered ? ('🌀 <b>'+logName(q)+' Countered with '+name+'!</b>') : ('<b>'+logName(q)+' answered with '+name+'.</b>'));
     quickFlash(logName(q), name, !!countered);
+    presentStackArrival(q, card);   // the answer's card lands in the cast column — answers never had a presentation (drag-and-stack step 3)
   }
   function settleWindows(g, done){
     if(g!==gen) return;
@@ -7473,7 +7512,7 @@ __QR__
       }
     }
     if(lastResp){                                                  // the Rival sprang a Quick — flash a cue and DWELL so it's readable (it used to resolve instantly, log-only)
-      cueAIAnswer(lastQ, lastResp.respondName, lastResp.countered); render();
+      cueAIAnswer(lastQ, lastResp.respondName, lastResp.countered, lastResp.respondCard); render();
       return setTimeout(function(){
         if(g!==gen) return;
         if(state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
@@ -7826,7 +7865,7 @@ __QR__
     var r=E.respond(state, YOU, quickId, {counterOid:coid||null, pitch:pitch||null, target:(target==null?null:target)});
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
-    if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); }
+    if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); presentOwnCast(qcard); }
     if(qeff && qeff.kind==='counter'){ setMessage('🌀 You <b>Countered</b> '+pendName+'!'); say(YOU, '{who} countered '+pendName+' with '+qeff.name+'!', 'you'); }
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); say(YOU, '{who} answered with '+qeff.name+' at instant speed'+pitchTail(r)+'.', 'you'); }
     prioNote('  → you CAST ' + (qeff && qeff.name ? qeff.name : quickId) + (qeff && qeff.kind==='counter' ? ('  (countering ' + pendName + ')') : ''));
@@ -8224,7 +8263,7 @@ __QR__
     pendingEnter={}; flipFrom=null;                      // the deal-in queue (it also drives the Beginning tint via `dealingIn`) and the FLIP source rect
     equipFx={}; equipOpen=null; formsOpen=null;          // zone flash layer + which zones are expanded
     drag=null;                                           // any drag still in flight when the board went away
-    stackSig=null; stackSeen={};   // the stack's card rebuild + which objects have already flown in (drag-and-stack step 3)
+    stackSig=null; stackSeen={}; recentlyFlown={};   // the stack's card rebuild + which objects have already flown in (drag-and-stack step 3)
     lastSubPhase=null;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
     ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
     var af=$('artFlash'); if(af) af.classList.remove('show','you');
@@ -8934,7 +8973,7 @@ __QR__
      * `buildOppBeats` pairs `revealEffect` with `revealDwell`; the tutorial bypassed that layer and hand-rolled
      * its own presentation. Using the same pair also drops the card into the READER, which is the thing you
      * need to read before deciding whether to counter. */
-    revealEffect(tech, 'Rival');
+    revealEffect(tech, 'Rival'); presentStackArrival(RIVAL, tech);
     logMsg('<b>Rival</b> casts <b>'+name+'</b>.', 'rival');
     /* WHO HOLDS PRIORITY THE INSTANT AFTER THE CAST — the one fact that explains this lesson's flake, and
        it was unobservable. Since epic step 6 the go-round starts at the CONTROLLER, so a Rival cast can
@@ -11988,7 +12027,7 @@ __QR__
            again. Unstamped answers (an older client) apply as they always did. */
         if(it.pg!=null && it.pg!==curPg){ trace('answer DROPPED — it was for an earlier grant', 'op='+it.op+' pg='+it.pg+' prioGen='+curPg); return; }
         try{
-          if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+pitchTail(r)+'.', 'rival'); }
+          if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+pitchTail(r)+'.', 'rival'); if(qc) fxBroadcast(1, qc); }   // the host announces the answer (drag-and-stack step 3)
           else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
@@ -12385,7 +12424,7 @@ __QR__
           return;
         }
         try{
-          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+seat)%hostState.numPlayers : (it.target||null))}); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed'+pitchTail(rr)+'.')), 'rival'); }
+          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+seat)%hostState.numPlayers : (it.target||null))}); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed'+pitchTail(rr)+'.')), 'rival'); if(qc) fxBroadcast(seat, qc); }
           else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat);
             /* AN AUTO-PASS IS NOT A CHOICE (2026-09-23). A client whose prompt for this timing is off answers
                with the SAME `{op:'decline'}` a player clicking "Let it resolve" sends, so the host narrated

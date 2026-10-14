@@ -2002,6 +2002,7 @@
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
     res.respondedWith = qeff.id; res.respondKind = qeff.kind; res.respondName = qeff.name;
+    res.respondCard = { rank: qcard.rank, suit: qcard.suit, id: qcard.id };   // the answer's public face, so the board can show it (drag-and-stack step 3)
     if (qPitch) res.pitched = { rank: qPitch.rank, suit: qPitch.suit, id: qPitch.id };
     return res;
   }
