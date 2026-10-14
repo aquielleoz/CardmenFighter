@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.16.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.16.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -126,9 +126,10 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
   friction behind it (*"accidentally, pressing next and then being unable to go back to main to
   activate abilities"*) and his eight rulings are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
-  **Step 1 is built** — two drop zones, no Next, staging, and the Fight beat on every crossing — on
-  `feat/drop-zones-no-next`, in review as a PR into the epic. **Next: step 2**, in the design doc's build
-  order. One question is left for step 5 (where the visualizer sits on a portrait phone).
+  **Steps 1 and 2 are built.** Step 1 (two drop zones, no Next, staging, the Fight beat on every crossing) merged
+  as #421; step 2 (Counterfeit picks its copy on the pile, not in a dialog) is on `feat/counterfeit-pick-on-board`,
+  in review as a PR into the epic. **Next: step 3**, the visualizer showing cards. One question is left for step 4
+  (whether a cast passes priority in AUTO) and one for step 5 (where the visualizer sits on a portrait phone).
   `[id: priority-modal-redesign]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the

@@ -178,6 +178,11 @@
   /* equipment sits out of the way on the RIGHT edge (rival top-right, you bottom-right), stacking downward */
   .equipZone{position:absolute; right:8px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; z-index:3; pointer-events:none; max-width:min(48%,180px);}
   #rivalEquipZone{top:4px;} #youEquipZone{bottom:4px;}
+  /* …AND ON THE LEFT, BESIDE FORMS & RIDES, WHEREVER THE TABLE HAS THE ROOM (drag-and-stack ruling 15). Aj, seeing
+     Hero's Javelin under the cast column: *"the equips should not sit there. they look like they're still
+     resolving"*, then *"Left, beside Forms & Rides"*. `placeEquipZones` sets the class and the measured `left`; the
+     right-corner rules above are what remains wherever it does not (the landscape band). */
+  .equipZone.leftSide{right:auto; align-items:flex-start;}
   .equipZone .eq{pointer-events:auto; cursor:pointer; position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; gap:2px; min-width:104px; max-width:168px; padding:7px 12px; border-radius:11px; background-color:var(--panel); background-size:cover; background-position:center 30%; border:1px solid var(--line); box-shadow:0 2px 6px rgba(0,0,0,.3);}
   .equipZone .eq.buff:not(.hasArt){border-color:rgba(67,192,106,.7); background-image:linear-gradient(180deg,rgba(67,192,106,.16),rgba(20,18,32,.9));}
   .equipZone .eq.debuff:not(.hasArt){border-color:rgba(226,98,74,.7); background-image:linear-gradient(180deg,rgba(226,98,74,.16),rgba(20,18,32,.9));}
@@ -1199,7 +1204,10 @@
   .modal .respOpts button{margin-top:0; text-align:left; display:flex; flex-direction:column; gap:2px; line-height:1.3;}
   .modal .respQuick{background:var(--gold); color:#3a2a08;}
   .stkTgt{font-weight:600;}
-  .modal .respQuick.cfSel{outline:3px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.8);}
+  /* COUNTERFEIT PICKS ON THE PILE (drag-and-stack step 2): the cards you may copy pulse like any other target, and
+     the staged one turns gold — a copy, not a hit, so it does not borrow `.aimed`'s red. */
+  #pile .card.copyable{cursor:pointer; box-shadow:0 0 0 2px var(--pick), 0 0 12px rgba(201,139,255,.8); animation:tgtPulse .9s ease-in-out infinite;}
+  #pile .card.copyAim{box-shadow:0 0 0 2px var(--gold), 0 0 16px rgba(232,195,122,.6) !important; animation:none;}
   .modal .respQuick:disabled{opacity:.5; cursor:default;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
@@ -2105,6 +2113,13 @@ __QR__
      it on both results (`activate` and `respond` set `pitched`), and `ai.js` now carries it onto its log
      entries, so one helper reads it wherever the line is said. */
   function pitchTail(r){ return (r && r.pitched) ? ' — pitched '+cardSym(r.pitched) : ''; }
+  /* WHICH CARD A COUNTERFEIT COPIED, said the same way for every seat (drag-and-stack step 2). The local path said
+     it and both host handlers did not, so a guest's Counterfeit told the whole table it had been cast and never
+     what it copied — while a host's said so. The copy comes off the public pile, so every reader may see it. */
+  function sayCounterfeit(actor, st, copyId, cls){
+    var src=(st && st.pile && copyId) ? st.pile.combo.cards.filter(function(c){ return c.id===copyId; })[0] : null;
+    if(src) say(actor, '{who} counterfeited a '+cardSym(src)+'.', cls);
+  }
   function sayCast(actor, card, r, cls, tail){
     var t=r&&r.target, aim='', foes;
     if(t && typeof t.seat==='number'){ aim=' — aimed at {foe}'; foes=[t.seat]; }
@@ -3818,7 +3833,7 @@ __QR__
        * has always offered as targets. Tapping the gear line now opens the seat's real zones, built by the
        * same renderEquipZone/renderFormsZone the duel uses, so `.targetable` and doRemove() come with them.
        * While a removal is targeting, every panel force-opens so the target cannot be hidden behind a tap. */
-      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!targeting;
+      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!(targeting && !targeting.copy);   // a Counterfeit copy targets the PILE, so it opens nothing
       zones.className='oppZones'+(open?' open':'');
       if(open){
         renderEquipZone(el.querySelector('.oppEquipZone'), pl, false, i);
@@ -3827,7 +3842,7 @@ __QR__
       var gearEl=el.querySelector('.oppGear');
       if(gearEl && gear.length) gearEl.addEventListener('click', (function(seat){ return function(ev){
         ev.stopPropagation();                                  // never let this double as a loss/target seat pick
-        if(targeting) return;                                  // already force-open while targeting
+        if(targeting && !targeting.copy) return;               // already force-open while a removal is targeting
         oppOpen=(oppOpen===seat)?null:seat; formsOpen=null; render();
       }; })(i));
     });
@@ -3857,7 +3872,7 @@ __QR__
     box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s')+(open?'':' — tap to expand'));
     if(!opts.ghost){
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
-      if(targeting){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
+      if(targeting && !targeting.copy){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
       else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(e.card); }   // already open → tap opens the reader, exactly like a formMini
       /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
          place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
@@ -4718,7 +4733,9 @@ __QR__
       var isBeat = prevData.length>0 && !!state.pile;   // a real pile got replaced by another real pile
       pileEl.innerHTML='';
       if(state.pile){
-        state.pile.combo.cards.forEach(function(c){ var pc=cardEl(c,'sm'); pc.addEventListener('mouseenter', function(){ showCard(c); }); pileEl.appendChild(pc); });
+        state.pile.combo.cards.forEach(function(c){ var pc=cardEl(c,'sm'); pc.addEventListener('mouseenter', function(){ showCard(c); });
+          pc.addEventListener('click', function(){ if(targeting && targeting.copy) stageCopy(c.id); });   // Counterfeit picks its copy here
+          pileEl.appendChild(pc); });
       } else {
         /* AN EMPTY PILE IS NOT AN INVITATION TO EVERYONE (Aj, from live play, 2026-09-16: *"it says fight
            is open - lead a card even when it's the other player's turn to lead"*). The old line keyed off
@@ -4753,13 +4770,19 @@ __QR__
       $('pileLabel').textContent=owner+' · '+kindLabel(state.pile.combo.type)+(mod>0?' · boosted +'+mod:(mod<0?' · reduced '+mod:''));
     } else { $('pileLabel').textContent=state.finished?'':'New fight'; pileEl.classList.remove('boosted','reduced'); }
     pileEl.classList.toggle('noCards', !state.pile);   // drives the rail reserve off when there is nothing to collide with
+    /* THE COPY HIGHLIGHT IS PAINTED EVERY RENDER, because the pile above rebuilds only when its CONTENTS change and a
+       Counterfeit pick changes nothing about them. */
+    var copying=!!(targeting && targeting.copy);
+    Array.prototype.forEach.call(pileEl.children, function(el){ if(!el.dataset || !el.dataset.id) return;
+      el.classList.toggle('copyable', copying && targeting.chosen!==el.dataset.id); el.classList.toggle('copyAim', copying && targeting.chosen===el.dataset.id); });
     renderStack();
+    placeEquipZones();                    // Equipment beside Forms & Rides (ruling 15) — before the column measures the right edge
     renderCastZone();                     // after the stack: the column shows while either it or a staged card has something
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
     document.body.classList.toggle('spectating', spectating);
     $('turnTag').textContent = spectating ? ('👁 Spectating — '+seatName(state.turn)+'’s turn')
-      : targeting?'● choose target':(pick?'● choose cards':(yourTurn?'● your turn':(state.finished?'':'Rival’s turn…')));
+      : targeting?(targeting.copy?'● choose a card to copy':'● choose target'):(pick?'● choose cards':(yourTurn?'● your turn':(state.finished?'':'Rival’s turn…')));
     renderHand(yourTurn && !targeting && !targetPick);
     renderPlayMods(spectating);
     updateActions(yourTurn);
@@ -5061,7 +5084,7 @@ __QR__
      IT IS UI STATE AND NEVER TOUCHES `st`: everything on state travels in netplay snapshots, and a staged card is
      yours alone. ⚡ Activate sends today's intent with today's choices, so nothing new goes on the wire.
      ONE FUNNEL, NOT A FOURTH CAST TAIL. A staged card is just the selection plus a flag: a card with a choice goes
-     straight into the stager it already had (`targeting`, `targetPick`, a `pick`, Counterfeit's dialog), and a card
+     straight into the stager it already had (`targeting` — Counterfeit's copy included, since step 2 — `targetPick`, a `pick`), and a card
      with none waits for the ⚡ that already casts a selected card. So `staged` only has to know whether something
      still holds its card, and it rebuilds that answer on every render instead of keeping a second copy. */
   var staged=null;   // {cardId} — a card dropped on the cast column, waiting for ⚡ Activate
@@ -5097,14 +5120,27 @@ __QR__
   }
   function renderCastZone(){
     var cz=$('castZone'), slot=$('stagedSlot'); if(!cz || !slot) return;
+    /* A TAP THAT OPENS A PICKER SHOWS ITS CARD HERE TOO (drag-and-stack step 2). Asked whether a ⚡ tap on a card that
+       needs a target should also put it in the cast column while you pick, Aj chose *"Yes, show it in the column"*
+       (2026-10-14). A drop already did; the tap opened the same picker with the card nowhere on the board. So the
+       card a picker is holding IS the staged card, whichever gesture opened it — and it goes again the moment the
+       picker resolves or is cancelled, because `stagedHeld` answers that on every render. Ruling 11 is unchanged:
+       a card with nothing to choose still casts on the tap and never reaches this column. */
+    if(!staged){ var held=(targeting && targeting.cardId) || (targetPick && targetPick.cardId)
+                      || (pick && (pick.kind==='pitch' || pick.kind==='phantasm') && pick.cardId) || null;
+      if(held!=null) staged={ cardId:held }; }
     if(staged && !stagedHeld()) staged=null;
     var card=staged ? cardById(staged.cardId) : null;
     if(card){
-      var key=card.id+'|'+(targeting?'t':'')+(targetPick?'p':'')+(pick?pick.kind:'');
+      var picked=(targeting && targeting.chosen!=null) || (targetPick && targetPick.chosen!=null);
+      var key=card.id+'|'+(targeting?'t'+(targeting.chosen||''):'')+(targetPick?'p'+(targetPick.chosen!=null?targetPick.chosen:''):'')+(pick?pick.kind:'');
       if(slot.getAttribute('data-key')!==key){
         slot.setAttribute('data-key', key); slot.innerHTML='';
         var el=cardEl(card, 'mini', YOU); el.addEventListener('pointerdown', onStagedDown); slot.appendChild(el);
-        var choosing = (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
+        /* ONCE THE CHOICE IS MADE THE NOTE SAYS WHAT WAS CHOSEN — an instruction left standing after it is done is a
+           small lie, and the key above repaints on the pick. */
+        var copySrc = (targeting && targeting.copy && targeting.chosen!=null && state.pile) ? state.pile.combo.cards.filter(function(x){ return x.id===targeting.chosen; })[0] : null;
+        var choosing = copySrc ? 'Copies the '+cardSym(copySrc) : picked ? 'Target picked' : (targeting && targeting.copy) ? 'Choose the card to copy' : (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
                      : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '';
         if(choosing){ var note=document.createElement('div'); note.className='stgNote'; note.textContent=choosing; slot.appendChild(note); }
         /* ⚡ AND ✕, SIDE BY SIDE UNDER THE CARD (Aj, 2026-10-14: *"can we add a lightning bolt near the card … i'd like
@@ -5145,6 +5181,27 @@ __QR__
   function onStagedCastClick(e){
     var src=stagedCastSource(); if(!src) return;
     if(src.id==='ctxBtn') onCtxClick(e); else onActivateClick(e); }
+  /* EQUIPMENT SITS BESIDE ITS SEAT'S FORMS & RIDES, ON THE LEFT (drag-and-stack ruling 15). Measured, because the
+     Forms zone's width moves with what it holds (chips, the INCARNATION line, expanded cards): the Equipment starts
+     12px past its right edge, or at the corner when that seat has no Forms. The rival's sits at the Forms' own
+     height (below the round tag), yours at the bottom like its Forms. Only on the table — a portrait phone moves
+     both into the seat panels (`placeZones`) — and NOT in the landscape band, where the left column is already
+     full and the pile's channel is measured against it (see the band's CSS); that layout is step 5's. */
+  function placeEquipZones(){
+    var tb=$('table'); if(!tb) return;
+    var onLeft=!shortLandscape(), tr=null;
+    [['rivalFormZone','rivalEquipZone'],['youFormZone','youEquipZone']].forEach(function(pr){
+      var fz=$(pr[0]), ez=$(pr[1]); if(!ez) return;
+      if(!onLeft || ez.parentNode!==tb){
+        if(ez.classList.contains('leftSide')){ ez.classList.remove('leftSide'); ez.style.left=''; ez.style.top=''; }
+        return; }
+      tr=tr||tb.getBoundingClientRect();
+      var x=8;
+      if(fz && fz.parentNode===tb && fz.offsetParent!==null && fz.childElementCount){ var fr=fz.getBoundingClientRect(); if(fr.width) x=Math.round(fr.right-tr.left)+12; }
+      ez.classList.add('leftSide'); ez.style.left=x+'px';
+      if(pr[1]==='rivalEquipZone') ez.style.top='30px';
+    });
+  }
   /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
      shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
      is equipped — so a fixed CSS height either wasted the edge on a desktop or, on a 390px-tall landscape table,
@@ -5154,7 +5211,7 @@ __QR__
     var tb=$('table'); if(!tb) return;
     var tr=tb.getBoundingClientRect(); if(!tr.height) return;
     var top=6, bottom=6;
-    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null) return null; return z.getBoundingClientRect(); }
+    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null || z.classList.contains('leftSide')) return null; return z.getBoundingClientRect(); }
     var rz=edge('rivalEquipZone'), yz=edge('youEquipZone');
     if(rz) top=Math.max(top, Math.round(rz.bottom - tr.top) + 4);
     if(yz) bottom=Math.max(bottom, Math.round(tr.bottom - yz.top) + 4);
@@ -5471,9 +5528,9 @@ __QR__
       return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the rival you want to hit, then press ⚡ Activate.', run:null};
     // the SAME stage-then-confirm for an Equipment / zone target (removeEquip) — it used to cast on the tap
     if(targeting && targeting.chosen!=null)
-      return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ var t=targeting; doRemove(t.cardId, t.chosen); }};
+      return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ var t=targeting; if(t.copy) doCounterfeit(t.cardId, t.chosen); else doRemove(t.cardId, t.chosen); }};
     if(targeting)
-      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the card you want to remove, then press ⚡ Activate.', run:null};
+      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:(targeting.copy ? 'Tap the card on the pile you want to copy, then press ⚡ Activate.' : 'Tap the card you want to remove, then press ⚡ Activate.'), run:null};
     if(sel.length===1){
       var eff=E.effectOf(sel[0]);
       if(eff && eff.kind==='phantasm'){
@@ -5656,6 +5713,14 @@ __QR__
          cannot be thrown down by accident, and the hint says the two ways out. */
       if(staged && selected[staged.cardId] && !targeting && !targetPick && !pick){
         hint.textContent='Staged — ⚡ Activate casts it, ✕ takes it back.'; hint.className='pick'; return; }
+      /* A PICK THAT OWNS THE BOARD SAYS WHAT IT IS WAITING FOR (drag-and-stack step 2). With nothing selected this
+         branch went on to describe the Main sub-phase — "nothing to use yet; pick a play" while Counterfeit waited
+         for its copy, since a hand locked for the pick reads as unusable — and the removal and rival-target picks
+         had the same line all along. The ⚡ button's own sentence is the hint, so the two cannot disagree. */
+      if(targeting || targetPick){
+        var tc=ctxAction();
+        hint.textContent=(tc && tc.ok) ? 'Press ⚡ Activate to confirm, or Clear to cancel.' : ((tc && tc.reason) || 'Choose a target, then press ⚡ Activate.');
+        hint.className='pick'; return; }
       /* SHORT, BECAUSE THIS LINE IS PINNED TO ONE ROW IN THE LANDSCAPE BANDS and the vertical budget there
          has no slack — the first draft spelled out all three controls and five `landscapetest` assertions
          went red at 800x360 and 932x430, including the 327x660 ratchet (63px -> 78px). The controls are on
@@ -5919,7 +5984,15 @@ __QR__
     }
     if(eff.kind==='counterfeit'){                          // Counterfeit — copy a card from the Rival's current play
       if(!state.pile || state.pile.byPlayer===YOU){ setMessage('Counterfeit needs the Rival’s current play to copy — cast it while facing an attack.'); return; }
-      promptCounterfeit(cardId); return;
+      /* THE COPY IS PICKED ON THE PILE (drag-and-stack step 2), the last Main choice that was a dialog. It is the
+         removal's own stage-then-confirm: `targeting` with `copy`, so every guard that holds the board for a
+         removal holds it for this, and only the removal's own highlights are gated off. One distinct card on the
+         pile is no choice at all (two copies of one card are the same copy), so it is staged for you — the
+         Broadway pitch's rule. */
+      var seenC={}, uniqC=state.pile.combo.cards.filter(function(c){ var k=c.rank+c.suit; if(seenC[k]) return false; seenC[k]=true; return true; });
+      targeting={cardId:cardId, copy:true, chosen:null, name:eff.name}; selected={};
+      if(uniqC.length===1) return stageCopy(uniqC[0].id);
+      setMessage('Tap a card in '+esc(logName(state.pile.byPlayer))+'’s play to copy with <b>'+eff.name+'</b>. Nothing is spent until you confirm.'); render(); return;
     }
     if(isHostileSingular(eff) && !(_opts && _opts.target!=null)){   // pick the rival to hit FIRST — energy is only spent once a target is chosen (Clear to back out)
       return promptTargetPick(cardId, eff);
@@ -6272,39 +6345,26 @@ __QR__
   /* `rivalMayGuard` WAS DELETED HERE (v1.31.125). It resolved the RIVAL's shield-guard window inline, and
      `destroyShield` can no longer open one — the target answers the TECHNIQUE one level up instead, which is
      the intended unification. Nothing has called it since; it was reachable only from a comment. */
-  // COUNTERFEIT: choose a card from the Rival's current play to copy into your hand.
-  function promptCounterfeit(cardId){
-    var pool=state.pile.combo.cards, seen={}, uniq=[];
-    pool.forEach(function(c){ var k=c.rank+c.suit; if(!seen[k]){ seen[k]=true; uniq.push(c); } });
-    uniq.sort(function(a,b){ return E.fightValue(b)-E.fightValue(a); });
-    var html='<h2>Counterfeit</h2><p>Copy a card from the Rival’s current play — the copy enters your hand and must be played in a fight this round.</p><div class="respOpts">';
-    uniq.forEach(function(c){ html+='<button class="respQuick cfPick" data-id="'+c.id+'">'+cardSym(c)+'</button>'; });
-    html+='<button id="cfConfirm" class="respQuick" style="text-align:center;" disabled>Choose a card to copy</button>';
-    html+='<button id="cfCancel" class="respLet">Cancel</button></div>';
-    showModal(html);
-    /* STAGE, THEN CONFIRM (2026-10-05) — tapping a card used to cast on the spot. The pick highlights; the
-       Confirm button names it and is the only thing that spends anything. */
-    var cfChosen=null;
-    Array.prototype.forEach.call(document.querySelectorAll('.cfPick'), function(btn){
-      btn.addEventListener('click', function(){
-        cfChosen=btn.getAttribute('data-id');
-        Array.prototype.forEach.call(document.querySelectorAll('.cfPick'), function(b){ b.classList.toggle('cfSel', b===btn); });
-        var ok=$('cfConfirm'); ok.disabled=false; ok.innerHTML='⚡ Counterfeit the '+btn.innerHTML;
-      });
-    });
-    $('cfConfirm').addEventListener('click', function(){ if(cfChosen==null) return; hideOverlay(); doCounterfeit(cardId, cfChosen); });
-    $('cfCancel').addEventListener('click', hideOverlay);
+  /* COUNTERFEIT'S PICK IS ON THE PILE NOW, and `promptCounterfeit`, the dialog that listed the copyable cards as
+     buttons, is DELETED (drag-and-stack step 2). Stage only, like `stageRemove`: the tap names the copy and
+     `ctxActionFor` is the confirm, so nothing is spent until ⚡ Activate and Clear backs out. */
+  function stageCopy(id){
+    if(!targeting || !targeting.copy || !state.pile) return;
+    var c=state.pile.combo.cards.filter(function(x){ return x.id===id; })[0]; if(!c) return;
+    targeting.chosen=id;
+    setMessage('<b>'+targeting.name+'</b> copies the <b>'+cardSym(c)+'</b> — press <b>⚡ Activate</b> to confirm, or <b>Clear</b> to cancel.');
+    render();
   }
   function doCounterfeit(cardId, copyId){
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     var src=state.pile?state.pile.combo.cards.filter(function(c){return c.id===copyId;})[0]:null;
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, copyId:copyId}); selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, copyId:copyId}); selected={}; targeting=null; busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, {copyId:copyId});
-    if(!r.ok){ setMessage(r.reason); return; }
-    selected={};
+    if(!r.ok){ setMessage(r.reason); targeting=null; render(); return; }
+    selected={}; targeting=null;
     setMessage('You <b>counterfeited</b> a '+(src?cardSym(src):'card')+' — play the copy before the round ends.');
-    say(YOU, '{who} counterfeited a '+(src?cardSym(src):'card')+'.', 'you');
+    sayCounterfeit(YOU, state, copyId, 'you');
     revealEffect(card, 'You');
     rivalMayRespond(eff.name);
     if(state.finished){ render(); return endGame(); }
@@ -11885,6 +11945,7 @@ __QR__
         catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
         sayCast(1, acard, r, 'rival');   // effPhrase, like the host's own casts and every AI cast (client-activation-line-short-form)
+        if(it.copyId) sayCounterfeit(1, hostState, it.copyId, 'rival');   // …and WHICH card a Counterfeit copied, as the local path says
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
@@ -12304,6 +12365,7 @@ __QR__
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
           sayCast(seat, ac, r, 'rival');   // effPhrase — same grammar as every other cast; the duel handler's twin
+          if(it.copyId) sayCounterfeit(seat, hostState, it.copyId, 'rival');
           fxBroadcast(seat, ac);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
         } else return;
