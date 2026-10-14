@@ -146,6 +146,39 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
 
+- `root cause found`    · **AFTER A PHANTASMAL ILLUSION, THE NEXT SEAT'S TURN HAS NO MAIN.** `E.phantasm` hands the
+  turn on (`st.turn = nextPlayer(st, p)`) without the `st.subPhase = 'main'; st.toPlay = null;` that every other
+  hand-off writes (`play`, `pass`, the round reset). The AI always casts its Illusion after crossing into the
+  fight (`takeTurn` calls `E.moveToPlay` before `tryPhantasm`), so the next seat inherits `subPhase:'play'`:
+  every Main effect is refused with *"The Fight Sub-Phase has begun — play a card or pass."*, and the strip
+  paints Fight with no beat. **Measured in the engine, 4 of 4** (2026-10-13): seat 1 crosses and casts a swapped
+  Illusion over a 3-7 straight, seat 0's fresh turn reads `subPhase play`, and `E.activate` refuses its draw
+  card. A human's Illusion cast from Main does not leak, because it never crossed.
+  **Rare, but it costs a whole Main** (Illusions are cast a few times per 100 games). Found by the drag-and-stack
+  design recheck, whose step 1 will meet it, so it is filed here rather than fixed on the epic.
+  **The fix:** the missing reset beside the hand-off, and a `test.js` assertion that the seat after an Illusion
+  starts its turn in Main. Placed third by the session that filed it, below Aj's two ranked items; re-rank freely.
+  `[id: illusion-leaks-fight-subphase]`
+
+- `needs a decision`    · **PHANTASMAL ILLUSION SHOULD GO ON THE STACK, AND ITS RESOLUTION SHOULD CROSS INTO THE FIGHT.**
+  Ruled by Aj on 2026-10-14, while the drag-and-stack design was asking which drop zone takes the card:
+  *"fully activating the phastasmal illusion puts the effect on the stack. it's a copy+fight as you mentioned.
+  an opponent can still try to backstab you at that point. and since we resolve in lifo, back stab effectively
+  cancels the fight part of the phantasmal illusion. also, resolving phantasmal illusion also causes the phase
+  change, and resolving it does the priority dance before changing subphases and before it resolves. this is
+  just a complex card"*.
+  **TODAY IT DOES NONE OF THAT.** `E.phantasm` never pushes to the stack and never opens a window: it pays, puts
+  the copy on the pile and hands the turn on in one call. A human casts it from Main with no crossing; the AI
+  crosses first and then casts. So this is a rules change in `engine.js`, `ai.js` (`tryPhantasm`) and the
+  template's `doPhantasm`, and it is `main` work: none of that code is touched by `epic/drag-and-stack`, whose
+  only part is to route a dropped Illusion to the cast column.
+  **WHAT IS LEFT TO DECIDE before building:** what a Back Stab that "cancels the fight part" leaves behind (is
+  the Illusion card still spent, and its energy?); whether the crossing's priority round happens with the
+  Illusion still on the stack or after it leaves; and what the AI should do with the new window. Settle those
+  with Aj, then build it with a `test.js` leg for the Back Stab answer, keeping the leak fix above (the turn
+  hand-off still has to reset the sub-phase).
+  `[id: illusion-on-the-stack]`
+
 ### Parked — each entry says what revives it
 
 #### When it happens again — the detectors are live
