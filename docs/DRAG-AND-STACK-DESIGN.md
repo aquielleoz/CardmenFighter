@@ -261,9 +261,6 @@ The three earlier asks this answers:
   **Recommendation: one design everywhere**, with the visualizer on the right where there is width and under the
   pile on a portrait phone. No layout keeps the old modal, because two answer screens drift apart. The
   Respond? box itself is a small modal on every layout.
-- **The art pop covers the column (step 3).** `#artFlash` is a centred full-screen layer, so the big card art
-  sits over the cast column while a card arrives there. Aj: *"shift if there's enough space, shrink if not?"*
-  To build: move the art left of the column when it fits, shrink it when it does not.
 - **Glow in Main.** Aj's glow is for answering. In Main the board already greys the effects you cannot afford
   (`markAfford`). Default: glow only when answering, unless Aj wants it in Main too.
 
@@ -396,7 +393,9 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    same way; a cast that resolves before any render arrives through `presentStackArrival`, which every presentation
    path calls (`showFx`, the cast tails, an AI's cast and answer, the tutorial). The host now announces the cast
    tails that never did (Equipment removal, Counterfeit, your own answer) and every guest's answer, and an AI's
-   answer carries its card (`respondCard`).
+   answer carries its card (`respondCard`). The art pop used to sit over the column the card was landing in; Aj: *"shift if there's
+   enough space, shrink if not?"* `placeArtFlash` centres it left of the column, shrinking it only when that room is
+   narrower than the art (measured: shifted at 1440 and 1280 wide, shrunk from 1100 wide down to phones).
 4. **The Respond? box and answering on the board.** The box shrinks to its sentence and Yes / No; Yes lights
    the castable cards (asserted by computed style); No and Pass pass, and Pass in a window declines priority
    rather than sitting the round out. Counter Spell's target is picked from a card in the visualizer. The test

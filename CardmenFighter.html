@@ -9705,6 +9705,7 @@ window.CardFace = {};
     cap.innerHTML='<div class="afTitle"><span class="afSym'+(red(card.suit)?' red':'')+'">'+cardSym(card)+'</span>'+(_nm?('<span class="afName">'+_nm+'</span>'):'')+'</div>'+(_tx?('<div class="afText">'+_tx+'</div>'):'');
     wrap.classList.remove('show','you'); void wrap.offsetWidth;    // restart the pop
     wrap.classList.add('show'); if(who==='You') wrap.classList.add('you');
+    placeArtFlash(wrap);
     clearTimeout(flashArt._t); clearTimeout(flashArt._t2); var g=gen;
     var twoPhase = _tx && !reduceMotion();
     if(_tx && reduceMotion()) cap.classList.add('showText');                        // reduced motion: text shown immediately, no phased reveal
@@ -9712,6 +9713,23 @@ window.CardFace = {};
     var dur = twoPhase ? 2500 : (reduceMotion()?900:1350);
     wrap.style.setProperty('--flashdur', dur+'ms');   // the pop/fade animation runs the full flash length so it doesn't vanish early
     flashArt._t=setTimeout(function(){ if(g===gen){ wrap.classList.remove('show','you'); var fc=wrap.querySelector('.flashCard'); if(fc) fc.remove(); img.style.display=''; cap.classList.remove('showText'); } }, dur);
+  }
+  /* THE ART POP STEPS LEFT OF THE CAST COLUMN, AND SHRINKS ONLY WHEN IT MUST (drag-and-stack step 3). The pop is
+     centred in a full-screen layer, so on a laptop it sat squarely over the column the cast was landing in: the card
+     arrived under its own art. Aj, asked how the two should share the screen: *"shift if there's enough space, shrink
+     if not?"* So: centred, if that already clears the column; else centred in the room left of the column; and only
+     when that room is narrower than the art, the art is narrowed to fit (the fallback card by its zoom). Measured on
+     the stage's LAYOUT width (`offsetWidth`), because the pop's own scale animation is already running. */
+  function placeArtFlash(wrap){
+    var stage=wrap.querySelector('.afStage'), img=wrap.querySelector('.af'), fc=wrap.querySelector('.flashCard');
+    wrap.style.paddingRight=''; if(img) img.style.width=''; if(fc) fc.style.zoom='';
+    var cz=$('castZone'); if(!stage || !cz || cz.offsetParent===null) return;
+    var zr=cz.getBoundingClientRect(); if(zr.width<2 || zr.height<2) return;
+    var gap=12, vw=wrap.clientWidth||window.innerWidth, sw=stage.offsetWidth;
+    if((vw+sw)/2 <= zr.left-gap) return;                                  // centred, it already clears the column
+    wrap.style.paddingRight=Math.max(0, vw-zr.left+gap)+'px';             // centre it in the room left of the column
+    var room=zr.left-2*gap;
+    if(sw>room){ if(fc) fc.style.zoom=String(Math.max(.8, 2.8*room/sw)); else if(img) img.style.width=Math.max(120, room)+'px'; }   // the fallback card exists only when there is no art
   }
   // Center-stage QUICK cue — fires whenever either side plays a Quick in response, so instant-speed answers read.
   function quickFlash(who, name, countered){
@@ -18787,7 +18805,7 @@ window.CardFace = {};
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ fightFlashes:function(){ return fightFlashLog.slice(); }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ fightFlashes:function(){ return fightFlashLog.slice(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
