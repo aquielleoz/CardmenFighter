@@ -90,7 +90,10 @@ async function openLesson(id, viewport){
         return 'clean-up pick — could not confirm '+need+' of '+order.length;
       }
       const ov=document.getElementById('overlay');
-      if(!ov || !ov.classList.contains('show')) return null;
+      if(!ov || !ov.classList.contains('show')){
+        const ans=window.__solo && window.__solo.answering, pb=document.getElementById('passBtn');   // after Yes the board is the answer (step 4)
+        if(ans && ans() && pb && !pb.disabled){ pb.click(); return 'Respond? window (answered on the board)'; }
+        return null; }
       const PASS=[['respDecline','Respond? window']];   // the pre-fight (`pfDecline`) and shield-guard (`sgNo`) windows were folded into the go-round at epic steps 19-20   // each label carries its own noun: a pick is not a window
       for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
       return null; });

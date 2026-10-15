@@ -44,7 +44,18 @@ async function install(page, label, opts) {
     var PASS = [['respDecline', 'Respond?']];   // `pfDecline` (the pre-fight window) and `sgNo` (the shield guard) are gone: epic steps 19-20 folded both into the go-round
     setInterval(function () {
       var ov = document.getElementById('overlay');
-      if (!ov || !ov.classList.contains('show')) { window.__nw.seenAt = 0; return; }
+      /* …OR NO BOX AT ALL, BECAUSE THE SEAT PRESSED YES (drag-and-stack step 4). Yes closes the Respond? box and the
+         board is the answer, so a seat that pressed it and then did nothing holds the window with no modal up.
+         Past the same grace, press the board's Pass, which declines priority there. `answering()` is the game's own
+         predicate, so this cannot fire while the box is still the answer. */
+      if (!ov || !ov.classList.contains('show')) {
+        var ans = (window.__cmf && window.__cmf.answering) || (window.__solo && window.__solo.answering), pb = document.getElementById('passBtn');
+        if (!(ans && ans() && pb && !pb.disabled)) { window.__nw.seenAt = 0; return; }
+        var t0 = Date.now();
+        if (!window.__nw.seenAt || window.__nw.kind !== 'answering') { window.__nw.seenAt = t0; window.__nw.kind = 'answering'; return; }
+        if (t0 - window.__nw.seenAt < grace) return;
+        pb.click(); window.__nw.n++; window.__nw.last = 'answer-from-the-board'; window.__nw.seenAt = 0; return;
+      }
       var btn = null, kind = null;
       for (var i = 0; i < PASS.length; i++) {
         var el = document.getElementById(PASS[i][0]);

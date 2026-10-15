@@ -445,7 +445,12 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    the engine's answer and "a window is owed to me" without reading the box. The dead `pfDecline` / `sgNo` ids
    left `netwindows` and `lessonlib`. The board branches the inventory lists for these helpers (Yes, then Pass) are
    deliberately NOT written yet: they have nothing to drive until piece 3 adds Yes, and an unexercised branch is
-   untested code.
+   untested code. *Piece 2 built (v1.33.16.5):* the box gains **Yes**, which closes it and leaves the
+   window yours; an answer record (`answering`, live only while `answerLive()`: the grant's `prioGen`, priority still
+   yours, no hold, no box up) carries the window's continuation past the box and is consumed once. The board then
+   answers: **Pass declines priority** (`humanDeclines`, not `E.pass`), named by `declineLabel`; Fight is off; and
+   **Respond?** in the action row reopens the box (ruling 24). The helpers learned the after-Yes state (`windowUp`,
+   `clickDecline`, `driveStep`, `netwindows`, `lessonlib`'s `answerWindow`).
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`

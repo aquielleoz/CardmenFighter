@@ -1234,6 +1234,7 @@
   .modal .respQuick:disabled{opacity:.5; cursor:default;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
+  .modal .respYes{background:var(--panel); color:var(--txt); border:1px solid var(--gold); text-align:center !important; font-weight:800;}   /* Yes: answer from the board (step 4) */
   .modal .respOpts .endNote{margin:0 2px; font-size:12px; line-height:1.35; opacity:.8; text-align:left;}   /* one line of context under the end screen's online buttons; a 🔄 ask overwrites it (see emoteFx) */
   /* the hand Outbalance let you look at — wraps, and scrolls rather than overflowing a short viewport */
   .modal .revealHand{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:10px 0; max-height:40vh; overflow-y:auto;}
@@ -1585,9 +1586,9 @@
        widened past the uniform gap. This is about consequence, not symmetry: the other neighbours are all
        cheap to hit by accident. Nothing is reordered; muscle memory is worth more than tidiness. */
     #actions{gap:9px;}
-    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 8px; min-height:44px;}
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #respondBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 8px; min-height:44px;}
     #actions #ctxBtn{margin-left:6px;}
-    #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before, #actions #passBtn::before, #actions #fightBtn::before{
+    #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before, #actions #respondBtn::before, #actions #passBtn::before, #actions #fightBtn::before{
       content:attr(data-icon); font-size:17px; line-height:1;}
     /* Sort collapses too, but to WORDS — it is the state it reports, so it keeps it and sheds only the `Sort:`
        prefix, which the ⇅ already says. Text-sized, not glyph-sized. */
@@ -1620,7 +1621,7 @@
        selector whatever the source order — so the `#actions button{padding:8px 8px}` this block used to carry
        was INERT for the five icon buttons and applied to nothing but the emote bar. Measured: Clear was 34px at
        both 327 and 360, i.e. identical, which is what a silently-dropped rule looks like. */
-    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{padding:8px 8px;}
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #respondBtn, #actions #passBtn, #actions #fightBtn{padding:8px 8px;}
     /* MEASURED 2px OVER at 327x660 — clientW 291, the six buttons wanted 293 — so the room comes off the widest
        item, which is Sort's state word. Sized against `⇅ Straights`, the LONGEST of the four states, not the
        `⇅ Unsorted` a fresh board happens to show. */
@@ -2038,6 +2039,7 @@
       <button id="clearBtn" data-icon="✕">Clear</button>
       <button id="viewCardBtn" data-icon="🔍" title="View the selected card full-screen">🔍 View card</button>
       <button id="ctxBtn" title="Activate" data-icon="⚡">⚡ Activate</button>
+      <button id="respondBtn" data-icon="↩" title="Reopen the Respond? box" style="display:none">Respond?</button>
       <button id="passBtn" data-icon="⏭">Pass</button>
       <button id="fightBtn" data-icon="⚔️">Fight</button>
     </div>
@@ -5837,6 +5839,20 @@ __QR__
       fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
       hint.textContent='Read the tutorial tip, then press the button to continue.'; hint.className=''; return;
     }
+    var rsp=$('respondBtn'); if(rsp) rsp.style.display='none';
+    if(answerLive()){
+      /* ANSWERING FROM THE BOARD (drag-and-stack step 4, piece 2). Pass declines priority and names the moment as the
+         box's decline did; Respond? brings the box back (ruling 24); Fight is off, since a play would cross over the
+         open stack. A lesson that needs something countered keeps Pass off, as its box keeps "Let it resolve" off. */
+      var tutCtr = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
+      fight.disabled=true; pass.disabled=!!tutCtr; setActionLabel(pass, declineLabel());
+      if(rsp){ rsp.style.display=''; rsp.disabled=false; }
+      hint.textContent = tutCtr ? 'This lesson needs this one countered — press Respond? and tap Counter Spell.'
+                                : 'Answering: Respond? to cast a Quick, or “'+declineLabel()+'”.';
+      hint.className='pick';
+      if(actRow) actRow.setAttribute('data-live','1');
+      return;
+    }
     if(!yourTurn){
       hint.textContent = (MP() && state.players[YOU].eliminated)
         ? '💀 You’re out — spectating the rest of the duel.'
@@ -6453,6 +6469,11 @@ __QR__
     }, null, 'Fight');
   }
   function doPass(){
+    /* WHILE YOU ANSWER FROM THE BOARD, PASS DECLINES PRIORITY (drag-and-stack step 4). It used to run `E.pass`, which
+       sits you out of the round — and on your own turn the engine ACCEPTS that over an open stack and grafts a
+       Main → Fight crossing onto it (measured, DRAG-AND-STACK-STEP4.md). Above `busy`, because `busy` is set in most
+       windows you are asked to answer. */
+    if(answerLive()){ var a=answering; prioNote('  → you passed from the board'); return humanDeclines(a.g, a.cont); }
     if(peeking||busy||castHolding()||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
@@ -7700,6 +7721,23 @@ __QR__
      ⚠ AND THE END OF CLEAN-UP IS STILL CLEAN-UP (2026-10-07). `cleanup` is cleared before that dance
      opens, so it fell through to `subPhase === 'main'` — a boundary's `subPhase` is always 'main' — and
      a player stopped at the end of a round was offered "Move to the fight". */
+  /* THE ANSWER RECORD (drag-and-stack step 4, piece 2). The Respond? box used to be the only place a window could be
+     answered, so the window's continuation `(g, cont)` lived only in its buttons' closures. Step 4 moves answering
+     onto the board: Yes closes the box and the board answers — Pass declines (here), a cast from the hand answers
+     (piece 5) — so the pair has to outlive the box. It is set when the box is shown, CONSUMED once by
+     `humanResponds` / `humanDeclines`, and dead the moment the grant it was made for is gone: a new `prioGen`, a
+     new game, or priority leaving you. A stale record must never run an old closure.
+     `answerLive()` IS NOT `busy` AND NOT RAW `respondFor`: `busy` is true in most windows you answer (the drivers,
+     the host's parks, a guest's `owedModal`) and false in others (your own cast's), and `respondFor===YOU` is
+     also true while the box is still up. It holds only when the box is closed and the board is the answer. */
+  var answering=null;
+  function answerLive(){
+    var ov=$('overlay');
+    return !!(answering && state && !state.finished && answering.g===gen && state.respondFor===YOU &&
+              (state.prioGen||0)===answering.prioGen && !castHolding() && !peeking && !state.discardPending &&
+              !pick && !targeting && !targetPick && !(ov && ov.classList.contains('show')));
+  }
+  function reopenRespond(){ if(!answerLive()) return; var a=answering; prioNote('  → you REOPENED the Respond? box'); promptHumanResponse(a.g, a.cont); }
   function declineLabel(){
     var pend = state && state.pending;
     if(pend) return pend.trig ? 'Let the counter come off' : 'Let it resolve';
@@ -7945,12 +7983,18 @@ __QR__
      * button with no explanation is its own dead end on a phone, where there is no tooltip. */
     var tutNeedsCounter = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
     if(tutNeedsCounter) html+='<div class="respNotYou">This lesson needs this one countered — tap <b>Counter Spell</b>.</div>';
+    /* YES (drag-and-stack step 4, ruling 7): close the box and answer from the board. It sits beside today's per-card
+       buttons until the board can cast (piece 5) and the box shrinks (piece 8); until then Pass answers from the
+       board, and "Respond?" in the action row brings the box back (ruling 24). */
+    html+='<button id="respYes" class="respYes" title="Close this and answer from the board">Yes</button>';
     html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>'+declineLabel()+'</button></div>'+peekBtnHTML();
+    answering={ g:g, cont:cont, prioGen:(state.prioGen||0) };
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
       btn.addEventListener('click', function(){ var ts=btn.getAttribute('data-tseat'), te=btn.getAttribute('data-tequip'); humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null, btn.getAttribute('data-pitch')||null, ts!=null ? +ts : (te!=null ? te : null)); });
     });
     $('respDecline').addEventListener('click', function(){ humanDeclines(g, cont); });
+    $('respYes').addEventListener('click', function(){ prioNote('  → you pressed YES — answering from the board'); hideOverlay(); render(); });
   }
   /* A CLIENT'S OWN ACTIONS BELONG IN ITS OWN LEDGER (2026-09-23). `humanResponds` and `humanDeclines` both
      sent the intent and RETURNED above their `prioNote`, so a client's saved ledger recorded what it was
@@ -7970,6 +8014,7 @@ __QR__
   }
   function humanResponds(g, quickId, cont, coid, pitch, target){
     cont = cont || function(){ resumeRival(g); };
+    answering=null;                                              // the answer record is consumed once (piece 2)
     /* THE CHOSEN TARGET TRAVELS AS AN OID, and the host re-validates it against its OWN stack — same rule as
        `resolveIds` and `phantasmSolveFor`: a client sends its CHOICE, never its solution. An oid is the
        host's own identifier for the object, so unlike a stack INDEX it cannot be rotated or stale-shifted. */
@@ -8001,6 +8046,7 @@ __QR__
   }
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
+    answering=null;                                              // the answer record is consumed once (piece 2)
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you DECLINED — sent to the host'); hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
@@ -8373,6 +8419,7 @@ __QR__
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
     castHoldOn=false; castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null; castHoldWaiters=[];   // a cast hold never outlives its game (ruling 20)
+    answering=null;                                              // nor does an answer record (step 4)
     prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
@@ -10140,6 +10187,7 @@ __QR__
   });   // tap outside an expanded Forms zone → minimize it back to chips
   $('fightBtn').addEventListener('click', function(){ pick?confirmPick():lossPick?confirmLossSeat():doFight(); });
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
+  $('respondBtn').addEventListener('click', function(){ reopenRespond(); });
   $('ctxBtn').addEventListener('click', onCtxClick);
   $('cardActivate').addEventListener('click', onActivateClick);
   /* CALLED, NOT PASSED. `downloadLog(lines)` takes an OPTIONAL argument that the lobby uses to save the last
@@ -13466,7 +13514,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'' }; }); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'' }; }); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
@@ -13513,7 +13561,7 @@ __QR__
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'' }; }); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'' }; }); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give

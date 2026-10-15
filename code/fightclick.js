@@ -270,15 +270,21 @@ function castableQuicks(page) {
 function holdsPriority(page) {
   return page.evaluate(() => { const h = (window.__cmf && window.__cmf.holdsPriority) || (window.__solo && window.__solo.holdsPriority); return h ? h() : null; });
 }
-function windowUp(page) {   // a Respond? window is on screen right now
-  return page.evaluate(() => [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null));
+/* A Respond? window is open for this seat: its box is on screen, OR the seat pressed Yes and is answering from the
+   board (drag-and-stack step 4, `answering()`), which leaves no box up. */
+function windowUp(page) {
+  return page.evaluate(() => [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null) ||
+    !!((window.__cmf && window.__cmf.answering && window.__cmf.answering()) || (window.__solo && window.__solo.answering && window.__solo.answering())));
 }
-function clickDecline(page) {   // "Let it resolve", only while it is on screen and live; true when it was pressed
+/* Decline the window: the box's "Let it resolve" while it is on screen and live, or — after Yes — the board's Pass,
+   which declines priority there. True when one was pressed. */
+function clickDecline(page) {
   return page.evaluate(() => {
     const d = document.getElementById('respDecline');
-    if (!d || d.offsetParent === null || d.disabled) return false;
-    d.click();
-    return true;
+    if (d && d.offsetParent !== null && !d.disabled) { d.click(); return true; }
+    const ans = (window.__cmf && window.__cmf.answering) || (window.__solo && window.__solo.answering), pb = document.getElementById('passBtn');
+    if (ans && ans() && pb && !pb.disabled) { pb.click(); return true; }
+    return false;
   });
 }
 
@@ -297,6 +303,8 @@ function driveStep(page) {
     const d = document.getElementById('respDecline');
     if (d && d.offsetParent && !d.disabled) { d.click(); return; }
     const fb = document.getElementById('fightBtn'), pb = document.getElementById('passBtn');
+    const ans = (window.__cmf && window.__cmf.answering) || (window.__solo && window.__solo.answering);
+    if (ans && ans()) { if (pb && !pb.disabled) pb.click(); return; }   // after Yes: Pass declines priority (step 4)
     if (fb && /Confirm/.test(fb.textContent)) {
       if (!fb.disabled) { fb.click(); return; }
       for (const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))) { c.click(); if (!fb.disabled) { fb.click(); return; } }
