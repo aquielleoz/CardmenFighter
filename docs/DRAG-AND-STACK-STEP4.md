@@ -12,7 +12,12 @@ grafted onto the open window. **On the Rival's turn it refuses** (`"Not your tur
 
 **Question 1 below is answered: ruling 21** (Aj, 2026-10-15). In AUTO a cast on the board passes priority for you,
 exactly as today ("no stake, no stop"), and ON is the mode for stacking your own spells. That is the inventory's
-option (a), its default. Questions 2-9 are open and carry defaults.
+option (a), its default. **Questions 2-9 are answered too**, by rulings 22-29 in the design doc (2026-10-15): the
+modal returns in ON after your own answer (2, yes); the board stays readable behind it (3, yes); you CAN reopen it
+after Yes (4, overturning the default); Counter Spell never casts on the tap (5, overturning the default); a glowing
+Quick in a group breaks the group (6, yes); staging locks the board, so question 7 cannot arise; the modal shows the
+cast card and its target instead of its rules text (8, changed); and lessons refuse the wrong glowing card with a
+hint (9, yes).
 
 *A read-only survey of the epic at `dbbe80d`, taken 2026-10-15. Four readers covered the solo answering path,
 netplay, the board controls and the lessons. A fifth counted the tests, and a critic checked every claim against

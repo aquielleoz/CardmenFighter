@@ -242,6 +242,28 @@ The three earlier asks this answers:
     the game auto-passes priority after your cast just like it does now, preserving the 'no stake, no stop' rule,
     while ON remains the mode for stacking your own spells"* with *"ahh yea that sounds about right"*. So
     "Activate does not pass" holds in ON only, and the 2026-09-24 rule stands.
+22. **In ON, after you answer from the board, the small Respond? modal comes back**, so you can stack on your own
+    answer (2026-10-15, Aj: *"yes, your read is right"*). AUTO does not (ruling 21).
+23. **The small modal leaves the board readable**: the cast column, the pile and the phase strip stay visible and
+    undimmed behind it, so there is no Peek button (Aj: *"yes, that works"*).
+24. **After Yes you can reopen the small modal** (Aj: *"Yes, you can re-open."*). Default control: a small "Respond?"
+    button beside Pass while you hold priority.
+25. **The small modal shows the card being cast and its target**, not its rules text (Aj: *"for the small modal, we
+    can have card being cast + target."*).
+26. **Counter Spell never casts on the tap, even with one possible target**; you confirm its target first (Aj:
+    *"counterspell, not cast strait away"*). An exception to ruling 11 for Counter Spell.
+27. **Tapping a glowing Quick that sits inside a group breaks the group and selects just that card** (Aj: *"breaks
+    that special and then selects the card"*).
+28. **Lessons refuse the wrong glowing card with a hint.** Everything the engine allows still glows, but a step that
+    names its card refuses any other (Aj: *"yes, please make tutorials as painless as possible for new players.
+    activating the wrong cards is painful."*). The hook is step 4's; the step text is step 6's.
+29. **While a card is staged, nothing else can be cast and Fight stays off; ✕ is the way out** (Aj: *"nah we can keep
+    fight not being usable. pressing X is better"* and *"you should not be able to activate sabotage because
+    something else is being staged (just like the fight case)"*). Measured: that is already true (with a second
+    card selected every ⚡ is off). Dropping a second card on the column swaps it in, the first back to hand with
+    nothing spent. So no window can open over a staged card, and the inventory's question about one dissolves.
+    One wording fix is owed: with a second card selected the hint still says "⚡ Activate casts it" while that ⚡
+    is off.
 
 ## Still open
 
