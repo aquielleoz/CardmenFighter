@@ -174,6 +174,17 @@ node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET
                                                 # FIXED over the column with the board's height unchanged — it is a
                                                 # `.card`, and `.card`'s `position:relative` once beat `.stkGhost`'s
                                                 # `fixed` in the cascade, so it sat in flow and moved the hand up
+node upkeepstrandtest.js                        # NO WINDOW OWED TO THE RIVAL SURVIVES THE ROUND CEREMONY (7). The
+                                                # ceremony's boundary drain returned once the round was STAMPED, and the
+                                                # stamp lands in the untap queue BEFORE Upkeep parks: a parked Upkeep went
+                                                # undrained, the draw ran over it, and your board refused every move
+                                                # ("The round is over…"). It timed `browsertest` out in two sweeps, about
+                                                # 2 duels in 100 under load, and predated drag-and-stack. STAGED from five
+                                                # dumps (the natural trigger was not found): a real round end leaves Upkeep
+                                                # parked on the Rival, stamped. The pair: a control, and the ceremony
+                                                # answering it BEFORE the draw. A floor (`drainStrandedWindow`) drains any
+                                                # AI window still open at a hand-back and logs `⚠ … WAS STILL OPEN AT THE
+                                                # HAND-BACK`; mutants: no root fix → the floor's line, neither → the wedge
 node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (9). Drag-and-stack
                                                 # ruling 20 (Aj: *"as long as the art flash should be good"*, and
                                                 # *"yes"* to holding the game for your own and other humans' casts).
@@ -2583,7 +2594,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 9, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 9, `upkeepstrandtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

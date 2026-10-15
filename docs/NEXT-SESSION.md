@@ -122,28 +122,6 @@ re-read its tag.
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
-- `needs a repro`       · **A SOLO DUEL CAN WEDGE WITH AN UPKEEP WINDOW STILL OWED TO THE AI.** Found 2026-10-15 by
-  `browsertest` timing out at 300s in two full sweeps on `feat/stack-shows-cards`. **It predates drag-and-stack step 3**:
-  the same load probe wedges the epic as it stood after step 2 (`5f855bc`) with the identical shape. Seen only under
-  load, at about 2 duels in 100 (8 probes in parallel, on a machine already busy with an emulator).
-  **The shape, from five dumps:** a new round has started and it is your turn in Main, but `st.upkeep` is open with
-  priority on the Rival and nothing on the stack. The ledger's last lines are the ceremony's `resolve` and `cleanup`
-  beats, both reading `parked[upkeep,+parkedResult] prio=<Rival> turn=You`, and then nothing. The board reads
-  "<Rival> is deciding…", and every play or pass is refused with "The round is over — the next one is about to
-  begin."
-  **Why nothing drains it:** `drainResolution` drains only when a Resolution go-round opened (`r.resolution`), and
-  the ceremony's `boundaryThen` drain returns at once when `res.newRound` is stamped. The new round is stamped before
-  Upkeep parks, so neither drains it. After the ceremony `afterHumanAction` only renders when it is your turn.
-  **Not reproduced on demand.** A brute force over 384 staged Rival cards and Forms (you lead a card it cannot beat,
-  it passes) never gives "no Resolution go-round, Upkeep open for the Rival", so the trigger is something else.
-  Candidates: an Equipment tick, or the ceremonies overlapping play, which three of the dumps show
-  (`⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`, a round's `cleanup` beat logged before the previous round's
-  Resolution). `browsertest` clicks from script, so it can act while the round plate covers the board.
-  **Likely fix once staged:** drain any open boundary window, Upkeep included, before the ceremony draws
-  (`boundaryThen`'s early return on `res.newRound`). The spec puts Upkeep before the Draw (Untap → Upkeep → Draw).
-  Routing: this is main's code, unchanged by the epic.
-  `[id: solo-upkeep-window-stranded]`
-
 - `ready to build`      · **★ PLAY FROM THE BOARD: DROP ZONES, A STACK VISUALIZER, AND ANSWERING FROM YOUR HAND —
   `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
   friction behind it (*"accidentally, pressing next and then being unable to go back to main to

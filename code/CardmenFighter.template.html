@@ -6638,7 +6638,9 @@ __QR__
   }
   function afterHumanAction(){
     if(state.finished) return endGame();
-    if(state.turn!==YOU) driveRival(); else render();
+    if(state.turn!==YOU) driveRival();
+    else if(aiWindowOpen()) drainStrandedWindow(gen, afterHumanAction);
+    else render();
   }
 
   // Log the win itself (win / shield strip / prevented / kick / jab). The "Round N — draws" line is logged
@@ -7164,7 +7166,13 @@ __QR__
         if(tries>=3){ prioNote('⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway', ceremonyParks()+' · after '+tries+' polls (dbg: stall forced)'); return then(); }
         return setTimeout(go, 40);
       }
-      if(res && res.newRound != null) return then();                       // stamped: CLEANUP and BEGIN are done
+      /* STAMPED MEANS CLEAN-UP AND THE UNTAP ARE DONE — NOT UPKEEP (solo-upkeep-window-stranded, 2026-10-15). The round
+         is stamped in the Beginning Phase's untap queue, and the Upkeep window parks AFTER it. Returning on the stamp
+         alone left a parked Upkeep undrained: the draw went ahead, the board went to the human, and a window still
+         owed to the Rival sat open with every move refused ("The round is over…"). Seen as `browsertest` timing out
+         (two sweeps in one day), five dumps of `parked[upkeep,+parkedResult] prio=<Rival>`, and it predates
+         drag-and-stack. The spec orders Untap → Upkeep → Draw, so an open Upkeep is answered here, before the draw. */
+      if(res && res.newRound != null && !(state && state.upkeep)) return then();   // stamped, and no Upkeep left open
       if(!(state && (state.resolution || state.cleanup || state.endCleanup || state.upkeep))) return then();   // nothing parked (Resolution included: a stranded one is re-walked below, not stepped over)
       if(tries++ >= 3){
         prioNote('⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway',
@@ -7425,6 +7433,7 @@ __QR__
     var g=gen;
     setTimeout(function step(){
       if(g!==gen) return;
+      if(!state.finished && state.turn===YOU && aiWindowOpen()) return drainStrandedWindow(g, step);
       if(state.finished || state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); return; }
       /* A LESSON MAY FLY THE RIVAL ITSELF (Aj, 2026-09-01: *"we need the ai pilot to sequence this in a way
        * that's useful for the tutorial"*). A tutorial needs the opponent to demonstrate specific things in a
@@ -7563,6 +7572,16 @@ __QR__
     setMessage(countered ? ('🌀 <b>'+logName(q)+' Countered with '+name+'!</b>') : ('<b>'+logName(q)+' answered with '+name+'.</b>'));
     quickFlash(logName(q), name, !!countered);
     presentStackArrival(q, card);   // the answer's card lands in the cast column — answers never had a presentation (drag-and-stack step 3)
+  }
+  /* …AND A FLOOR: NO WINDOW OWED TO AN AI SURVIVES THE HAND-BACK. Every path that gives the board back to you checks
+     this, drains what is open and says so in the ledger, because a stranded AI window looks like a dead board and
+     the next cause should name itself rather than wedge the table. */
+  function aiWindowOpen(){ return !!(state && !state.finished && state.respondFor!=null && state.respondFor!==YOU && !isHumanSeat(state.respondFor)); }
+  function drainStrandedWindow(g, then){
+    if(!aiWindowOpen()) return then();
+    prioNote('⚠ A WINDOW OWED TO '+logName(state.respondFor)+' WAS STILL OPEN AT THE HAND-BACK — drained',
+      'round '+state.round+' · '+(state.resolution?'resolution':state.cleanup?'cleanup':state.endCleanup?'endCleanup':state.upkeep?'upkeep':(state.pending?'stack':'transition')));
+    settleWindows(g, function(){ if(g===gen) then(); });
   }
   function settleWindows(g, done){
     if(g!==gen) return;
@@ -8158,6 +8177,7 @@ __QR__
       if(state.finished){ busy=false; $('rivalStatus').textContent=''; render(); return endGame(); }
       if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }  // a rival forced YOU to discard — prompt (resumes via resumeRival→runOpponents)
       if(state.respondFor===YOU){ return promptHumanResponse(g); }                 // ditto
+      if(state.turn===YOU && aiWindowOpen()) return drainStrandedWindow(g, step);
       if(state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); return; }        // back to the human
       var p=state.turn;
       if(isHumanSeat(p)){ return awaitHumanSeat(p, g); }   // a human occupies this opponent seat — pause for their input (unreachable today: all opponents are 'ai')
@@ -8246,6 +8266,7 @@ __QR__
         if(state.finished){ render(); busy=false; return endGame(); }    // Fighter Kick — terminal, no round card
         resolveRoundCeremony(fres, g, function(){
           if(g!==gen) return;
+          if(state.turn===YOU && aiWindowOpen()) return drainStrandedWindow(g, function(){ busy=false; $('rivalStatus').textContent=''; render(); });
           if(state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); } else runRival();
         });
       });
