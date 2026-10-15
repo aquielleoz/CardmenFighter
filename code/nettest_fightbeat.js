@@ -1,24 +1,20 @@
-/* THE FIGHT SUB-PHASE SHOWS ON A NETPLAY **CLIENT'S** CROSSING TOO, BEFORE ITS MOVE LANDS (drag-and-stack
- * ruling 10, Aj 2026-10-13: *"Show Fight briefly every turn"*).
+/* THE FIGHT SUB-PHASE FLASHES ON A NETPLAY **CLIENT'S** CROSSING TOO — NO BANNER, NO PAUSE (drag-and-stack, 2026-10-14).
  *
- * `fightbeattest` proves it on the local seat. A CLIENT cannot get there by itself: its quiet crossing and the
- * play it carries happen inside ONE host call, so no mirror ever shows "your turn, Fight Sub-Phase" — the next
- * mirror already has the card on the pile. So the HOST says so (`t:'crossed'`, before the mirror) and the
- * client shows its own Fight Sub-Phase while it holds what follows. This suite asserts that end to end.
- * (It used to assert the OPPOSITE half of the 2026-10-02 rule: a client's Next announces and its Fight must
- * not. Both halves are gone — Next with the button, the suppression with ruling 10.)
+ * `fightbeattest` proves it on the local seat. A CLIENT cannot see its own crossing: its quiet crossing and the play
+ * it carries happen inside ONE host call, so no mirror ever shows "your turn, Fight Sub-Phase". So the HOST says so
+ * (`t:'crossed'`, ahead of the mirror) and the client flashes its own strip. Ruling 10 first held the move ~700ms
+ * under a banner; Aj: *"the pause for the announcement for the fight is really jarring... keep the yellow color and
+ * skip the announcement"* — so the host now applies the move the moment it tells the client, and the client flashes.
  *
  * TWO LEGS, the two ways a client's crossing completes on the host:
- *   1. QUIET — nobody can add to the stack, so `E.play` crosses and plays at once; told by the quiet branch.
- *   2. THROUGH A WINDOW — the client holds ♦9 Leyline, so the go-round starts at IT (the controller), it
- *      passes, and the host re-applies the play. Here the mirror the host broadcasts as the window closes
- *      already shows the crossed board, so the beat comes from the edge and the re-apply's notice only holds
- *      the play for the dwell. A/B'd 2026-10-14: with `sendCrossed` disabled leg 1 goes red and leg 2 stays
- *      green, which is exactly that split. Without the Quick this leg would be a second copy of leg 1, which
- *      is why the staging is asserted.
- * Each asserts EXACTLY ONE beat on the client, taken while the card was STILL IN HAND with the strip on
- * Fight, and then the card leaving. "Exactly one" also catches a client that announces twice (its own hold
- * plus a mirror edge).
+ *   1. QUIET — nobody can add to the stack, so the host tells the client and applies the move at once.
+ *   2. THROUGH A WINDOW — the client holds ♦9 Leyline, so the go-round starts at IT (the controller), it passes,
+ *      and the host re-applies the play. Without the Quick this leg would be a second copy of leg 1, which is why
+ *      the staging is asserted.
+ * Each asserts EXACTLY ONE flash on the client (read from `__cmf.fightFlashes()`, which records the hand at the
+ * flash, because the flash and the landing mirror arrive in one burst), taken while the card was STILL IN HAND, NO
+ * banner, and then the card leaving. "Exactly one" also catches a client that flashes for both the notice and a
+ * mirror edge.
  *
  * Run: node nettest_fightbeat.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
@@ -34,16 +30,13 @@ const myTurn=p=>p.evaluate(()=>window.__cmf && window.__cmf.turn()===0);   // a 
 const inHand=(p,id)=>p.evaluate(id=>!!document.querySelector('#hand .card[data-id="'+id+'"]'), id);
 // "ready" = nothing is resolving. NOT "Fight is enabled": it waits for a selection now
 const ready=p=>p.evaluate(()=>{ const h=(document.getElementById('hint')||{}).textContent||'', fx=document.getElementById('roundfx');
-  return !/Hold on|fighting|Waiting/.test(h) && !(fx && /show/.test(fx.className) && !/phasefx/.test(fx.className)); });
-// every Fight beat the client shows, with its hand and strip AT THAT INSTANT — "before the move landed" is only provable there
-const recordBeats=p=>p.evaluate(()=>{ window.__beats=[]; const fx=document.getElementById('roundfx');
-  new MutationObserver(ms=>{ ms.forEach(m=>m.addedNodes.forEach(n=>{
-    if(n.classList && n.classList.contains('rfBeat') && /Fight sub-phase/.test(n.textContent||''))
-      window.__beats.push({ hand:[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.dataset.id),
-                            strip:(document.getElementById('handWrap')||{}).className||'' }); })); })
+  return !/Hold on|fighting|Waiting/.test(h) && !(fx && /show/.test(fx.className)); });
+// any Fight banner the client shows — there must be none since 2026-10-14
+const recordBeats=p=>p.evaluate(()=>{ window.__banners=0; const fx=document.getElementById('roundfx');
+  new MutationObserver(ms=>{ ms.forEach(m=>m.addedNodes.forEach(n=>{ if(n.classList && n.classList.contains('rfBeat') && /Fight sub-phase/i.test(n.textContent||'')) window.__banners++; })); })
     .observe(fx,{childList:true, subtree:true}); });
 // drive the client's play to completion, declining any window it is offered on the way (leg 2 holds a Quick on purpose)
-async function playAndWatch(p, id, ms){ await p.evaluate(()=>{ window.__beats.length=0; });
+async function playAndWatch(p, id, ms){ await p.evaluate(()=>{ window.__banners=0; window.__t0=Date.now(); });
   await p.evaluate(id=>{ [].slice.call(document.querySelectorAll('#hand .card.sel')).forEach(c=>c.click());
     const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c) c.click(); }, id);
   await wait(200);
@@ -53,13 +46,13 @@ async function playAndWatch(p, id, ms){ await p.evaluate(()=>{ window.__beats.le
     const gone=await p.evaluate(id=>{ const d=document.getElementById('respDecline'); if(d && d.offsetParent!==null && !d.disabled) d.click();
       return !document.querySelector('#hand .card[data-id="'+id+'"]'); }, id);
     if(gone) break; await wait(40); }
-  await wait(600);   // a second beat would land here
-  return p.evaluate(()=>window.__beats.slice()); }
-function judge(ok, name, bs, id, gone){
-  const b0=bs[0]||{};
-  ok(bs.length===1, name+': the client showed EXACTLY ONE Fight beat ('+bs.length+')'+(bs.length===0?' ← REPRODUCED: the client never sees its own Fight Sub-Phase':''));
-  ok(bs.length>0 && b0.hand.indexOf(id)>=0, name+': …BEFORE its card landed — it was still in hand at the beat'+(bs.length?'  [hand '+b0.hand.join(',')+']':''));
-  ok(bs.length>0 && /spFight/.test(b0.strip), name+': …and the strip read Fight at that moment  ['+(b0.strip||'')+']');
+  await wait(900);   // a second flash would land here
+  return p.evaluate(()=>({ flashes:window.__cmf.fightFlashes().filter(f=>f.at>=window.__t0), banners:window.__banners })); }
+function judge(ok, name, w, id, gone){
+  const fs=w.flashes, f0=fs[0]||{};
+  ok(fs.length===1, name+': the client FLASHED ITS STRIP EXACTLY ONCE ('+fs.length+')'+(fs.length===0?' ← the client never sees its own Fight Sub-Phase':''));
+  ok(fs.length>0 && (f0.hand||[]).indexOf(id)>=0, name+': …while its card was still in hand — the crossing came first  [hand '+(f0.hand||[]).join(',')+']');
+  ok(w.banners===0, name+': …and NO banner  ['+w.banners+']');
   ok(gone, name+': …and then the card went down');
 }
 

@@ -31,7 +31,7 @@
  * Run: node resolutiontest_ui.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline, waitHold } = require('./fightclick');
 const path = require('path');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -540,7 +540,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       c.click();
       const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
       if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
-      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      if (cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
       return 'not offerable';
     });
     let how = null;
@@ -578,7 +578,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       c.click();
       const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
       if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
-      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      if (cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
       return 'not offerable';
     });
     await until(async () => { how2 = await cast2(); return how2 === 'icon' || how2 === 'ctx'; }, 40);
@@ -719,9 +719,16 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        **"You loses a shield"** — the agreement bug this repo has shipped four times, in a RENDERER rather
        than a `say()` template, which is why `nettest_narrate`'s static scan cannot see it (that scan reads
        `say(` call sites). Asserted here because this is the suite that put the line on screen. */
-    ok(!!stackRow && !/You (loses|is|has|moves)\b/.test(stackRow),
-       'F · …and the pending-loss line agrees with the reader it names — no "You loses a shield"' +
-       (/You loses/.test(stackRow || '') ? '  ← REPRODUCED: ' + stackRow : ''));
+    /* …AND THE SHIELD LOSS IS NOT ON IT (drag-and-stack ruling 18, 2026-10-14). Aj: *"pending shield loss? those
+       aren't part of the stack!"*, which is PHASES-AND-PRIORITY §1 and §4. The loss used to be a row under the
+       objects; it is now a sentence in the box (`.respStake`), so the stack row must not mention a shield, and the
+       box must still say what is at stake, grammatically, to the person it names. */
+    const stake = await p.evaluate(() => { const r = document.querySelector('#modal .respStake');
+      return r ? (r.textContent || '').replace(/\s+/g, ' ').trim() : null; });
+    ok(!!stackRow && !/shield/i.test(stackRow),
+       'F · …and the stack row carries NO shield loss — a shield loss is not on the stack: "' + (stackRow || '(absent)') + '"');
+    ok(!!stake && /shield/i.test(stake) && !/\b[Yy]ou (loses|is|has|moves)\b/.test(stake),
+       'F · …while the box still says the stake, and agrees with the reader it names — no "You loses a shield": "' + (stake || '(absent)') + '"');
     /* AND IT IS ABSENT WHEN THE STACK IS EMPTY, or the row is decoration rather than information — the
        Main → Fight and end-of-round go-rounds both run on an empty stack, and an empty labelled box there
        reads as something lost. The first window in this very scenario was one: depth 0. */
@@ -838,6 +845,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       if (cb && !cb.disabled && !/off/.test(cb.className)) { cb.click(); return true; }
       return false; });
     ok(cast, 'H · you cast your own Technique — the go-round starts at the controller, which is you');
+    await waitHold(p);   // the go-round reaches you once your cast's art flash has run (ruling 20)
     await wait(900);
     /* NOW CROSS MAIN -> FIGHT THROUGH THE REAL BUTTON, which is what the discriminator needs: a boundary
        window with no cast of yours on the stack. It has to be the BUTTON — `clearTransition` calls

@@ -10,7 +10,7 @@
  * Run: node nettest_heldplay3.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight, clickQuick } = require('./fightclick');
+const { clickFight, clickQuick, waitHold } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8459),ROOM='H3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -104,7 +104,7 @@ const why=p=>p.evaluate(()=>({
   while(Date.now()-t0<15000){
     if(!cast) cast=!!(await clickQuick(host, null, '.respQuick[data-id="hq9D"]'));
     await declineIfUp(c2);
-    if(await c1.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent) d.click(); const fx=document.getElementById('roundfx'); return !!(fx && /phasefx/.test(fx.className) && /Fight sub-phase/.test(fx.textContent||'')); })) beat=true;
+    if(await c1.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent) d.click(); const hw=document.getElementById('handWrap'); return !!(hw && hw.classList.contains('fightFlash'));   /* the Fight Sub-Phase is a strip flash since 2026-10-14 */ })) beat=true;
     if(cast && beat && /Someone answered/.test((await why(c1)).msg)) break;
     await wait(50);
   }
@@ -114,8 +114,9 @@ const why=p=>p.evaluate(()=>({
   ok(cast, '…and the host cast Leyline into that go-round');
   ok(await inHand(c1,'a11C'), 'client 1 was HELD — its Jack did not go down'+((await inHand(c1,'a11C'))?'':' ← hostApplyMoveN re-applied the play'));
   ok(await gsel(c1,'a11C'), '…and it is STILL SELECTED');
-  ok(beat, 'the Fight sub-phase beat flew in on client 1');
+  ok(beat, 'the Fight sub-phase flashed on the strip on client 1');
   ok(/Someone answered/.test(w.msg), 'the message says why ("'+w.msg+'")');
+  await waitHold(c1);   // the host's Leyline holds client 1's board for its art flash (ruling 20)
   await c1.evaluate(()=>document.getElementById('fightBtn').click());
   ok(await until(async()=>!(await inHand(c1,'a11C')), 60), 'one Fight press then played the Jack through the host');
 

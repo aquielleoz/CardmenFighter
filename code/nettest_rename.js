@@ -124,6 +124,12 @@ const renameVia=(p,name)=>p.evaluate(n=>{
      crossing show the Fight Sub-Phase for ~700ms before the play lands, leg 2 grew by two of them, and one Spam
      landed: a timing coincidence, not a cooldown. So `Kit` is accepted first (the 2nd rename: an 800ms window),
      and the burst follows it at once. */
+  /* …AND KIT ITSELF MUST WAIT OUT ZED'S WINDOW (2026-10-15). The shrink makes Zed's window 400ms from when Zed
+     ARRIVED, and the suite assumed leg 2 took longer than that. It did while every crossing held for a Fight beat;
+     ruling 17 made the crossing a flash, leg 2 finished inside 400ms, and the host correctly refused Kit as too soon
+     ("Renaming again so soon"). Waiting the window out here makes Kit's acceptance a property of the cooldown,
+     not of how long leg 2 happens to take. */
+  await wait(450);
   const base0 = await renamed();
   await send(join,'Kit');
   ok(await until(async()=>await renamed() > base0, 40), 'a rename once leg 1\'s 400ms window has passed is accepted (Kit, the 2nd)');

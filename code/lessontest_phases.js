@@ -86,18 +86,21 @@ const { openLesson } = require('./lessonlib');
     const id=ace.dataset.id, g=ace.closest('.group'); if(!g) return { err:'the Ace has no group' };
     g.click(); await new Promise(r=>setTimeout(r,120));
     const f=document.getElementById('fightBtn'); if(!f || f.disabled) return { err:'Fight is not live with the Ace selected' };
-    f.click();
+    const t0=Date.now(); f.click();
     const out={ id:id, fightWhileHeld:false, landed:false, samples:0 };
     for(let k=0;k<140;k++){
-      const strip=(document.getElementById('handWrap')||{}).className||'', held=!!document.querySelector('#hand .card[data-id="'+id+'"]');
+      const held=!!document.querySelector('#hand .card[data-id="'+id+'"]');
       out.samples++;
-      if(held && /spFight/.test(strip)) out.fightWhileHeld=true;
       if(!held){ out.landed=true; break; }
       await new Promise(r=>setTimeout(r,30));
     }
+    /* THE CROSSING IS A FLASH SINCE 2026-10-14 (Aj: "keep the yellow color and skip the announcement"), and the flash
+       and the play land in ONE task, so sampling can never see the strip yellow with the Ace still held. The flash
+       record (`__solo.fightFlashes()`) holds the hand at the instant of the flash, which is the order itself. */
+    out.fightWhileHeld=window.__solo.fightFlashes().filter(x=>x.at>=t0).some(x=>x.turn===0 && x.hand.indexOf(id)>=0);
     return out; });
   ok(!film.err, 'STAGED: the spotlit Ace was selected and Fight pressed'+(film.err?'  ← '+film.err:''));
-  ok(film.fightWhileHeld, 'THE STRIP CROSSED INTO THE FIGHT SUB-PHASE WHILE THE ACE WAS STILL IN HAND — the crossing comes first  ['+film.samples+' samples]');
+  ok(film.fightWhileHeld, 'THE HAND FLASHED THE FIGHT YELLOW WHILE THE ACE WAS STILL IN HAND — the crossing comes first, as the step says');
   ok(film.landed, '…and THEN the Ace went down');
   ok(await atStep(4), 'leading it advanced the lesson to step 4');
   /* AND THE STEP'S PRIORITY-POINT SENTENCE IS A CLAIM ABOUT THE BUILD (2026-09-30): *"everyone gets the chance to
@@ -238,7 +241,11 @@ const { openLesson } = require('./lessonlib');
      The win establishes a shield really was on the line; "prevented" establishes Leyline is what stopped it.
      Asserting the shield COUNT alone is what let this pass for three runs with Leyline unplayed in hand and
      the round not even resolved, so the count below is kept as the outcome and this is kept as the stake. */
-  const tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
+  /* THE ROUND RESOLVES ONCE LEYLINE'S ART FLASH HAS RUN (drag-and-stack ruling 20: every cast holds the game for it),
+     so the "prevented" line lands about 2.5s after the step advances. Poll for it rather than read once. */
+  let tail = [];
+  for (let i = 0; i < 60; i++) { tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
+    if (tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t))) break; await new Promise(r=>setTimeout(r,100)); }
   ok(tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t)),
      '…on a round you actually LOST, and the log says the loss was PREVENTED  [' + (tail.filter(t=>/prevented/i.test(t))[0]||'no such line') + ']');
   ok((await st()).players[0].shields===shBefore,

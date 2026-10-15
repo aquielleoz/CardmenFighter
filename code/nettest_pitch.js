@@ -17,7 +17,7 @@
  *
  * Run: node nettest_pitch.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { clickFight, clickQuick } = require('./fightclick');
+const { clickFight, clickQuick, waitHold } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8461),ROOM='BP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -67,6 +67,7 @@ let host, join;
   await wait(600);
   ok(await until(()=>join.evaluate(()=>window.__cmf.turn()===0 && !!document.querySelector('#hand .card[data-id="c9S"]')), 60), 'STAGED: the client is on turn holding Critical Hit, a pair of 10s and an Ace');
   async function castCrit(){
+    await waitHold(join);   // the previous leg's cast still holds the board for its art flash (ruling 20)
     await join.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="c9S"]'); if(c) c.click(); });
     await wait(250);
     await join.evaluate(()=>{ const a=document.getElementById('cardActivate'), x=document.getElementById('ctxBtn'); if(a&&a.offsetParent&&!a.disabled) a.click(); else if(x&&!x.disabled) x.click(); });

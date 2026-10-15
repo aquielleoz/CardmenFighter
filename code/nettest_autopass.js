@@ -43,7 +43,7 @@ const armCast=(p,id)=>p.evaluate(cid=>{
   c.click();
   var ca=document.getElementById('cardActivate'), cx=document.getElementById('ctxBtn');
   if(ca && ca.offsetParent!==null && !ca.disabled && !/off/.test(ca.className)){ ca.click(); return 'icon'; }
-  if(cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
+  if(cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
   return 'not offerable';
 }, id);
 // a tap STAGES the target and ⚡ Activate (#ctxBtn) casts it — confirm-first since equip-target-casts-without-confirm

@@ -336,9 +336,10 @@ pile stands.
        the table, or Pass** each crosses first, and the play is carried across the crossing, not made at it;
     2. the active player passes priority;
     3. the other players pass priority;
-    4. the Fight Sub-Phase begins, and only now is the shedding play made. **The strip shows Fight for a
-       beat on every crossing**, a quiet one included (drag-and-stack ruling 10, 2026-10-13), so the
-       sub-phase is visible even on the turns where nobody could act at it.
+    4. the Fight Sub-Phase begins, and only now is the shedding play made. **Every crossing shows**, a quiet
+       one included (drag-and-stack ruling 10, 2026-10-13), so the sub-phase is visible even on the turns
+       where nobody could act at it. Since ruling 17 (2026-10-14) it shows as a yellow flash on the hand,
+       with no banner and no pause.
     **Nothing is cancelled because nothing is played until the crossing completes**: if someone casts at
     it, the play is held and you choose again (the next bullet). The cancellation rule existed only to undo
     an announcement that no longer happens. The old reason it was needed is still worth knowing: a shedding

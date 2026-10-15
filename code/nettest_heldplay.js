@@ -21,7 +21,7 @@
  * Run: node nettest_heldplay.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickQuick } = require('./fightclick');
+const { clickQuick, waitHold } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8457),ROOM='HP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -49,7 +49,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   while(Date.now()-t0<14000){
     if(!cast) cast=!!(await clickQuick(caster, null, '.respQuick[data-id="'+casterQuick+'"]'));
     if(await committer.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d && d.offsetParent && !d.disabled) d.click();
-        const fx=document.getElementById('roundfx'); return !!(fx && /phasefx/.test(fx.className) && /Fight sub-phase/.test(fx.textContent||'')); })) beat=true;
+        const hw=document.getElementById('handWrap'); return !!(hw && hw.classList.contains('fightFlash'));   /* the Fight Sub-Phase is a strip flash since 2026-10-14 */ })) beat=true;
     if(cast && beat && /Someone answered/.test((await board(committer)).msg)) break;
     await wait(50);
   }
@@ -78,12 +78,13 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
 
   // ---------------- A: the HOST commits, the CLIENT casts into its go-round ----------------
   const a=await commitAndWatch(host, join, 'h10C', 'cq9D');
+  await waitHold(host);   // the Leyline cast into the go-round holds this board for its art flash (ruling 20)
   const ab=await board(host);
   ok(/Fight/.test(a.pre.label), 'A: STAGED — the host pressed ⚔️ Fight with a card selected ('+a.pre.label+')');
   ok(a.cast, 'A: …and the client cast Leyline into that go-round');
   ok(await inHand(host,'h10C'), 'A: the host was HELD — its 10 did not go down');
   ok(await isSel(host,'h10C'), 'A: …and it is STILL SELECTED');
-  ok(a.beat, 'A: the Fight sub-phase beat flew in — the host was moved over, not asked to press Next');
+  ok(a.beat, 'A: the Fight sub-phase flashed on the strip — the host was moved over, not asked to press Next');
   ok(/Someone answered/.test(ab.msg) && /still selected/.test(ab.msg) && /Fight/.test(ab.msg), 'A: the message says why and what to do ("'+ab.msg+'")');
   ok(!/Main/.test(ab.hint) && ab.hint.length>0, 'A: the hint reads for the FIGHT sub-phase, not Main ("'+ab.hint+'")');   // `Next` dropped from the pattern: it can no longer appear (drag-and-stack step 1)
   ok(/Fight/.test(ab.label) && !ab.fightOff, 'A: the button reads Fight and is live — one press plays it ('+ab.label+')');
@@ -94,12 +95,13 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(await until(()=>myTurn(join), 120), 'B: the turn reached the client');
   await until(()=>join.evaluate(()=>{ const h=(document.getElementById('hint')||{}).textContent||''; return !/Hold on|fighting|Waiting/.test(h); }), 80);
   const bb0=await commitAndWatch(join, host, 'c11C', 'hq9D');
+  await waitHold(join);   // the Leyline cast into the go-round holds this board for its art flash (ruling 20)
   const bb=await board(join);
   ok(/Fight/.test(bb0.pre.label), 'B: STAGED — the client pressed ⚔️ Fight with a card selected ('+bb0.pre.label+')');
   ok(bb0.cast, 'B: …and the host cast Leyline into that go-round');
   ok(await inHand(join,'c11C'), 'B: the CLIENT was HELD — its Jack did not go down'+((await inHand(join,'c11C'))?'':' ← the host re-applied the play over what resolved'));
   ok(await isSel(join,'c11C'), 'B: …and it is STILL SELECTED');
-  ok(bb0.beat, 'B: the Fight sub-phase beat flew in on the client');
+  ok(bb0.beat, 'B: the Fight sub-phase flashed on the strip on the client');
   ok(/Someone answered/.test(bb.msg) && /still selected/.test(bb.msg), 'B: the message says why and what to do ("'+bb.msg+'")');
   ok(!/Main/.test(bb.hint) && bb.hint.length>0, 'B: the hint reads for the FIGHT sub-phase, not Main ("'+bb.hint+'")');   // `Next` dropped from the pattern: it can no longer appear (drag-and-stack step 1)
   ok(/Fight/.test(bb.label) && !bb.fightOff, 'B: the button reads Fight and is live ('+bb.label+')');

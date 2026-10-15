@@ -100,7 +100,11 @@ async function dragOnto(page, idA, idB){
      is untargeted, always legal on your own turn in Main, and banks `nextPlayBoost` — a field no PLAY sets, while
      a PLAY banks the card into energy. Cast: energy DOWN and a boost; play: energy UP and no boost.
      `mk` builds the composite id the DOM uses (`tag+rank+suit`). */
-  const stage=(sub)=>p.evaluate((sub)=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:t+r+s});
+  /* EVERY CAST HOLDS THE BOARD FOR ITS ART FLASH (drag-and-stack ruling 20), so a leg that follows a cast waits the
+     hold out before staging, or it stages into a board that refuses everything for the next 2.5s. */
+  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))){ if(i) await wait(80); return; } await wait(100); } };   // …plus one beat for the re-render that ends it
+  const stage=async(sub)=>{ await waitHold(); return stageNow(sub); };
+  const stageNow=(sub)=>p.evaluate((sub)=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:t+r+s});
     const you=st.players[0];
     you.hand=[mk(3,'C','act'), mk(6,'H','plain1'), mk(6,'D','plain2'), mk(2,'C','dead')];   // ♣2: the apex has NO activated effect by design
     you.energy=[3,4,5,6,7,8].map(n=>mk(n,'C','e'+n));
@@ -114,7 +118,7 @@ async function dragOnto(page, idA, idB){
      animations (and the Rival's turn) before the next drag, or the board does not move and it reads as broken. */
   const settle=()=>until(async()=>await p.evaluate(()=>{
     const h=((document.getElementById('hint')||{}).textContent||'');
-    return !/still resolving|is fighting/i.test(h) && window.__solo.st().turn===0;
+    return !/still resolving|is fighting/i.test(h) && window.__solo.st().turn===0 && !window.__solo.castHold();   // …and no cast's art flash still holding the board (ruling 20)
   }), 80, 200);
 
   // ═══ LEG 1 — MAIN, DROPPED ON THE COLUMN: STAGED, NOT CAST ═══
@@ -313,6 +317,7 @@ async function dragOnto(page, idA, idB){
      at a NARROW viewport, which is the only place the bug exists (at 1100px the sentence fits on one line and
      the assertions measured nothing). 760px stays above the 720px phone gate on purpose. */
   const LONG = /Broadway card/i;                       // `pitchHigh` — the longest reason the engine gives
+  await settle();   // the previous leg's cast may still be holding the board (ruling 20)
   await p.setViewportSize({width:760,height:900}); await wait(250);
   await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
     const you=st.players[0];

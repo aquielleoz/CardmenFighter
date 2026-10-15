@@ -1,7 +1,8 @@
 # Drag and stack: playing from the board
 
 **Status: RULED by Aj, 2026-10-13, and rechecked against the code the same day. Step 1 is BUILT and merged into
-the epic (PR #421, 2026-10-14, v1.33.16.1), and step 2 is built (v1.33.16.2); step 3 is next.** The work lives on `epic/drag-and-stack`: every step
+the epic (PR #421, 2026-10-14, v1.33.16.1), step 2 merged (#422, v1.33.16.2), and step 3 is built (v1.33.16.3);
+step 4 is next.** The work lives on `epic/drag-and-stack`: every step
 PRs into it, and `main` sees one merge at the end. The recheck corrected several counts in this doc and found traps
 it had missed; Aj ruled four more questions on the back of it (rulings 9 to 12; 9 and 10 make step 1 larger), and
 four more after playing step 1 (13 to 16). Two questions are still open: whether a cast
@@ -172,7 +173,7 @@ The three earlier asks this answers:
     straight from Main to the next player, Aj picked *"Show Fight briefly every turn"*: your strip paints Fight and
     the beat plays on every crossing of yours, not only a contested or held one. This replaces the 2026-10-02 rule
     that the beat *"should only fly in for next"*, which has no Next left to apply to. Opponents' crossings were not
-    asked about.
+    asked about. **Ruling 17 changes how it shows: a flash on the hand, no banner, no pause.**
 11. **A ⚡ tap still casts at once; only a drop stages** (2026-10-14). Asked whether select + ⚡ should also put
     the card in the column and need a second ⚡, Aj picked *"Tap casts at once"*: selecting the card is already
     the moment to change your mind (Clear undoes it), as today. Cards with a choice still enter today's stagers
@@ -209,6 +210,33 @@ The three earlier asks this answers:
     needs a target should also sit in the column while its target is picked, Aj chose *"Yes, show it in the
     column"*. This refines ruling 11 and does not reverse it: a card with nothing to choose still casts on the
     tap. Built in step 2: the card a picker holds is the staged card, whichever gesture opened the picker.
+17. **The Fight Sub-Phase is a yellow flash on the hand, with no banner and no pause** (2026-10-14, after playing
+    step 3). Aj: *"the pause for the announcement for the fight is really jarring... can we just keep the yellow
+    color and skip the announcement?"* and *"if no one plays a card it's like hitting a speed bump at full
+    speed"*. This replaces ruling 10's beat: every crossing still SHOWS, as `flashFight()` on `#handWrap`, but
+    the play lands at once. Built in step 3.
+18. **A shield loss is not drawn in the stack visualizer** (2026-10-14). Aj: *"pending shield loss? those aren't
+    part of the stack!"* PHASES-AND-PRIORITY §1 and §4 say the same: the Stack holds effects only. The red
+    "loses a shield" row rendered in the column and under the Respond? box's "On the stack" label. *Built in step
+    3:* it is in neither; when an effect is also waiting, the box says the stake in a sentence of its own
+    (`pendingLossLineHTML`), and with the stack empty the box's lead already says it.
+19. **A triggered ability shows the card it comes from** (2026-10-14). Aj, on the Equipment upkeep tick: *"since
+    we have a visualizer now, let's add the cursed pendant card image to the visualizer"*. The tick shows as a
+    text tile (`.stkTrig`). The tick belongs only at Upkeep (Aj: *"upkeep tick... should happen during the
+    upkeep"*). *Built in step 3:* the column draws the Equipment's card (`trigCard`, by the tick's `eqId`, which
+    `netview` now carries), marked ⏳; the tile is left only for a trigger whose Equipment a Disarm has taken.
+    Measured: in 600 AI games at 2, 3, 4 and 6 players, a trigger was on the stack at 2,596 checks, every one
+    of them inside Upkeep.
+20. **Every cast holds the game for the art flash** (2026-10-14). Asked how long a cast should stay in the
+    visualizer, Aj: *"as long as the art flash should be good"*. Asked whether your own casts and other humans'
+    casts should also hold the game for it (today only an AI's cast does, through `revealDwell`), Aj: *"yes"*.
+    So the card stays in the column for the flash's length (`flashArt`'s 2500ms with effect text, 1350ms
+    without, 900ms reduced motion) and nobody acts until it ends, on every seat. *Built in step 3:* one hold, started
+    where every seat presents a cast (`presentStackArrival`), for that card's flash length (`artFlashMs`). While it
+    runs the seat's board refuses plays, casts and passes, the hint reads "Hold on — <card> is being cast.", a
+    Respond? box waits, and solo's AI seats wait to answer. Selecting cards stays free. Each seat holds for its own
+    flash, so a netplay host never waits on the wire for it. The ghost that lands a resolved cast in the column now
+    rests there for the same length.
 
 ## Still open
 
@@ -364,7 +392,18 @@ epic's fourth number. The full sweep runs on the epic before it merges.
 3. **The visualizer shows cards**: card art with who cast it and at what, every cast flying in through one
    presentation, which needs the host to announce answers to the other seats. Some stack rows have no card to
    show (a triggered Equipment upkeep counter), and the play-area dim covers the visualizer while another seat
-   holds priority.
+   holds priority. *Built (v1.33.16.3):* each object shows its card, newest on top, captioned with the row's own
+   phrase (`stackObjPhrase`, shared with the Respond? box); a trigger shows as a tile; the column sits above the
+   waiting dim. A cast on the stack flies in from its caster, read off `state.stack` so every seat presents it the
+   same way; a cast that resolves before any render arrives through `presentStackArrival`, which every presentation
+   path calls (`showFx`, the cast tails, an AI's cast and answer, the tutorial). The host now announces the cast
+   tails that never did (Equipment removal, Counterfeit, your own answer) and every guest's answer, and an AI's
+   answer carries its card (`respondCard`). The art pop used to sit over the column the card was landing in; Aj: *"shift if there's
+   enough space, shrink if not?"* `placeArtFlash` centres it left of the column, shrinking it only when that room is
+   narrower than the art (measured: shifted at 1440 and 1280 wide, shrunk from 1100 wide down to phones). The ghost that
+   lands a resolved cast was a `.card`, whose `position:relative` beat `.stkGhost`'s `position:fixed`, so it sat in
+   the page's flow below the hand and moved the hand up by its height: Aj's report after a King form (*"a weird banner
+   appeared underneath my hand? or my hand moved up"*), reproduced at 71px and fixed (`.card.stkGhost`).
 4. **The Respond? box and answering on the board.** The box shrinks to its sentence and Yes / No; Yes lights
    the castable cards (asserted by computed style); No and Pass pass, and Pass in a window declines priority
    rather than sitting the round out. Counter Spell's target is picked from a card in the visualizer. The test
