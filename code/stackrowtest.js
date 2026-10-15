@@ -52,23 +52,43 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
   /* ═══ DRAG-AND-STACK STEP 3: THE BOARD'S STACK IS CARDS ═══
      The Respond? box keeps these rows (step 4 changes it); the board's column shows the CARD of each object,
-     newest on top, captioned with the same phrase. A trigger has no card, so it gets a tile. */
+     newest on top, captioned with the same phrase. A trigger shows the card it comes from, its Equipment's
+     (ruling 19, Aj 2026-10-14: *"let's add the cursed pendant card image to the visualizer"*), marked ⏳ because
+     nobody cast it. */
   const cards=await p.evaluate(()=>{ const st=window.__solo.st(), E=window.CardmenEngine;
     const find=k=>{ for(const s of ['D','H','C','S']) for(let r=3;r<=14;r++){ const e=E.effectOf({rank:r,suit:s}); if(e&&e.kind===k) return {eff:e, card:{rank:r,suit:s,id:'k'+r+s}}; } return null; };
-    st.players[0].equipment=[{id:'eqMine',name:'Holy Bow',counters:3}];
+    const eqc=find('equip');
+    st.players[0].equipment=[{id:'eqMine',name:'Holy Bow',counters:3,decay:true,card:eqc.card}];
     const strip=find('removeEquip'), ctr=find('counter');
-    st.stack=[{oid:'t1', kind:'effect', p:0, name:'Holy Bow', trig:'upkeep'},
+    st.stack=[{oid:'t1', kind:'effect', p:0, name:'Holy Bow', trig:true, eqId:eqc.card.id},
               {oid:'s1', kind:'effect', p:1, card:strip.card, eff:strip.eff, opts:{target:'eqMine'}},
               {oid:'s2', kind:'effect', p:0, card:ctr.card, eff:ctr.eff, opts:{}}];
     window.__solo.render();
     const boxes=[...document.querySelectorAll('#stackView .stkCard')];
     return { order:boxes.map(b=>b.getAttribute('data-oid')), top:boxes.map(b=>b.classList.contains('top')),
-             ids:boxes.map(b=>{ const c=b.querySelector('.card'); return c?c.dataset.id:(b.querySelector('.stkTrig')?'TRIG':null); }),
-             caps:boxes.map(b=>((b.querySelector('.stkCap')||{}).textContent||'').trim()), want:[ctr.card.id, strip.card.id] }; });
+             ids:boxes.map(b=>{ const c=b.querySelector('.card'); return c?(b.querySelector('.trigBadge')?'TRIG:':'')+c.dataset.id:(b.querySelector('.stkTrig')?'TILE':null); }),
+             caps:boxes.map(b=>((b.querySelector('.stkCap')||{}).textContent||'').trim()), want:[ctr.card.id, strip.card.id, 'TRIG:'+eqc.card.id] }; });
   ok(cards.order.join()==='s2,s1,t1' && cards.top.join()==='true,false,false',
      'THE STACK SHOWS AS CARDS, NEWEST ON TOP, the top one marked  ['+cards.order.join(' > ')+']');
-  ok(cards.ids[0]===cards.want[0] && cards.ids[1]===cards.want[1] && cards.ids[2]==='TRIG',
-     '  …each object showing ITS card, and the upkeep trigger a tile  ['+cards.ids.join(', ')+']');
+  ok(cards.ids[0]===cards.want[0] && cards.ids[1]===cards.want[1],
+     '  …each object showing ITS card  ['+cards.ids.join(', ')+']');
+  ok(cards.ids[2]===cards.want[2],
+     '  …and the upkeep trigger the card of the Equipment it comes from, marked ⏳ as a trigger  ['+cards.ids[2]+' want '+cards.want[2]+']');
+  /* AND A TILE ONLY WHEN THERE IS NO CARD LEFT TO SHOW — a Disarm answered the trigger and the Equipment is gone. */
+  const gone=await p.evaluate(()=>{ const st=window.__solo.st(); const keep=st.players[0].equipment; st.players[0].equipment=[]; window.__solo.render();
+    const b=document.querySelector('#stackView .stkCard[data-oid="t1"]'); const out={ tile:!!(b&&b.querySelector('.stkTrig')), card:!!(b&&b.querySelector('.card')) };
+    st.players[0].equipment=keep; window.__solo.render(); return out; });
+  ok(gone.tile && !gone.card, '  …and with the Equipment already gone, the trigger falls back to a tile naming it  ['+JSON.stringify(gone)+']');
+
+  /* A SHIELD LOSS IS NOT ON THE STACK, SO THE COLUMN DOES NOT SHOW ONE (ruling 18; Aj, 2026-10-14: *"pending shield
+     loss? those aren't part of the stack!"*). A Resolution go-round with an effect on the stack and a Special's
+     strike waiting: the column shows the effect and nothing about the shield. The Respond? box carries the stake
+     (`resolutiontest_ui` F). */
+  const loss=await p.evaluate(()=>{ const st=window.__solo.st(); st.resolution={ winner:1, wonWithCombo:true, strikeTargets:[0] }; window.__solo.render();
+    const el=document.getElementById('stackView'); const out={ text:(el.textContent||'').replace(/\s+/g,' ').trim(), boxes:el.querySelectorAll('.stkCard').length, extra:el.children.length-el.querySelectorAll('.stkCard').length };
+    st.resolution=null; window.__solo.render(); return out; });
+  ok(loss.boxes===3 && loss.extra===0 && !/shield/i.test(loss.text),
+     'A PENDING SHIELD LOSS IS NOT DRAWN ON THE STACK — three objects, nothing else, no shield line  ['+loss.boxes+' objects, '+loss.extra+' other, "'+loss.text.slice(0,90)+'"]');
   ok(/resolves next/.test(cards.caps[0]) && /→\s*your Holy Bow/.test(cards.caps[1]) && /upkeep counter/.test(cards.caps[2]),
      '  …captioned with the row\'s own phrase: who, what, aimed at what, which resolves next  ['+cards.caps.map(c=>c.slice(0,40)).join(' | ')+']');
 

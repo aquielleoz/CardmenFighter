@@ -217,13 +217,16 @@ The three earlier asks this answers:
     the play lands at once. Built in step 3.
 18. **A shield loss is not drawn in the stack visualizer** (2026-10-14). Aj: *"pending shield loss? those aren't
     part of the stack!"* PHASES-AND-PRIORITY §1 and §4 say the same: the Stack holds effects only. The red
-    "loses a shield" row (`pendingLossRowHTML`) still renders in the column and under the Respond? box's "On the
-    stack" label. To build in step 3: take it out of both, and say what is at stake in the box's sentence instead.
+    "loses a shield" row rendered in the column and under the Respond? box's "On the stack" label. *Built in step
+    3:* it is in neither; when an effect is also waiting, the box says the stake in a sentence of its own
+    (`pendingLossLineHTML`), and with the stack empty the box's lead already says it.
 19. **A triggered ability shows the card it comes from** (2026-10-14). Aj, on the Equipment upkeep tick: *"since
     we have a visualizer now, let's add the cursed pendant card image to the visualizer"*. The tick shows as a
-    text tile today (`.stkTrig`). To build in step 3: draw the equipment's card, captioned as a trigger. The tick
-    belongs only at Upkeep (Aj: *"upkeep tick... should happen during the upkeep"*); check that it is never on
-    the stack at any other moment.
+    text tile (`.stkTrig`). The tick belongs only at Upkeep (Aj: *"upkeep tick... should happen during the
+    upkeep"*). *Built in step 3:* the column draws the Equipment's card (`trigCard`, by the tick's `eqId`, which
+    `netview` now carries), marked ⏳; the tile is left only for a trigger whose Equipment a Disarm has taken.
+    Measured: in 600 AI games at 2, 3, 4 and 6 players, a trigger was on the stack at 2,596 checks, every one
+    of them inside Upkeep.
 20. **Every cast holds the game for the art flash** (2026-10-14). Asked how long a cast should stay in the
     visualizer, Aj: *"as long as the art flash should be good"*. Asked whether your own casts and other humans'
     casts should also hold the game for it (today only an AI's cast does, through `revealDwell`), Aj: *"yes"*.

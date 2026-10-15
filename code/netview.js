@@ -156,6 +156,7 @@
            kinds that really do reach a client: an `effect` ({p, card, eff, opts, countered}) and a `tick`. */
         var c = { oid: o.oid, kind: o.kind };
         if (o.trig) { c.trig = true; c.name = o.name || null; }        // a TRIGGERED effect: the client must not describe it as a cast
+        if (o.trig && o.eqId != null) c.eqId = o.eqId;                // …and the card id of the Equipment it comes from, which is public (drag-and-stack ruling 19 draws it)
         if (typeof o.p === 'number') c.p = rot(o.p);
         if (o.countered != null) c.countered = !!o.countered;
         if (o.card) c.card = card(o.card);

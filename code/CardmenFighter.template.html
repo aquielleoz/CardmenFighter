@@ -284,6 +284,9 @@
   #stackView .stkTrig{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; min-width:56px; max-width:100%; padding:6px 6px;
     border-radius:9px; border:1px solid rgba(67,192,106,.7); background:linear-gradient(180deg,rgba(67,192,106,.16),rgba(20,18,32,.9)); font-size:10px; line-height:1.15; text-align:center;}
   #stackView .stkTrig b{font-size:10.5px;}
+  #stackView .stkCard.trig{position:relative;}
+  #stackView .stkCard .trigBadge{position:absolute; top:-5px; left:calc(50% - 34px); font-size:13px; line-height:1; padding:2px 3px; border-radius:6px;
+    background:rgba(20,22,30,.92); box-shadow:0 0 0 1px rgba(232,195,122,.55); pointer-events:none;}   /* marks a TRIGGER: nobody cast this card */
   #stackView .stkCard.inbound{visibility:hidden;}   /* the real card waits while its ghost is in the air */
   .stkGhost{position:fixed; z-index:40; pointer-events:none; margin:0; will-change:transform, opacity;}
   /* THE COLUMN STAYS ABOVE THE WAITING DIM (drag-and-stack step 3). While another seat holds priority the play area
@@ -310,7 +313,7 @@
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
      dashed rather than solid, and it never takes .top, because nothing resolves it: it lands when the
      sub-phase begins. Colour comes from the existing danger token so it stays theme-correct in both modes. */
-  .stk.pendingLoss{border-style:dashed; border-color:var(--bad,#c9564f); background:rgba(201,86,79,.10); opacity:1;}
+  .modal .respStake{font-size:12.5px; margin:-4px 0 8px; color:var(--bad,#c9564f);}
   .stk .who{opacity:.6;}
   #message{font-size:13.5px; text-align:center; min-height:20px; padding:0 8px; max-width:520px;}
   #message b{color:var(--gold);}
@@ -4576,10 +4579,16 @@ __QR__
     var fe=state.resolution||null;
     return (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
   }
-  function pendingLossRowHTML(pendingLoss){
+  /* A SHIELD LOSS IS NOT ON THE STACK, SO IT IS NOT DRAWN THERE (drag-and-stack ruling 18; Aj, 2026-10-14: *"pending
+     shield loss? those aren't part of the stack!"*). PHASES-AND-PRIORITY §1 says the Stack *"holds EFFECTS. Only
+     effects."* and §4 that *"a shield loss just happens"*. This used to be a red row under the stack's objects, on
+     the board and under the Respond? box's "On the stack" label, and a player who saw text there with nobody having
+     cast anything read it as something pushed onto the stack. It is now a sentence in the box, said only when an
+     effect is ALSO waiting: with nothing on the stack the box's lead already says what is at stake. */
+  function pendingLossLineHTML(pendingLoss){
     var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
     var lType=(state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special';
-    var lHit=(pendingLoss.strikeTargets||[]).map(function(sq){ return logName(sq); }).join(', ');
+    var lHit=(pendingLoss.strikeTargets||[]).map(function(sq){ return sq===YOU ? 'you' : logName(sq); }).join(', ');   // mid-sentence, so "you", not the log's sentence-initial "You"
     /* "You loses a shield" — the copula/agreement bug this repo has shipped four times, here in a
        RENDERER rather than a `say()` template, which is why `nettest_narrate`'s static scan could never
        see it: that scan reads `say(` call sites. The number was taken from the TARGET COUNT alone, so a
@@ -4587,17 +4596,16 @@ __QR__
        frame — it is never broadcast — so agreeing with the reader is safe here in a way it never is in a
        broadcast template; `announceRoundWin` one screen down already does exactly this. */
     var lVerb=((pendingLoss.strikeTargets||[]).length>1 || (pendingLoss.strikeTargets||[]).indexOf(YOU)>=0) ? 'lose' : 'loses';
-    return '<div class="stk pendingLoss"><span class="who">'+lWho+'’s '+lType+' ▸</span> 🛡 '+lHit+' '+lVerb+' a shield <span class="who">(when the stack clears)</span></div>';
+    return '<p class="respStake">🛡 When the stack clears, '+lWho+'’s '+lType+' wins the round and '+lHit+' '+lVerb+' a shield.</p>';
   }
   function stackObjects(){ return (state.stack||[]).filter(function(o){return o.kind==='effect';}); }
   // the Respond? box's "On the stack" rows — text, newest first (the board shows the same objects as cards)
   function stackRowsHTML(){
-    var objs=stackObjects(), pendingLoss=stackPendingLoss();
-    if(objs.length<1 && !pendingLoss) return '';
+    var objs=stackObjects();
+    if(objs.length<1) return '';
     var html='';
     for(var i=objs.length-1;i>=0;i--){ var isTop=(i===objs.length-1);
       html+='<div class="stk'+(isTop?' top':'')+'">'+stackObjPhrase(objs[i], isTop)+'</div>'; }
-    if(pendingLoss) html+=pendingLossRowHTML(pendingLoss);
     return html;
   }
   /* THE BOARD'S STACK IS CARDS (drag-and-stack step 3): each object shows the card that was cast, newest on top,
@@ -4608,11 +4616,20 @@ __QR__
      seat, whichever code path put it there. A cast that resolves before any render (an AI's batch, an answer
      nobody could follow) never reaches this function — that half is `showFx`'s. */
   var stackSig=null, stackSeen={};
+  /* THE CARD A TRIGGER COMES FROM (drag-and-stack ruling 19; Aj, 2026-10-14: *"since we have a visualizer now, let's
+     add the cursed pendant card image to the visualizer"*). §1: *"Tying an effect to the card that produced it is how
+     you draw it"*. The tick names its Equipment by `eqId`, the Equipment's card is public, and once a Disarm has
+     taken the Equipment there is no card to show, so the tile stays as the fallback. */
+  function trigCard(o){
+    if(!o || !o.trig || o.eqId==null || !state || !state.players[o.p]) return null;
+    var eq=(state.players[o.p].equipment||[]).filter(function(e){ return e && e.card && e.card.id===o.eqId; })[0];
+    return eq ? eq.card : null;
+  }
   function renderStack(){
-    var el=$('stackView'), objs=stackObjects(), pendingLoss=stackPendingLoss();
-    if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; stackSig=null; return; }
+    var el=$('stackView'), objs=stackObjects();
+    if(objs.length<1){ el.style.display='none'; el.innerHTML=''; stackSig=null; return; }
     el.style.display='flex';
-    var sig=objs.map(function(o){ return o.oid; }).join(',')+'|'+(pendingLoss?pendingLossRowHTML(pendingLoss):'')+'|'+objs.map(function(o,i){ return stackObjPhrase(o, i===objs.length-1); }).join('§');
+    var sig=objs.map(function(o){ return o.oid; }).join(',')+'|'+objs.map(function(o){ return o.trig ? (trigCard(o)?'c':'t') : ''; }).join('')+'|'+objs.map(function(o,i){ return stackObjPhrase(o, i===objs.length-1); }).join('§');
     if(sig===stackSig) return;
     stackSig=sig;
     /* WHERE EACH NEW CARD FLIES FROM, read BEFORE the rebuild: the hand and the staged slot still hold their old
@@ -4625,11 +4642,13 @@ __QR__
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], isTop=(i===objs.length-1);
       var box=document.createElement('div'); box.className='stkCard'+(isTop?' top':''); if(o.oid!=null) box.setAttribute('data-oid', o.oid);
       if(o.card){ var ce=cardEl(o.card, 'mini', o.p); (function(c){ ce.addEventListener('mouseenter', function(){ showCard(c); }); ce.addEventListener('click', function(){ showCard(c); }); })(o.card); box.appendChild(ce); }
-      else { var tr=document.createElement('div'); tr.className='stkTrig'; tr.innerHTML='<span>⏳</span><b>'+esc(o.name||'Equipment')+'</b>'; /* the caption says what it does */ box.appendChild(tr); }
+      else if(o.trig && trigCard(o)){ var tc=trigCard(o), te=cardEl(tc, 'mini', o.p); box.classList.add('trig');
+        (function(c){ te.addEventListener('mouseenter', function(){ showCard(c); }); te.addEventListener('click', function(){ showCard(c); }); })(tc);
+        box.appendChild(te); box.insertAdjacentHTML('beforeend', '<span class="trigBadge" title="A triggered ability, not a cast">⏳</span>'); }
+      else { var tr=document.createElement('div'); tr.className='stkTrig'; tr.innerHTML='<span>⏳</span><b>'+esc(o.name||'Equipment')+'</b>'; /* the Equipment is already gone (a Disarm answered the trigger): its name is all that is left */ box.appendChild(tr); }
       var cap=document.createElement('div'); cap.className='stk stkCap'; cap.innerHTML=stackObjPhrase(o, isTop); box.appendChild(cap);
       el.appendChild(box);
     }
-    if(pendingLoss) el.insertAdjacentHTML('beforeend', pendingLossRowHTML(pendingLoss));
     objs.forEach(function(o){ if(o.oid!=null) stackSeen[o.oid]=true; });
     fresh.forEach(function(o){ if(from[o.oid]) flyStackCard(o, from[o.oid]); });
   }
@@ -7755,6 +7774,7 @@ __QR__
     }
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
+    if(pend && stackPendingLoss()) lead+=pendingLossLineHTML(stackPendingLoss());   // the round's shield loss waits for the stack, and is not on it (ruling 18)
     var incoming=(rivalEff.text && pend && pend.card ? ('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>')
                  : (pend && pend.trig ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
