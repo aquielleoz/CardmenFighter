@@ -157,7 +157,7 @@ node nettest_clientride.js                      # A CLIENT CALLS A RIDE AND THE 
                                                 # `nettest_clientride3` (26) is `hostApplyMoveN`'s copy: ANOTHER
                                                 # client holds the window, and the host's own modal opens in the
                                                 # middle of it. Both A/B'd by deleting the hand-back / `driveN()`
-node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET (20) — "→ Tank’s Spiked Armor",
+node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET (22) — "→ Tank’s Spiked Armor",
                                                 # "→ your Holy Bow", "→ You"; NOT the other piece on the same
                                                 # seat; an untargeted row unchanged. The board's cards and the
                                                 # Respond? box's rows share one phrase (`stackObjPhrase`).
@@ -170,7 +170,10 @@ node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET
                                                 # loss is NOT drawn on the stack (a shield loss is not an effect),
                                                 # and an upkeep trigger shows its Equipment's card, a tile only once
                                                 # that Equipment is gone. And the ART POP clears the column, both
-                                                # ways: shifted at 1440 wide, shrunk at 1100
+                                                # ways: shifted at 1440 wide, shrunk at 1100. And an arriving ghost is
+                                                # FIXED over the column with the board's height unchanged — it is a
+                                                # `.card`, and `.card`'s `position:relative` once beat `.stkGhost`'s
+                                                # `fixed` in the cascade, so it sat in flow and moved the hand up
 node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (9). Drag-and-stack
                                                 # ruling 20 (Aj: *"as long as the art flash should be good"*, and
                                                 # *"yes"* to holding the game for your own and other humans' casts).
@@ -2580,7 +2583,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 20, `castholdtest` 9, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 9, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
