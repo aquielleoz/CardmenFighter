@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -174,6 +174,16 @@ node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET
                                                 # FIXED over the column with the board's height unchanged — it is a
                                                 # `.card`, and `.card`'s `position:relative` once beat `.stkGhost`'s
                                                 # `fixed` in the cascade, so it sat in flow and moved the hand up
+node answertest.js                              # YES, AND ANSWERING FROM THE BOARD (8). Drag-and-stack step 4, piece 2:
+                                                # the Respond? box gains Yes, which closes it and leaves the window yours
+                                                # (`answering` / `answerLive()`, NOT `busy` and not raw `respondFor`). The
+                                                # board then answers: Pass DECLINES priority (it used to run `E.pass`, a
+                                                # round pass the engine accepts over an open stack on your own turn) and
+                                                # "Respond?" reopens the box (ruling 24). Pins Yes, the board's state after
+                                                # it, the reopen, Pass declining without sitting you out, and a reopened
+                                                # box still answering. `nettest_answer` (10) is the guest: its Pass travels
+                                                # as `op:'decline'`, and one that presses Yes and walks away is passed by
+                                                # `netwindows` after its grace (its new after-Yes state)
 node upkeepstrandtest.js                        # NO WINDOW OWED TO THE RIVAL SURVIVES THE ROUND CEREMONY (7). The
                                                 # ceremony's boundary drain returned once the round was STAMPED, and the
                                                 # stamp lands in the untap queue BEFORE Upkeep parks: a parked Upkeep went
@@ -2578,7 +2588,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.4 — last FULL sweep 2026-10-16, `npm run sweep`, 128/128 in 453s** (this line was
+Status as of **v1.33.16.5 — last FULL sweep 2026-10-16, `npm run sweep`, 128/128 in 453s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2594,7 +2604,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 10, `upkeepstrandtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 8, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2603,7 +2613,7 @@ The 80 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 18, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14.
+`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 18, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14, `answer` 10.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
