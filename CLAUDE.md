@@ -4070,6 +4070,8 @@ now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits
 - `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
   Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
 - `docs/DRAG-AND-STACK-DESIGN.md` — the design for `epic/drag-and-stack`: playing from the board instead of the
+- `docs/DRAG-AND-STACK-STEP4.md` — the inventory taken before step 4 (answering on the board): what changes, which
+  suites move, the traps, the build order and the open questions. A measurement of the epic at `dbbe80d`; re-check before building on it.
   Respond? modal, with Aj's rulings. **Read it before touching the drag, `#stackView` or `promptHumanResponse`.**
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
   https origin actually unblock the camera? **Read it for the answer; do not summarise it here.** This line used

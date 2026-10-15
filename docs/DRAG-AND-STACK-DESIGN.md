@@ -237,12 +237,37 @@ The three earlier asks this answers:
     Respond? box waits, and solo's AI seats wait to answer. Selecting cards stays free. Each seat holds for its own
     flash, so a netplay host never waits on the wire for it. The ghost that lands a resolved cast in the column now
     rests there for the same length.
+21. **In AUTO a cast on the board passes priority for you, as today; ON is the mode for stacking your own** (2026-10-15).
+    Asked whether a cast from the board should keep priority with you or pass it on in AUTO, Aj accepted *"in AUTO,
+    the game auto-passes priority after your cast just like it does now, preserving the 'no stake, no stop' rule,
+    while ON remains the mode for stacking your own spells"* with *"ahh yea that sounds about right"*. So
+    "Activate does not pass" holds in ON only, and the 2026-09-24 rule stands.
+22. **In ON, after you answer from the board, the small Respond? modal comes back**, so you can stack on your own
+    answer (2026-10-15, Aj: *"yes, your read is right"*). AUTO does not (ruling 21).
+23. **The small modal leaves the board readable**: the cast column, the pile and the phase strip stay visible and
+    undimmed behind it, so there is no Peek button (Aj: *"yes, that works"*).
+24. **After Yes you can reopen the small modal** (Aj: *"Yes, you can re-open."*). Default control: a small "Respond?"
+    button beside Pass while you hold priority.
+25. **The small modal shows the card being cast and its target**, not its rules text (Aj: *"for the small modal, we
+    can have card being cast + target."*).
+26. **Counter Spell never casts on the tap, even with one possible target**; you confirm its target first (Aj:
+    *"counterspell, not cast strait away"*). An exception to ruling 11 for Counter Spell.
+27. **Tapping a glowing Quick that sits inside a group breaks the group and selects just that card** (Aj: *"breaks
+    that special and then selects the card"*).
+28. **Lessons refuse the wrong glowing card with a hint.** Everything the engine allows still glows, but a step that
+    names its card refuses any other (Aj: *"yes, please make tutorials as painless as possible for new players.
+    activating the wrong cards is painful."*). The hook is step 4's; the step text is step 6's.
+29. **While a card is staged, nothing else can be cast and Fight stays off; ✕ is the way out** (Aj: *"nah we can keep
+    fight not being usable. pressing X is better"* and *"you should not be able to activate sabotage because
+    something else is being staged (just like the fight case)"*). Measured: that is already true (with a second
+    card selected every ⚡ is off). Dropping a second card on the column swaps it in, the first back to hand with
+    nothing spent. So no window can open over a staged card, and the inventory's question about one dissolves.
+    One wording fix is owed: with a second card selected the hint still says "⚡ Activate casts it" while that ⚡
+    is off.
 
 ## Still open
 
-- **Does a cast on the board pass priority in AUTO (step 4)?** "Activate does not pass" holds only in ON (see
-  above). Keeping it in AUTO means changing the 2026-09-24 rule that AUTO never stops you for your own cast;
-  keeping that rule means a cast in AUTO or OFF passes for you, and you cannot stack a second Quick there.
+- ~~**Does a cast on the board pass priority in AUTO (step 4)?**~~ Ruled: ruling 21, it passes for you, as today.
 - **Where the visualizer sits on a portrait phone (step 5).** Measured with a full five-card play on the table:
 
   | viewport | play area | room right of the pile | card size there |
@@ -342,13 +367,16 @@ Found while drafting, then corrected and extended by the 2026-10-13 recheck agai
   entirely off your turn; and tap-to-select (`toggle`, `toggleGroupSelect`) is turn-gated too. A response is
   usually cast on someone else's turn, so step 4 has to lift all three.
 - **`updateActions` turns everything off when it is not your turn** (*"Rival is fighting…"*), and its `busy`
-  branch does the same, and `busy` is true in every window you are asked to answer (the solo drivers, the
-  host's parks, and on a guest `busy = owedModal`). Holding priority needs its own branch.
+  branch does the same. **`busy` is NOT true in every window you are asked to answer** (corrected by the step-4
+  inventory, 2026-10-15): the `activate` tail, the transform branch and `doRemove` call `settleWindows` without
+  setting it, so in a solo or host window opened by your own cast, Pass and Fight are live under today's box; and a
+  guest recomputes `busy` on every mirror (`busy = owedModal …`). Holding priority needs its own branch.
 - **`#stackView` is `display:none` while the stack is empty**, so it cannot be the drop target itself: the column
   is a box that is always there, with the rows moved inside it. No suite measures such a box today, so
   `phonetest` and `landscapetest` staying green means nothing until the column joins their overlap checks.
-- **`netwindows` answers a window by clicking `#respDecline`, and 63 suites install it** (54 through
-  `nettest_lobby`, 10 directly, one both). Its list still names two deleted modals (`pfDecline`, `sgNo`), and so
+- **`netwindows` answers a window by clicking `#respDecline`, and 64 suites install it** (55 through
+  `nettest_lobby`, which `nettest_strip` opts out of with `manualWindows`; 10 directly; `nettest_parity` both —
+  recounted 2026-10-15). Its list still names two deleted modals (`pfDecline`, `sgNo`), and so
   do `lessonlib`'s `answerWindow` and several suites that hand-roll the same list.
 - **About 36 suites drive the Respond? window**, through `fightclick`'s `windowUp` / `respQuicks` /
   `clickQuick` / `clickDecline` or straight through its DOM, and `lessonlib`'s `answerWindow` is a third helper
@@ -408,7 +436,9 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    the castable cards (asserted by computed style); No and Pass pass, and Pass in a window declines priority
    rather than sitting the round out. Counter Spell's target is picked from a card in the visualizer. The test
    helpers change first (`fightclick`, `netwindows`, `lessonlib`), so most suites follow with no edits; then
-   every seat at once, through `promptHumanResponse`. Needs the AUTO question ruled first.
+   every seat at once, through `promptHumanResponse`. The AUTO question is ruled (ruling 21). **The inventory taken
+   before building it is [`DRAG-AND-STACK-STEP4.md`](DRAG-AND-STACK-STEP4.md)**: what changes, the test blast radius,
+   the traps, a ten-piece build order, and eight open questions with defaults.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
