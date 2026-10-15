@@ -180,16 +180,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   hand-off still has to reset the sub-phase).
   `[id: illusion-on-the-stack]`
 
-- `needs a repro`       · **ACTIVATING THE KING FORM PUT SOMETHING UNDER YOUR HAND, OR MOVED THE HAND UP.** Reported by
-  Aj on 2026-10-14 while playing `epic/drag-and-stack` (v1.33.16.2–.3), to address after the epic merges: *"when
-  activating the King form.. a weird banner appeared underneath my hand? or my hand moved up it was weird..."*.
-  **Not reproduced, and which element it was is not known.** Suspects to rule out first, none confirmed: the
-  board-effect chips (`#playMods`, "value +N from …") appearing once the Form starts boosting your plays; the
-  INCARNATION banner a King completes when a J and a Q are already in the zone (`superBadge`); and the Form's
-  centre-stage art pop (`flashArt`). Repro: a duel with a J and a Q already in your zone, activate a King on the
-  viewport Aj played on, and screenshot the hand area before and after.
-  `[id: king-form-banner-under-hand]`
-
 ### Parked — each entry says what revives it
 
 #### When it happens again — the detectors are live

@@ -400,7 +400,10 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    tails that never did (Equipment removal, Counterfeit, your own answer) and every guest's answer, and an AI's
    answer carries its card (`respondCard`). The art pop used to sit over the column the card was landing in; Aj: *"shift if there's
    enough space, shrink if not?"* `placeArtFlash` centres it left of the column, shrinking it only when that room is
-   narrower than the art (measured: shifted at 1440 and 1280 wide, shrunk from 1100 wide down to phones).
+   narrower than the art (measured: shifted at 1440 and 1280 wide, shrunk from 1100 wide down to phones). The ghost that
+   lands a resolved cast was a `.card`, whose `position:relative` beat `.stkGhost`'s `position:fixed`, so it sat in
+   the page's flow below the hand and moved the hand up by its height: Aj's report after a King form (*"a weird banner
+   appeared underneath my hand? or my hand moved up"*), reproduced at 71px and fixed (`.card.stkGhost`).
 4. **The Respond? box and answering on the board.** The box shrinks to its sentence and Yes / No; Yes lights
    the castable cards (asserted by computed style); No and Pass pass, and Pass in a window declines priority
    rather than sitting the round out. Counter Spell's target is picked from a card in the visualizer. The test

@@ -288,7 +288,10 @@
   #stackView .stkCard .trigBadge{position:absolute; top:-5px; left:calc(50% - 34px); font-size:13px; line-height:1; padding:2px 3px; border-radius:6px;
     background:rgba(20,22,30,.92); box-shadow:0 0 0 1px rgba(232,195,122,.55); pointer-events:none;}   /* marks a TRIGGER: nobody cast this card */
   #stackView .stkCard.inbound{visibility:hidden;}   /* the real card waits while its ghost is in the air */
-  .stkGhost{position:fixed; z-index:40; pointer-events:none; margin:0; will-change:transform, opacity;}
+  /* `.card.stkGhost`, NOT `.stkGhost`: a ghost IS a `.card`, and `.card`'s own `position:relative` comes later in the
+     sheet at the same specificity, so it won — the ghost sat IN FLOW at the end of <body>, stole its height from the board
+     and moved the hand up (Aj, after a King form: "a weird banner appeared underneath my hand? or my hand moved up"). */
+  .card.stkGhost{position:fixed; z-index:40; pointer-events:none; margin:0; will-change:transform, opacity;}
   /* THE COLUMN STAYS ABOVE THE WAITING DIM (drag-and-stack step 3). While another seat holds priority the play area
      dims under "<name> is deciding…" (`showTrimWait`), and the column sat under it — so the stack was hidden at
      exactly the moment you are waiting on someone to answer it. */

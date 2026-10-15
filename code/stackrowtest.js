@@ -130,8 +130,21 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await wait(400);
   await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="bt3C"]'))[0]; if(g) g.click(); });
   await wait(250);
+  const board0=await p.evaluate(()=>Math.round(document.getElementById('board').getBoundingClientRect().bottom));
   await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && !c.disabled) c.click(); });
-  await wait(2700);
+  /* AND IT LANDS IN THE COLUMN WITHOUT MOVING THE BOARD (2026-10-15). The ghost is a `.card`, and `.card`'s
+     `position:relative` beat `.stkGhost`'s `position:fixed` in the cascade, so it sat IN FLOW at the end of <body>:
+     78px below the hand, the board shorter by its height, the hand moved up. Aj saw it after a King form ("a weird
+     banner appeared underneath my hand? or my hand moved up"); every assertion here counted the ghost and passed.
+     Read the RENDERED box: fixed, its centre inside the column, the hand where it was, nothing past the viewport. */
+  await wait(900);
+  const geo=await p.evaluate(()=>{ const g=document.querySelector('.stkGhost[data-arrive]'), z=document.getElementById('castZone').getBoundingClientRect();
+    if(!g) return { none:true }; const r=g.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+    return { pos:getComputedStyle(g).position, inCol:cx>=z.left && cx<=z.right && cy>=z.top && cy<=z.bottom, ghost:[Math.round(r.top),Math.round(r.left)],
+             board:Math.round(document.getElementById('board').getBoundingClientRect().bottom), overflow:document.body.scrollHeight-window.innerHeight }; });
+  ok(!geo.none && geo.pos==='fixed' && geo.inCol, '  …and its ghost is fixed in place over the column, not in the page\'s flow  ['+JSON.stringify(geo)+']');
+  ok(!geo.none && geo.board===board0 && geo.overflow<=0, '  …and the board keeps its height while it is there (bottom at '+board0+'), and nothing hangs below the screen  ['+JSON.stringify(geo)+']');
+  await wait(1800);
   const arr=await p.evaluate(()=>({ seen:window.__arrive.filter(a=>a.card==='bt3C'), left:document.querySelectorAll('.stkGhost').length, boost:window.__solo.st().players[0].nextPlayBoost||0 }));
   ok(arr.boost>0 && arr.seen.some(a=>a.arrive), 'A CAST THAT RESOLVED AT ONCE STILL ARRIVES IN THE COLUMN — its card flew in though it was never on the stack  ['+JSON.stringify(arr)+']');
   ok(arr.left===0, '  …and nothing is left behind once it has faded');
