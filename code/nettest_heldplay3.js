@@ -102,7 +102,7 @@ const why=p=>p.evaluate(()=>({
   await c1.evaluate(()=>document.getElementById('fightBtn').click());
   let cast=false, beat=false; const t0=Date.now();
   while(Date.now()-t0<15000){
-    if(!cast) cast=!!(await clickQuick(host, null, '.respQuick[data-id="hq9D"]'));
+    if(!cast) cast=!!(await clickQuick(host, {id:'hq9D'}));
     await declineIfUp(c2);
     if(await c1.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent) d.click(); const hw=document.getElementById('handWrap'); return !!(hw && hw.classList.contains('fightFlash'));   /* the Fight Sub-Phase is a strip flash since 2026-10-14 */ })) beat=true;
     if(cast && beat && /Someone answered/.test((await why(c1)).msg)) break;

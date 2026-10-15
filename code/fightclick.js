@@ -235,8 +235,21 @@ function respQuicks(page, sel) {   // the text of each VISIBLE Quick button, whi
     .map(b => b.textContent.replace(/\s+/g, ' ')), sel || '.respQuick');
 }
 /* Clicks the first visible, enabled match and returns its text, or null when there is none. `text` is a
- * RegExp or a string (a string matches without case); `sel` narrows by attribute, e.g. `.respQuick[data-tseat="2"]`. */
+ * RegExp or a string (a string matches without case); `sel` narrows by attribute, e.g. `.respQuick[data-tseat="2"]`.
+ * OR AN OPTIONS OBJECT, `{name, id, seat, equip, pitch, oid}` (drag-and-stack step 4, piece 1): WHAT you mean to
+ * cast and at what, rather than how today's Respond? box happens to mark its buttons. Step 4 moves answering onto
+ * the board (the box shrinks to its sentence and Yes / No), and a suite that names a `data-*` selector would have
+ * to be rewritten then; one that names its choice is rewritten once, here. `seat` and `equip` are the target (a
+ * rival, a piece of Equipment), `pitch` the Broadway card, `oid` the stack object a Counter Spell names, `id` the
+ * Quick itself, `name` its effect name. Today each maps onto the box's own attribute. */
 function clickQuick(page, text, sel) {
+  if (text && typeof text === 'object' && !(text instanceof RegExp)) {
+    const o = text, q = s => String(s).replace(/"/g, '\\"');
+    sel = '.respQuick' + (o.id != null ? '[data-id="' + q(o.id) + '"]' : '') + (o.seat != null ? '[data-tseat="' + q(o.seat) + '"]' : '') +
+          (o.equip != null ? '[data-tequip="' + q(o.equip) + '"]' : '') + (o.pitch != null ? '[data-pitch="' + q(o.pitch) + '"]' : '') +
+          (o.oid != null ? '[data-coid="' + q(o.oid) + '"]' : '');
+    text = o.name != null ? o.name : null;
+  }
   return page.evaluate(([s, src, flags]) => {
     const b = [].slice.call(document.querySelectorAll(s)).filter(x => x.offsetParent !== null && !x.disabled &&
       (src == null || new RegExp(src, flags).test(x.textContent || '')))[0];
@@ -246,6 +259,16 @@ function clickQuick(page, text, sel) {
     return t;
   }, [sel || '.respQuick', text == null ? null : (text instanceof RegExp ? text.source : String(text)),
       text instanceof RegExp ? text.flags : 'i']);
+}
+/* THE ENGINE'S ANSWER, NOT THE BOX'S BUTTONS (step 4, piece 1): what this seat could cast into the window right now,
+   `[{id, name}]`, read through `castableQuicks` on `__cmf` (netplay) or `__solo`. The box stops listing them in step 4,
+   so a suite that asks "is Leyline on offer?" asks this instead. */
+function castableQuicks(page) {
+  return page.evaluate(() => { const h = (window.__cmf && window.__cmf.castableQuicks) || (window.__solo && window.__solo.castableQuicks); return h ? h() : null; });
+}
+// does this seat hold priority right now (a window is owed to it), whether or not a box is on screen
+function holdsPriority(page) {
+  return page.evaluate(() => { const h = (window.__cmf && window.__cmf.holdsPriority) || (window.__solo && window.__solo.holdsPriority); return h ? h() : null; });
 }
 function windowUp(page) {   // a Respond? window is on screen right now
   return page.evaluate(() => [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null));
@@ -299,4 +322,4 @@ async function waitHold(page, budgetMs) {
 }
 
 module.exports = { clickFight, selectAndFight, clickPass, installPageHelpers, FIGHT_BUDGET, waitHold,
-                   respQuicks, clickQuick, windowUp, clickDecline, driveStep };
+                   respQuicks, clickQuick, windowUp, clickDecline, driveStep, castableQuicks, holdsPriority };

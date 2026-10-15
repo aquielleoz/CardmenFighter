@@ -45,7 +45,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     const t0=performance.now(); let castAt=null;
     if(opts.cast){ sel('bt3C'); await sleep(250); const cb=document.getElementById('ctxBtn'); if(!cb || cb.disabled) return { err:'⚡ not offered' }; castAt=performance.now(); cb.click(); await sleep(120); }
     const during={ hold:window.__solo.castHold(), hint:(document.getElementById('hint').textContent||'').trim(), boost:window.__solo.st().players[0].nextPlayBoost||0, box:boxUp(),
-                   onStack:(window.__solo.st().stack||[]).some(o=>o.card && o.card.id==='bt3C') };
+                   onStack:(window.__solo.st().stack||[]).some(o=>o.card && o.card.id==='bt3C'), holds:window.__solo.holdsPriority() };
     if(opts.box){ let at=null; for(let i=0;i<300;i++){ if(boxUp()){ at=performance.now(); break; } await sleep(20); }
       const r={ during, boxAfter: at==null?null:Math.round(at-castAt) }; const d=document.getElementById('respDecline'); if(d && d.offsetParent!==null) d.click(); return r; }
     sel('x9H'); await sleep(150);
@@ -87,6 +87,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const d=await castAndWatch(po, {cast:true, box:true});
   ok(!d.err && d.during.onStack && d.during.hold>0 && !d.during.box, 'D · STAGED: cast in ON, it waits on the stack for your answer, and no box is up while the flash runs  ['+JSON.stringify(d.during)+']');
   ok(d.boxAfter!=null && d.boxAfter>=2300, 'D · THE RESPOND? BOX OPENS ONLY ONCE THE FLASH HAS RUN  [after '+d.boxAfter+'ms]');
+  /* PRIORITY IS YOURS BEFORE ANY BOX IS UP (`holdsPriority`, drag-and-stack step 4). The step-4 helpers must tell
+     "a window is owed to me" from "a box is on screen": after Yes they differ for good, and during this hold they
+     already do. */
+  ok(d.during.holds===true && !d.during.box, '  …and priority is already yours while no box is up — owing a window is not showing one  ['+JSON.stringify({holds:d.during.holds, box:d.during.box})+']');
   await po.close();
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.join(' | '):''));

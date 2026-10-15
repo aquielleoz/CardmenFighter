@@ -108,7 +108,7 @@ const why=p=>p.evaluate(()=>({
   const b1=await buttonsOn(c1,'data-tseat');
   ok(b1.length===2, 'client 1 is offered Back Stab once PER RIVAL  ['+b1.map(x=>x.t).join(' | ')+']');
   // client 1's frame is rotated: the host (absolute 0) is its seat 2, client 2 (absolute 2) its seat 1
-  await clickQuick(c1, null, '.respQuick[data-tseat="2"]');
+  await clickQuick(c1, {seat:2});
   ok(await until(async()=>await host.evaluate(()=>window.__cmf.lock(0)===true), 60), 'it locked the HOST — the rival it chose');
   ok(await host.evaluate(()=>window.__cmf.lock(2)===false), '…and NOT client 2, the old default (the next seat)');
 
@@ -120,7 +120,7 @@ const why=p=>p.evaluate(()=>({
   await castOnHost('h6H');
   const b2=await buttonsOn(c1,'data-tequip');
   ok(b2.length===2 && b2.some(x=>/Holy Shroud/.test(x.t)), 'client 1 is offered Annoint once PER PIECE of Equipment  ['+b2.map(x=>x.t).join(' | ')+']');
-  await clickQuick(c1, null, '.respQuick[data-tequip="eqB"]');
+  await clickQuick(c1, {equip:'eqB'});
   const prot=async()=>host.evaluate(()=>{ const r=window.__cmf.roundNow(), e=window.__cmf.equipOf(1)||[]; return { r, A:(e.find(x=>x.id==='eqA')||{}).protectedRound, B:(e.find(x=>x.id==='eqB')||{}).protectedRound }; });
   ok(await until(async()=>{ const x=await prot(); return x.B===x.r; }, 60), 'it protected the SECOND piece — the one it chose  '+JSON.stringify(await prot()));
   const pz=await prot();

@@ -91,7 +91,7 @@ async function openLesson(id, viewport){
       }
       const ov=document.getElementById('overlay');
       if(!ov || !ov.classList.contains('show')) return null;
-      const PASS=[['respDecline','Respond? window'],['pfDecline','pre-fight window'],['sgNo','shield guard window']];   // each label carries its own noun: a pick is not a window
+      const PASS=[['respDecline','Respond? window']];   // the pre-fight (`pfDecline`) and shield-guard (`sgNo`) windows were folded into the go-round at epic steps 19-20   // each label carries its own noun: a pick is not a window
       for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
       return null; });
     /* A FLOOD OF THESE IS A PRODUCT CHANGE, NOT A HARNESS PROBLEM — read it that way before touching the

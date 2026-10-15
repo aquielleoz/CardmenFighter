@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -185,7 +185,7 @@ node upkeepstrandtest.js                        # NO WINDOW OWED TO THE RIVAL SU
                                                 # answering it BEFORE the draw. A floor (`drainStrandedWindow`) drains any
                                                 # AI window still open at a hand-back and logs `⚠ … WAS STILL OPEN AT THE
                                                 # HAND-BACK`; mutants: no root fix → the floor's line, neither → the wedge
-node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (9). Drag-and-stack
+node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (10). Drag-and-stack
                                                 # ruling 20 (Aj: *"as long as the art flash should be good"*, and
                                                 # *"yes"* to holding the game for your own and other humans' casts).
                                                 # One timer, started where every seat presents a cast
@@ -2578,7 +2578,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.3 — last FULL sweep 2026-10-15, `npm run sweep`, 128/128 in 452s** (this line was
+Status as of **v1.33.16.4 — last FULL sweep 2026-10-16, `npm run sweep`, 128/128 in 453s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2594,7 +2594,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 9, `upkeepstrandtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 10, `upkeepstrandtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

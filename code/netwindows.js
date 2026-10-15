@@ -41,7 +41,7 @@ async function install(page, label, opts) {
   await page.evaluate(function (grace) {
     if (window.__nw) return;                       // idempotent: a suite may install twice via startDuel
     window.__nw = { n: 0, seenAt: 0, kind: null, last: null };
-    var PASS = [['respDecline', 'Respond?'], ['pfDecline', 'pre-fight'], ['sgNo', 'shield guard']];
+    var PASS = [['respDecline', 'Respond?']];   // `pfDecline` (the pre-fight window) and `sgNo` (the shield guard) are gone: epic steps 19-20 folded both into the go-round
     setInterval(function () {
       var ov = document.getElementById('overlay');
       if (!ov || !ov.classList.contains('show')) { window.__nw.seenAt = 0; return; }

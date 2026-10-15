@@ -438,7 +438,14 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    helpers change first (`fightclick`, `netwindows`, `lessonlib`), so most suites follow with no edits; then
    every seat at once, through `promptHumanResponse`. The AUTO question is ruled (ruling 21). **The inventory taken
    before building it is [`DRAG-AND-STACK-STEP4.md`](DRAG-AND-STACK-STEP4.md)**: what changes, the test blast radius,
-   the traps, a ten-piece build order, and eight open questions with defaults.
+   the traps, a ten-piece build order, and eight open questions with defaults. *Piece 1 built (v1.33.16.4):* the test helpers learn to name a
+   choice rather than a box button. `clickQuick` takes `{name, id, seat, equip, pitch, oid}`, which maps onto today's
+   `data-*` attributes and is where piece 5 routes a board cast; the seven suites that passed raw selectors use it.
+   `castableQuicks` and `holdsPriority` (read-only hooks on `__solo` and `__cmf`, read through `fightclick`) give
+   the engine's answer and "a window is owed to me" without reading the box. The dead `pfDecline` / `sgNo` ids
+   left `netwindows` and `lessonlib`. The board branches the inventory lists for these helpers (Yes, then Pass) are
+   deliberately NOT written yet: they have nothing to drive until piece 3 adds Yes, and an unexercised branch is
+   untested code.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
