@@ -9733,6 +9733,11 @@ window.CardFace = {};
   function startCastHold(card){
     var until=Date.now()+artFlashMs(card); if(until<=castHoldUntil) return;
     castHoldUntil=until; castHoldCard=card; clearTimeout(castHoldT); var g=gen;
+    /* …AND THE CONTROLS SAY SO AT ONCE. A guest learns of a cast from the host's announcement, which presents and
+       renders nothing else, so its ⚡ and Fight stayed drawn live for the whole hold while every press was refused
+       in silence — the enabled-but-inert control this file has a rule against (`nettest_piles` clicked one).
+       Deferred a tick, because this is reached from inside presentation code that may itself be mid-render. */
+    setTimeout(function(){ if(g===gen && state && castHolding()) render(); }, 0);
     castHoldT=setTimeout(function(){ castHoldT=null; if(g===gen && state) render(); }, castHoldLeft()+15);   // the board comes back on its own
   }
   function afterCastHold(g, fn){ var w=castHoldLeft(); if(w<=0) return fn(); setTimeout(function(){ if(g===gen) afterCastHold(g, fn); }, w+15); }

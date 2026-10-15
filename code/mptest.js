@@ -7,7 +7,7 @@
  * NOTE ai.js already handled both correctly for AI-vs-AI turns; only the human-acts paths were broken.
  * Run: node mptest.js */
 const { chromium } = require('playwright');
-const { clickFight, driveStep } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { clickFight, driveStep, waitHold } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -123,6 +123,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   // The window OPENS for seat 2 (verified at engine level: respondFor===2). The fix is that it now DRAINS.
   // P3 declines here because Back to the Books is a harmless draw — respondDecision only counters real
   // threats — so the observable proof is the drain, not a counter line.
+  await waitHold(p); await wait(250);   // the AI seats answer only once your cast's art flash has run (ruling 20)
   ok(await p.evaluate(()=>{ const st=window.__solo.st(); return !st.pending && st.respondFor==null; }),
      'the seat-2 response window DRAINED (before the fix nothing handled respondFor 2+ and the turn parked)');
   ok(await p.evaluate(()=>window.__solo.st().turn===0), '…and it is still your turn, not a stalled board');
@@ -257,6 +258,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   await p.evaluate(()=>{ const t=document.querySelector('.oppPanel[data-seat="2"]'); if(t)t.click(); }); await wait(250);
   await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(700);
   ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)<nrg0, 'confirming with ⚡ Activate finally spends the energy');
+  await waitHold(p); await wait(300);   // …and the target discards once the cast's art flash has run (ruling 20)
   ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length<2), '…and resolves against the seat you aimed at (P3, not the default next seat)');
   /* …AND THE LOG NAMES THE SEAT THAT DISCARDED (discard-line-hardcodes-rival). The line after YOUR discard effect
      was a hardcoded "Rival discarded 2 cards." — nobody in particular at three seats (Bibong's v1.33.1 log, after

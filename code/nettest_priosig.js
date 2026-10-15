@@ -197,22 +197,17 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
      'fight end copy: the LEAD names the striker ("' + strikerName + '") and the play, not "a Special"' +
      (strikerName ? '' : '  ← lead read: "' + lead1.slice(0, 140) + '"'));
 
-  /* THE STACK VIEW SHOWS THE PENDING LOSS. The go-round runs on an EMPTY stack, so before this the panel
-     was blank during the one window where something is at stake. */
+  /* THE STACK VIEW DOES NOT SHOW THE PENDING LOSS — AND THE BOX DOES (drag-and-stack ruling 18, 2026-10-14). Aj:
+     *"pending shield loss? those aren't part of the stack!"*; PHASES-AND-PRIORITY §1 and §4 say the same. This
+     asserted the opposite until then: a red "You lose a shield" row in the stack view, written so that the one
+     window with something at stake was not blank. It is not blank now because the box's LEAD says the stake, so
+     the claim moved there with its agreement check: this client IS the struck seat, so the lead must say so in
+     the second person, and the old "You loses" must not creep back.
+     ⚠ THE SAME SUITE-PINS-THE-OLD-RULE TELL CLAUDE.md NAMES: it went red BECAUSE the product changed on purpose. */
   const sv = await stackText();
-  /* ⚠ THIS ASSERTED `/loses a shield/` UNTIL 2026-09-17 AND SO PINNED A GRAMMAR BUG. The verb was taken
-     from the TARGET COUNT alone, so a single target named "You" read **"You loses a shield"** — the
-     agreement failure this repo has shipped four times, here in a RENDERER rather than a `say()` template,
-     which is why `nettest_narrate`'s static scan never saw it (that scan reads `say(` call sites). Fixing
-     the product turned this line red, which is the tell CLAUDE.md already names: a suite going red BECAUSE
-     you fixed something. The rule wins; the suite changes.
-     ASSERT THE CLAIM AND THE AGREEMENT, not the spelling of one verb. The client reading this IS the
-     struck seat, so the correct rendering is second person — and the negative is what stops the old
-     wording creeping back while the positive stays satisfiable for a reader who is NOT the target. */
-  ok(/\ba shield\b/i.test(sv), 'fight end copy: the stack view shows the pending loss' + (/\ba shield\b/i.test(sv)?'':'  ← stackView read: "'+sv.slice(0,120)+'"'));
-  ok(/You lose a shield/.test(sv) && !/You loses/.test(sv),
-     'fight end copy: …and it agrees with the reader it names — this client IS the struck seat, so "You lose"' +
-     (/You loses/.test(sv) ? '  ← REPRODUCED: "' + sv.slice(0, 120) + '"' : ''));
+  ok(!/shield/i.test(sv), 'fight end copy: the stack view shows NO pending loss — a shield loss is not on the stack' + (/shield/i.test(sv)?'  ← stackView read: "'+sv.slice(0,120)+'"':''));
+  ok(/YOUR\b.*shield/i.test(lead1) && !/You loses/.test(lead1),
+     'fight end copy: …and the box\'s lead says the stake to the seat it names, in the second person  ["' + lead1.slice(0, 120) + '"]');
 
   /* AT ZERO SHIELDS IT IS THE KICK, and saying "a shield" there would understate the only decision that
      can end the game. Same window, one field different. */

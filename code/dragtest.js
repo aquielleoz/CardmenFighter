@@ -102,7 +102,7 @@ async function dragOnto(page, idA, idB){
      `mk` builds the composite id the DOM uses (`tag+rank+suit`). */
   /* EVERY CAST HOLDS THE BOARD FOR ITS ART FLASH (drag-and-stack ruling 20), so a leg that follows a cast waits the
      hold out before staging, or it stages into a board that refuses everything for the next 2.5s. */
-  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))) return; await wait(100); } };
+  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))){ if(i) await wait(80); return; } await wait(100); } };   // …plus one beat for the re-render that ends it
   const stage=async(sub)=>{ await waitHold(); return stageNow(sub); };
   const stageNow=(sub)=>p.evaluate((sub)=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:t+r+s});
     const you=st.players[0];

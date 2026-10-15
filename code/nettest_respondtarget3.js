@@ -12,7 +12,7 @@
  * Run: node nettest_respondtarget3.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight, clickQuick } = require('./fightclick');
+const { clickFight, clickQuick, waitHold } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8465),ROOM='RT'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -93,7 +93,7 @@ const why=p=>p.evaluate(()=>({
 
 
   const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
-  const castOnHost=async id=>{ await host.evaluate(i=>{ const c=document.querySelector('#hand .card[data-id="'+i+'"]'); if(c) c.click(); }, id); await wait(250);
+  const castOnHost=async id=>{ await waitHold(host);   /* the last cast (or answer) still holds the board for its art flash (ruling 20) */ await host.evaluate(i=>{ const c=document.querySelector('#hand .card[data-id="'+i+'"]'); if(c) c.click(); }, id); await wait(250);
     await host.evaluate(()=>{ const a=document.getElementById('cardActivate'), x=document.getElementById('ctxBtn'); if(a&&a.offsetParent&&!a.disabled) a.click(); else if(x&&!x.disabled) x.click(); }); };
   const buttonsOn=async(p,attr)=>{ for(let i=0;i<80;i++){ await declineIfUp(host); await declineIfUp(c2);
       const bs=await p.evaluate(a=>[...document.querySelectorAll('.respQuick['+a+']')].filter(b=>b.offsetParent!==null).map(b=>({v:b.getAttribute(a), t:b.textContent.replace(/\s+/g,' ').trim()})), attr);

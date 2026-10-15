@@ -38,7 +38,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      Rival's pair of 7s on the table to copy from. */
   /* EVERY CAST HOLDS THE BOARD FOR ITS ART FLASH (drag-and-stack ruling 20), so a leg that follows a cast waits the
      hold out before staging, or it stages into a board that refuses everything for the next 2.5s. */
-  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))) return; await wait(100); } };
+  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))){ if(i) await wait(80); return; } await wait(100); } };   // …plus one beat for the re-render that ends it
   const stageBoard=async(pile)=>{ await waitHold(); return stageBoardNow(pile); };
   const stageBoardNow=(pile)=>p.evaluate((pile)=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
     const you=st.players[0];

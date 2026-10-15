@@ -31,7 +31,7 @@
  * Run: node resolutiontest_ui.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline, waitHold } = require('./fightclick');
 const path = require('path');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -540,7 +540,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       c.click();
       const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
       if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
-      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      if (cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
       return 'not offerable';
     });
     let how = null;
@@ -578,7 +578,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       c.click();
       const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
       if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
-      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      if (cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
       return 'not offerable';
     });
     await until(async () => { how2 = await cast2(); return how2 === 'icon' || how2 === 'ctx'; }, 40);
@@ -845,6 +845,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       if (cb && !cb.disabled && !/off/.test(cb.className)) { cb.click(); return true; }
       return false; });
     ok(cast, 'H · you cast your own Technique — the go-round starts at the controller, which is you');
+    await waitHold(p);   // the go-round reaches you once your cast's art flash has run (ruling 20)
     await wait(900);
     /* NOW CROSS MAIN -> FIGHT THROUGH THE REAL BUTTON, which is what the discriminator needs: a boundary
        window with no cast of yours on the stack. It has to be the BUTTON — `clearTransition` calls

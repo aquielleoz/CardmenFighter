@@ -32,8 +32,19 @@
  * Quick, which is the 1-turn-in-20 case; everywhere else the crossing auto-advances. */
 const FIGHT_BUDGET = 15000;
 
+/* EVERY CAST HOLDS THE BOARD FOR ITS ART FLASH (drag-and-stack ruling 20), and Fight and Pass are DISABLED while it
+   runs — so a press made inside it is not swallowed, it is refused, and `clickFight` reads that as 'no-button'.
+   Both helpers wait the hold out first, inside the page, through whichever hook the page has. A hold is at most a
+   card's flash (2.5s), so this is a wait on a TIMER and never stretches with load. Written out in both helpers,
+   because a `page.evaluate` body cannot call a function defined out here.
+   ⚠ AND IT WAITS ONE BEAT PAST THE HOLD. The board is re-rendered by a timer ~15ms AFTER the hold's end, so for
+   that moment `castHold()` reads 0 while Fight is still the disabled button the hold drew — and `.click()` on a
+   disabled button does nothing at all. `nettest_heldplay3` lost exactly that race about one run in five. */
+
 async function clickFight(page, budgetMs) {
   return page.evaluate(async (budget) => {
+    const hold = () => { const h = (window.__cmf && window.__cmf.castHold) || (window.__solo && window.__solo.castHold); return h ? h() : 0; };
+    if (hold() > 0) { for (let i = 0; i < 120 && hold() > 0; i++) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // a cast's art flash still holds the board — then one beat for its re-render
     const btn = () => document.getElementById('fightBtn');
     const first = btn();
     if (!first || first.disabled) return 'no-button';
@@ -114,6 +125,8 @@ async function selectAndFight(page, ids, budgetMs) {
  * `Next` went with Next (drag-and-stack step 1); a hidden Pass now just waits to be shown. */
 async function clickPass(page, budgetMs) {
   return page.evaluate(async (budget) => {
+    const hold = () => { const h = (window.__cmf && window.__cmf.castHold) || (window.__solo && window.__solo.castHold); return h ? h() : 0; };
+    if (hold() > 0) { for (let i = 0; i < 120 && hold() > 0; i++) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // a cast's art flash still holds the board — then one beat for its re-render
     const pass = () => document.getElementById('passBtn');
     const shown = () => { const b = pass(); return b && b.offsetParent !== null ? b : null; };
     const until = Date.now() + budget;
@@ -274,5 +287,16 @@ function driveStep(page) {
   });
 }
 
-module.exports = { clickFight, selectAndFight, clickPass, installPageHelpers, FIGHT_BUDGET,
+/* WAIT OUT A CAST'S HOLD (ruling 20). For a suite that casts and then acts in its own code rather than through
+   `clickFight` / `clickPass`: the next play, cast or pass is refused until the flash ends. True when it ended. */
+async function waitHold(page, budgetMs) {
+  return page.evaluate(async (budget) => {
+    const hold = () => { const h = (window.__cmf && window.__cmf.castHold) || (window.__solo && window.__solo.castHold); return h ? h() : 0; };
+    const until = Date.now() + budget;
+    if (hold() > 0) { while (hold() > 0 && Date.now() < until) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // …and one beat for the board's re-render
+    return hold() === 0;
+  }, budgetMs || 6000);
+}
+
+module.exports = { clickFight, selectAndFight, clickPass, installPageHelpers, FIGHT_BUDGET, waitHold,
                    respQuicks, clickQuick, windowUp, clickDecline, driveStep };

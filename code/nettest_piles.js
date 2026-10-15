@@ -31,7 +31,7 @@ const cast=(p,id)=>p.evaluate(cid=>{
   c.click();
   var ca=document.getElementById('cardActivate'), cx=document.getElementById('ctxBtn');
   if(ca && ca.offsetParent!==null && !ca.disabled && !/off/.test(ca.className)){ ca.click(); return 'icon'; }
-  if(cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
+  if(cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }   // VISIBLE: a cast's hold hides it with its label intact (ruling 20)
   return 'not offerable';
 }, id);
 /* WHAT A VIEWER SHOWS: its title, the rows it lists, and its hint — read off the open modal, then closed. */

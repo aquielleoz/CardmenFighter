@@ -21,7 +21,7 @@
  * Run: node nettest_heldplay.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickQuick } = require('./fightclick');
+const { clickQuick, waitHold } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8457),ROOM='HP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -78,6 +78,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
 
   // ---------------- A: the HOST commits, the CLIENT casts into its go-round ----------------
   const a=await commitAndWatch(host, join, 'h10C', 'cq9D');
+  await waitHold(host);   // the Leyline cast into the go-round holds this board for its art flash (ruling 20)
   const ab=await board(host);
   ok(/Fight/.test(a.pre.label), 'A: STAGED — the host pressed ⚔️ Fight with a card selected ('+a.pre.label+')');
   ok(a.cast, 'A: …and the client cast Leyline into that go-round');
@@ -94,6 +95,7 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(await until(()=>myTurn(join), 120), 'B: the turn reached the client');
   await until(()=>join.evaluate(()=>{ const h=(document.getElementById('hint')||{}).textContent||''; return !/Hold on|fighting|Waiting/.test(h); }), 80);
   const bb0=await commitAndWatch(join, host, 'c11C', 'hq9D');
+  await waitHold(join);   // the Leyline cast into the go-round holds this board for its art flash (ruling 20)
   const bb=await board(join);
   ok(/Fight/.test(bb0.pre.label), 'B: STAGED — the client pressed ⚔️ Fight with a card selected ('+bb0.pre.label+')');
   ok(bb0.cast, 'B: …and the host cast Leyline into that go-round');

@@ -183,7 +183,14 @@ node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR 
                                                 # at 136ms. `nettest_stackfly` leg C is the guest's own cast.
                                                 # ⚠ NOT `busy`: a dozen drivers clear `busy`, and a guest recomputes it
                                                 # from every mirror. A suite that casts and then acts must wait the
-                                                # hold out (`__solo.castHold()` / `__cmf.castHold()` read what is left)
+                                                # hold out (`__solo.castHold()` / `__cmf.castHold()` read what is left;
+                                                # `fightclick`'s `waitHold`, and `clickFight`/`clickPass` already do).
+                                                # Two traps the first sweep after it found, 13 suites red: the board's
+                                                # re-render lands ~15ms AFTER the hold reads 0, and `.click()` on the
+                                                # still-disabled Fight does nothing (wait one beat past it); and the
+                                                # hold HIDES `#ctxBtn` with its "⚡ Activate" label intact, so a
+                                                # helper that matched the label and not `offsetParent` "cast" nothing
+                                                # (fourteen copies of that test across nine suites, all fixed)
 node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: one Respond?
                                                 # button per Broadway card for a pitch Quick, and a Broadway-only
                                                 # pick (Confirm / Cancel) in Main. Asserts WHICH card left via the

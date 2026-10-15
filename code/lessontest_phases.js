@@ -241,7 +241,11 @@ const { openLesson } = require('./lessonlib');
      The win establishes a shield really was on the line; "prevented" establishes Leyline is what stopped it.
      Asserting the shield COUNT alone is what let this pass for three runs with Leyline unplayed in hand and
      the round not even resolved, so the count below is kept as the outcome and this is kept as the stake. */
-  const tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
+  /* THE ROUND RESOLVES ONCE LEYLINE'S ART FLASH HAS RUN (drag-and-stack ruling 20: every cast holds the game for it),
+     so the "prevented" line lands about 2.5s after the step advances. Poll for it rather than read once. */
+  let tail = [];
+  for (let i = 0; i < 60; i++) { tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
+    if (tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t))) break; await new Promise(r=>setTimeout(r,100)); }
   ok(tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t)),
      '…on a round you actually LOST, and the log says the loss was PREVENTED  [' + (tail.filter(t=>/prevented/i.test(t))[0]||'no such line') + ']');
   ok((await st()).players[0].shields===shBefore,
