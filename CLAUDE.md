@@ -174,7 +174,7 @@ node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET
 node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (9). Drag-and-stack
                                                 # ruling 20 (Aj: *"as long as the art flash should be good"*, and
                                                 # *"yes"* to holding the game for your own and other humans' casts).
-                                                # One timestamp, started where every seat presents a cast
+                                                # One timer, started where every seat presents a cast
                                                 # (`presentStackArrival`): the board refuses plays, casts and passes
                                                 # (`castHolding()`), the hint names the card, a Respond? box and
                                                 # solo's AI answers wait for it. Pairs: a no-cast CONTROL; your cast
@@ -182,15 +182,19 @@ node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR 
                                                 # flash's length); and in ON your own box opening after the flash, not
                                                 # at 136ms. `nettest_stackfly` leg C is the guest's own cast.
                                                 # ⚠ NOT `busy`: a dozen drivers clear `busy`, and a guest recomputes it
-                                                # from every mirror. A suite that casts and then acts must wait the
+                                                # from every mirror. ⚠ AND NOT A `Date.now()` TIMESTAMP: `browsertest`
+                                                # clamps every `setTimeout` to 8ms, a timestamp ignored the clamp, and
+                                                # twelve duels outran the 300s cap. A flag a `setTimeout` clears, with
+                                                # its waiters QUEUED and run by that timer after the re-render. A suite that casts and then acts must wait the
                                                 # hold out (`__solo.castHold()` / `__cmf.castHold()` read what is left;
                                                 # `fightclick`'s `waitHold`, and `clickFight`/`clickPass` already do).
-                                                # Two traps the first sweep after it found, 13 suites red: the board's
-                                                # re-render lands ~15ms AFTER the hold reads 0, and `.click()` on the
-                                                # still-disabled Fight does nothing (wait one beat past it); and the
-                                                # hold HIDES `#ctxBtn` with its "⚡ Activate" label intact, so a
-                                                # helper that matched the label and not `offsetParent` "cast" nothing
-                                                # (fourteen copies of that test across nine suites, all fixed)
+                                                # Two traps the first sweep after it found, 13 suites red: the hold
+                                                # HIDES `#ctxBtn` with its "⚡ Activate" label intact, so a helper that
+                                                # matched the label and not `offsetParent` "cast" nothing (fourteen
+                                                # copies across nine suites, all fixed); and a polled timestamp left
+                                                # ~15ms between "the hold reads 0" and the render that re-enabled
+                                                # Fight, where `.click()` on a disabled button does nothing. The timer
+                                                # closed that gap; the helpers still wait one beat past a hold
 node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: one Respond?
                                                 # button per Broadway card for a pitch Quick, and a Broadway-only
                                                 # pick (Confirm / Cancel) in Main. Asserts WHICH card left via the

@@ -9727,20 +9727,32 @@ window.CardFace = {};
      wire for it: the guest's own box simply opens when its own flash ends.
      NOT `busy`: `busy` is set and cleared by a dozen drivers and recomputed from every mirror on a guest, so a hold
      written into it would be cleared early by whichever of them ran next. A timestamp cannot be. */
-  var castHoldUntil=0, castHoldCard=null, castHoldT=null;
-  function castHoldLeft(){ return Math.max(0, castHoldUntil-Date.now()); }
-  function castHolding(){ return castHoldLeft()>0; }
+  /* ONE TIMER, NOT A TIMESTAMP. The hold is a flag that a `setTimeout` clears, and whatever waits on it is QUEUED and run
+     by that same timer, right after the board is re-rendered. Two reasons, both found by the sweep: a timestamp was
+     immune to `browsertest`'s clamp on `setTimeout` (every animation it runs is cut to 8ms; a 2.5s hold measured by
+     `Date.now()` was not, so twelve duels outran the 300s cap), and polling it left a ~15ms gap between "the hold reads
+     over" and the render that re-enabled Fight, which a click could fall into. `castHoldLeft()` stays, for suites. */
+  var castHoldOn=false, castHoldUntil=0, castHoldCard=null, castHoldT=null, castHoldWaiters=[];
+  function castHoldLeft(){ return castHoldOn ? Math.max(1, castHoldUntil-Date.now()) : 0; }
+  function castHolding(){ return castHoldOn; }
+  function releaseCastHold(g){
+    castHoldT=null; castHoldOn=false;
+    var w=castHoldWaiters; castHoldWaiters=[];
+    if(g!==gen || !state) return;
+    render();                                                    // the board comes back…
+    w.forEach(function(x){ if(x.g===gen && !castHoldOn) x.fn(); else if(x.g===gen) castHoldWaiters.push(x); });   // …then whoever was waiting, unless a new cast started a new hold
+  }
   function startCastHold(card){
-    var until=Date.now()+artFlashMs(card); if(until<=castHoldUntil) return;
-    castHoldUntil=until; castHoldCard=card; clearTimeout(castHoldT); var g=gen;
+    var ms=artFlashMs(card), until=Date.now()+ms; if(castHoldOn && until<=castHoldUntil) return;
+    castHoldUntil=until; castHoldCard=card; castHoldOn=true; clearTimeout(castHoldT); var g=gen;
     /* …AND THE CONTROLS SAY SO AT ONCE. A guest learns of a cast from the host's announcement, which presents and
        renders nothing else, so its ⚡ and Fight stayed drawn live for the whole hold while every press was refused
        in silence — the enabled-but-inert control this file has a rule against (`nettest_piles` clicked one).
        Deferred a tick, because this is reached from inside presentation code that may itself be mid-render. */
-    setTimeout(function(){ if(g===gen && state && castHolding()) render(); }, 0);
-    castHoldT=setTimeout(function(){ castHoldT=null; if(g===gen && state) render(); }, castHoldLeft()+15);   // the board comes back on its own
+    setTimeout(function(){ if(g===gen && state && castHoldOn) render(); }, 0);
+    castHoldT=setTimeout(function(){ releaseCastHold(g); }, ms);
   }
-  function afterCastHold(g, fn){ var w=castHoldLeft(); if(w<=0) return fn(); setTimeout(function(){ if(g===gen) afterCastHold(g, fn); }, w+15); }
+  function afterCastHold(g, fn){ if(!castHoldOn) return fn(); castHoldWaiters.push({ g:g, fn:fn }); }
   /* THE ART POP STEPS LEFT OF THE CAST COLUMN, AND SHRINKS ONLY WHEN IT MUST (drag-and-stack step 3). The pop is
      centred in a full-screen layer, so on a laptop it sat squarely over the column the cast was landing in: the card
      arrived under its own art. Aj, asked how the two should share the screen: *"shift if there's enough space, shrink
@@ -13711,7 +13723,7 @@ window.CardFace = {};
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
-    castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null;   // a cast hold never outlives its game (ruling 20)
+    castHoldOn=false; castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null; castHoldWaiters=[];   // a cast hold never outlives its game (ruling 20)
     prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
