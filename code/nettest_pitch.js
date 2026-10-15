@@ -55,7 +55,7 @@ let host, join;
       const bs=await join.evaluate(()=>[...document.querySelectorAll('.respQuick[data-pitch]')].filter(b=>b.offsetParent!==null).map(b=>({pitch:b.getAttribute('data-pitch'), text:b.textContent.replace(/\s+/g,' ')})));
       if(bs.length) return bs; await wait(150); } return []; })();
   ok(btns.length===2 && btns.some(x=>x.pitch==='c10H') && btns.some(x=>x.pitch==='c1S'), 'the Respond? window offers ONE BUTTON PER BROADWAY CARD  ['+btns.map(x=>x.text.trim()).join(' | ')+']');
-  await clickQuick(join, null, '.respQuick[data-pitch="c1S"]');
+  await clickQuick(join, {pitch:'c1S'});
   ok(await until(async()=>(await clientHand()).indexOf('c7C')<0, 60), 'the client cast Armor Piercing through the host');
   const h1=await clientHand();
   ok(h1.indexOf('c1S')<0 && h1.indexOf('c10H')>=0, 'the pitch it CHOSE left — the Ace — and the 10 (the default) stayed  ['+h1+']');

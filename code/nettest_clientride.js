@@ -28,7 +28,7 @@
  *     own turn hand-over), so the Ride is legal for it. Its other cards are no Quick at base.
  * Run: node nettest_clientride.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { selectAndFight, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
+const { selectAndFight, respQuicks, clickQuick, windowUp, clickDecline, castableQuicks } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8483),ROOM='CR'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -51,8 +51,8 @@ const declineOn=clickDecline;
    3ms after the Ride, before the host held priority at all, the engine answered "No response window.", the
    real window then opened unwatched, `netwindows` passed it after its grace, and the leg went GREEN having
    cast nothing. Legs A and B had the same race and won it on timing. */
-const quickBtnOn=(p,id)=>respQuicks(p, '.respQuick[data-id="'+id+'"]').then(a=>a.length>0);
-const castOn=(p,id)=>clickQuick(p, null, '.respQuick[data-id="'+id+'"]').then(t=>t!=null);
+const quickBtnOn=async(p,id)=>(await windowUp(p)) && ((await castableQuicks(p))||[]).some(q=>q.id===id);   // the window is up and the ENGINE offers it (step 4 empties the box of buttons)
+const castOn=(p,id)=>clickQuick(p, {id:id}).then(t=>t!=null);
 /* THE RIDE ON SCREEN, by name. Collapsed, a zone shows `.formChip` chips; expanded, `.formMini` cards — both
    carry the Form's name in their title, which is the one thing that says WHICH card landed. */
 const rideOn=(p,zone,name)=>p.evaluate(a=>[].slice.call(document.querySelectorAll(a.zone+' .formChip.ride, '+a.zone+' .formMini.ride')).some(c=>(c.title||'').indexOf(a.name)===0), {zone, name});
