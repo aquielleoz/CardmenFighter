@@ -86,6 +86,26 @@ let host, join;
   ok(bJoin, 'B: …and in the guest\'s own');
   ok(await host.evaluate(()=>(window.__cmf.handOf(1)||[]).indexOf('c4D')<0), '  …and it really was cast: Counter Spell left the guest\'s hand on the host');
 
+  // ================= C: a guest's own cast holds the GUEST's board for its art flash (ruling 20) =================
+  /* The hold starts where every seat presents a cast (`presentStackArrival`), so a guest holds for its own cast when
+     the host's announcement comes back. Measured inside the guest's page, from its own ⚡ click. */
+  await wait(2600);
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su}); const E=(s,t)=>[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>C(n,s,t));
+    window.__cmf.forceAll([[C(3,'S','h'),C(6,'H','h')], [C(3,'C','g'),C(9,'H','g')]], [[], E('C','ge')], null, {round:3, turn:1}); });
+  await until(()=>join.evaluate(()=>window.__cmf.turn()===0 && !!document.querySelector('#hand .card[data-id="g3C"]')), 60);
+  await wait(400);
+  const gc=await join.evaluate(async()=>{ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+    const sel=id=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="'+id+'"]'))[0]; if(g) g.click(); return !!g; };
+    sel('g3C'); await sleep(250); const cb=document.getElementById('ctxBtn'); if(!cb || cb.disabled) return { err:'⚡ not offered' };
+    const t0=performance.now(); cb.click();
+    let held=null; for(let i=0;i<100;i++){ const h=(document.getElementById('hint').textContent||''); if(/is being cast/.test(h)){ held=h.trim(); break; } await sleep(20); }
+    sel('g9H'); await sleep(100); const fightDuring=!document.getElementById('fightBtn').disabled;
+    let at=null; for(let i=0;i<300;i++){ if(!document.getElementById('fightBtn').disabled){ at=performance.now(); break; } await sleep(20); }
+    return { held, fightDuring, liveAfter: at==null?null:Math.round(at-t0) }; });
+  ok(!gc.err && gc.held && /Brilliant Tactic/.test(gc.held) && !gc.fightDuring,
+     'C: A GUEST\'S OWN CAST HOLDS THE GUEST\'S BOARD — Fight off, and the hint names the card  ['+JSON.stringify(gc)+']');
+  ok(gc.liveAfter!=null && gc.liveAfter>=2300 && gc.liveAfter<=4500, '  …and it comes back on its own once the flash has run  [live after '+gc.liveAfter+'ms]');
+
   await wait(2600);
   ok(await host.evaluate(()=>document.querySelectorAll('.stkGhost').length===0) && await join.evaluate(()=>document.querySelectorAll('.stkGhost').length===0), 'no ghost is left behind on either screen');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));

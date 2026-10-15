@@ -36,7 +36,11 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
   /* Aj's board: J♣ Giant Boar + Q♣ Hippolyta in the zone, ♠8 Counterfeit and a real 7♣ in hand, and the
      Rival's pair of 7s on the table to copy from. */
-  const stageBoard=(pile)=>p.evaluate((pile)=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+  /* EVERY CAST HOLDS THE BOARD FOR ITS ART FLASH (drag-and-stack ruling 20), so a leg that follows a cast waits the
+     hold out before staging, or it stages into a board that refuses everything for the next 2.5s. */
+  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))) return; await wait(100); } };
+  const stageBoard=async(pile)=>{ await waitHold(); return stageBoardNow(pile); };
+  const stageBoardNow=(pile)=>p.evaluate((pile)=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
     const you=st.players[0];
     you.forms=[{rank:11,suit:'C',tier:'ride',name:'Giant Boar',card:mk(11,'C','f11C')},
                {rank:12,suit:'C',tier:'queen',name:'Hippolyta',card:mk(12,'C','f12C')}];
@@ -128,6 +132,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   // select both 7s — the exact thing Aj was refused
   await p.evaluate(id=>{ [...document.querySelectorAll('#hand .group')].forEach(g=>{
     if(g.querySelector('.card[data-id="my7"]')||g.querySelector('.card[data-id="'+id+'"]')) g.click(); }); }, copy?copy.id:'x');
+  await waitHold();   // selecting is free during the cast's hold (ruling 20); the verdict below is the board's once it is over
   await wait(350);
   const ui = await p.evaluate(()=>({
     hint:(document.getElementById('hint').textContent||'').trim(),

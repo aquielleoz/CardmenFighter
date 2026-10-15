@@ -164,13 +164,26 @@ node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET
                                                 # Drag-and-stack step 3: the stack as CARDS newest-first, one ghost
                                                 # per new cast and none left behind, a hit test under the waiting
                                                 # dim landing on the column, and a cast that resolved at once still
-                                                # ARRIVING. `nettest_stackfly` (12) is the netplay half: the host's
+                                                # ARRIVING. `nettest_stackfly` (14) is the netplay half: the host's
                                                 # instant Technique and its Sabotage land in the guest's column, and
                                                 # a guest's answer lands in both. Rulings 18-19: a pending shield
                                                 # loss is NOT drawn on the stack (a shield loss is not an effect),
                                                 # and an upkeep trigger shows its Equipment's card, a tile only once
                                                 # that Equipment is gone. And the ART POP clears the column, both
                                                 # ways: shifted at 1440 wide, shrunk at 1100
+node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (9). Drag-and-stack
+                                                # ruling 20 (Aj: *"as long as the art flash should be good"*, and
+                                                # *"yes"* to holding the game for your own and other humans' casts).
+                                                # One timestamp, started where every seat presents a cast
+                                                # (`presentStackArrival`): the board refuses plays, casts and passes
+                                                # (`castHolding()`), the hint names the card, a Respond? box and
+                                                # solo's AI answers wait for it. Pairs: a no-cast CONTROL; your cast
+                                                # held and released at ~2.5s; reduced motion at ~0.9s (the hold IS the
+                                                # flash's length); and in ON your own box opening after the flash, not
+                                                # at 136ms. `nettest_stackfly` leg C is the guest's own cast.
+                                                # ⚠ NOT `busy`: a dozen drivers clear `busy`, and a guest recomputes it
+                                                # from every mirror. A suite that casts and then acts must wait the
+                                                # hold out (`__solo.castHold()` / `__cmf.castHold()` read what is left)
 node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: one Respond?
                                                 # button per Broadway card for a pitch Quick, and a Broadway-only
                                                 # pick (Confirm / Cancel) in Main. Asserts WHICH card left via the
@@ -2556,7 +2569,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 20, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 20, `castholdtest` 9, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2565,7 +2578,7 @@ The 80 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 18, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 12.
+`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 18, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

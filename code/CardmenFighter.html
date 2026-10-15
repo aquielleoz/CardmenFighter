@@ -9710,10 +9710,32 @@ window.CardFace = {};
     var twoPhase = _tx && !reduceMotion();
     if(_tx && reduceMotion()) cap.classList.add('showText');                        // reduced motion: text shown immediately, no phased reveal
     else if(twoPhase) flashArt._t2=setTimeout(function(){ if(g===gen) cap.classList.add('showText'); }, 850);   // beat 2
-    var dur = twoPhase ? 2500 : (reduceMotion()?900:1350);
+    var dur = artFlashMs(card);
     wrap.style.setProperty('--flashdur', dur+'ms');   // the pop/fade animation runs the full flash length so it doesn't vanish early
     flashArt._t=setTimeout(function(){ if(g===gen){ wrap.classList.remove('show','you'); var fc=wrap.querySelector('.flashCard'); if(fc) fc.remove(); img.style.display=''; cap.classList.remove('showText'); } }, dur);
   }
+  // how long a card's art flash runs — two beats for a card with effect text, one otherwise. The cast hold is this long too.
+  function artFlashMs(card){ var ef=(card && E.effectOf) ? E.effectOf(card) : null; return (ef && ef.text && !reduceMotion()) ? 2500 : (reduceMotion() ? 900 : 1350); }
+  /* EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (drag-and-stack ruling 20). Aj, asked how long a cast should stay in
+     the column: *"as long as the art flash should be good"*; asked whether your own and other humans' casts should
+     hold the game for it too, as an AI's already did through `revealDwell`: *"yes"*.
+     ONE FUNNEL STARTS IT: `presentStackArrival`, which every presentation path already calls on every seat (your
+     cast, an AI's, a guest's through `showFx`, an answer through `cueAIAnswer`). WHILE IT RUNS nobody on THIS seat
+     acts: the board refuses plays, casts and passes (`castHolding()` beside `busy` in each entry point, selecting
+     cards stays free), `updateActions` says why, a Respond? box waits to open (`promptHumanResponse`), and solo's AI
+     seats wait to answer (`settleWindows`). Each seat holds for its own flash, so a netplay host never waits on the
+     wire for it: the guest's own box simply opens when its own flash ends.
+     NOT `busy`: `busy` is set and cleared by a dozen drivers and recomputed from every mirror on a guest, so a hold
+     written into it would be cleared early by whichever of them ran next. A timestamp cannot be. */
+  var castHoldUntil=0, castHoldCard=null, castHoldT=null;
+  function castHoldLeft(){ return Math.max(0, castHoldUntil-Date.now()); }
+  function castHolding(){ return castHoldLeft()>0; }
+  function startCastHold(card){
+    var until=Date.now()+artFlashMs(card); if(until<=castHoldUntil) return;
+    castHoldUntil=until; castHoldCard=card; clearTimeout(castHoldT); var g=gen;
+    castHoldT=setTimeout(function(){ castHoldT=null; if(g===gen && state) render(); }, castHoldLeft()+15);   // the board comes back on its own
+  }
+  function afterCastHold(g, fn){ var w=castHoldLeft(); if(w<=0) return fn(); setTimeout(function(){ if(g===gen) afterCastHold(g, fn); }, w+15); }
   /* THE ART POP STEPS LEFT OF THE CAST COLUMN, AND SHRINKS ONLY WHEN IT MUST (drag-and-stack step 3). The pop is
      centred in a full-screen layer, so on a laptop it sat squarely over the column the cast was landing in: the card
      arrived under its own art. Aj, asked how the two should share the screen: *"shift if there's enough space, shrink
@@ -10055,6 +10077,7 @@ window.CardFace = {};
   var recentlyFlown={};
   function cardFlewRecently(id){ return !!(recentlyFlown[id] && Date.now()-recentlyFlown[id]<2500); }
   function presentStackArrival(seat, card){
+    if(card && card.rank!=null && state) startCastHold(card);   // ruling 20: the game holds for this cast's art flash — reduced motion and an object already on the stack included
     if(!card || card.rank==null || !state || reduceMotion()) return;
     if((state.stack||[]).some(function(o){ return o.card && o.card.id===card.id; })) return;
     if(cardFlewRecently(card.id)) return;
@@ -10067,13 +10090,14 @@ window.CardFace = {};
     var tx=zr.left+zr.width/2-gw/2, ty=zr.top+zr.height/2-gh/2;
     g.style.left=tx+'px'; g.style.top=ty+'px'; g.style.width=gw+'px'; g.style.height=gh+'px';
     document.body.appendChild(g);
-    var dx=(src.left+src.width/2)-(tx+gw/2), dy=(src.top+src.height/2)-(ty+gh/2), gg=gen, gone=false;
+    var dx=(src.left+src.width/2)-(tx+gw/2), dy=(src.top+src.height/2)-(ty+gh/2), gg=gen, gone=false, dur=artFlashMs(card);   // it rests in the column as long as the art flash (ruling 20)
     var done=function(){ if(gone) return; gone=true; if(g.parentNode) g.parentNode.removeChild(g); if(!document.querySelector('.stkGhost[data-arrive]')) cz.classList.remove('arriving'); };
     if(!g.animate){ done(); return; }
-    var a=g.animate([{ transform:'translate('+dx+'px,'+dy+'px) scale(.75)', opacity:.35 }, { transform:'none', opacity:1, offset:.35 },
-                     { transform:'none', opacity:1, offset:.8 }, { transform:'scale(.9)', opacity:0 }], { duration:1500, easing:'ease-out' });
+    var landAt=Math.min(.35, 520/dur), fadeAt=Math.max(landAt, 1-300/dur);   // lands in ~0.5s, fades over the last 0.3s, whatever the length
+    var a=g.animate([{ transform:'translate('+dx+'px,'+dy+'px) scale(.75)', opacity:.35 }, { transform:'none', opacity:1, offset:landAt },
+                     { transform:'none', opacity:1, offset:fadeAt }, { transform:'scale(.9)', opacity:0 }], { duration:dur, easing:'ease-out' });
     a.onfinish=done; a.oncancel=done;
-    setTimeout(function(){ if(gg!==gen || !gone) done(); }, 2200);   // never leave a ghost behind
+    setTimeout(function(){ if(gg!==gen || !gone) done(); }, dur+700);   // never leave a ghost behind
   }
   // your own cast or answer: shown here, and announced to the table when you are the netplay host
   /* `NET.sendFx` IS THE HOST'S EXISTING ANNOUNCEMENT (v1.31.93, `fxSend`), and the cast tails reach it through here —
@@ -10326,7 +10350,7 @@ window.CardFace = {};
   // Is this card an effect card that gets an Activate button at all? (Quick boosts and
   // Phantasm have their own buttons and never use Activate.) This decides whether the button SHOWS.
   function activatableCard(card){
-    if(!card || state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return false;
+    if(!card || state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick) return false;
     var eff=E.effectOf(card);
     if(!eff || !eff.impl || eff.kind==='phantasm') return false;   // quicks are proactively castable now (fizzle if no target)
     if(eff.kind==='transform' && state && state.basics) return false;                       // BASICS: J/Q/K are plain high cards — no ⚡ transform
@@ -10419,7 +10443,7 @@ window.CardFace = {};
   function hideTip(){ if(_tipEl) _tipEl.classList.remove('show'); }
   document.addEventListener('click', function(){ hideTip(); }, false);   // any other click dismisses it (button handlers stopPropagation)
   function useEquip(equipId){
-    if(state.turn!==YOU||state.finished||busy||pick) return;
+    if(state.turn!==YOU||state.finished||busy||castHolding()||pick) return;
     var e=state.players[YOU].equipment.filter(function(x){return x.id===equipId;})[0];
     var r=E.useEquipment(state, YOU, equipId);
     if(!r.ok){ setMessage(r.reason); return; }
@@ -10751,7 +10775,7 @@ window.CardFace = {};
      inside the column keeps it; anywhere else unstages it. */
   var stagedDrag=null;
   function onStagedDown(e){
-    if(!staged || peeking || busy) return;
+    if(!staged || peeking || busy || castHolding()) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var el=e.currentTarget; stagedDrag={ el:el, x:e.clientX, y:e.clientY, ghost:null };
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
@@ -10790,7 +10814,7 @@ window.CardFace = {};
   }
   function onPointerDown(e, gid, el){
     if(peeking) return;                                     // no drag-to-play while reviewing
-    if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return;
+    if(state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var g=groupById(gid); if(g && g.cards[0]) showCard(g.cards[0]);
     drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, zone:null, hl:null };
@@ -10926,7 +10950,7 @@ window.CardFace = {};
     });
   }
   function canHumanPlay(cards){
-    if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick || E.isLocked(state, YOU)) return false;
+    if(state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick || E.isLocked(state, YOU)) return false;
     /* ⚠ AND A DRAG OBEYS THE LESSON'S CARD LIST TOO. `only` was enforced in `updateActions`, which is the
        FIGHT BUTTON's path — a drag-to-play never passes through it, so a lesson could be broken by
        dragging what it had just refused to let you press Fight with. Same shape as the v1.31.56 client
@@ -11205,6 +11229,12 @@ window.CardFace = {};
     if(busy){
       fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
       hint.textContent='Hold on — the board is still resolving.'; hint.className='';
+      return;
+    }
+    if(castHolding()){                                         // ruling 20: a cast's art flash holds the game; `startCastHold` re-renders when it ends
+      var hc=castHoldCard, hn=(hc && ((E.effectOf(hc)||{}).name || (E.cardName && E.cardName(hc)))) || 'a card';
+      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
+      hint.textContent='Hold on — '+hn+' is being cast.'; hint.className='';
       return;
     }
     if(E.isLocked(state, YOU)){                               // Back Stab: you can't play or activate this round
@@ -11498,7 +11528,7 @@ window.CardFace = {};
     done(fin);
   }
   function activate(cardId, _opts){
-    if(state.turn!==YOU||state.finished||busy||pick||targeting||targetPick) return;
+    if(state.turn!==YOU||state.finished||busy||castHolding()||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     var card=cardById(cardId); var eff=card?E.effectOf(card):null;
     if(!card||!eff||!eff.impl) return;
@@ -11721,7 +11751,7 @@ window.CardFace = {};
      CLIENT's pass goes through `E.pass`, which refuses with `transition:'play'` and is re-applied under a
      brake. The hole is the LOCAL funnel that reaches past the engine, so this is where it closes. */
   function doFight(){
-    if(peeking||busy||pick||targeting||targetPick) return;
+    if(peeking||busy||castHolding()||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     /* AN EMPTY PRESS IS NOT A MOVE (drag-and-stack step 1). It used to be `Next`, the phase move out of Main,
        and a client sent `toFight` for it. The button is disabled with nothing chosen now, so a call that gets
@@ -11778,7 +11808,7 @@ window.CardFace = {};
     }, null, 'Fight');
   }
   function doPass(){
-    if(peeking||busy||pick||targeting||targetPick) return;
+    if(peeking||busy||castHolding()||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
@@ -11901,7 +11931,7 @@ window.CardFace = {};
 
   // PHANTASMAL ILLUSION (fight action): is it available, and can it beat the current play?
   function phantInfo(){
-    if(state.turn!==YOU || !state.pile || state.finished || busy) return null;
+    if(state.turn!==YOU || !state.pile || state.finished || busy || castHolding()) return null;
     var you=state.players[YOU];
     var pc=you.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.kind==='phantasm'; })[0];
     if(!pc) return null;                                              // no button unless you hold it
@@ -11945,7 +11975,7 @@ window.CardFace = {};
     return -1;
   }
   function doPhantasm(e){
-    if(busy||pick||targeting||targetPick) return;
+    if(busy||castHolding()||pick||targeting||targetPick) return;
     var info=phantInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
     pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId, bare:!!info.bare };   // the swap is OPTIONAL
@@ -12894,6 +12924,10 @@ window.CardFace = {};
     // NETPLAY HOST: the Rival is a remote human — route through NET so their response windows wait on the wire
     // (instead of the AI loop below), while the host's own windows still pop the normal modal.
     if(typeof NET!=='undefined' && NET.hostSettleActive && NET.hostSettleActive()){ return (MP() && NET.hostSettleN) ? NET.hostSettleN(g, done) : NET.hostSettle(g, done); }
+    /* ruling 20: the AI seats answer once the cast's flash has run. RENDER FIRST — a cast tail's only render is often
+       inside `done`, so waiting without one left the board 2.5s stale: the cast card still staged, the hand unchanged
+       (`dragtest`, the first run). */
+    if(castHolding()){ render(); return afterCastHold(g, function(){ settleWindows(g, done); }); }
     var guard=0, lastResp=null, lastQ=null;
     // Drain the window for ANY AI seat. This used to loop on `respondFor===RIVAL` only, and the branch
     // below handles `respondFor===YOU` — so in a free-for-all a window owed to seat 2+ was handled by
@@ -12929,7 +12963,7 @@ window.CardFace = {};
         if(g!==gen) return;
         if(state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
         render(); done();
-      }, reduceMotion()?300:1400);
+      }, Math.max(castHoldLeft(), reduceMotion()?300:1400));   // the answer holds for its own flash (ruling 20); the old beat is the floor
     }
     if(state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
     render(); done();
@@ -13013,6 +13047,13 @@ window.CardFace = {};
   }
   function promptHumanResponse(g, cont){
     cont = cont || function(){ resumeRival(g); };
+    /* RULING 20: THE BOX OPENS WHEN THE CAST'S FLASH ENDS, not over it. On a guest the window can move while it waits
+       (the mirror is the authority), so it re-checks that priority is still this seat's; solo and the host cannot
+       lose it, because nobody else can act in a window this seat holds. */
+    if(castHolding()){ render(); return afterCastHold(g, function(){
+      if(state && state.respondFor===YOU) return promptHumanResponse(g, cont);
+      if(!(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive())) cont();
+    }); }
     /* THERE MAY BE NO OBJECT. The window is `respondFor`; `pending` is the object it is about, and a Fight
        End go-round has none (step 11). Everything below is null-safe so the modal RENDERS rather than throwing
        — the Fight End WORDING is step 14's, and lands before step 18 makes such a window reachable. */
@@ -13665,6 +13706,7 @@ window.CardFace = {};
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
+    castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null;   // a cast hold never outlives its game (ruling 20)
     prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
@@ -18758,7 +18800,7 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ fightFlashes:function(){ return fightFlashLog.slice(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
@@ -18805,7 +18847,7 @@ window.CardFace = {};
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ fightFlashes:function(){ return fightFlashLog.slice(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give

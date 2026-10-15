@@ -231,7 +231,12 @@ The three earlier asks this answers:
     visualizer, Aj: *"as long as the art flash should be good"*. Asked whether your own casts and other humans'
     casts should also hold the game for it (today only an AI's cast does, through `revealDwell`), Aj: *"yes"*.
     So the card stays in the column for the flash's length (`flashArt`'s 2500ms with effect text, 1350ms
-    without, 900ms reduced motion) and nobody acts until it ends, on every seat. To build in step 3.
+    without, 900ms reduced motion) and nobody acts until it ends, on every seat. *Built in step 3:* one hold, started
+    where every seat presents a cast (`presentStackArrival`), for that card's flash length (`artFlashMs`). While it
+    runs the seat's board refuses plays, casts and passes, the hint reads "Hold on — <card> is being cast.", a
+    Respond? box waits, and solo's AI seats wait to answer. Selecting cards stays free. Each seat holds for its own
+    flash, so a netplay host never waits on the wire for it. The ghost that lands a resolved cast in the column now
+    rests there for the same length.
 
 ## Still open
 
