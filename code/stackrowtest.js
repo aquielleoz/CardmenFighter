@@ -3,8 +3,9 @@
  * Aj, with a screenshot of the Respond? window: *"what is the strip targeting?"* — the row read
  * `Flonne ▸ Forceful Strip · 7♦ (resolves next)` and never named the Equipment, which is the whole decision
  * about spending Annoint. `test.js` asserts `E.stackTargetOf` per kind; this asserts the ROW, in the page,
- * reader-relative. The board's #stackView and the Respond? modal's "On the stack" box are the same function
- * (`stackRowsHTML`), so reading one reads both.
+ * reader-relative. The caption is `stackObjPhrase`, under each card of the board's #stackView. (The Respond? box
+ * carried a copy of these rows, `stackRowsHTML`, until drag-and-stack step 4, piece 8 shrank it to its sentence; that
+ * sentence names the target with the same `stackTargetPhrase`.)
  *
  * BOTH WAYS ON ONE BOARD: two pieces of Equipment on one rival, the strip aimed at one — the row must name it
  * AND NOT the other. Plus: your own piece reads "your …", and an untargeted row is unchanged (the row is shared).

@@ -593,11 +593,13 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        nothing — so the DOM really holds the stale buttons, and `respQuicks`, `windowUp` and `clickQuick` all
        refuse them. Without the first half, "the helpers see nothing" is also true of a page with no buttons. */
     const closed = await until(() => p.evaluate(() => !document.getElementById('overlay').classList.contains('show')), 40);
-    const left = await p.evaluate(() => ({ quick: document.querySelectorAll('.respQuick').length, decline: !!document.getElementById('respDecline') }));
+    /* RE-POINTED AT YES AND NO (step 4, piece 8): the box lists no Quicks any more, and `hideOverlay` leaves ITS two
+       buttons in the page just as it left the old ones, so they are the stale markup to refuse now. */
+    const left = await p.evaluate(() => ({ yes: !!document.getElementById('respYes'), decline: !!document.getElementById('respDecline') }));
     const seen = await respQuicks(p), upNow = await windowUp(p), pressed = await clickQuick(p);
-    ok(closed && left.quick > 0 && left.decline && seen.length === 0 && !upNow && pressed === null,
-       `C8b · the closed window's buttons are still in the page (${left.quick} Quick, decline ${left.decline}) and the shared reads see none of them` +
-       (closed && left.quick > 0 && left.decline ? '' : '  ← the board has no stale buttons to refuse; this check is vacuous') +
+    ok(closed && left.yes && left.decline && seen.length === 0 && !upNow && pressed === null,
+       `C8b · the closed window's Yes and No are still in the page (Yes ${left.yes}, No ${left.decline}) and the shared reads see none of them` +
+       (closed && left.yes && left.decline ? '' : '  ← the board has no stale buttons to refuse; this check is vacuous') +
        (seen.length || upNow || pressed !== null ? `  ← REPRODUCED: respQuicks [${seen.join(' | ').slice(0, 60)}] windowUp ${upNow} clicked "${pressed}"` : ''));
     await p.close(); }
 
@@ -707,11 +709,18 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        "Sanctuary" was in the text because it was on offer, not because it was on the stack. The same
        mistake `nettest_priosig` records one file over — it matched /Rival/ against the whole modal and a
        mutant survived inside `tableContextHTML`. Scope the read to the element under test. */
-    const stackRow = await p.evaluate(() => { const r = document.querySelector('#modal .ctxStack');
-      return r ? (r.textContent || '').replace(/\s+/g, ' ').trim() : null; });
-    ok(stackRow !== null,
-       'F · THE WINDOW SHOWS THE STACK — the board\'s #stackView is behind the overlay, so this is the only copy the player can read' +
-       (stackRow !== null ? '' : '  ← REPRODUCED: no stack row in the window; only the top object is named, via respIncoming'));
+    /* THE BOARD'S STACK, READABLE WHILE THE BOX ASKS (ruling 23; drag-and-stack step 4, piece 8). The box used to cover
+       the board and carry a copy of these rows; now it sits clear of the cast column on an overlay that does not dim,
+       so the stack the player reads is the board's own. Asserted as GEOMETRY AND PAINT, not presence: the box clear of
+       `#stackView`, and the overlay behind it transparent — present-but-covered is what this scenario exists to catch. */
+    const view = await p.evaluate(() => { const v = document.getElementById('stackView'), m = document.getElementById('modal'), ov = document.getElementById('overlay');
+      if (!v || v.offsetParent === null) return null; const a = v.getBoundingClientRect(), b = m.getBoundingClientRect();
+      const overlap = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      return { up: ov.classList.contains('show'), overlap: Math.round(overlap), bg: getComputedStyle(ov).backgroundColor,
+               row: [...v.querySelectorAll('.stkCap')].map(c => (c.textContent || '').replace(/\s+/g, ' ').trim()).join(' / ') }; });
+    const stackRow = view ? view.row : null;
+    ok(!!view && view.up && view.overlap === 0 && /rgba\(0, 0, 0, 0\)|transparent/.test(view.bg),
+       'F · THE BOARD\'S STACK IS READABLE WHILE THE BOX ASKS — the box clear of it, nothing dimming it  ' + JSON.stringify(view));
     ok(!!stackRow && /Leyline/i.test(stackRow) && /Counter Spell/i.test(stackRow),
        'F · …and the ROW itself names BOTH objects, top and bottom: "' + (stackRow || '(absent)') + '"');
     /* AND IT READS AS ENGLISH TO THE PERSON IT NAMES. Putting the stack in the modal is what exposed this:

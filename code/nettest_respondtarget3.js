@@ -2,7 +2,8 @@
  *
  * `respond` used to push only a Counter Spell's `counterOid`, so Back Stab cast from a Respond? window locked
  * the NEXT rival and Annoint protected your FIRST Equipment — while the same cards cast in Main let you
- * choose. Now: one button per target (the Counter Spell shape), validated by the host.
+ * choose. Now the choice is made ON THE BOARD (drag-and-stack step 4, piece 8 — it used to be one Respond? button per
+ * target): Yes, the card, ⚡, and the rivals or the Equipment it may aim at light up. The host validates the choice.
  * At 3 players because Back Stab's choice only exists with two rivals, and because `hostApplyMoveN` must
  * un-rotate a SEAT target the client sends in its own frame. Both legs are staged so the CHOICE differs from
  * the old default — or "chose" and "defaulted" would read the same.
@@ -12,7 +13,7 @@
  * Run: node nettest_respondtarget3.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const http=require('http'),fs=require('fs'),path=require('path');
-const { clickFight, clickQuick, waitHold } = require('./fightclick');
+const { clickFight, clickQuick, waitHold, respQuicks } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8465),ROOM='RT'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
@@ -95,9 +96,17 @@ const why=p=>p.evaluate(()=>({
   const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
   const castOnHost=async id=>{ await waitHold(host);   /* the last cast (or answer) still holds the board for its art flash (ruling 20) */ await host.evaluate(i=>{ const c=document.querySelector('#hand .card[data-id="'+i+'"]'); if(c) c.click(); }, id); await wait(250);
     await host.evaluate(()=>{ const a=document.getElementById('cardActivate'), x=document.getElementById('ctxBtn'); if(a&&a.offsetParent&&!a.disabled) a.click(); else if(x&&!x.disabled) x.click(); }); };
-  const buttonsOn=async(p,attr)=>{ for(let i=0;i<80;i++){ await declineIfUp(host); await declineIfUp(c2);
-      const bs=await p.evaluate(a=>[...document.querySelectorAll('.respQuick['+a+']')].filter(b=>b.offsetParent!==null).map(b=>({v:b.getAttribute(a), t:b.textContent.replace(/\s+/g,' ').trim()})), attr);
-      if(bs.length) return bs; await wait(150); } return []; };
+  /* OPEN THE ANSWER'S PICK ON CLIENT 1'S BOARD AND REPORT WHAT IT OFFERS: the picker the page says is open, and what is
+     lit for the tap — the rival panels for a seat, YOUR Equipment for Annoint. */
+  const pickOn=async(p,id)=>{ for(let i=0;i<80;i++){ await declineIfUp(host); await declineIfUp(c2);
+      if((await respQuicks(p)).some(t=>t.indexOf(id)>=0)) break; await wait(150); }
+    await p.evaluate(()=>{ const y=document.getElementById('respYes'); if(y && y.offsetParent) y.click(); }); await wait(300);
+    await p.evaluate(i=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="'+i+'"]'))[0]; if(g) g.click(); }, id); await wait(250);
+    await p.evaluate(()=>{ const x=document.getElementById('ctxBtn'); if(x && !x.disabled && !x.classList.contains('off')) x.click(); }); await wait(300);
+    return p.evaluate(()=>({ pick:window.__cmf.answerPick(), seats:[...document.querySelectorAll('.oppPanel.targetable')].map(e=>e.getAttribute('data-seat')),
+      equip:[...document.querySelectorAll('.eq.targetable')].map(e=>e.getAttribute('data-eid')+':'+((e.querySelector('.eqName')||{}).textContent||'')) })); };
+  const choose=async(p,sel)=>{ await p.evaluate(s=>{ const t=document.querySelector(s); if(t) t.click(); }, sel); await wait(250);
+    await p.evaluate(()=>{ const x=document.getElementById('ctxBtn'); if(x && !x.disabled && !x.classList.contains('off')) x.click(); }); };
   const HE=s=>Array.from({length:12},(_,i)=>D(i+1,s,'e'+s+i));
 
   // ===== 1: Back Stab =====
@@ -105,10 +114,10 @@ const why=p=>p.evaluate(()=>({
     { h:[[D(6,'H','h'),D(3,'C','h')],[D(10,'S','a'),D(4,'H','a')],[D(5,'S','b'),D(4,'S','b')]], e:[HE('H'),HE('S'),[]] });
   await wait(700);
   await castOnHost('h6H');
-  const b1=await buttonsOn(c1,'data-tseat');
-  ok(b1.length===2, 'client 1 is offered Back Stab once PER RIVAL  ['+b1.map(x=>x.t).join(' | ')+']');
+  const b1=await pickOn(c1,'a10S');
+  ok(b1.pick && b1.pick.kind==='seat' && b1.pick.cands.length===2 && b1.seats.length===2, 'client 1\'s Back Stab asks WHICH RIVAL, both lit for the tap  ['+JSON.stringify(b1)+']');
   // client 1's frame is rotated: the host (absolute 0) is its seat 2, client 2 (absolute 2) its seat 1
-  await clickQuick(c1, {seat:2});
+  await choose(c1, '.oppPanel[data-seat="2"]');
   ok(await until(async()=>await host.evaluate(()=>window.__cmf.lock(0)===true), 60), 'it locked the HOST — the rival it chose');
   ok(await host.evaluate(()=>window.__cmf.lock(2)===false), '…and NOT client 2, the old default (the next seat)');
 
@@ -118,9 +127,9 @@ const why=p=>p.evaluate(()=>({
     { h:[[D(6,'H','h'),D(3,'C','h')],[D(5,'H','a'),D(4,'D','a')],[D(5,'S','b'),D(4,'S','b')]], e:[HE('H'),HE('H'),[]] });
   await wait(700);
   await castOnHost('h6H');
-  const b2=await buttonsOn(c1,'data-tequip');
-  ok(b2.length===2 && b2.some(x=>/Holy Shroud/.test(x.t)), 'client 1 is offered Annoint once PER PIECE of Equipment  ['+b2.map(x=>x.t).join(' | ')+']');
-  await clickQuick(c1, {equip:'eqB'});
+  const b2=await pickOn(c1,'a5H');
+  ok(b2.pick && b2.pick.kind==='equip' && b2.equip.length===2 && b2.equip.some(x=>/Holy Shroud/.test(x)), 'client 1\'s Annoint asks WHICH OF ITS EQUIPMENT, both lit for the tap  ['+JSON.stringify(b2)+']');
+  await choose(c1, '.eq.targetable[data-eid="eqB"]');
   const prot=async()=>host.evaluate(()=>{ const r=window.__cmf.roundNow(), e=window.__cmf.equipOf(1)||[]; return { r, A:(e.find(x=>x.id==='eqA')||{}).protectedRound, B:(e.find(x=>x.id==='eqB')||{}).protectedRound }; });
   ok(await until(async()=>{ const x=await prot(); return x.B===x.r; }, 60), 'it protected the SECOND piece — the one it chose  '+JSON.stringify(await prot()));
   const pz=await prot();

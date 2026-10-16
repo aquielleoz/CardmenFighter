@@ -20,7 +20,7 @@
  * Run: node prompttest.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { clickFight, installPageHelpers, clickDecline } = require('./fightclick');
+const { clickFight, installPageHelpers, clickDecline, respQuicks } = require('./fightclick');
 const path = require('path');
 const fs = require('fs');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
@@ -236,7 +236,8 @@ async function freshGame(p) {
      and `resolution` off for Counter Spell so each half of the pair meant one thing; with no rows, the
      timing a card speaks at is decided by its STAKE and there is nothing to tick. */
   const withPrompt = await stageCast();
-  ok(!!withPrompt && /Counter Spell/.test(withPrompt),
+  const offeredNow = withPrompt ? await respQuicks(p) : [];   // the engine's offer for the window shown: the box lists no Quicks since step 4, piece 8
+  ok(!!withPrompt && offeredNow.some(t => /Counter Spell/.test(t)),
      'CONTROL: with the prompt ON, the Rival’s cast opens the Respond? window offering Counter Spell' +
      (withPrompt ? '' : '  ← no window opened, so the negative below would prove nothing. Board: ' + lastBoard));
   await clickDecline(p);

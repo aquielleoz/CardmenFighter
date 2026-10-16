@@ -14,7 +14,7 @@
  *
  * Run: node nettest_stackfly.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { clickQuick } = require('./fightclick');
+const { clickQuick, respQuicks } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8462),ROOM='SF'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -77,7 +77,7 @@ let host, join;
     window.__cmf.forceAll([[C(3,'C','hb'),C(6,'H','h'),C(9,'S','h')], [C(4,'D','c'),C(7,'S','c')]], [E('C','he'), E('D','ce')], null, {round:3, turn:0}); });
   await wait(600);
   await cast('hb3C');
-  const offered=await until(()=>join.evaluate(()=>[...document.querySelectorAll('.respQuick')].some(b=>b.offsetParent!==null && /Counter/.test(b.textContent||''))), 60);
+  const offered=await until(async()=>(await respQuicks(join)).some(t=>/Counter/.test(t)), 60);   // the window SHOWN to the guest, with Counter Spell castable (the box lists no Quicks since piece 8)
   ok(offered, 'STAGED: the guest is offered Counter Spell against the host\'s Technique');
   await clickQuick(join, 'Counter');
   const bHost=await until(async()=>(await ghostsFor(host,'c4D'))>0, 40);

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.9**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -159,8 +159,9 @@ node nettest_clientride.js                      # A CLIENT CALLS A RIDE AND THE 
                                                 # middle of it. Both A/B'd by deleting the hand-back / `driveN()`
 node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET (22) — "→ Tank’s Spiked Armor",
                                                 # "→ your Holy Bow", "→ You"; NOT the other piece on the same
-                                                # seat; an untargeted row unchanged. The board's cards and the
-                                                # Respond? box's rows share one phrase (`stackObjPhrase`).
+                                                # seat; an untargeted row unchanged. The phrase is the board's
+                                                # stack caption (`stackObjPhrase`); the small Respond? box names
+                                                # the target with the same `stackTargetPhrase` (step 4, piece 8).
                                                 # Drag-and-stack step 3: the stack as CARDS newest-first, one ghost
                                                 # per new cast and none left behind, a hit test under the waiting
                                                 # dim landing on the column, and a cast that resolved at once still
@@ -174,14 +175,17 @@ node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET
                                                 # FIXED over the column with the board's height unchanged — it is a
                                                 # `.card`, and `.card`'s `position:relative` once beat `.stkGhost`'s
                                                 # `fixed` in the cascade, so it sat in flow and moved the hand up
-node answertest.js                              # YES, AND ANSWERING FROM THE BOARD (8). Drag-and-stack step 4, piece 2:
+node answertest.js                              # YES, AND ANSWERING FROM THE BOARD (12). Drag-and-stack step 4, piece 2:
                                                 # the Respond? box gains Yes, which closes it and leaves the window yours
                                                 # (`answering` / `answerLive()`, NOT `busy` and not raw `respondFor`). The
                                                 # board then answers: Pass DECLINES priority (it used to run `E.pass`, a
                                                 # round pass the engine accepts over an open stack on your own turn) and
                                                 # "Respond?" reopens the box (ruling 24). Pins Yes, the board's state after
                                                 # it, the reopen, Pass declining without sitting you out, and a reopened
-                                                # box still answering. `nettest_answer` (16) is the guest: its Pass travels
+                                                # box still answering. Piece 8's SMALL BOX: no Quick buttons, no Peek,
+                                                # the cast card beside its sentence, a non-seat target named, and the box
+                                                # CLEAR of the pile, the cast column and the strip with nothing dimmed
+                                                # (ruling 23), on desktop and a portrait phone. `nettest_answer` (16) is the guest: its Pass travels
                                                 # as `op:'decline'`, and one that presses Yes and walks away is passed by
                                                 # `netwindows` after its grace (its new after-Yes state); leg C (piece 5)
                                                 # casts from the guest's board and requires `op:'respond'`, never `activate`;
@@ -245,12 +249,13 @@ node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR 
                                                 # ~15ms between "the hold reads 0" and the render that re-enabled
                                                 # Fight, where `.click()` on a disabled button does nothing. The timer
                                                 # closed that gap; the helpers still wait one beat past a hold
-node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: one Respond?
-                                                # button per Broadway card for a pitch Quick, and a Broadway-only
-                                                # pick (Confirm / Cancel) in Main. Asserts WHICH card left via the
+node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: answering from the
+                                                # board, the hand turns into a pick of EXACTLY the Broadway cards
+                                                # (step 4, piece 8 — it was one Respond? button per card), and a
+                                                # Broadway-only pick (Confirm / Cancel) in Main. Asserts WHICH card left via the
                                                 # host's copy of the hand — the 10 is the default, the Ace the choice.
                                                 # Both screens' battle logs must NAME the pitched Ace, on the cast
-                                                # and on the answer (18)
+                                                # and on the answer (19)
 node nettest_counterfeit.js                     # COUNTERFEIT'S PICK ON THE PILE, from a CLIENT (11). The host leads a
                                                 # pair of 7s and the client picks the SECOND one: the host's copy of
                                                 # the client's hand must hold that card (`CF7H#…`), a tap must send
@@ -405,7 +410,8 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # the STRIKER too (Armor Piercing under Hippolyta); C3
                                                 # keeps the narrowness claim C2 used to carry — the same
                                                 # board with the strip already banked forces nothing.
-                                                # F adds the STACK IN THE WINDOW. B's answer line must name the
+                                                # F: the board's STACK stays readable while the box asks —
+                                                # clear of it, undimmed (step 4, piece 8). B's answer line must name the
                                                 # ♦10 it pitched. C8b leaves a closed window's buttons in the page
                                                 # and the shared visible-only reads must refuse them (74)
 node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
@@ -2614,7 +2620,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.8 — last FULL sweep 2026-10-16, `npm run sweep`, 132/132 in 502s** (this line was
+Status as of **v1.33.16.9 — last FULL sweep 2026-10-16, `npm run sweep`, 132/132 in 485s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2630,7 +2636,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 263, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 8, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 22, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2639,7 +2645,7 @@ The 81 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 18, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14, `answer` 16.
+`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14, `answer` 16.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

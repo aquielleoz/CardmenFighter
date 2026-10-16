@@ -17,17 +17,19 @@
  *
  * Run: node lessontest_phases.js */
 const { openLesson } = require('./lessonlib');
+const { clickQuick } = require('./fightclick');
 
 (async()=>{
   const L = await openLesson('phases');
   const { p, ok, until, atStep, next, playSpot, passTurn, st, step, errs } = L;
   const cls = ()=>p.evaluate(()=>((document.getElementById('handWrap')||{}).className||'').match(/sp[A-Z][a-z]+/g)||[]);
-  /* ⚠ VISIBLE, NOT MERELY PRESENT. `hideOverlay()` leaves `#modal`'s markup in the DOM, so a plain
-     `querySelectorAll('.respQuick')` keeps matching the PREVIOUS window's buttons. Not a harmless miss: it
-     returned true, the suite reported the card "offered", and the Leyline claim below then passed against a
-     shield that was never at risk — a green assertion observing nothing. */
-  const respond = (re)=>p.evaluate(rx=>{ const b=[].slice.call(document.querySelectorAll('.respQuick'))
-      .filter(x=>x.offsetParent && new RegExp(rx,'i').test(x.textContent||''))[0]; if(!b) return false; b.click(); return true; }, re);
+  /* ANSWERED FROM THE BOARD (drag-and-stack step 4, piece 8): the box lists no Quicks, so Yes, then the card, ⚡, and —
+     for Counter Spell — the target on the stack (ruling 26). `clickQuick` refuses a card that is not castable BEFORE it
+     presses Yes, so a miss leaves the window as it found it.
+     ⚠ VISIBLE, NOT MERELY PRESENT, still holds for the box's own buttons: `hideOverlay()` leaves `#modal`'s markup in
+     the DOM, so a plain query keeps matching the PREVIOUS window's. The box checks below read Yes by `offsetParent`. */
+  const respond = (re)=>clickQuick(p, new RegExp(re, 'i')).then(t=>t!=null);
+  const boxUp = ()=>{ const y=document.getElementById('respYes'); return !!(y && y.offsetParent!==null); };
   /* ONE DEFINITION FOR ALL THREE WINDOWS — the go-round, Resolution and Clean-up.
      ⚠ VISIBILITY, NEVER PRESENCE: `hideOverlay()` leaves `#modal`'s markup in the DOM, so
      `getElementById('respDecline')` keeps finding the PREVIOUS window's button, which is often correctly
@@ -116,7 +118,7 @@ const { openLesson } = require('./lessonlib');
 
   /* THE COUNTER — ported from `lessontest_quicks`. The Rival casts Infuse with Magic to push its King past
      your Ace; countering is what makes the next step's claim ("they cannot beat it") literally true. */
-  const got = await until(()=>[].some.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null), 'the Respond? window opens', 20000);
+  const got = await until(boxUp, 'the Respond? window opens', 20000);
   ok(got, 'the Rival cast a Technique and the Respond? window opened');
   /* ⚠ HIT-TEST, BECAUSE NO DOM ASSERTION CAN SEE A STACKING BUG. `#tutPanel` was `z-index:80`, chosen
      when `.overlay` was 30; the overlay became `--zNetroot + 1` and the coach panel spent every version
@@ -216,7 +218,7 @@ const { openLesson } = require('./lessonlib');
   /* LEYLINE — the SECOND window, answered by a DIFFERENT Quick. Shields before and after is the claim, and
      it means something only because the pass above put a shield at risk. */
   const shBefore = (await st()).players[0].shields;
-  const got2 = await until(()=>[].some.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null), 'the Resolution window opens', 20000);
+  const got2 = await until(boxUp, 'the Resolution window opens', 20000);
   ok(got2, 'their pair beat yours, and Resolution opened a window');
   ok(await respond('Leyline'), '…offering Leyline Ascension');
   /* A RED RUN MUST EXPLAIN ITSELF — this is the one assertion in the file with somewhere to hide, because
@@ -227,7 +229,7 @@ const { openLesson } = require('./lessonlib');
       const s=window.__solo.st(), b=document.getElementById('respDecline');
       return { panel:((document.querySelector('.tutStep')||{}).textContent||'').trim(),
                wait:((document.querySelector('.tutWait')||{}).textContent||'').trim().slice(0,40),
-               modalUp: !!(b && b.offsetParent), quicks:[].filter.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null).length,
+               modalUp: !!(b && b.offsetParent), quicks:(window.__solo.castableQuicks()||[]).map(function(q){ return q.name; }),
                nextBtn: !!document.getElementById('tutNextBtn'),
                round:s.round, turn:s.turn, sub:s.subPhase, rf:s.respondFor, pend:!!s.pending,
                resolution:!!s.resolution, cleanup:!!s.cleanup, upkeep:!!s.upkeep,

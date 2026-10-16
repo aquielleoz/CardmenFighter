@@ -9,15 +9,16 @@
  * client's hand is the ground truth for WHICH card left. Staged so a default and a choice differ — the 10 is
  * the lowest Broadway card, the Ace is the one chosen — so "the hand shrank" is never the assertion.
  *
- *   1  RESPOND? WINDOW — the host casts a Technique; the client answers with Armor Piercing and the window
- *      offers ONE BUTTON PER BROADWAY CARD; it picks the Ace
+ *   1  RESPOND? WINDOW — the host casts a Technique; the client answers with Armor Piercing FROM THE BOARD (Yes, the
+ *      card, ⚡) and the hand turns into a pick of EXACTLY THE BROADWAY CARDS (step 4, piece 8 — the box used to offer
+ *      one button per card); it picks the Ace
  *   2  MAIN, CANCEL — the client casts Critical Hit, aims it, gets the Broadway-only pick, and backs out:
  *      nothing spent
  *   3  MAIN, CHOOSE — the same cast, and it chooses the Ace
  *
  * Run: node nettest_pitch.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { clickFight, clickQuick, waitHold } = require('./fightclick');
+const { clickFight, clickQuick, waitHold, respQuicks } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8461),ROOM='BP'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -51,11 +52,16 @@ let host, join;
   await wait(250);
   await host.evaluate(()=>{ const a=document.getElementById('cardActivate'), x=document.getElementById('ctxBtn'); if(a&&a.offsetParent&&!a.disabled) a.click(); else if(x&&!x.disabled) x.click(); });
   // the host may hold priority first on its own cast — decline it
-  const btns=await (async()=>{ for(let i=0;i<80;i++){ await host.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent) d.click(); });
-      const bs=await join.evaluate(()=>[...document.querySelectorAll('.respQuick[data-pitch]')].filter(b=>b.offsetParent!==null).map(b=>({pitch:b.getAttribute('data-pitch'), text:b.textContent.replace(/\s+/g,' ')})));
-      if(bs.length) return bs; await wait(150); } return []; })();
-  ok(btns.length===2 && btns.some(x=>x.pitch==='c10H') && btns.some(x=>x.pitch==='c1S'), 'the Respond? window offers ONE BUTTON PER BROADWAY CARD  ['+btns.map(x=>x.text.trim()).join(' | ')+']');
-  await clickQuick(join, {pitch:'c1S'});
+  const offered=await (async()=>{ for(let i=0;i<80;i++){ await host.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent) d.click(); });
+      if((await respQuicks(join)).some(t=>/Armor Piercing/.test(t))) return true; await wait(150); } return false; })();
+  ok(offered, 'STAGED: the client is offered the window, with Armor Piercing castable');
+  await join.evaluate(()=>document.getElementById('respYes').click()); await wait(300);
+  await join.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="c7C"]'))[0]; if(g) g.click(); }); await wait(250);
+  await join.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(300);
+  const pk=await join.evaluate(()=>({ pick:window.__cmf.answerPick(), pickable:[...document.querySelectorAll('#hand .card[data-id]:not(.notpick)')].map(c=>c.getAttribute('data-id')).sort() }));
+  ok(pk.pick && pk.pick.kind==='pitch' && JSON.stringify(pk.pickable)===JSON.stringify(['c10H','c1S']), 'the board asks which BROADWAY CARD to pitch — exactly those two  ['+JSON.stringify(pk)+']');
+  await join.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="c1S"]'); if(c) c.click(); }); await wait(200);
+  await join.evaluate(()=>document.getElementById('fightBtn').click());   // Confirm
   ok(await until(async()=>(await clientHand()).indexOf('c7C')<0, 60), 'the client cast Armor Piercing through the host');
   const h1=await clientHand();
   ok(h1.indexOf('c1S')<0 && h1.indexOf('c10H')>=0, 'the pitch it CHOSE left — the Ace — and the 10 (the default) stayed  ['+h1+']');

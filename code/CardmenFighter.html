@@ -1260,22 +1260,24 @@
   .modal .respQuick:disabled{opacity:.5; cursor:default;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
+  /* THE SMALL RESPOND? BOX (step 4, piece 8; ruling 23): no dim and no blur behind it, so the board stays readable; its
+     place is set by `placeRespondBox`. The card being cast sits beside the sentence (ruling 25), Yes and No side by side. */
+  .overlay.respond{ background:transparent; backdrop-filter:none; display:none; padding:0; }
+  .overlay.respond.show{ display:block; }
+  .overlay.respond .modal.respSmall{ position:absolute; max-width:none; padding:12px 14px; text-align:left; overflow-y:auto; box-shadow:0 12px 34px rgba(0,0,0,.7); }
+  .modal.respSmall h2{ font-size:17px; margin:0 0 8px; }
+  .modal.respSmall .respCast{ display:flex; gap:10px; align-items:flex-start; }
+  .modal.respSmall .respCast .card{ flex:0 0 auto; cursor:help; }
+  .modal.respSmall .respWhat p{ margin:0 0 5px; font-size:13px; line-height:1.4; }
+  .modal.respSmall .respOpts{ flex-direction:row; margin-top:8px; }
+  .modal.respSmall .respOpts button{ flex:1; padding:9px 10px; }
   .modal .respYes{background:var(--panel); color:var(--txt); border:1px solid var(--gold); text-align:center !important; font-weight:800;}   /* Yes: answer from the board (step 4) */
   .modal .respOpts .endNote{margin:0 2px; font-size:12px; line-height:1.35; opacity:.8; text-align:left;}   /* one line of context under the end screen's online buttons; a 🔄 ask overwrites it (see emoteFx) */
   /* the hand Outbalance let you look at — wraps, and scrolls rather than overflowing a short viewport */
   .modal .revealHand{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:10px 0; max-height:40vh; overflow-y:auto;}
-  .modal .respIncoming{margin-top:10px; padding:9px 11px; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:10px; font-size:12.5px; line-height:1.45; opacity:.92;}
   /* inline "what's on the table" context + the peek-at-the-board control (decision & game-over modals) */
-  .modal .ctxBox{margin-top:10px; padding:8px 11px; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:10px; font-size:12.5px; display:flex; flex-direction:column; gap:6px;}
-  .modal .ctxRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-  .modal .ctxRow .ctxLbl{opacity:.5; font-weight:800; text-transform:uppercase; letter-spacing:.4px; font-size:10px; min-width:74px;}
   /* The stack row is the one that can hold several lines, so it tops its label rather than centring it and
      stacks its own rows — the board's `#stackView` is a column too, and `.stk` carries the same look here. */
-  .modal .ctxRow.ctxStack{align-items:flex-start;}
-  .modal .ctxRow.ctxStack > span:last-child{display:flex; flex-direction:column; gap:3px; align-items:flex-start;}
-  .modal .ctxCard{display:inline-block; padding:0 5px; margin:0 1px; border-radius:5px; background:#fbfbf7; color:#1c1c1c; font-weight:800; font-size:12px; line-height:1.6;}
-  .modal .ctxCard.red{color:#c62828;}
-  .modal .peekBtn{margin-top:8px; background:transparent; color:var(--txt); border:1px solid var(--line); opacity:.85; font-weight:700;}
   .overlay.peeking{background:rgba(10,4,16,.14); backdrop-filter:none;}
   /* Peek hides the END SCREEN it is peeking past — but a dialog the player deliberately opens while peeking
      (a pile viewer, the Specials list, Settings) must still show. `.dlg` is set by showModal() while peeking
@@ -7478,7 +7480,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.16.8';
+  var GAME_VERSION='v1.33.16.9';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9276,6 +9278,7 @@ window.CardFace = {};
   function buildEqBox(e, info, opts){
     opts=opts||{};
     var box=document.createElement('div'); box.className='eq '+(info.good?'buff':'debuff')+(opts.flash?' eqFlash':'')+(opts.ghost?' eqSpent':'');
+    if(e.id!=null && !opts.ghost) box.setAttribute('data-eid', e.id);   // which Equipment this is, so a pick can be named rather than found by its text
     var art=e.card && window.CardArt && (window.CardArt[e.card.rank+e.card.suit] || window.CardArt[e.card.id]);
     if(art) box.classList.add('hasArt'), box.style.backgroundImage='linear-gradient(180deg,rgba(8,6,16,.42),rgba(8,6,16,.72)), url("'+art+'")';   // card art behind the text (light scrim keeps it readable)
     /* THE EXPANDED CHIP IS THE DESKTOP BOX — NOTHING NEW (v1.31.110). Aj, of the phone chip beside two expanded
@@ -10001,9 +10004,10 @@ window.CardFace = {};
      stack object). So a player casting into the window saw an empty panel and no statement of the thing
      they were being asked about. It is rendered as a distinct row BELOW the objects, because that is where
      it sits in time: every Quick on the stack resolves first, and the loss lands when the sub-phase begins. */
-  /* THE ROWS ARE THEIR OWN FUNCTION SO THE BOARD AND THE RESPOND MODAL CANNOT DRIFT (2026-09-17). The
-     board's `#stackView` sits UNDER `.overlay`, so the one moment a player most needs to read the stack —
-     being asked for priority — is the one moment it is covered. The modal named only the top object, which
+  /* THE BOARD'S STACK MUST BE READABLE WHILE YOU ARE ASKED (2026-09-17, and ruling 23). It used to sit UNDER the
+     Respond? box's dimmed overlay, so the one moment a player most needs to read the stack — being asked for
+     priority — was the one moment it was covered; the box carried a copy (`stackRowsHTML`) until step 4, piece 8 moved
+     the small box clear of the board instead. The modal named only the top object, which
      is fine at two deep and wrong at three: since epic step 6 a player can hold priority and stack two
      Quicks, and Counter Spell's per-target buttons already assume the player can tell those objects apart.
      Returning a STRING rather than exporting a second renderer is what keeps this one definition; the CSS
@@ -10019,8 +10023,9 @@ window.CardFace = {};
     if(typeof t.seat==='number') return '<b>'+esc(logName(t.seat))+'</b>';
     return '';
   }
-  /* ONE PHRASE PER STACK OBJECT, used by the Respond? box's rows AND the board's cards (drag-and-stack step 3 split
-     `stackRowsHTML` so the board could show cards without a second definition of what each line says). */
+  /* ONE PHRASE PER STACK OBJECT, the caption under each of the board's stack cards. It used to fill the Respond? box's
+     "On the stack" rows too (`stackRowsHTML`); since step 4, piece 8 the box sits beside the board instead of copying it,
+     and its sentence names the target with the same `stackTargetPhrase`. */
   function stackObjPhrase(o, isTop){
     var eff=o.eff, who=logName(o.p);
     /* A TRIGGERED EFFECT HAS NO CAST CARD, SO IT HAS NO `eff` AND NO `card` (2026-09-14). It is
@@ -10066,14 +10071,6 @@ window.CardFace = {};
   }
   function stackObjects(){ return (state.stack||[]).filter(function(o){return o.kind==='effect';}); }
   // the Respond? box's "On the stack" rows — text, newest first (the board shows the same objects as cards)
-  function stackRowsHTML(){
-    var objs=stackObjects();
-    if(objs.length<1) return '';
-    var html='';
-    for(var i=objs.length-1;i>=0;i--){ var isTop=(i===objs.length-1);
-      html+='<div class="stk'+(isTop?' top':'')+'">'+stackObjPhrase(objs[i], isTop)+'</div>'; }
-    return html;
-  }
   /* THE BOARD'S STACK IS CARDS (drag-and-stack step 3): each object shows the card that was cast, newest on top,
      captioned with `stackObjPhrase`. Rebuilt only when the stack CHANGES — a rebuild on every render would restart
      the fly-in and make a hovered card flicker — and a new object FLIES IN from whoever cast it.
@@ -13216,6 +13213,13 @@ window.CardFace = {};
     }
   }
   function answerUIStale(){ return !answerRecordLive() && (answerHeldSel!=null || answerPickerOpen() || !!(staged && staged.answer)); }
+  // the picker an answer has open, for the harness (`fightclick.clickQuick`): which kind, what it may choose, what is chosen
+  function answerPickView(){
+    if(pick && pick.answer) return { kind:'pitch', cands:(pick.from||[]).slice(), chosen:Object.keys(pick.chosen||{})[0]||null };
+    if(targeting && targeting.answer) return { kind:(targeting.counter ? 'counter' : 'equip'), cands:(targeting.counter ? targeting.cands : targeting.equip).slice(), chosen:targeting.chosen };
+    if(targetPick && targetPick.answer) return { kind:'seat', cands:(targetPick.seats||[]).slice(), chosen:targetPick.chosen };
+    return null;
+  }
   /* A GUEST'S ANSWER CAN BE REFUSED, AND THE WINDOW IS STILL ITS OWN. The host replies `t:'err'` and re-broadcasts a
      mirror it then de-dupes, so nothing new arrives: the sig is spent (no box) and the record was consumed at send (no
      board). Re-arming the record from the answer just sent gives the board back for the same grant, and only that one. */
@@ -13444,7 +13448,7 @@ window.CardFace = {};
       'AUTO never interrupts you to answer yourself; you could still have cast: ' + feNames(eligible) + '  (notifications → ON)');
     else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'PROMPT OFF') + onWhat,
       'you could have cast: ' + feNames(eligible) +
-      (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (card reader → “Ask me to respond…”)'));
+      (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (notifications → ON)'));
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
     /* A SUPPRESSED **STAKE** GETS A VISIBLE LINE, and only that (Aj, 2026-09-24: *"can we add to the logs
        for when a stake was auto passed because the notifs were off?"*). The ledger records every
@@ -13497,7 +13501,10 @@ window.CardFace = {};
            + (typeof pend.p==='number' && pend.p!==YOU ? ' ('+logName(pend.p)+'\u2019s)' : '')
            + '. Play a Quick in response, or let it happen.</p>';
     } else if (pend) {
-      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>';
+      /* WHAT IT IS AIMED AT, when that is not a seat (ruling 25: *"card being cast + target"*): an Equipment, a Ride,
+         another effect on the stack — `E.stackTargetOf`, the noun the board's stack caption uses, so the two agree. */
+      var tgtPh=(!aimTxt && E.stackTargetOf) ? stackTargetPhrase(E.stackTargetOf(state, pend)) : '';
+      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+(tgtPh ? ' at '+tgtPh : '')+'. Play a Quick in response, or let it resolve.</p>';
     } else if (fe) {
       var feWho = (typeof fe.winner==='number') ? ('<b>'+logName(fe.winner)+'</b>') : 'The winner';
       var feType = '<b>'+((state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special')+'</b>';
@@ -13523,93 +13530,32 @@ window.CardFace = {};
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     if(pend && stackPendingLoss()) lead+=pendingLossLineHTML(stackPendingLoss());   // the round's shield loss waits for the stack, and is not on it (ruling 18)
-    var incoming=(rivalEff.text && pend && pend.card ? ('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>')
-                 : (pend && pend.trig ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
-    var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
-    /* COMPUTED PER CARD BELOW, NOT ONCE HERE (2026-09-14). What a Counter Spell may name now depends on the
-       CASTER's boosted effect — the Queen of Diamonds widens it to Equipment — so a single list computed
-       before the loop would show a Queen player the base targets and nobody the widened ones. */
-    /* `effectFor`, NOT `effectOf` — the last of CLAUDE.md's three remaining label sites (epic step 14).
-       `eligibleQuicks()` already uses `effectFor`, so a Form-granted Quick is correctly OFFERED here and was
-       then DESCRIBED with its base effect: the button read "Technique" for a card the game was treating as a
-       Quick, with the base cost and base text beside it. Offered right, labelled wrong — which is worse than
-       either, because the label is what the player decides on. */
-    /* ⚠ ONE BUTTON PER PLAY, NOT PER CARD INSTANCE (Aj, 2026-09-11, screenshot: holding TWO Counter Spells
-       against two legal targets rendered FOUR buttons, of which two pairs were the same play). Which
-       physical copy leaves your hand changes nothing, so the second copy is a choice the player has to read
-       and cannot act on differently.
-       THIS IS `enumerateCombos`' RULE APPLIED TO A DIFFERENT LIST — *"emits one representative per shape and
-       top value… enumerating them all floods the legal-play list with identical offers."*
-       KEYED ON rank+suit, NEVER ON CARD ID. A class deck ships duplicate rank+suit with distinct ids
-       (`7D#24`), and `EFFECTS` is keyed by suit+rank — so rank+suit IS the effect's identity, while the id
-       is the thing that must NOT matter here. Two DIFFERENT countering cards still both appear, because
-       they differ in rank or suit; the target `oid` is in the key for the same reason, since countering
-       one object is not the same play as countering another.
-       IT COVERS THE NON-COUNTER BRANCH TOO: the entry noted two Leylines produce two identical buttons by
-       the same line, unverified at the time and true by construction. */
-    var offered={};
-    eligible.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c);
-      var ekey=c.rank+c.suit;
-      /* A COUNTER WITH A REAL CHOICE GETS ONE BUTTON PER TARGET (epic step 8). Since step 6 a player can
-         hold priority and stack two Quicks, so "counter the thing beneath me" stops being unambiguous — and
-         the choice has to be made BEFORE the card goes on the stack, which is why it is a button rather than
-         a follow-up prompt. `E.counterTargets` is the same predicate `respond` validates against, so the UI
-         cannot offer something the engine will refuse. With one target the wording is unchanged. */
-      var ctgts=(ef.kind==='counter' && E.counterTargets) ? E.counterTargets(state, ef) : [];
-      if(ef.kind==='counter' && ctgts.length>1){
-        ctgts.forEach(function(o){
-          var onm=((o.card && E.effectOf(o.card))||{}).name || 'an effect';
-          var who=(typeof o.p==='number') ? logName(o.p) : '';
-          var k=ekey+'|'+o.oid; if(offered[k]) return; offered[k]=1;
-          html+='<button class="respQuick" data-id="'+c.id+'" data-coid="'+o.oid+'">'+ef.name+' · counter <b>'+onm+'</b>'+(who?' ('+who+')':'')+' <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
-        return; }
-      /* A PITCH QUICK GETS ONE BUTTON PER BROADWAY CARD — the Counter Spell shape, for the same reason: the
-         choice is part of CASTING, so it is made before the card goes on the stack. Armor Piercing under
-         Hippolyta is the case; `E.pitchCands` is the set `respond` takes from. One candidate: no choice. */
-      /* BACK STAB / ANNOINT GET ONE BUTTON PER TARGET (respond-quick-target-never-asked). Cast from this window
-         they used to take the engine's default — the NEXT rival, your FIRST Equipment — while the same cards
-         cast in Main let you choose. `E.respondChoices` is the set `respond` validates against; null means
-         there is no choice to make (one rival, Hermes hitting everyone, an Annoint answering a strip). */
-      var rc=E.respondChoices ? E.respondChoices(state, YOU, c) : null;
-      if(rc){
-        (rc.seats||[]).forEach(function(q){ var k=ekey+'|s'+q; if(offered[k]) return; offered[k]=1;
-          html+='<button class="respQuick" data-id="'+c.id+'" data-tseat="'+q+'">'+ef.name+' · lock out <b>'+esc(logName(q))+'</b> <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
-        (rc.equip||[]).forEach(function(x){ var k=ekey+'|e'+x.id; if(offered[k]) return; offered[k]=1;
-          html+='<button class="respQuick" data-id="'+c.id+'" data-tequip="'+esc(x.id)+'">'+ef.name+' · protect <b>'+esc(x.name||'Equipment')+'</b> <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
-        return; }
-      var pcs=(ef.pitchHigh && E.pitchCands) ? E.pitchCands(state.players[YOU], c.id) : [];
-      if(pcs.length>1){
-        pcs.forEach(function(pc){
-          var k=ekey+'|p'+pc.rank+pc.suit; if(offered[k]) return; offered[k]=1;
-          html+='<button class="respQuick" data-id="'+c.id+'" data-pitch="'+pc.id+'">'+ef.name+' · pitch <b>'+cardSym(pc)+'</b> <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
-        return; }
-      if(offered[ekey]) return; offered[ekey]=1;
-      html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
-    /* THE QUICKS LESSON'S STEP IS GATED ON COUNTERING, so "Let it resolve" cannot satisfy it. Declining does
-     * re-cast (see the retry in `humanDeclines`), but every retry SPENDS the Rival's energy, so a player who
-     * declined a few times exhausted it, no further Technique could be cast, and the lesson sat on step 2 with
-     * nothing to counter — Aj: "i tried breaking the tutorial by letting all the spells resolve.... it broke."
-     * An action that cannot satisfy the gate is a dead end by construction, so the lesson disables it rather
-     * than deepening the retry. DISABLED AND STILL VISIBLE, never removed: it is a real control in a real
-     * window, and the lesson exists to teach what this window looks like. The note says why, because a dead
-     * button with no explanation is its own dead end on a phone, where there is no tooltip. */
+    /* THE SMALL BOX (drag-and-stack step 4, piece 8; rulings 7, 23 and 25). The decision's sentence, the card being cast
+       beside it, and Yes / No. The per-card buttons, the copied table summary and the Peek button are gone: your hand and
+       the board are the list now, Yes lights what you can cast (piece 6), and the board stays readable behind the box —
+       it sits over the card reader (`placeRespondBox`) on a backdrop that does not dim, so the pile, the cast column
+       and the phase strip are never covered (ruling 23). The backdrop still takes the clicks: until you press Yes the
+       board is not the answer, and a live Pass behind it would cross over the open stack.
+       THE CARD, NOT ITS RULES TEXT (ruling 25: *"card being cast + target"*). The reader shows the text on a tap. */
+    var castCard = pend ? (pend.card || (pend.trig ? trigCard(pend) : null)) : null;
+    var html='<h2>Respond?</h2><div class="respCast">'+(castCard ? '<span id="respCardSlot"></span>' : '')+'<div class="respWhat">'+lead+'</div></div>';
+    /* THE LESSON THAT NEEDS SOMETHING COUNTERED keeps No disabled, VISIBLE, with the reason beside it — a dead button
+       with no explanation is its own dead end on a phone, where there is no tooltip. Yes is the way through. */
     var tutNeedsCounter = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
-    if(tutNeedsCounter) html+='<div class="respNotYou">This lesson needs this one countered — tap <b>Counter Spell</b>.</div>';
-    /* YES (drag-and-stack step 4, ruling 7): close the box and answer from the board. It sits beside today's per-card
-       buttons until the board can cast (piece 5) and the box shrinks (piece 8); until then Pass answers from the
-       board, and "Respond?" in the action row brings the box back (ruling 24). */
-    html+='<button id="respYes" class="respYes" title="Close this and answer from the board">Yes</button>';
-    html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>'+declineLabel()+'</button></div>'+peekBtnHTML();
+    if(tutNeedsCounter) html+='<div class="respNotYou">This lesson needs this one countered — press <b>Yes</b> and cast <b>Counter Spell</b>.</div>';
+    /* NO DECLINES, AS PASS DOES ON THE BOARD; its title names what declining does here (`declineLabel`), which the board's
+       Pass carries as its label. */
+    html+='<div class="respOpts"><button id="respYes" class="respYes" title="Close this and answer from the board">Yes</button>';
+    html+='<button id="respDecline" class="respLet" title="'+esc(declineLabel())+'"'+(tutNeedsCounter?' disabled':'')+'>No</button></div>';
     /* A MAIN STAGING DOES NOT SURVIVE INTO A WINDOW, and nothing was spent on it. `stagedHeld` cannot tell which window a
        card was staged for, so its ⚡ would answer this one with a choice made for Main. An earlier grant's answer UI goes
        too (`endAnswerUI` gives back the selection it borrowed). */
     if(staged && !staged.answer){ staged=null; if(targeting && !targeting.answer) targeting=null; if(targetPick && !targetPick.answer) targetPick=null; if(pick && pick.kind==='pitch' && !pick.answer) pick=null; selected={}; }
     endAnswerUI();
     answering={ g:g, cont:cont, prioGen:(state.prioGen||0) };
-    showModal(html); wirePeek();
-    Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
-      btn.addEventListener('click', function(){ var ts=btn.getAttribute('data-tseat'), te=btn.getAttribute('data-tequip'); humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null, btn.getAttribute('data-pitch')||null, ts!=null ? +ts : (te!=null ? te : null)); });
-    });
+    showModal(html, 'respSmall');
+    var slot=$('respCardSlot'); if(slot && castCard){ var ce=cardEl(castCard, 'mini', (typeof pend.p==='number') ? pend.p : null); ce.addEventListener('click', function(){ showCard(castCard); }); slot.appendChild(ce); }
+    placeRespondBox();
     $('respDecline').addEventListener('click', function(){ humanDeclines(g, cont); });
     $('respYes').addEventListener('click', function(){ prioNote('  → you pressed YES — answering from the board'); hideOverlay(); render(); });
   }
@@ -14155,7 +14101,7 @@ window.CardFace = {};
      * from the Respond?, pre-fight and shield-guard windows, where a dead restore wedges the table for everyone.
      * Moving the children into a fragment and back keeps the SAME nodes, so no call site has to re-wire. */
     if(peeking){ if(peekStash===null){ var frag=document.createDocumentFragment(); while(m.firstChild) frag.appendChild(m.firstChild); peekStash={ frag:frag, cls:m.className }; } ov.classList.add('dlg'); }
-    m.className='modal'+(cls?' '+cls:''); m.innerHTML=html; ov.classList.add('show'); }
+    m.className='modal'+(cls?' '+cls:''); m.style.cssText=''; ov.classList.toggle('respond', cls==='respSmall'); m.innerHTML=html; ov.classList.add('show'); }   // only the Respond? box rides the non-dimming overlay, and its placement never leaks into the next dialog
   /* Close a dialog opened during peek and fall back INTO peek, rather than out of it. Returns true when it
    * handled the close, so hideOverlay() can defer to it. */
   function closePeekDialog(){
@@ -14179,33 +14125,22 @@ window.CardFace = {};
   }
   function exitPeek(){ if(peekStash!==null) closePeekDialog(); peeking=false;   // restore the end screen first, or ↩ Back leaves a pile viewer on screen
      var ov=$('overlay'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); overlayDismiss=peekSavedDismiss; var bar=$('peekBar'); if(bar) bar.remove(); }
-  function peekBtnHTML(){ return '<button id="peekBtn" class="peekBtn">👁 Peek at the table</button>'; }
-  function wirePeek(){ var b=$('peekBtn'); if(b) b.addEventListener('click', enterPeek); }
-  // Inline "what's on the table" — the current play (pile) + your energy, so you don't have to peek for the basics.
-  function tableContextHTML(){
-    var you=state.players[YOU], rows='';
-    var pile=state.pile;
-    if(pile && pile.combo){
-      var owner=pile.byPlayer===YOU?'Your':'Rival’s';
-      var cs=pile.combo.cards.map(function(c){ return '<span class="ctxCard'+(c.suit==='D'||c.suit==='H'?' red':'')+'">'+cardSym(c)+'</span>'; }).join('');
-      rows+='<div class="ctxRow"><span class="ctxLbl">On the table</span><span>'+owner+' <b>'+comboName(pile.combo)+'</b> '+cs+'</span></div>';
-    }
-    var order=['D','H','C','S'], bits=[];
-    order.forEach(function(s){ var n=you.energy.filter(function(c){return c.suit===s;}).length; if(n) bits.push('<span class="ctxCard'+(s==='D'||s==='H'?' red':'')+'">'+n+SUIT_SYMBOL[s]+'</span>'); });
-    rows+='<div class="ctxRow"><span class="ctxLbl">Your energy</span><span><b>'+you.energy.length+'</b>⚡ '+bits.join('')+'</span></div>';
-    /* THE STACK, because this box is shown in the Respond modal and the board's copy is behind it. Newest
-       first, same rows, one definition — see `stackRowsHTML`. Omitted entirely when the stack is empty,
-       which is the Main → Fight and end-of-round go-rounds: an empty box labelled "On the stack" would
-       read as information lost rather than as nothing being there. */
-    var stk=stackRowsHTML();
-    if(stk) rows+='<div class="ctxRow ctxStack"><span class="ctxLbl">On the stack</span><span>'+stk+'</span></div>';
-    return '<div class="ctxBox">'+rows+'</div>';
+  /* THE SMALL RESPOND? BOX SITS OVER THE CARD READER (drag-and-stack ruling 23). The reader is the one panel the ruling
+     does not protect, and it is large wherever it is shown: the right column on a desktop, tablet or landscape table,
+     and under the hand on a portrait phone. Where it is hidden (a narrow phone, the shortest landscape) the box takes
+     the top of the screen. Measured and placed on every show and resize, never fixed in CSS: the reader moves. */
+  function placeRespondBox(){
+    var ov=$('overlay'), m=$('modal'); if(!ov || !m || !ov.classList.contains('respond') || !ov.classList.contains('show')) return;
+    var W=document.documentElement.clientWidth, H=window.innerHeight, cv=$('cardView'), r=(cv && cv.offsetParent!==null) ? cv.getBoundingClientRect() : null;
+    if(r && r.width>=230 && r.height>=120 && r.top<H-60){ m.style.left=Math.round(r.left)+'px'; m.style.top=Math.round(r.top)+'px'; m.style.width=Math.round(r.width)+'px'; m.style.maxHeight=Math.round(Math.max(120, Math.min(r.bottom, H)-r.top))+'px'; }
+    else { m.style.left='8px'; m.style.top='4px'; m.style.width=Math.max(200, W-16)+'px'; m.style.maxHeight=Math.round(H*0.5)+'px'; }
   }
+  window.addEventListener('resize', function(){ placeRespondBox(); });
   function hideOverlay(){
     /* A dialog opened DURING peek closes back into peek, not out of it — otherwise looking at an energy pile
      * would dump you off the review screen and lose the end screen behind it. */
     if(closePeekDialog()) return;
- peeking=false; revealOpen=false; stickyModal=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
+ peeking=false; revealOpen=false; stickyModal=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); ov.classList.remove('respond'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
 
   // ============ Guided tutorial — a coached first duel (Basics, 2p vs a gentle AI) ============
   var TUT = (function(){
@@ -19140,7 +19075,7 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'' }; }); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
@@ -19187,7 +19122,7 @@ window.CardFace = {};
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'' }; }); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give

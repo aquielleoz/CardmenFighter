@@ -477,7 +477,17 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    painted every render outside `renderStack`'s signature gate (`paintCounterAims`), the click reads the live picker,
    and only the visualizer's own boxes are candidates, never a ghost in flight. The oid travels as the box's did,
    unrotated, and the host re-validates it; a guest's `clientSend` trace now names it (`coid=`). The Equipment, Forms
-   and opponent-zone readers of `targeting` ignore the counter mode.
+   and opponent-zone readers of `targeting` ignore the counter mode. *Piece 8 built (v1.33.16.9):* **the box
+   shrinks** (rulings 7, 23 and 25). It carries its sentence — who cast what, and at what, an Equipment or an effect as
+   well as a seat (`stackTargetPhrase`) — with the card being cast beside it, and Yes / No; No's title names the moment,
+   which the board's Pass carries as its label. The per-card buttons, `tableContextHTML`, `stackRowsHTML`, the rules-text
+   paragraph and the Peek button are deleted. It sits over the card reader (`placeRespondBox`, measured on every show and
+   resize; the top of the screen where the reader is hidden) on an overlay that neither dims nor blurs, so the pile, the
+   cast column and the phase strip stay readable; the backdrop still takes the clicks, because a live Pass behind it
+   would cross over the open stack. The harness moved first and the box second: `fightclick.clickQuick` casts from the
+   board (Yes, the card, ⚡, the target clicked on the board, confirm) and `respQuicks` reads the engine's offer for the
+   window shown, so the suites that named their choice followed with no edits; nine that clicked the box's buttons
+   directly were rewritten against the board, and quicktest's one-button-per-play leg is tombstoned.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`

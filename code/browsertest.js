@@ -42,19 +42,33 @@ const path = require('path');
       const act = await page.evaluate(async (respondMode) => {
         if (document.getElementById('overlay').classList.contains('show')) {
           const m = document.getElementById('modal');
-          if (/about to fight/.test(m.textContent)) {            // pre-fight Back Stab window (you may spring a Quick)
-            const q = document.querySelector('.respQuick');
-            if (respondMode && q) { q.click(); return { responded: true }; }
-            document.getElementById('pfDecline').click(); return { declined: true };
-          }
-          if (/Respond\?/.test(m.textContent)) {                 // interrupt response prompt, not game-over
-            const q = document.querySelector('.respQuick');
-            if (respondMode && q) { q.click(); return { responded: true }; }
+          /* THE RESPOND? BOX, ANSWERED THE WAY A PLAYER ANSWERS IT (drag-and-stack step 4, piece 8). The box no longer
+             lists the Quicks: Yes closes it and the cards you may cast GLOW, so respond mode presses Yes, taps a glowing
+             card and presses ⚡, then makes whatever choice the cast opens — the first target lit, or the first card to
+             pitch — and confirms. No debug hooks: this smoke runs the page as shipped, so the glow is the only list it
+             has, which makes this a smoke test of the glow too. Nothing glowing means nothing to cast: decline. (The
+             pre-fight and shield-guard branches that sat here answered windows deleted at epic steps 19 and 20.) */
+          if (/Respond\?/.test(m.textContent)) {
+            const y = document.getElementById('respYes');
+            if (respondMode && y && y.offsetParent !== null) {
+              y.click();
+              const card = document.querySelector('#hand .card.answerable'), grp = card && card.closest('.group'), ctx = document.getElementById('ctxBtn');
+              if (grp) grp.click();
+              if (grp && ctx && ctx.offsetParent !== null && !ctx.disabled && !ctx.classList.contains('off')) {
+                ctx.click();
+                for (let k = 0; k < 4; k++) {
+                  const fb = document.getElementById('fightBtn'), c = document.getElementById('ctxBtn');
+                  if (fb && fb.textContent === 'Confirm') { const pc = document.querySelector('#hand .card:not(.notpick):not(.picked)'); if (pc) pc.click(); if (!fb.disabled) fb.click(); continue; }
+                  if (c && c.offsetParent !== null && /Pick a target/.test(c.textContent)) { const t = document.querySelector('#stackView .stkCard.targetable .card, .eq.targetable, .oppPanel.targetable'); if (t) t.click(); continue; }
+                  if (c && c.offsetParent !== null && c.classList.contains('gold')) { c.click(); continue; }
+                  break;
+                }
+                return { responded: true };
+              }
+              const pb = document.getElementById('passBtn'); if (pb && !pb.disabled) pb.click();   // nothing glowed: decline from the board
+              return { declined: true };
+            }
             document.getElementById('respDecline').click(); return { declined: true };
-          }
-          if (document.getElementById('sgYes')) {                 // reactive shield-guard prompt
-            (respondMode ? document.getElementById('sgYes') : document.getElementById('sgNo')).click();
-            return { guarded: true };
           }
           /* AN OVERLAY THIS HARNESS CANNOT ANSWER IS A NAMED FAILURE, NOT "the game ended" (epic step 3).
              This used to fall through to `over`, so a window the driver did not know how to work read as an
@@ -71,7 +85,12 @@ const path = require('path');
           for (let i = 0; i < pc.length; i++) { const c = document.querySelectorAll('#hand .card')[i]; if (!c) break; c.click(); if (!document.getElementById('fightBtn').disabled) { document.getElementById('fightBtn').click(); return { picked: true }; } }   // a pick CONFIRMS with this button — never the two-state play
           return { blocked: true };
         }
-        if (!/your turn/.test(document.getElementById('turnTag').textContent)) return { wait: true };
+        /* AN ANSWER LEFT OPEN ON THE BOARD IS DECLINED, never waited on: it is this seat's priority whoever's turn it
+           is, and a pick it opened (a target, a pitch) is backed out of with Clear first. */
+        const tag = document.getElementById('turnTag').textContent;
+        if (/choose target/.test(tag)) { document.getElementById('clearBtn').click(); return { blocked: true }; }
+        if (/your priority/.test(tag)) { const pb = document.getElementById('passBtn'); if (pb && !pb.disabled) { pb.click(); return { declined: true }; } return { blocked: true }; }
+        if (!/your turn/.test(tag)) return { wait: true };
         const cards = document.querySelectorAll('#hand .card');
         for (let i = 0; i < cards.length; i++) {
           document.getElementById('clearBtn').click();
