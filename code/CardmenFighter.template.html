@@ -288,6 +288,11 @@
   #stackView .stkCard .trigBadge{position:absolute; top:-5px; left:calc(50% - 34px); font-size:13px; line-height:1; padding:2px 3px; border-radius:6px;
     background:rgba(20,22,30,.92); box-shadow:0 0 0 1px rgba(232,195,122,.55); pointer-events:none;}   /* marks a TRIGGER: nobody cast this card */
   #stackView .stkCard.inbound{visibility:hidden;}   /* the real card waits while its ghost is in the air */
+  /* WHAT COUNTER SPELL MAY AIM AT (piece 7), in the targeting language every other pick uses: the pick-purple pulse,
+     then the red ring once chosen. Later in the sheet than the top card's gold ring, at the same specificity, so a top
+     card that is a candidate reads as one. */
+  #stackView .stkCard.targetable .card{cursor:pointer; box-shadow:0 0 0 2px var(--pick), 0 0 12px rgba(201,139,255,.8); animation:tgtPulse .9s ease-in-out infinite;}
+  #stackView .stkCard.aimed .card{cursor:pointer; box-shadow:0 0 0 2px var(--bad), 0 0 18px rgba(226,98,74,.55); animation:none;}
   /* `.card.stkGhost`, NOT `.stkGhost`: a ghost IS a `.card`, and `.card`'s own `position:relative` comes later in the
      sheet at the same specificity, so it won — the ghost sat IN FLOW at the end of <body>, stole its height from the board
      and moved the hand up (Aj, after a King form: "a weird banner appeared underneath my hand? or my hand moved up"). */
@@ -3877,7 +3882,7 @@ __QR__
        * has always offered as targets. Tapping the gear line now opens the seat's real zones, built by the
        * same renderEquipZone/renderFormsZone the duel uses, so `.targetable` and doRemove() come with them.
        * While a removal is targeting, every panel force-opens so the target cannot be hidden behind a tap. */
-      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!(targeting && !targeting.copy && !targeting.protect);   // a Counterfeit copy targets the PILE, and Annoint YOUR Equipment, so neither opens anything
+      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!(targeting && !targeting.copy && !targeting.protect && !targeting.counter);   // a Counterfeit copy targets the PILE, Annoint YOUR Equipment and Counter Spell the STACK, so none opens anything
       zones.className='oppZones'+(open?' open':'');
       if(open){
         renderEquipZone(el.querySelector('.oppEquipZone'), pl, false, i);
@@ -3886,7 +3891,7 @@ __QR__
       var gearEl=el.querySelector('.oppGear');
       if(gearEl && gear.length) gearEl.addEventListener('click', (function(seat){ return function(ev){
         ev.stopPropagation();                                  // never let this double as a loss/target seat pick
-        if(targeting && !targeting.copy && !targeting.protect) return;   // already force-open while a removal is targeting
+        if(targeting && !targeting.copy && !targeting.protect && !targeting.counter) return;   // already force-open while a removal is targeting
         oppOpen=(oppOpen===seat)?null:seat; formsOpen=null; render();
       }; })(i));
     });
@@ -3919,7 +3924,7 @@ __QR__
       if(targeting && targeting.protect){                      // Annoint in answer: only YOUR Equipment that `respondChoices` names (piece 5)
         if(opts.own && targeting.equip.indexOf(e.id)>=0){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(ev){ ev.stopPropagation(); stageProtect(id); }); })(e.id); }
       }
-      else if(targeting && !targeting.copy){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
+      else if(targeting && !targeting.copy && !targeting.counter){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
       else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(e.card); }   // already open → tap opens the reader, exactly like a formMini
       /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
          place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
@@ -4727,7 +4732,7 @@ __QR__
     el.innerHTML='';
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], isTop=(i===objs.length-1);
       var box=document.createElement('div'); box.className='stkCard'+(isTop?' top':''); if(o.oid!=null) box.setAttribute('data-oid', o.oid);
-      if(o.card){ var ce=cardEl(o.card, 'mini', o.p); (function(c){ ce.addEventListener('mouseenter', function(){ showCard(c); }); ce.addEventListener('click', function(){ showCard(c); }); })(o.card); box.appendChild(ce); }
+      if(o.card){ var ce=cardEl(o.card, 'mini', o.p); (function(c, oid){ ce.addEventListener('mouseenter', function(){ showCard(c); }); ce.addEventListener('click', function(){ stageCounter(oid); showCard(c); }); })(o.card, o.oid); box.appendChild(ce); }   // a tap aims Counter Spell when it is picking (piece 7), and always reads the card
       else if(o.trig && trigCard(o)){ var tc=trigCard(o), te=cardEl(tc, 'mini', o.p); box.classList.add('trig');
         (function(c){ te.addEventListener('mouseenter', function(){ showCard(c); }); te.addEventListener('click', function(){ showCard(c); }); })(tc);
         box.appendChild(te); box.insertAdjacentHTML('beforeend', '<span class="trigBadge" title="A triggered ability, not a cast">⏳</span>'); }
@@ -5001,6 +5006,7 @@ __QR__
     Array.prototype.forEach.call(pileEl.children, function(el){ if(!el.dataset || !el.dataset.id) return;
       el.classList.toggle('copyable', copying && targeting.chosen!==el.dataset.id); el.classList.toggle('copyAim', copying && targeting.chosen===el.dataset.id); });
     renderStack();
+    paintCounterAims();                   // what Counter Spell may aim at, repainted as the pick moves (piece 7)
     placeEquipZones();                    // Equipment beside Forms & Rides (ruling 15) — before the column measures the right edge
     renderCastZone();                     // after the stack: the column shows while either it or a staged card has something
     var yourTurn=(state.turn===YOU && !state.finished);
@@ -5384,7 +5390,7 @@ __QR__
         /* ONCE THE CHOICE IS MADE THE NOTE SAYS WHAT WAS CHOSEN — an instruction left standing after it is done is a
            small lie, and the key above repaints on the pick. */
         var copySrc = (targeting && targeting.copy && targeting.chosen!=null && state.pile) ? state.pile.combo.cards.filter(function(x){ return x.id===targeting.chosen; })[0] : null;
-        var choosing = copySrc ? 'Copies the '+cardSym(copySrc) : picked ? 'Target picked' : (targeting && targeting.copy) ? 'Choose the card to copy' : (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
+        var choosing = copySrc ? 'Copies the '+cardSym(copySrc) : picked ? 'Target picked' : (targeting && targeting.copy) ? 'Choose the card to copy' : (targeting && targeting.counter) ? 'Choose what to counter' : (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
                      : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '';
         if(choosing){ var note=document.createElement('div'); note.className='stgNote'; note.textContent=choosing; slot.appendChild(note); }
         /* ⚡ AND ✕, SIDE BY SIDE UNDER THE CARD (Aj, 2026-10-14: *"can we add a lightning bolt near the card … i'd like
@@ -5902,7 +5908,7 @@ __QR__
       ctxBtn.title = aa.ok ? 'Cast it in answer' : aa.reason;
       if(oef && oef.impl && !choosing){ cardAct.style.display=''; cardAct.classList.toggle('off', !aa.ok); cardAct.disabled=false; cardAct.title=aa.ok ? 'Cast it in answer' : aa.reason; cardAct.textContent='⚡'; }
       if(rsp && !choosing){ rsp.style.display=''; rsp.disabled=false; }
-      hint.textContent = tutCtr ? 'This lesson needs this one countered — press Respond? and tap Counter Spell.'
+      hint.textContent = tutCtr ? 'This lesson needs this one countered — cast Counter Spell.'
         : choosing ? (aa.ok ? 'Press ⚡ Activate to confirm, or Clear to cancel.' : aa.reason)
         : (staged && selected[staged.cardId]) ? 'Staged — ⚡ Activate casts it, ✕ takes it back.'
         : one ? (aa.ok ? '⚡ Activate casts it in answer.' : aa.reason)
@@ -7852,9 +7858,12 @@ __QR__
      THE QUESTIONS ARE THE BOX'S QUESTIONS: `E.castRefusal` says whether the card may be cast (on `effectFor`, so a
      Form-made Quick counts), and `E.respondChoices` / `E.pitchCands` say whether casting it needs a choice first — the
      same sets `respond` validates against, so the board cannot offer what the host refuses.
-     COUNTER SPELL WAITS FOR ITS TARGET ON THE STACK (ruling 26, piece 7): until the visualizer can be tapped, the box
-     is where you choose what it counters, and the board says so rather than guessing. */
+     COUNTER SPELL PICKS ITS TARGET ON THE STACK (ruling 26, piece 7): ⚡ never casts it on the tap, even with one target.
+     It opens `targeting.counter`, the stack cards it may counter light up in the visualizer, and ⚡ confirms the one
+     you tapped — one target is pre-chosen for you, but you still confirm. The oid travels as the box's did. */
   function answerChoiceFor(card){
+    var ef0=E.effectFor(state, YOU, card);
+    if(ef0 && ef0.kind==='counter') return 'counter';
     var rc=E.respondChoices ? E.respondChoices(state, YOU, card) : null;
     if(rc && rc.seats) return 'seat';
     if(rc && rc.equip) return 'equip';
@@ -7868,8 +7877,9 @@ __QR__
       return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the rival to lock out, then press ⚡ Activate.', run:null};
     }
     if(targeting && targeting.answer){
-      if(targeting.chosen!=null) return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ var t=targeting, o=t.opts||{}; targeting=null; o.target=t.chosen; answerCast(t.cardId, o); }};
-      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the Equipment of yours to protect, then press ⚡ Activate.', run:null};
+      if(targeting.chosen!=null) return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ var t=targeting, o=t.opts||{}; targeting=null; if(t.counter) o.coid=t.chosen; else o.target=t.chosen; answerCast(t.cardId, o); }};
+      return {mode:'activate', label:'🎯 Pick a target', ok:false, run:null,
+              reason:(targeting.counter ? 'Tap what to counter on the stack, then press ⚡ Activate.' : 'Tap the Equipment of yours to protect, then press ⚡ Activate.')};
     }
     if(sel.length!==1) return {mode:'activate', label:'⚡ Activate', ok:false, run:null,
       reason:(sel.length ? 'Select a single Quick to cast it.' : 'Select a Quick to cast it, or “'+declineLabel()+'”.')};
@@ -7879,10 +7889,8 @@ __QR__
       if(tutOk && tutOk.indexOf(card.id)<0) why=(TUT.answerHint && TUT.answerHint()) || 'Not that card — follow the step above.';
     }
     if(why) return {mode:'activate', label:'⚡ Activate', ok:false, reason:why, run:null};
-    var ef=E.effectFor(state, YOU, card);
-    if(ef.kind==='counter') return {mode:'activate', label:'🎯 Choose target', ok:false, run:null, reason:'Counter Spell — press Respond? to choose what it counters.'};
     var ch=answerChoiceFor(card);
-    return {mode:'activate', label:(ch==='seat' || ch==='equip') ? '🎯 Choose target' : '⚡ Activate', ok:true, reason:'', run:function(){ answerCast(card.id); }};
+    return {mode:'activate', label:(ch==='seat' || ch==='equip' || ch==='counter') ? '🎯 Choose target' : '⚡ Activate', ok:true, reason:'', run:function(){ answerCast(card.id); }};
   }
   function answerCast(cardId, opts){
     if(!answerRecordLive()) return;
@@ -7891,6 +7899,11 @@ __QR__
     var why=E.castRefusal(state, YOU, card); if(why){ setMessage(why); render(); return; }
     var ef=E.effectFor(state, YOU, card), rc=E.respondChoices ? E.respondChoices(state, YOU, card) : null;
     setAsideHeld();
+    if(ef.kind==='counter' && !opts.coid){
+      var cts=E.counterTargets(state, ef);
+      targeting={ cardId:cardId, chosen:(cts.length===1 ? cts[0].oid : null), name:ef.name, answer:true, counter:true, cands:cts.map(function(o){ return o.oid; }), opts:opts }; selected={};
+      if(targeting.chosen!=null){ stageCounter(targeting.chosen); return; }
+      setMessage('<b>'+esc(ef.name)+'</b> — tap what to counter on the stack. Nothing is spent until you confirm.'); render(); return; }
     if(rc && rc.seats && opts.target==null){
       targetPick={ cardId:cardId, chosen:null, name:ef.name, answer:true, seats:rc.seats.slice(), opts:opts }; selected={};
       setMessage('<b>'+esc(ef.name)+'</b> — tap the rival to lock out. Nothing is spent until you confirm.'); render(); return; }
@@ -7904,6 +7917,23 @@ __QR__
         setMessage('<b>'+esc(ef.name)+'</b> — choose the Broadway card to discard as its extra cost. Nothing is spent until you confirm.'); render(); return; }
     }
     humanResponds(a.g, cardId, a.cont, opts.coid||null, opts.pitch||null, (opts.target==null ? null : opts.target));
+  }
+  // a stack card tapped while Counter Spell picks (piece 7) — only one of its own candidates, read at click time
+  function stageCounter(oid){
+    if(!targeting || !targeting.counter || targeting.cands.indexOf(oid)<0) return false;
+    targeting.chosen=oid;
+    var o=(state.stack||[]).filter(function(x){ return x.oid===oid; })[0], nm=(o && o.card && (E.effectOf(o.card)||{}).name) || 'that';
+    setMessage('<b>'+esc(targeting.name)+'</b> counters <b>'+esc(nm)+'</b>'+((o && typeof o.p==='number') ? ' ('+esc(logName(o.p))+')' : '')+' — press <b>⚡ Activate</b> to confirm, or <b>Clear</b> to cancel.');
+    render(); return true;
+  }
+  /* PAINTED EVERY RENDER, OUTSIDE `renderStack`'s SIGNATURE GATE: the stack rebuilds only when its contents change, and
+     choosing a target changes nothing about them — the pile's `copyable`/`copyAim` work the same way. Only the
+     visualizer's own boxes: a ghost in flight carries a `data-oid` too and is never a target. */
+  function paintCounterAims(){
+    var t=(targeting && targeting.counter) ? targeting : null;
+    Array.prototype.forEach.call(document.querySelectorAll('#stackView .stkCard[data-oid]'), function(b){
+      var k=b.getAttribute('data-oid'), can=!!(t && t.cands.indexOf(k)>=0);
+      b.classList.toggle('targetable', can && t.chosen!==k); b.classList.toggle('aimed', !!(t && t.chosen===k)); });
   }
   function stageProtect(id){
     if(!targeting || !targeting.protect || targeting.equip.indexOf(id)<0) return;
@@ -13221,7 +13251,7 @@ __QR__
     /* A WINDOW ANSWER NAMES THE GRANT IT ANSWERS (`pg`, 2026-10-07) — the `prioGen` this seat's mirror showed,
        so the host can hold an answer that beat its park and drop one meant for an earlier grant (`heldAnswer`). */
     function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline') && it.pg==null && state) it.pg=state.prioGen||0;
-      trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')+(it&&it.pg!=null?' pg='+it.pg:'')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
+      trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')+(it&&it.pg!=null?' pg='+it.pg:'')+(it&&it.coid?' coid='+it.coid:''));   /* a counter's target, so a saved log says what it aimed at */ if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){

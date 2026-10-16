@@ -470,7 +470,14 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    a selection, a lesson's spotlight and a ready transform. It is an animation, combined with `.enter`'s deal-in and
    with `.tut-spot`'s ring, and falls back to a static ring under reduced motion that still wins on a selected or
    hovered card; `answerglowtest` reads all of it in computed style. Built as the default for "Glow in Main" below:
-   answering only.
+   answering only. *Piece 7 built (v1.33.16.8):* **Counter Spell's target, from the visualizer** (ruling 26). ⚡ on
+   Counter Spell never casts it: it opens `targeting.counter`, and the stack cards in `E.counterTargets` (on
+   `effectFor`, so the ♦Q's widening counts) pulse in the pick-purple every other target pick uses — the top card's gold
+   ring included. A tap aims one (red ring); one target is pre-aimed, but a second ⚡ still confirms. The highlight is
+   painted every render outside `renderStack`'s signature gate (`paintCounterAims`), the click reads the live picker,
+   and only the visualizer's own boxes are candidates, never a ghost in flight. The oid travels as the box's did,
+   unrotated, and the host re-validates it; a guest's `clientSend` trace now names it (`coid=`). The Equipment, Forms
+   and opponent-zone readers of `targeting` ignore the counter mode.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`

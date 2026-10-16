@@ -9,6 +9,8 @@
  *   B  the guest presses Yes and does nothing: netwindows declines it from the board after its grace
  *   C  (piece 5) the guest presses Yes, taps Leyline and presses ⚡: it travels as `{op:'respond'}` — never Main's
  *      `{op:'activate'}`, which the host would refuse off-turn — and the host narrates the answer
+ *   D  (piece 7) the guest counters from its board: ⚡ opens the stack pick, its one target pre-chosen, and the second
+ *      ⚡ sends `{op:'respond'}` WITH that object's oid — the host's own id, unrotated — so the host counters it
  *
  * Run: node nettest_answer.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
@@ -87,6 +89,27 @@ let host, join;
   ok(jc.shown && jc.ctx==='⚡ Activate' && !jc.off && /op=respond/.test(sentC) && !/op=activate/.test(sentC),
      'C: THE GUEST CASTS LEYLINE FROM ITS BOARD and it travels as a RESPOND, not Main\'s activate  ['+JSON.stringify(jc)+' '+((sentC.match(/move IN[^\n]*/g)||[]).join(' | ')||'nothing sent')+']');
   ok(castC && await until(()=>join.evaluate(()=>window.__cmf.hand().indexOf('cq9D')<0), 40), '  …and the host narrates the answer, and the card leaves the guest\'s hand');
+
+  // ================= D: Yes, then COUNTER from the board, picking the target on the stack =================
+  await until(()=>host.evaluate(()=>!window.__cmf.pending()), 60); await wait(2800);
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su}); const E=(s,t)=>[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>C(n,s,t));
+    window.__cmf.forceAll([[C(3,'C','hb'),C(6,'H','h'),C(9,'S','h')], [C(4,'D','cs'),C(7,'S','c')]], [E('C','he'), E('D','ce')], null, {round:3, turn:0}); });
+  await wait(600);
+  await cast('hb3C');
+  ok(await toGuestBox(), 'STAGED: the guest holds Counter Spell and the window is its own');
+  await join.evaluate(()=>document.getElementById('respYes').click()); await wait(300);
+  await join.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="cs4D"]'))[0]; if(g) g.click(); }); await wait(300);
+  await join.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(400);
+  const jd=await join.evaluate(()=>({ aimed:[...document.querySelectorAll('#stackView .stkCard.aimed')].map(b=>b.getAttribute('data-oid')), ctx:(document.getElementById('ctxBtn').textContent||'').trim(), inHand:window.__cmf.hand().indexOf('cs4D')>=0 }));
+  const beforeD=(await trace()).split('\n').length;
+  await join.evaluate(()=>document.getElementById('ctxBtn').click());
+  const castD=await until(()=>host.evaluate(()=>/countered with Counter Spell/.test([...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'))), 80);
+  const sentD=(await trace()).split('\n').slice(beforeD-1).join('\n');
+  ok(jd.aimed.length===1 && jd.ctx==='⚡ Activate' && jd.inHand, 'D: THE GUEST\'S ⚡ OPENS THE STACK PICK, its one target pre-chosen, and nothing is sent yet  ['+JSON.stringify(jd)+']');
+  const jTrace=await join.evaluate(()=>(window.__cmfTrace?window.__cmfTrace():[]).join('\n'));
+  const sentCoid=((jTrace.match(/clientSend[^\n]*respond[^\n]*/g)||[]).pop()||'');
+  ok(castD && /op=respond/.test(sentD) && jd.aimed[0] && sentCoid.indexOf('coid='+jd.aimed[0])>=0,
+     '  …and the second ⚡ sends the answer WITH the aimed oid, which the host applies as a COUNTER  ['+((sentD.match(/move IN[^\n]*/g)||[]).join(' | ')||'nothing sent')+' · guest sent: '+sentCoid.slice(-60)+']');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
