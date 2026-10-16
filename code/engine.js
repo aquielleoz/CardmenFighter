@@ -1849,6 +1849,12 @@
        alone (`test.js`, "A TRANSITION OPENED OVER A ROUND BOUNDARY"). It also reset `prioPassed`, wiping the
        boundary's own passes. */
     if (roundBoundaryOpen(st)) return { ok: false, reason: 'The round is over \u2014 the next one is about to begin.' };
+    /* NOT WHILE SOMEBODY HOLDS PRIORITY (2026-10-16, filed by the drag-and-stack step 4 inventory). This opened a fresh
+       go-round over any open window: it reset `prioPassed` and bumped `prioGen`, so the seat already holding priority
+       was granted again, and a crossing was grafted onto a stack nobody had finished answering. Measured on the turn
+       holder's own pending cast: `E.pass` returned `transition:'play'` and set `toPlay` over it. `play` and `pass` cross
+       through here, so this one line refuses all three while a window is open. */
+    if (st.respondFor != null) return { ok: false, reason: 'Someone holds priority \u2014 the window has to close first.' };
     st.toPlay = { origin: st.turn };
     st.prioPassed = {};
     return openResponseWindow(st);
@@ -2568,6 +2574,9 @@
    * outright in v1.13. Optional + modifiers is Aj's original design and answers a pair or trio too. */
   function phantasm(st, p, opts) {
     opts = opts || {};
+    /* NOR AN ILLUSION, which `activate` has refused on this since 2026-09-14 and this never did: Phantasmal Illusion
+       is a fight action, and conjuring one while a window is open replaced the pile under a stack still being answered. */
+    if (st.respondFor != null) return { ok: false, reason: 'Someone holds priority \u2014 the window has to close first.' };
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };

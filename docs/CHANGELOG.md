@@ -15,6 +15,45 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.33.17 — an open window stays the one being answered
+
+**What you'll see:** online, mostly nothing — three ways a press could land on the wrong window are closed. Solo
+play is unchanged.
+- **A second press while someone is deciding is refused, and you are told.** Suppose it's your turn, you press
+  Fight or Pass, and another player can answer. A second press used to re-open their window from scratch: an
+  impatient tap, or a double-send on a laggy line. They were asked again, and the play that finally landed could be
+  the second one rather than the first. Now the host refuses it ("Hold on — someone is still deciding. Nothing was
+  played."), and your first press lands once they answer.
+- **At 3-6 players, an answer counts only for the window it was shown.** A stale "Let it resolve" used to close
+  whatever window the host was waiting on: a duplicate, or one for a window already granted again. Now it's dropped.
+  And an answer that reaches the host before the host is ready for it is held and applied. Before, it was ignored
+  and the table was left waiting on a player who had already answered. The duel host has done both since 2026-10-07.
+- **Phantasmal Illusion can't be cast while a window is open**, the same as every other card.
+
+**Why:** `E.moveToPlay` checked the sub-phase and the turn but never whether someone held priority. So any press
+that reached it over an open window reset the passes, bumped `prioGen`, and granted the same seat again. It now
+refuses. `E.phantasm` was the one fight action with no window check (`activate` has refused since 2026-09-14). Both
+engine changes leave every AI game unchanged: a 720-game seeded fingerprint at 2, 3 and 6 players is byte-identical
+to v1.33.16.
+- The host's move dispatch refuses a play, pass, Illusion or Fight press while a window is open, beside the existing
+  ceremony refusal. The drag-and-stack epic carries the same refusal.
+- `moveToPlayThen` drains a window nobody is settling, then crosses. Refusing the press outright stalls the board,
+  and the BACKLOG already recorded that as a ruled-out fix. Measured again: with the drain removed, `mptest`'s
+  crossing leg goes red, because seat 2's Back Stab window is never drained.
+- `hostApplyMoveN` gets the duel's two halves per seat: `pg` stale-drop and `heldAnswerN`. Either N-player park
+  applies a held answer.
+
+**Tests:**
+- `test.js` 719 (+6): `moveToPlay` and `pass` open no crossing over the turn holder's own pending cast, and
+  `phantasm` refuses with nothing spent. Each comes with a control on the same staging, and each guard deleted is red.
+- **`nettest_windowguard3` (new, 13):**
+  - a decline stamped for the previous grant is dropped;
+  - an answer that beats the park is held and applied, and the host gets its board back;
+  - a raw second play is refused with no new grant, and the first play lands.
+  - Five mutants: no stale drop, no park apply, no hold, no dispatch refusal, and old main. Each turns its own leg
+    red.
+  - `__cmf.parkDelay` (one-shot, `?dbg=1`) opens the park gap, which only a ceremony boundary opens in a real game.
+
 ### v1.33.16 — at 3+ players, an AI's round win no longer leaves two opponent loops running
 
 **What you'll see:** in a 3-6 player game, after an AI wins a round, the AIs again take the next round one turn at
