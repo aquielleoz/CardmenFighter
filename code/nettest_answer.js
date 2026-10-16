@@ -7,6 +7,8 @@
  *   A  the guest presses Yes, its board answers (Pass named for the moment), Pass sends a DECLINE, the window closes,
  *      and the host's Technique resolves
  *   B  the guest presses Yes and does nothing: netwindows declines it from the board after its grace
+ *   C  (piece 5) the guest presses Yes, taps Leyline and presses ⚡: it travels as `{op:'respond'}` — never Main's
+ *      `{op:'activate'}`, which the host would refuse off-turn — and the host narrates the answer
  *
  * Run: node nettest_answer.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
@@ -69,6 +71,22 @@ let host, join;
   const lastB=await join.evaluate(()=>window.__nw ? window.__nw.last : null);
   ok(passedB && lastB==='answer-from-the-board', 'B: A GUEST THAT PRESSES YES AND WALKS AWAY IS PASSED FROM THE BOARD after netwindows\' grace  ['+JSON.stringify({passed:passedB, last:lastB})+']');
   ok(await until(()=>host.evaluate(()=>!window.__cmf.pending()), 60), '  …and the host\'s window closes, so the table moves on');
+
+  // ================= C: Yes, then CAST from the board =================
+  await wait(2800);
+  await stage(); await wait(600);
+  await cast('hb3C');
+  ok(await toGuestBox(), 'STAGED: the window is the guest\'s again');
+  await join.evaluate(()=>document.getElementById('respYes').click()); await wait(300);
+  await join.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="cq9D"]'))[0]; if(g) g.click(); }); await wait(300);
+  const jc=await join.evaluate(()=>{ const c=document.getElementById('ctxBtn'); return { ctx:(c.textContent||'').trim(), off:c.classList.contains('off'), shown:!!c.offsetParent }; });
+  const beforeC=(await trace()).split('\n').length;
+  await join.evaluate(()=>document.getElementById('ctxBtn').click());
+  const castC=await until(()=>host.evaluate(()=>/answered[^\n]*Leyline/.test([...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'))), 80);
+  const sentC=(await trace()).split('\n').slice(beforeC-1).join('\n');
+  ok(jc.shown && jc.ctx==='⚡ Activate' && !jc.off && /op=respond/.test(sentC) && !/op=activate/.test(sentC),
+     'C: THE GUEST CASTS LEYLINE FROM ITS BOARD and it travels as a RESPOND, not Main\'s activate  ['+JSON.stringify(jc)+' '+((sentC.match(/move IN[^\n]*/g)||[]).join(' | ')||'nothing sent')+']');
+  ok(castC && await until(()=>join.evaluate(()=>window.__cmf.hand().indexOf('cq9D')<0), 40), '  …and the host narrates the answer, and the card leaves the guest\'s hand');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
