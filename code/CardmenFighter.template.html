@@ -5954,7 +5954,9 @@ __QR__
      * still wins when it is genuinely not your turn — that message is more specific than this one. */
     if(busy){
       fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
-      hint.textContent='Hold on — the board is still resolving.'; hint.className='';
+      /* …AND SAYS WHO, when the wait is somebody else's window (piece 9): on a guest's own turn its crossing can hand
+         priority to another seat, and the board is locked for that, not for an animation. */
+      hint.textContent=(state.respondFor!=null && state.respondFor!==YOU) ? (seatName(state.respondFor)+' is deciding…') : 'Hold on — the board is still resolving.'; hint.className='';
       return;
     }
     if(castHolding()){                                         // ruling 20: a cast's art flash holds the game; `startCastHold` re-renders when it ends
@@ -11784,6 +11786,19 @@ __QR__
             sendTo(sseat, {t:'refused', why:'The round is still wrapping up — play again once the new round starts.'});
             broadcastMirror(); return;
           }
+          /* …AND WHILE SOMEBODY HOLDS PRIORITY (drag-and-stack step 4, piece 9). A play or pass from a seat while a window
+             was open reached the drivers' crossing branch, where `E.moveToPlay` — which checks the sub-phase and the
+             turn, never `respondFor` — re-opened the go-round with a FRESH GRANT. `nettest_parity` filmed a guest whose
+             live Pass did that every 330ms for a hundred seconds: each repeat re-granted the host's own window before the
+             host could answer it, and the table never moved. The FIRST op of a crossing arrives with nothing open, so it
+             is untouched, and its re-apply runs straight into the driver once the window has closed, never through here.
+             `activate` is the engine's to refuse (it does, and says why). Re-asserted, not just broadcast: the refusal
+             clears the guest's send-time lock, and an unchanged board would otherwise be de-duped away, leaving it live. */
+          if(sseat!=null && hostState && !hostState.finished && hostState.respondFor!=null && m.intent && (m.intent.op==='play' || m.intent.op==='pass' || m.intent.op==='phantasm')){
+            trace('move REFUSED — a window is open', 'seat '+sseat+' op='+m.intent.op+' respondFor='+hostState.respondFor+' prioGen='+(hostState.prioGen||0));
+            sendTo(sseat, {t:'refused', why:'Hold on — someone is still deciding. Nothing was played.'});
+            reassertMirror(); return;
+          }
           if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
@@ -12959,7 +12974,13 @@ __QR__
          it: a Resolution window the host sat in, then the host's Upkeep window, with the next leader's controls
          going live under the second. `nettest_roundlock` stages each window and asserts this lock. */
       var waitingOnRound = !trimFirst && !!((st.resolution || st.cleanup || st.endCleanup || st.upkeep) && st.respondFor != null);   // a window really open — a STALLED boundary (nobody on priority) must not lock the board for good; see the engine's matching guard
-      busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
+      /* …AND ANY WINDOW SOMEBODY ELSE HOLDS, not only a round's (drag-and-stack step 4, piece 9). On this seat's own turn
+         its Pass opens the Main → Fight crossing, and when another seat can answer it, that seat holds priority — the
+         host's own board locks for exactly that (`awaitRival`), this one did not. Its live Pass re-sent the turn op, and
+         the host re-opened the go-round on every one (`nettest_parity`, 1 duel in 6). The host now refuses those; this
+         is the courtesy copy. A window this seat holds is `owedModal` and the board answer's, untouched. */
+      var waitingOnOther = !trimFirst && st.respondFor != null && st.respondFor !== YOU;
+      busy = owedModal || owedLoss || waitingOnTrim || waitingOnLoss || waitingOnRound || waitingOnOther || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
       /* …AND LOCKED WHILE THIS SEAT'S ROUND CEREMONY IS ON SCREEN (one-ceremony, 2026-10-06). The host's mirror
          says "your turn" the moment the engine advances, which is the START of the ceremony, so a client's board
          went live under its own Round banner and a quick player could play round N+1 before round N had finished

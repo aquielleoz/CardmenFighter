@@ -71,7 +71,7 @@ function installFilm(me, them){
   /* …AND SO DOES EACH CONTROLS EDGE, plus this seat's ceremony hold, so a board that goes live under a ceremony
      says which mirror let it: printed by the controls check when it fails. */
   const snap=()=>{ let fl=null; try{ fl=window.__cmf&&window.__cmf.roundFlags?window.__cmf.roundFlags():null;
-      const h=window.__cmf&&window.__cmf.ceremonyHold?window.__cmf.ceremonyHold():null; if(fl&&h){ fl.hold=h.hold; fl.cerActive=h.active; fl.hostCer=h.hostCer; } if(fl&&window.__cmf.ceremony) fl.inCer=window.__cmf.ceremony(); }catch(e){} return fl; };
+      const h=window.__cmf&&window.__cmf.ceremonyHold?window.__cmf.ceremonyHold():null; if(fl&&h){ fl.hold=h.hold; fl.cerActive=h.active; fl.hostCer=h.hostCer; } if(fl&&window.__cmf.ceremony) fl.inCer=window.__cmf.ceremony(); if(fl&&window.__cmf.answering) fl.answering=window.__cmf.answering(); }catch(e){} return fl; };
   const ctlCheck=()=>{ const l=live(); if(l!==ctl){ ctl=l; window.__film.push({t:l?'CTRL:live':'CTRL:dead', at:Date.now(), fl:snap()}); } };
   new MutationObserver(ctlCheck).observe(document.getElementById('actions')||document.body,{attributes:true, subtree:true, childList:true});
   setInterval(ctlCheck, 40);                                         // a style flip on a parent is not always an attribute on the button
@@ -187,7 +187,15 @@ function liveUnder(f){ const bad=[]; bad.windows=0; bad.at=[];   // `at`: each l
        click that, and anything sent in it reaches a host already in its ceremony, which refuses it. So outside
        an open window a live edge must LAST 60ms to count, the `settled()` rule for controls. */
   const roundOpen=x=>!!(x.fl && x.fl.respondFor!=null && (x.fl.resolution||x.fl.cleanup||x.fl.endCleanup||x.fl.upkeep));
-  const counts=i=>{ if(roundOpen(f[i])) return true;
+  /* …EXCEPT A SEAT ANSWERING ITS OWN WINDOW FROM THE BOARD (drag-and-stack step 4, piece 9). After Yes the board IS
+     the answer — Pass declines, a cast answers, both accepted in any open window — so a board live while this seat
+     holds priority and answers is correct, not a leak. `answering` is the game's own predicate, sampled with the
+     edge; a seat answering someone ELSE's window cannot be, so the exception is that narrow.
+     ⚠ MEASURED UNEXERCISED (2026-10-16), and said so rather than claimed: the Yes leg puts the guest's board live while
+     it answers ~12 times a duel INSIDE round windows (Clean-up, Upkeep), but every one fell outside the Resolution-to-
+     Round-card spans checked here, and removing this exception left 3 runs of 3 green. It is the rule for the day such
+     an edge lands inside a span — not a tested branch. */
+  const counts=i=>{ if(roundOpen(f[i])) return !(f[i].fl && f[i].fl.answering);
     for(let j=i+1;j<f.length;j++) if(f[j].t==='CTRL:dead') return f[j].at-f[i].at>=60;
     return true; };
   wins.forEach(w=>{ if(w.to===Infinity) return; bad.windows++;
@@ -210,7 +218,11 @@ async function runTable(b, N, ok, errs){
   const pages=[];
   for(let i=0;i<N;i++){ const p=await ctx.newPage(); const nm=i===0?'host':'c'+i; p.on('pageerror',e=>errs.push(tag+' '+nm+': '+e.message)); await installPageHelpers(p, FIGHT_BUDGET); pages.push(p); }
   const host=pages[0], clients=pages.slice(1), names=pages.map((p,i)=>i===0?'host':(N===2?'client':'c'+i));
-  await host.goto(url('host',room)); for(const c of clients) await c.goto(url('join',room));
+  /* THE DUEL RUNS WITH PROMPTS ON (step 4, piece 9), so windows actually open and the Yes leg below happens: under the
+     default AUTO a window opens only on a shield stake, and a run measured ZERO windows on every seat — a Yes leg that
+     never ran. The 3-player table keeps the default, so the ceremony comparison still covers the mode players use. */
+  const pq = N===2 ? '&prompts=all' : '';
+  await host.goto(url('host',room)+pq); for(const c of clients) await c.goto(url('join',room)+pq);
   if(N===2){ await startDuel(host, clients[0]); }
   else {
     for(const p of pages) await autoAnswerWindows(p, names[pages.indexOf(p)]);
@@ -220,6 +232,17 @@ async function runTable(b, N, ok, errs){
   }
   let started=false; for(let i=0;i<120 && !started;i++){ started=true; for(const p of pages) if((await view(p)).round<1) started=false; if(!started) await wait(150); }
   ok(started, `[${tag}] the game started on every seat`);
+  /* EVERY SEAT ANSWERS ITS WINDOWS THE WAY A PLAYER WHO LOOKS DOES: Yes, then Pass from the board after a beat
+     (`netwindows`' `viaYes`, step 4 piece 9). So the after-Yes state — a board live as the answer inside a round
+     window — happens in real games here, under the live-under-ceremony check below and its exception. */
+  for(const p of pages) await p.evaluate(()=>{ if(window.__nw){ window.__nw.viaYes=true; window.__nw.yesHold=700; window.__nw.grace=300; } });   // this suite scripts no window, so nothing needs netwindows' long grace
+  /* …AND THE DUEL'S GUEST HOLDS LEYLINE, with the ♦ to pay for it, so its windows really open: an untargeted Quick is
+     castable at every crossing and boundary, and nothing here ever casts it. Left to the deal, a run measured ZERO
+     windows on both seats as often as not — a Yes leg that runs on a coin flip. The guest is the seat worth it: its
+     board is driven by mirrors, which is where a live-under-ceremony leak would come from. */
+  if(N===2) await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+    window.__cmf.forceAll([null, [C(9,'D','pyL'),C(8,'C','py'),C(8,'S','py'),C(3,'H','py'),C(11,'C','py'),C(13,'H','py')]],
+                          [null, [1,2,3,4,5,6,7,8,9,10,11,12].map(n=>C(n,'D','pye'))]); });
   for(let i=0;i<N;i++) await pages[i].evaluate(`(${installFilm})(${JSON.stringify(N===2?names[i]:'me')},${JSON.stringify(N===2?names[1-i]:'other')})`);
 
   const t0=Date.now(); let idle=0, loopRound=-1, loopActs=0, loopDumped=false, stalled=false;
@@ -284,6 +307,9 @@ async function runTable(b, N, ok, errs){
      6 stalls in 48 duel runs, one signature, all green. Two peers can agree perfectly and both be stuck
      (CLAUDE.md, `nettest_sync`); the dump above says which window the table was waiting on. */
   ok(!stalled, `[${tag}] the table never stalls — some seat could always act`);
+  { const ys=[]; for(const p of pages) ys.push(await p.evaluate(()=>window.__nw ? (window.__nw.yes||0) : 0));
+    console.log(`   ⓘ [${tag}] windows answered via Yes, then the board: `+names.map((n,i)=>n+' '+ys[i]).join(' · '));
+    if(N===2) ok(ys[1]>0, `[${tag}] STAGED: the guest answered its windows via YES, then the board, ${ys[1]} time(s) — so the check below saw the after-Yes state`); }
   await wait(4500);                                                   // let the last ceremony finish on every seat
   const films=[]; for(const p of pages) films.push(await p.evaluate(()=>window.__film));
   const cers=films.map(ceremonies), hc=cers[0];

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.9**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.10**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -329,14 +329,19 @@ node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRI
                                                 # (`handPresetN`), never the order: a fair shuffle reproduces
                                                 # the engine's order 1 time in 720, so an order assertion is a
                                                 # mystery red waiting to happen
-node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME CEREMONY (21). FILMS what each
+node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME CEREMONY (22). FILMS what each
                                                 # seat RENDERS through a real duel and a 3-player game and diffs
                                                 # the round ceremonies. `PARITY_DUMP=1` prints every ceremony,
                                                 # `PARITY_RAW=1` every strip change with that seat's flags.
                                                 # ⚠ A REPAINT OF THE PHASE ON SCREEN IS NOT A NEW PHASE: after
                                                 # a parked Resolution window the client repaints Resolve once
                                                 # an invisible burst is filtered out, and segmenting on it
-                                                # filmed an extra empty ceremony 1 run in 4 (`settled()`)
+                                                # filmed an extra empty ceremony 1 run in 4 (`settled()`).
+                                                # Every seat answers its windows via YES, then the board
+                                                # (`netwindows`' `viaYes`), and the duel's guest holds Leyline
+                                                # with prompts ON so that really happens — left to the deal it
+                                                # ran ZERO windows as often as not. That leg found the loop
+                                                # `nettest_windowlock` pins
 node nettest_strip.js                          # THE STRIP AFTER THE CLEAN-UP DWELL COMES FROM THE GAME, ON EVERY SEAT (16).
                                                 # Leg 1: the host picks its end-of-round discards and the GUEST
                                                 # must read Clean-up (`trimPending`), not the turn colour. Leg 2:
@@ -347,9 +352,18 @@ node nettest_strip.js                          # THE STRIP AFTER THE CLEAN-UP DW
                                                 # drain the whole boundary BEFORE its ceremony starts, and the
                                                 # first cut of leg 2 staged exactly that and read a correct strip
 node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHILE A ROUND WINDOW IS OPEN,
-                                                # UPKEEP INCLUDED (9). Injects mirrors through the REAL
+                                                # UPKEEP INCLUDED (13). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
-                                                # STALLED Upkeep (nobody on priority) must stay live too
+                                                # STALLED Upkeep (nobody on priority) must stay live too.
+                                                # And the client's OWN window: locked under its box, LIVE as
+                                                # the answer after Yes, and a re-sent mirror changes neither
+node nettest_windowlock.js                      # A TURN OP WHILE SOMEBODY ELSE HOLDS PRIORITY IS REFUSED, AND
+                                                # THE GUEST'S BOARD LOCKS (7). Found by parity's Yes leg, 1 duel
+                                                # in 6: a guest's live Pass during the host's crossing window
+                                                # re-reached the crossing branch, where `E.moveToPlay` never
+                                                # checks `respondFor`, so every repeat re-granted the host's
+                                                # window and the table never moved. The host refuses (the
+                                                # authority) and the guest locks (the courtesy); both A/B'd
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (133).
                                                 # Its forced-discard leg FORCES what its phase-strip driver once stalled on
                                                 # — an AI discard aimed at you — and drives it with that same `driveOnce`.
@@ -2620,7 +2634,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.9 — last FULL sweep 2026-10-16, `npm run sweep`, 132/132 in 485s** (this line was
+Status as of **v1.33.16.10 — last FULL sweep 2026-10-16, `npm run sweep`, 133/133 in 497s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2630,7 +2644,7 @@ the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
 note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
-the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 132 with `nettest_parity`, `nettest_roundlock`, `deckouttest`, `nettest_strip`, the `nettest_clientride` pair, `nettest_piles`, `nettest_counterfeit`, `nettest_stackfly`, `castholdtest`, `upkeepstrandtest`, `answertest`, `nettest_answer`, `answercasttest` and `answerglowtest`.) (four lanes; background
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 133 with `nettest_parity`, `nettest_roundlock`, `deckouttest`, `nettest_strip`, the `nettest_clientride` pair, `nettest_piles`, `nettest_counterfeit`, `nettest_stackfly`, `castholdtest`, `upkeepstrandtest`, `answertest`, `nettest_answer`, `answercasttest`, `answerglowtest` and `nettest_windowlock`.) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2640,12 +2654,12 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 81 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 18, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 82 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14, `answer` 16.
+`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 22, `heldplay3` 11, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 11, `stackfly` 14, `answer` 16, `windowlock` 7.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

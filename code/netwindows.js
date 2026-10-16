@@ -40,7 +40,7 @@ async function install(page, label, opts) {
   const grace = opts.graceMs != null ? opts.graceMs : GRACE_MS;
   await page.evaluate(function (grace) {
     if (window.__nw) return;                       // idempotent: a suite may install twice via startDuel
-    window.__nw = { n: 0, seenAt: 0, kind: null, last: null };
+    window.__nw = { n: 0, seenAt: 0, kind: null, last: null, viaYes: false, yesHold: 1200, yes: 0 };
     var PASS = [['respDecline', 'Respond?']];   // `pfDecline` (the pre-fight window) and `sgNo` (the shield guard) are gone: epic steps 19-20 folded both into the go-round
     setInterval(function () {
       var ov = document.getElementById('overlay');
@@ -50,11 +50,14 @@ async function install(page, label, opts) {
          predicate, so this cannot fire while the box is still the answer. */
       if (!ov || !ov.classList.contains('show')) {
         var ans = (window.__cmf && window.__cmf.answering) || (window.__solo && window.__solo.answering), pb = document.getElementById('passBtn');
-        if (!(ans && ans() && pb && !pb.disabled)) { window.__nw.seenAt = 0; return; }
+        if (!(ans && ans() && pb && !pb.disabled)) { window.__nw.seenAt = 0; if (window.__nw.kind === 'viaYes' || window.__nw.kind === 'answering') window.__nw.kind = null; return; }   // a stale marker must never shorten the NEXT board answer, one a suite opened itself
         var t0 = Date.now();
-        if (!window.__nw.seenAt || window.__nw.kind !== 'answering') { window.__nw.seenAt = t0; window.__nw.kind = 'answering'; return; }
-        if (t0 - window.__nw.seenAt < grace) return;
-        pb.click(); window.__nw.n++; window.__nw.last = 'answer-from-the-board'; window.__nw.seenAt = 0; return;
+        /* A board answer THIS HELPER opened with Yes (`viaYes`, below) is held only `yesHold` before Pass — long enough
+           for a suite filming the board to see the seat answering, short enough not to slow the game it is filming. */
+        var mine = window.__nw.kind === 'viaYes';
+        if (!window.__nw.seenAt || (window.__nw.kind !== 'answering' && !mine)) { window.__nw.seenAt = t0; window.__nw.kind = 'answering'; return; }
+        if (t0 - window.__nw.seenAt < (mine ? window.__nw.yesHold : (window.__nw.grace != null ? window.__nw.grace : grace))) return;
+        pb.click(); window.__nw.n++; window.__nw.last = mine ? 'Yes, then Pass from the board' : 'answer-from-the-board'; window.__nw.seenAt = 0; window.__nw.kind = null; return;
       }
       var btn = null, kind = null;
       for (var i = 0; i < PASS.length; i++) {
@@ -64,7 +67,13 @@ async function install(page, label, opts) {
       if (!btn) { window.__nw.seenAt = 0; return; }          // some other modal (discard picker, end screen)
       var now = Date.now();
       if (!window.__nw.seenAt) { window.__nw.seenAt = now; window.__nw.kind = kind; return; }
-      if (now - window.__nw.seenAt < grace) return;          // the suite still has time to drive it itself
+      if (now - window.__nw.seenAt < (window.__nw.grace != null ? window.__nw.grace : grace)) return;   // the suite still has time to drive it itself (`__nw.grace` lets a suite that scripts NO window shorten it after install)
+      /* `viaYes` (opt-in, drag-and-stack step 4, piece 9): answer the way a player who LOOKS answers — Yes, then the
+         board — so a suite that films the board sees the after-Yes state inside real games. Still never casts: the
+         board answer above ends it with Pass. */
+      var yes = document.getElementById('respYes');
+      if (window.__nw.viaYes && kind === 'Respond?' && yes && yes.offsetParent && !yes.disabled) {
+        yes.click(); window.__nw.yes = (window.__nw.yes || 0) + 1; window.__nw.kind = 'viaYes'; window.__nw.seenAt = now; return; }
       btn.click(); window.__nw.n++; window.__nw.last = kind; window.__nw.seenAt = 0;
     }, 250);
   }, grace);

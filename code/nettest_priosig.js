@@ -121,6 +121,24 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   await wait(400);
   ok(!(await respOpen(join)), 'a REPEAT of the same generation is still de-duped — the fix did not break the thing the signature is for');
 
+  /* …AND AFTER YES (drag-and-stack step 4, piece 9). Yes closes the box with the window still OWED — the seat answers
+     from the board — which gives the de-dupe a second job: a park beat re-sending the SAME grant must not pop the box
+     back over a player answering on the board, while a NEW grant still must open it. Before Yes existed, "the box is
+     closed" meant "the window was answered", so the repeat leg above could not see this half. */
+  await join.evaluate(m=>window.__cmf.inject(m), await mk(3));
+  ok(await until(()=>respOpen(join)), 'grant 3: the window opens');
+  await join.evaluate(()=>document.getElementById('respYes').click());
+  ok(await until(()=>join.evaluate(()=>window.__cmf.answering())) && !(await respOpen(join)), 'YES closes the box, and the guest answers from the board');
+  const a3=await appliedCount(join);
+  await join.evaluate(m=>window.__cmf.inject(m), await mk(3));
+  const reApplied=await until(async()=>(await appliedCount(join))>a3); await wait(400);
+  ok(reApplied && !(await respOpen(join)) && await join.evaluate(()=>window.__cmf.answering()),
+     'the SAME grant re-sent (a park beat) does NOT pop the box back over the board — and the board still answers'+(reApplied?'':'  ← the repeat never reached the handler, so this proves nothing'));
+  await join.evaluate(m=>window.__cmf.inject(m), await mk(4));
+  ok(await until(()=>respOpen(join)), 'a NEW grant after Yes still opens the box');
+  await clickDecline(join);
+  await until(async()=>!(await respOpen(join)));
+
   /* AN OBJECTLESS WINDOW STILL RENDERS (epic step 2). A Fight End go-round runs on an empty stack, so
      `respondFor` is set and `pending` is null. Every consumer used to require the OBJECT, so such a window was
      INVISIBLE — not a crash, a silently parked table. Nothing mints one until step 11, which is exactly why it
