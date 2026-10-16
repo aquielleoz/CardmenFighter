@@ -292,7 +292,7 @@ The three earlier asks this answers:
   pile on a portrait phone. No layout keeps the old modal, because two answer screens drift apart. The
   Respond? box itself is a small modal on every layout.
 - **Glow in Main.** Aj's glow is for answering. In Main the board already greys the effects you cannot afford
-  (`markAfford`). Default: glow only when answering, unless Aj wants it in Main too.
+  (`markAfford`). Default: glow only when answering, unless Aj wants it in Main too. *Built that way in piece 6.*
 
 ## Invariants, not up for ruling
 
@@ -464,6 +464,13 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    step may name the answers it accepts (`answers`, ruling 28's hook — Phases' counter and Leyline steps do); and a
    guest whose answer the host refuses gets the window back (`rearmAnswer` on `t:'err'`). **Not yet: Counter Spell**
    — ruling 26 puts its target on the stack, which is piece 7, so until then the board says to choose it in Respond?.
+   *Piece 6 built (v1.33.16.7):* **the glow.** After Yes, every card `E.canCastQuick` allows glows GREEN
+   (`.answerable`), painted in `renderHand` on every render while the board is the answer — not under the box, not
+   while an answer's picker holds the board, not while a card is staged (ruling 29). Green because gold already means
+   a selection, a lesson's spotlight and a ready transform. It is an animation, combined with `.enter`'s deal-in and
+   with `.tut-spot`'s ring, and falls back to a static ring under reduced motion that still wins on a selected or
+   hovered card; `answerglowtest` reads all of it in computed style. Built as the default for "Glow in Main" below:
+   answering only.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
