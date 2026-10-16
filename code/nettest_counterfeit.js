@@ -9,13 +9,18 @@
  * card was copied. The host leads a pair of 7s and the client picks the SECOND one (the 7♥): a build that copied
  * the first card, or ignored the client's pick, copies the 7♦ and fails.
  *
+ * LEG B (drag-and-stack step 4, piece 10): THE HOST's own Counterfeit must SETTLE its window like every other cast.
+ * It used to call `rivalMayRespond`, which asked the AI to answer for seat 1 — the HUMAN guest here — so the guest
+ * holding Leyline was never shown its window and an AI decided for it. Now the guest's box opens, its Leyline is still
+ * in its hand, and once it declines the host has its board back (`NET.hostAfterOwnCast`).
+ *
  * Run: node nettest_counterfeit.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { selectAndFight } = require('./fightclick');
+const { selectAndFight, clickDecline } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8460),ROOM='CF'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
-const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
+const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;   // leg B's guest must be SHOWN its window; leg A stages no Quick, so nothing changes there
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
 async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
@@ -76,6 +81,28 @@ const clientHand=()=>host.evaluate(()=>window.__cmf.handOf(1));        // the HO
   const logs=await Promise.all([host,join].map(p=>p.evaluate(()=>{ const l=window.__cmf.log(); return (Array.isArray(l)?l:[l]).map(x=>typeof x==='string'?x:(x&&(x.text||x.t||JSON.stringify(x)))).join(' | '); })));
   if(process.env.CF_LOGDUMP) logs.forEach((l,i)=>console.log('   LOG['+(i?'join':'host')+']: '+l.split(' | ').filter(x=>/ounterfeit|7♥/.test(x)).join(' || ')));
   ok(logs.every(l=>/counterfeited a 7♥/.test(l)), 'BOTH battle logs name the copied card ("counterfeited a 7♥")  ['+logs.map(l=>(l.match(/[^|]*counterfeited[^|]*/)||['none'])[0].trim()).join(' / ')+']');
+
+  // ================= B: the HOST's own Counterfeit settles its window — the guest is ASKED, not answered for =================
+  await wait(2600);
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su}); const E=(s,t)=>[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>C(n,s,t));
+    window.__cmf.forceAll([[C(8,'S','H'),C(7,'C','H'),C(4,'H','H')], [C(7,'D','G'),C(7,'H','G'),C(9,'D','G')]],
+                          [E('S','hs'), E('D','gd')], null, {round:3, turn:1}); });
+  await wait(600);
+  await selectAndFight(join, ['G7D','G7H']);
+  for(let i=0;i<40 && !(await host.evaluate(()=>window.__cmf.turn()===0 && document.querySelectorAll('#pile .card').length===2)); i++){ await clickDecline(join); await wait(200); }   // the guest's own crossing offers it Leyline — let it go
+  ok(await until(()=>host.evaluate(()=>window.__cmf.turn()===0 && document.querySelectorAll('#pile .card').length===2), 60), 'B · STAGED: the guest led a pair of 7s holding Leyline, and the turn reached the host');
+  await until(()=>host.evaluate(()=>!/Hold on|fighting|Waiting/.test((document.getElementById('hint')||{}).textContent||'')), 60);
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="H8S"]'); if(c) (c.closest('.group')||c).click(); }); await wait(250);
+  await host.evaluate(()=>{ const x=document.getElementById('ctxBtn'); if(x && !x.disabled) x.click(); }); await wait(300);
+  await host.evaluate(()=>{ const c=document.querySelector('#pile .card[data-id="G7H"]'); if(c) c.click(); }); await wait(250);
+  await host.evaluate(()=>{ const x=document.getElementById('ctxBtn'); if(x && !x.disabled) x.click(); });
+  const askedB=await until(()=>join.evaluate(()=>{ const y=document.getElementById('respYes'); return !!(y && y.offsetParent); }), 80);
+  ok(askedB, 'B · THE HOST\'S COUNTERFEIT ASKS THE GUEST — its Respond? box opens on its own board');
+  ok((await clientHand()).indexOf('G9D')>=0, '  …and nobody answered for it: the guest\'s Leyline is still in its hand');
+  await clickDecline(join);
+  const copiedB=await until(()=>host.evaluate(()=>window.__cmf.hand().some(id=>/^CF/.test(id))), 60);   // the copy is made as Counterfeit RESOLVES, after the window
+  const backB=await until(()=>host.evaluate(()=>{ const a=document.getElementById('actions'); return !!(a && a.getAttribute('data-live')==='1') && window.__cmf.turn()===0; }), 60);
+  ok(copiedB && backB, '  …and once the guest says No, Counterfeit resolves and the host has its board back  '+JSON.stringify({copied:copiedB, back:backB}));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

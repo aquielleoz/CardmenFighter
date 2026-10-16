@@ -31,7 +31,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     st.players[2].equipment=[{id:'eqA',name:'Caltrops',counters:3},{id:'eqB',name:'Spiked Armor',counters:3}];
     st.players[0].equipment=[{id:'eqMine',name:'Holy Bow',counters:3}];
     const x=find(spec.kind);
-    st.stack=[{oid:'s1', kind:'effect', p:spec.p, card:x.card, eff:x.eff, opts:spec.opts||{}}];
+    st.stack=[{oid:'s1', kind:'effect', p:spec.p, card:x.card, eff:Object.assign({}, x.eff, spec.extra||{}), opts:spec.opts||{}}];   // `extra`: a Form's patch, as `effectFor` would carry it
     window.__solo.render();
     const el=document.getElementById('stackView');
     return { text:(el&&el.textContent)||'', shown:!!(el && el.style.display!=='none'), name:x.eff.name };
@@ -50,6 +50,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
   const r4=await rowsFor({kind:'draw', p:1, opts:{}});
   ok(r4.shown && !/→/.test(r4.text), 'an UNTARGETED effect renders exactly as before — no arrow ("'+r4.text.trim()+'")');
+
+  /* HERMES (drag-and-stack step 4, piece 10). Back Stab under Hermes' Super carries `all` and locks EVERY rival; the row
+     named one seat, so the others were told it was not aimed at them. Staged with a named target, so a row that still
+     follows the seat would name Tank. */
+  const r5=await rowsFor({kind:'lockout', p:1, opts:{target:2}, extra:{all:true, quick:true}});
+  ok(/→\s*every rival/.test(r5.text) && !/Tank/.test(r5.text), 'Back Stab under Hermes reads "→ every rival", not one seat ("'+r5.text.trim()+'")');
 
   /* ═══ DRAG-AND-STACK STEP 3: THE BOARD'S STACK IS CARDS ═══
      The Respond? box keeps these rows (step 4 changes it); the board's column shows the CARD of each object,
@@ -167,6 +173,34 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await wait(2600);
 
   await p.evaluate(()=>{ window.__solo.st().stack=[]; window.__solo.render(); });
+  /* …AND THE RESPOND? BOX SAYS THE SAME (piece 10). Your own Back Stab under Super, cast in Main with Leyline in hand and
+     prompts ON, so the box opens for you over it. It used to read the card's BASE effect: "at <one rival>", plus "It does
+     not target you — countering only helps <them>". */
+  { const q=await (await b.newContext({viewport:{width:1100,height:900}})).newPage(); q.on('pageerror',e=>errs.push('hermes: '+e.message));
+    await q.goto(URL+'&prompts=all'); await wait(700);
+    await q.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await q.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350);
+    await q.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1500);
+    await q.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id}), E=(s,t)=>[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,s,t+s+n));
+      st.stack=[]; st.respondFor=null; st.pending=null; st.round=4; st.turn=0; st.subPhase='main'; st.pile=null; st.lastPlayer=null; st.passes=0; st.prioPassed={};
+      st.players[0].forms=[{rank:11,suit:'S',tier:'ride',name:'Ride',card:mk(11,'S','fJ')},{rank:12,suit:'S',tier:'queen',name:'Queen',card:mk(12,'S','fQ')},{rank:13,suit:'S',tier:'king',name:'King',card:mk(13,'S','fK')}];
+      st.players[0].hand=[mk(10,'S','bs10S'),mk(9,'D','ley9D'),mk(6,'C','x6C')];
+      st.players[0].energy=E('S','e').concat(E('D','d'));
+      [1,2].forEach(q=>{ st.players[q].hand=[mk(3,'C','r'+q+'3C')]; st.players[q].energy=[]; });
+      window.__solo.render(); });
+    await wait(300);
+    const sup=await q.evaluate(()=>{ const e=window.CardmenEngine.effectFor(window.__solo.st(), 0, {rank:10,suit:'S',id:'bs10S'}); return !!(e && e.all); });
+    await q.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="bs10S"]'))[0]; if(g) g.click(); }); await wait(250);
+    await q.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(300);
+    await q.evaluate(()=>{ const t=document.querySelector('.oppPanel.targetable'); if(t) t.click(); }); await wait(250);
+    await q.evaluate(()=>document.getElementById('ctxBtn').click());
+    let lead=null; for(let i=0;i<80;i++){ lead=await q.evaluate(()=>{ const y=document.getElementById('respYes'); if(!(y && y.offsetParent)) return null; return ((document.querySelector('#modal .respWhat')||{}).textContent||'').replace(/\s+/g,' ').trim(); }); if(lead) break; await wait(100); }
+    ok(sup && !!lead && /You cast Back Stab at every rival/.test(lead) && !/does not target you/i.test(lead),
+       'THE BOX SAYS IT TOO: your Back Stab under Super reads "at every rival", with no "It does not target you" line  ["'+lead+'" · super '+sup+']'); 
+    const castLine=await q.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent.trim()).filter(t=>/Back Stab/.test(t)).pop()||'');
+    if(!castLine) console.log('   LOG: '+JSON.stringify(await q.evaluate(()=>[...document.querySelectorAll('#log > *')].slice(-6).map(e=>e.textContent.trim()))));
+    ok(/aimed at every rival/.test(castLine), '  …and so does the battle log\'s cast line  ["'+castLine+'"]'); }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

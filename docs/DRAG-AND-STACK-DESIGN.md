@@ -498,7 +498,15 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    and `E.moveToPlay` — which never checks `respondFor` — re-granted the host's window every time. Fixed both ways
    (piece 10's first hardening item, pulled forward): the host refuses a play, pass or Illusion from a seat while a
    window is open, and a guest's board locks while another seat holds priority, its hint naming who
-   (`nettest_windowlock`, both halves A/B'd).
+   (`nettest_windowlock`, both halves A/B'd). *Piece 10, the epic's half (v1.33.16.11):* the three hardening items
+   whose code the epic had rewritten. **Counterfeit settles**: `doCounterfeit` was the one cast continuation with no
+   `settleWindows` — it called `rivalMayRespond`, which let the AI answer for seat 1, a human guest on a netplay host,
+   and asked nobody else — and now ends like `doRemove`; `rivalMayRespond` is deleted. **A held remote play is held,
+   not shrunk**: a seat that casts a Quick out of its own pressed cards is not braked (rightly), and the re-apply then
+   resolved fewer ids and landed a smaller play; both host handlers hold it now. **Hermes reads "every rival"**:
+   `E.stackTargetOf` returns `{allRivals:true}` for a seat-targeted effect carrying `all`, and the caption, the box
+   (which read the card's BASE effect) and the cast line say so. The engine guards and `hostApplyMoveN`'s grant check
+   exist on `main` unchanged, so they are `main` work, held while the epic is open.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
