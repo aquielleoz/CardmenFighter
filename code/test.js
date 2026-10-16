@@ -3749,5 +3749,58 @@ function cards(ids) { return ids.map(card); }
   ok(cO.ok && pO === 1 && rO && rO.respondedWith === 'D9', 'aimed elsewhere: with only `ownCast` switched off the caster answers its own Critical Hit again — `aimed` does not swallow it  ' + (cO.ok ? said(rO) : cO.reason));
 })();
 
+/* ===== NO CROSSING AND NO ILLUSION WHILE SOMEBODY HOLDS PRIORITY (2026-10-16) =====
+   Filed by the drag-and-stack step 4 inventory, and main work because neither function has been touched by the
+   epic. `moveToPlay` opened a fresh go-round over any open window: `prioPassed` reset, `prioGen` bumped, so the seat
+   already holding priority was granted AGAIN, and `toPlay` was grafted onto a stack nobody had finished answering.
+   `play` and `pass` both cross through it. `phantasm` was the one fight action with no window check at all, while
+   `activate` has refused since 2026-09-14. Each claim below is a pair off one staging: refused with the window open,
+   and the control with it closed. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rigCast() {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 0; g.pile = null; g.lastPlayer = null; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'main';
+    g.players[0].hand = [sc(3, 'C', 'bt'), sc(9, 'D', 'ly'), sc(7, 'S', 'f')];       // Brilliant Tactic, and Leyline so the caster keeps priority
+    g.players[0].energy = []; for (var i = 0; i < 8; i++) { g.players[0].energy.push(sc(4, 'C', 'c' + i)); g.players[0].energy.push(sc(4, 'D', 'd' + i)); }
+    g.players[1].hand = [sc(6, 'H', 'x')]; g.players[1].energy = [];
+    return g;
+  }
+  var g = rigCast();
+  var ra = E.activate(g, 0, 'bt3C');
+  ok(ra.ok && g.respondFor === 0 && g.stack.length === 1 && g.subPhase === 'main',
+     'window guard: staged — the turn holder cast in Main and still holds priority over its own Technique (respondFor ' + g.respondFor + ', stack ' + g.stack.length + ')');
+  var gen = g.prioGen;
+  var m = E.moveToPlay(g, 0);
+  ok(m.ok === false && /holds priority/.test(m.reason || '') && g.prioGen === gen && !g.toPlay && g.respondFor === 0,
+     'window guard: `moveToPlay` REFUSES over an open window — no new grant, no crossing, priority where it was' +
+     (m.ok === false ? '' : '  ← prioGen ' + gen + ' → ' + g.prioGen + ', toPlay ' + JSON.stringify(g.toPlay) + ': the holder was granted again'));
+  var p = E.pass(g, 0);
+  ok(p.ok === false && g.prioGen === gen && !g.toPlay && g.subPhase === 'main',
+     'window guard: …so `pass` from that seat opens NO crossing over its own pending cast (prioGen ' + gen + ' → ' + g.prioGen + ', toPlay ' + JSON.stringify(g.toPlay || null) + ')');
+  while (g.respondFor != null) E.declineResponse(g, g.respondFor);
+  var gen2 = g.prioGen, m2 = E.moveToPlay(g, 0);
+  ok(m2.ok !== false && (g.subPhase === 'play' || (g.toPlay && g.prioGen > gen2)),
+     'window guard: CONTROL — once the window closes, the same call DOES cross: the crossing go-round opens (Leyline still holds the caster) or the sub-phase moves (subPhase ' + g.subPhase + ', toPlay ' + JSON.stringify(g.toPlay || null) + ', prioGen ' + gen2 + ' → ' + g.prioGen + ')');
+
+  function rigIllusion() {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 0; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'play';
+    var run = [3, 4, 5, 6, 7].map(function (r, i) { return sc(r, i % 2 ? 'S' : 'H', 'p'); }), combo = E.detectCombo(run);
+    g.pile = { combo: combo, byPlayer: 1, raw: combo.value, lockedDelta: 0, mod: 0 }; g.lastPlayer = 1;
+    g.players[0].hand = [sc(10, 'D', 'il'), sc(8, 'C', 'sw'), sc(9, 'D', 'ly')];     // drop the 3, swap the 8 in: 4-5-6-7-8 beats it
+    g.players[0].energy = []; for (var i = 0; i < 12; i++) g.players[0].energy.push(sc(4, 'D', 'd' + i));
+    return g;
+  }
+  var ctl = rigIllusion(), rc = E.phantasm(ctl, 0, { cardId: 'il10D', addId: 'sw8C', removeIdx: 0 });
+  ok(rc.ok && ctl.pile.phantom === true,
+     'window guard: CONTROL — with no window open, the Illusion is legal on this board' + (rc.ok ? '' : '  ← ' + rc.reason + ': the guard below would prove nothing'));
+  var w = rigIllusion(); w.respondFor = 1;
+  var rw = E.phantasm(w, 0, { cardId: 'il10D', addId: 'sw8C', removeIdx: 0 });
+  ok(rw.ok === false && !w.pile.phantom && w.players[0].hand.length === 3 && w.players[0].energy.length === 12,
+     'window guard: `phantasm` REFUSES while somebody holds priority, and the refusal costs nothing' +
+     (rw.ok === false ? '' : '  ← the Illusion replaced the pile under an open window'));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

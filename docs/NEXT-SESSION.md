@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**714**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**720**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.34.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.34.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.34.2**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.34.3**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -314,6 +314,9 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   **AND ONE FIX SHAPE IS ALREADY RULED OUT, MEASURED:** refusing Fight/Pass while `respondFor != null`
   stalls the board permanently, because `moveToPlayThen`'s settle is what DRAINS the window on some paths.
   `browsertest` went from 70s to past 400s. Lock the board, never forbid the action.
+  **RE-MEASURED 2026-10-16, AND IT HELD (v1.34.3):** `E.moveToPlay` now refuses to open a go-round over an
+  open window (it used to re-grant it), so `moveToPlayThen` DRAINS such a window first and then crosses. With
+  that drain removed, `mptest`'s crossing leg goes red: seat 2's Back Stab window is never drained.
   **A DETECTOR IS NOW LIVE, SO THE THIRD OCCURRENCE ARRIVES DIAGNOSED.** `enterResolution` is the funnel
   both round-win paths reach, and it counts a second entry inside one round (`blockedResolves`);
   `noteBlockedResolves` writes **`⚠ DOUBLE RESOLUTION BLOCKED`** into the saved log. The first two
