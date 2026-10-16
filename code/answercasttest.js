@@ -15,6 +15,10 @@
  *   H  Armor Piercing under a Queen asks which Broadway card to pitch, and that card is the one that goes
  *   I  your own Fight press opens a window you hold first; tapping a Quick borrows the selection, and Pass gives the
  *      pressed cards back before the play lands
+ *   J  (piece 7) Counter Spell never casts on the tap (ruling 26): ⚡ opens the pick, its one target is pre-chosen on
+ *      the STACK, and only a second ⚡ casts it — aimed at that object's oid
+ *   K  with two targets nothing is pre-chosen: both stack cards light (the top one too, over its gold ring), and the
+ *      one you TAP is the one countered — the lower one here, which the box's old "the thing beneath" default would miss
  *
  * Run: node answercasttest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
@@ -182,6 +186,44 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(iUp && i0 && i0.sel && i0f && !i0f.sel, 'I · YOUR OWN FIGHT OPENS A WINDOW YOU HOLD FIRST; tapping Leyline borrows the selection from the pressed 6♣  ['+JSON.stringify({box:iUp, leyline:i0, six:i0f})+']');
   ok(iSel.box && iSel.sel && !iSel.leySel, '  …and leaving the board answer gives the pressed card back  ['+JSON.stringify(iSel)+']');
   ok(iEnd.pile.indexOf('f6C')>=0 && iEnd.hand.indexOf('ley9D')>=0, '  …and once the window is let go, the play lands as pressed  ['+JSON.stringify(iEnd)+']');
+
+  // J
+  const stackIds=()=>p.evaluate(()=>(window.__solo.st().stack||[]).map(o=>({oid:o.oid, p:o.p, id:o.card&&o.card.id, coid:o.opts&&o.opts.counterOid})));
+  const declineAll=async()=>{ for(let i=0;i<120 && (await p.evaluate(()=>window.__solo.st().respondFor!=null)); i++){ await clickDecline(p); await wait(100); } };
+  /* a fresh page again: leg I's play handed the Rival its turn, and its driver would answer the next leg's windows */
+  await p.goto(URL); await wait(700);
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+  await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1800);
+  await stage([[3,'C','bt3C'],[4,'D','cs4D'],[6,'S','x6S'],[9,'D','ley9X']], [[3,'S','r3S']]);
+  await castMain('bt3C'); await waitBox(80); await yes();
+  const btOid=(await stackIds()).filter(o=>o.id==='bt3C').map(o=>o.oid)[0];
+  await tap('cs4D'); await wait(250);
+  const j0=await row();
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(350);
+  const j1=await row(), jAim=await p.evaluate(()=>[...document.querySelectorAll('#stackView .stkCard.aimed')].map(b=>b.getAttribute('data-oid')));
+  ok(j0.ctx==='🎯 Choose target' && j1.hand.indexOf('cs4D')>=0 && j1.ctx==='⚡ Activate' && j1.ctxGold && jAim.length===1 && jAim[0]===btOid,
+     'J · RULING 26: ⚡ ON COUNTER SPELL OPENS THE PICK — its one target is pre-chosen ON THE STACK, and nothing is cast yet  ['+JSON.stringify({first:j0.ctx, then:j1.ctx, aimed:jAim, bt:btOid, inHand:j1.hand.indexOf('cs4D')>=0})+']');
+  await p.evaluate(()=>document.getElementById('ctxBtn').click());
+  let j2=null; for(let i=0;i<60;i++){ await wait(100); j2=await stackIds(); if(j2.some(o=>o.id==='cs4D')) break; }
+  ok(j2.some(o=>o.id==='cs4D' && o.p===0 && o.coid===btOid), '  …and the second ⚡ casts it, aimed at that object\'s oid  ['+JSON.stringify(j2)+']');
+  await declineAll();
+  // K
+  await stage([[3,'C','bt3C'],[9,'D','ley9D'],[4,'D','cs4D'],[6,'S','x6S'],[9,'D','ley9X']], [[3,'S','r3S']]);
+  await castMain('bt3C'); await waitBox(80); await yes();
+  await tap('ley9D'); await wait(250); await p.evaluate(()=>document.getElementById('ctxBtn').click());
+  await waitBox(80); await yes();
+  const k0=await stackIds(), kBt=k0.filter(o=>o.id==='bt3C').map(o=>o.oid)[0], kLey=k0.filter(o=>o.id==='ley9D').map(o=>o.oid)[0];
+  await tap('cs4D'); await wait(250); await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(350);
+  const k1=await p.evaluate(()=>[...document.querySelectorAll('#stackView .stkCard[data-oid]')].map(b=>({oid:b.getAttribute('data-oid'), top:b.classList.contains('top'), t:b.classList.contains('targetable'), a:b.classList.contains('aimed'),
+    purple:getComputedStyle(b.querySelector('.card')).boxShadow.indexOf('rgba(201, 139, 255')>=0 })));
+  const k1r=await row();
+  ok(k1.length===2 && k1.every(b=>b.t && !b.a && b.purple) && k1.some(b=>b.top) && !k1r.ctxGold && k1r.ctx==='🎯 Pick a target',
+     'K · WITH TWO TARGETS NOTHING IS PRE-CHOSEN: both stack cards light, the top one too, in computed style  ['+JSON.stringify({cards:k1, ctx:k1r.ctx})+']');
+  await p.evaluate(oid=>{ const c=document.querySelector('#stackView .stkCard[data-oid="'+oid+'"] .card'); if(c) c.click(); }, kBt); await wait(300);
+  await p.evaluate(()=>document.getElementById('ctxBtn').click());
+  let k2=null; for(let i=0;i<60;i++){ await wait(100); k2=await stackIds(); if(k2.some(o=>o.id==='cs4D')) break; }
+  ok(k2.some(o=>o.id==='cs4D' && o.coid===kBt) && kLey && kBt!==kLey, '  …and the card you TAP is the one countered — the lower one, not the top  ['+JSON.stringify({stack:k2, tapped:kBt, top:kLey})+']');
+  await declineAll();
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
