@@ -230,35 +230,77 @@ async function installPageHelpers(page, budgetMs) {
  * proves it opened, so presence can only fail loudly, never pass by accident.
  * Inside a larger `evaluate`, inline the same test:
  *   [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null) */
-function respQuicks(page, sel) {   // the text of each VISIBLE Quick button, whitespace collapsed
-  return page.evaluate(s => [].slice.call(document.querySelectorAll(s)).filter(b => b.offsetParent !== null)
-    .map(b => b.textContent.replace(/\s+/g, ' ')), sel || '.respQuick');
+/* WHAT THIS SEAT IS OFFERED IN THE WINDOW ON SCREEN (drag-and-stack step 4, piece 8). The box stops listing the Quicks
+ * (it shrinks to its sentence and Yes / No), so reading its buttons would see nothing. This is the engine's castable
+ * list, named, but ONLY while a window is SHOWN to this seat — its box is up, or it pressed Yes and answers from the
+ * board. Reading the engine alone would also see a window an AUTO seat is about to pass, which a suite asserting
+ * silence must not. Each entry is `"<effect name> · <card id>"`. */
+function respQuicks(page) {
+  return page.evaluate(() => {
+    const H = window.__cmf || window.__solo; if (!H || !H.castableQuicks) return [];
+    const d = document.getElementById('respDecline'), shown = !!(d && d.offsetParent !== null) || !!(H.answering && H.answering());
+    if (!shown || !(H.holdsPriority && H.holdsPriority())) return [];
+    return H.castableQuicks().map(q => q.name + ' · ' + q.id);
+  });
 }
-/* Clicks the first visible, enabled match and returns its text, or null when there is none. `text` is a
- * RegExp or a string (a string matches without case); `sel` narrows by attribute, e.g. `.respQuick[data-tseat="2"]`.
- * OR AN OPTIONS OBJECT, `{name, id, seat, equip, pitch, oid}` (drag-and-stack step 4, piece 1): WHAT you mean to
- * cast and at what, rather than how today's Respond? box happens to mark its buttons. Step 4 moves answering onto
- * the board (the box shrinks to its sentence and Yes / No), and a suite that names a `data-*` selector would have
- * to be rewritten then; one that names its choice is rewritten once, here. `seat` and `equip` are the target (a
- * rival, a piece of Equipment), `pitch` the Broadway card, `oid` the stack object a Counter Spell names, `id` the
- * Quick itself, `name` its effect name. Today each maps onto the box's own attribute. */
+/* CAST A QUICK INTO THIS SEAT'S WINDOW, FROM THE BOARD (drag-and-stack step 4, piece 8). `text` is the effect name (a
+ * RegExp, or a string matched without case) or an options object `{name, id, seat, equip, pitch, oid}`: WHAT you mean to
+ * cast and at what — `seat` a rival, `equip` your Equipment, `pitch` the Broadway card, `oid` the stack object a Counter
+ * Spell names. It presses Yes (waiting out the cast's flash, which the box waits for too), taps the card, presses ⚡,
+ * makes the answer's choice by clicking the real target — the rival's panel, the Equipment box, the card to pitch, the
+ * stack card — and confirms. Returns a label starting with the effect name, or null when nothing was cast.
+ * IT CHECKS THE CARD IS CASTABLE BEFORE IT PRESSES YES. Several suites call this in a polling loop; pressing Yes on a
+ * window the caller did not mean to answer would leave that window open on the board, where only `netwindows`' grace
+ * would pass it. A choice left unnamed takes the first candidate, which is what the box's first button was. */
 function clickQuick(page, text, sel) {
-  if (text && typeof text === 'object' && !(text instanceof RegExp)) {
-    const o = text, q = s => String(s).replace(/"/g, '\\"');
-    sel = '.respQuick' + (o.id != null ? '[data-id="' + q(o.id) + '"]' : '') + (o.seat != null ? '[data-tseat="' + q(o.seat) + '"]' : '') +
-          (o.equip != null ? '[data-tequip="' + q(o.equip) + '"]' : '') + (o.pitch != null ? '[data-pitch="' + q(o.pitch) + '"]' : '') +
-          (o.oid != null ? '[data-coid="' + q(o.oid) + '"]' : '');
-    text = o.name != null ? o.name : null;
-  }
-  return page.evaluate(([s, src, flags]) => {
-    const b = [].slice.call(document.querySelectorAll(s)).filter(x => x.offsetParent !== null && !x.disabled &&
-      (src == null || new RegExp(src, flags).test(x.textContent || '')))[0];
-    if (!b) return null;
-    const t = (b.textContent || '').replace(/\s+/g, ' ');
-    b.click();
-    return t;
-  }, [sel || '.respQuick', text == null ? null : (text instanceof RegExp ? text.source : String(text)),
-      text instanceof RegExp ? text.flags : 'i']);
+  let o = {};
+  if (text && typeof text === 'object' && !(text instanceof RegExp)) o = Object.assign({}, text);
+  else if (text != null) o.name = text;
+  const nameSrc = o.name == null ? null : (o.name instanceof RegExp ? o.name.source : String(o.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const nameFlags = o.name instanceof RegExp ? o.name.flags : 'i';
+  return page.evaluate(async (a) => {
+    const W = ms => new Promise(r => setTimeout(r, ms)), vis = el => !!(el && el.offsetParent !== null);
+    const H = window.__cmf || window.__solo; if (!H || !H.castableQuicks) return null;
+    const holds = () => !!(H.holdsPriority && H.holdsPriority()), answering = () => !!(H.answering && H.answering());
+    if (!holds()) return null;                                             // no window is this seat's
+    const want = q => (a.id == null || q.id === a.id) && (a.nameSrc == null || new RegExp(a.nameSrc, a.nameFlags).test(q.name)) &&
+      (a.seat == null || q.kind === 'lockout') && (a.equip == null || q.kind === 'protect') && (a.oid == null || q.kind === 'counter') && (a.pitch == null || q.pitch);
+    const q = H.castableQuicks().filter(want)[0]; if (!q) return null;     // not castable here: change nothing
+    const t0 = Date.now();
+    while (!answering() && Date.now() - t0 < 9000) {                       // the box opens when the cast's flash ends
+      const y = document.getElementById('respYes');
+      if (vis(y) && !y.disabled) { y.click(); await W(150); continue; }
+      if (!holds()) return null;
+      await W(80);
+    }
+    if (!answering()) return null;
+    const card = document.querySelector('#hand .card[data-id="' + q.id + '"]'), grp = card && card.closest('.group');
+    if (!grp) return null;
+    grp.click(); await W(150);
+    const ctx = document.getElementById('ctxBtn');
+    if (!vis(ctx) || ctx.disabled || ctx.classList.contains('off')) return null;
+    ctx.click(); await W(200);
+    let label = q.name;
+    const pk = H.answerPick && H.answerPick();
+    if (pk) {                                                              // the answer's choice: make it, then confirm
+      const v = pk.kind === 'counter' ? (a.oid != null ? a.oid : (pk.chosen != null ? pk.chosen : pk.cands[0]))
+        : pk.kind === 'seat' ? (a.seat != null ? a.seat : pk.cands[0])
+        : pk.kind === 'equip' ? (a.equip != null ? a.equip : pk.cands[0])
+        : (a.pitch != null ? a.pitch : pk.cands[0]);
+      const el = pk.kind === 'counter' ? document.querySelector('#stackView .stkCard[data-oid="' + v + '"] .card')
+        : pk.kind === 'seat' ? (document.querySelector('.oppPanel[data-seat="' + v + '"]') || document.getElementById('rival'))
+        : pk.kind === 'equip' ? document.querySelector('.eq.targetable[data-eid="' + v + '"]')
+        : document.querySelector('#hand .card[data-id="' + v + '"]');
+      if (!el) return null;
+      if (!(pk.kind === 'counter' && pk.chosen === v)) { el.click(); await W(150); }
+      const go = document.getElementById(pk.kind === 'pitch' ? 'fightBtn' : 'ctxBtn');
+      if (!go || go.disabled || go.classList.contains('off')) return null;
+      go.click();
+      label += ' · ' + pk.kind + ' ' + v;
+    }
+    return label;
+  }, { id: o.id == null ? null : o.id, nameSrc: nameSrc, nameFlags: nameFlags, seat: o.seat == null ? null : o.seat,
+       equip: o.equip == null ? null : o.equip, pitch: o.pitch == null ? null : o.pitch, oid: o.oid == null ? null : o.oid });
 }
 /* THE ENGINE'S ANSWER, NOT THE BOX'S BUTTONS (step 4, piece 1): what this seat could cast into the window right now,
    `[{id, name}]`, read through `castableQuicks` on `__cmf` (netplay) or `__solo`. The box stops listing them in step 4,

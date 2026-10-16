@@ -41,7 +41,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   /* Measured INSIDE the page, from the click, so the round trip is not in the number. */
   const castAndWatch=(p, opts)=>p.evaluate(async(opts)=>{ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     const sel=id=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="'+id+'"]'))[0]; if(g) g.click(); return !!g; };
-    const fight=()=>document.getElementById('fightBtn'), boxUp=()=>[...document.querySelectorAll('.respQuick')].some(x=>x.offsetParent!==null);
+    const fight=()=>document.getElementById('fightBtn'), boxUp=()=>{ const y=document.getElementById('respYes'); return !!(y && y.offsetParent!==null); };   // the box's own Yes: it no longer lists the Quicks (step 4, piece 8)
     const t0=performance.now(); let castAt=null;
     if(opts.cast){ sel('bt3C'); await sleep(250); const cb=document.getElementById('ctxBtn'); if(!cb || cb.disabled) return { err:'⚡ not offered' }; castAt=performance.now(); cb.click(); await sleep(120); }
     const during={ hold:window.__solo.castHold(), hint:(document.getElementById('hint').textContent||'').trim(), boost:window.__solo.st().players[0].nextPlayBoost||0, box:boxUp(),
