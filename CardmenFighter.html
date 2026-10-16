@@ -7452,7 +7452,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.16.5';
+  var GAME_VERSION='v1.33.16.6';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9191,7 +9191,7 @@ window.CardFace = {};
     seats.forEach(function(i, idx){
       var pl=state.players[i], el=host.children[idx];
       var isTurn=(state.turn===i && !state.finished);
-      var pickable=(targetPick && !pl.eliminated) || (lossPick && lossPick.cands.indexOf(i)>=0);
+      var pickable=(targetPick && !pl.eliminated && (!targetPick.seats || targetPick.seats.indexOf(i)>=0)) || (lossPick && lossPick.cands.indexOf(i)>=0);
       var staged=!!(targetPick && targetPick.chosen===i) || !!(lossPick && lossPick.chosen===i);
       el.className='oppPanel'+(isTurn?' turn':'')+(pl.eliminated?' dead':'')+(pickable?' targetable':'')+(staged?' aimed':'');
       el.dataset.seat=i;
@@ -9219,7 +9219,7 @@ window.CardFace = {};
       if(row){ ph.parentNode.replaceChild(row, ph); } else { row=oppShieldEls[i]=ph; shieldsEl(row, pl.shields); }
       if(!shieldsHeld()) animateShields(row, pl.shields, i);
       el.onclick = (lossPick && lossPick.cands.indexOf(i)>=0) ? (function(seat){ return function(){ chooseLossSeat(seat); }; })(i)
-                 : (targetPick && !pl.eliminated) ? (function(seat){ return function(){ chooseTargetSeat(seat); }; })(i) : null;
+                 : (targetPick && !pl.eliminated && (!targetPick.seats || targetPick.seats.indexOf(i)>=0)) ? (function(seat){ return function(){ chooseTargetSeat(seat); }; })(i) : null;
       // ⚡ on a rival panel opens THEIR pile, view-only — energy is open information. Stop the click so it
       // never doubles as a loss/target pick on the panel behind it.
       var nb=el.querySelector('.oppNrgBtn');
@@ -9231,7 +9231,7 @@ window.CardFace = {};
        * has always offered as targets. Tapping the gear line now opens the seat's real zones, built by the
        * same renderEquipZone/renderFormsZone the duel uses, so `.targetable` and doRemove() come with them.
        * While a removal is targeting, every panel force-opens so the target cannot be hidden behind a tap. */
-      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!(targeting && !targeting.copy);   // a Counterfeit copy targets the PILE, so it opens nothing
+      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!(targeting && !targeting.copy && !targeting.protect);   // a Counterfeit copy targets the PILE, and Annoint YOUR Equipment, so neither opens anything
       zones.className='oppZones'+(open?' open':'');
       if(open){
         renderEquipZone(el.querySelector('.oppEquipZone'), pl, false, i);
@@ -9240,7 +9240,7 @@ window.CardFace = {};
       var gearEl=el.querySelector('.oppGear');
       if(gearEl && gear.length) gearEl.addEventListener('click', (function(seat){ return function(ev){
         ev.stopPropagation();                                  // never let this double as a loss/target seat pick
-        if(targeting && !targeting.copy) return;               // already force-open while a removal is targeting
+        if(targeting && !targeting.copy && !targeting.protect) return;   // already force-open while a removal is targeting
         oppOpen=(oppOpen===seat)?null:seat; formsOpen=null; render();
       }; })(i));
     });
@@ -9270,7 +9270,10 @@ window.CardFace = {};
     box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s')+(open?'':' — tap to expand'));
     if(!opts.ghost){
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
-      if(targeting && !targeting.copy){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
+      if(targeting && targeting.protect){                      // Annoint in answer: only YOUR Equipment that `respondChoices` names (piece 5)
+        if(opts.own && targeting.equip.indexOf(e.id)>=0){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(ev){ ev.stopPropagation(); stageProtect(id); }); })(e.id); }
+      }
+      else if(targeting && !targeting.copy){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
       else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(e.card); }   // already open → tap opens the reader, exactly like a formMini
       /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
          place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
@@ -9300,7 +9303,7 @@ window.CardFace = {};
       equipFx[key]={ counters:e.counters, flashUntil:flashUntil, name:e.name, good:info.good, card:e.card, gone:false };
       live[key]=true;
       var flash=now<flashUntil; if(flash) flashing=true;
-      el.appendChild(buildEqBox(e, info, { flash:flash, open:open, zk:zkey }));
+      el.appendChild(buildEqBox(e, info, { flash:flash, open:open, zk:zkey, own:(seat===YOU) }));
     });
     for(var key in equipFx){                                                             // a tracked equip that vanished = spent to 0 & retired → brief "spent" ghost
       if(!equipFx.hasOwnProperty(key) || key.indexOf(zk)!==0 || live[key]) continue;
@@ -10190,6 +10193,7 @@ window.CardFace = {};
     /* NO GAME, NOTHING TO DRAW. Everything below dereferences `state`, and until `clearBoard()` existed there
      * was no way to be in that position — a game was only ever replaced by another one. */
     if(!state) return;
+    if(answerUIStale()) endAnswerUI();          // an answer's pickers, staging and borrowed selection go with its grant (step 4, piece 5)
     noteBlockedResolves(); noteRoundRewind();   // a duplicate round resolution, and a round number that moved backwards — both into the saved log
     /* PAINT THE SUB-PHASE ON THE HAND. Read from `state.subPhase`, not from whose turn it is: the rule it
        reports — no effects once the fight has begun — is the TABLE's, not yours, which is Aj's whole point
@@ -10357,8 +10361,8 @@ window.CardFace = {};
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
     document.body.classList.toggle('spectating', spectating);
     $('turnTag').textContent = spectating ? ('👁 Spectating — '+seatName(state.turn)+'’s turn')
-      : targeting?(targeting.copy?'● choose a card to copy':'● choose target'):(pick?'● choose cards':(yourTurn?'● your turn':(state.finished?'':'Rival’s turn…')));
-    renderHand(yourTurn && !targeting && !targetPick);
+      : targeting?(targeting.copy?'● choose a card to copy':'● choose target'):(pick?'● choose cards':(answerLive()?'● your priority':(yourTurn?'● your turn':(state.finished?'':'Rival’s turn…'))));
+    renderHand((yourTurn || answerLive()) && !targeting && !targetPick);   // the hand answers while the window is yours, whoever's turn it is
     renderPlayMods(spectating);
     updateActions(yourTurn);
     syncStagedCast();                                               // the column's ⚡ copies the Activate button updateActions just set
@@ -10444,6 +10448,7 @@ window.CardFace = {};
   // Click the ⚡: usable → activate; greyed → pop the reason instantly (no waiting for the hover tooltip).
   function onActivateClick(e){
     if(peeking) return;
+    if(answerLive()) return onCtxClick(e);                  // the reader's ⚡ casts in answer exactly as the action row's does
     var card=activatableCardSelected(); if(!card) return;
     var block=activateBlock(card);
     if(block){ showTip(e.currentTarget, block); if(e.stopPropagation) e.stopPropagation(); }
@@ -10532,6 +10537,16 @@ window.CardFace = {};
     }
     var args=[idx,1].concat(pieces); Array.prototype.splice.apply(layout,args);
   }
+  // take ONE card out of a group (ruling 27); what is left stays grouped if it is still a shape, else falls to singles
+  function pullFromGroup(gid, card){
+    var idx=-1; for(var i=0;i<layout.length;i++) if(layout[i].id===gid){ idx=i; break; }
+    if(idx<0) return;
+    var g=layout[idx], rest=g.cards.filter(function(c){ return c.id!==card.id; }), pieces=[];
+    if(rest.length>1 && groupKindKF(rest)!=='invalid') pieces.push({ id:g.id, cards:orderGroupCards(rest) });
+    else rest.forEach(function(c){ pieces.push({ id:newGid(), cards:[c] }); });
+    pieces.push({ id:newGid(), cards:[card] });
+    Array.prototype.splice.apply(layout, [idx,1].concat(pieces));
+  }
   function breakAllGroups(){
     var out=[]; layout.forEach(function(g){ if(g.cards.length>1) g.cards.forEach(function(c){ out.push({id:newGid(),cards:[c]}); }); else out.push(g); });
     layout=out;
@@ -10555,7 +10570,7 @@ window.CardFace = {};
      card would grey, which would say nothing about energy and everything about the phase — and a signal
      that fires on every card is not a signal. Same for a turn that is not yours. */
   function markAfford(el, c){
-    if(!state || !E.effectFor || state.subPhase==='play' || state.turn!==YOU) return;
+    if(!state || !E.effectFor || state.subPhase==='play' || state.turn!==YOU || answerRecordLive()) return;   // answering: only what you may cast in answer is a signal
     var ef=E.effectFor(state, YOU, c);
     if(!ef || !ef.impl) return;                                          // no activated effect at all (the apex 2) — nothing to pay for
     var cd=E.rideCostDelta ? E.rideCostDelta(state, YOU, c) : 0;
@@ -10564,7 +10579,7 @@ window.CardFace = {};
   // REWORK: gold pulse on a J/Q/K in hand when it can be transformed RIGHT NOW
   // (its tier isn't already in your zone, and the table-shield threshold is met).
   function markTransform(el, c){
-    if(!state || !E.transformGateStatus) return;
+    if(!state || !E.transformGateStatus || answerRecordLive()) return;   // a transform is never castable in a window, so it must not pulse there
     var ef=E.effectOf(c);
     if(!ef || ef.kind!=='transform') return;
     var pl=state.players[YOU]; var forms=(pl&&pl.forms)||[];
@@ -10577,7 +10592,7 @@ window.CardFace = {};
     if(drag && drag.moved) return;                    // don't rebuild the hand mid-drag
     var hand=$('hand'); hand.innerHTML='';
     var lockedRead = (typeof TUT!=='undefined' && TUT.blocking && TUT.blocking());   // a tutorial READ step is holding the board
-    hand.className=((pick||yourTurn)?'':'disabled')+(lockedRead?' tutlock':'');
+    hand.className=((pick||yourTurn)?'':'disabled')+((lockedRead && !answerLive())?' tutlock':'');   // a window you hold is exempt from a read step's lock, as the box always was
     var canEnter=!reduceMotion(), enterIdx=0;
     if(pick){                                          // pick mode: flat individual cards, no grouping/drag
       var eligible=(pick.from&&pick.from.length)?function(id){ return pick.from.indexOf(id)>=0; }:function(){ return true; };
@@ -10641,14 +10656,15 @@ window.CardFace = {};
 
   function attachGroupHandlers(el, gid){
     el.addEventListener('pointerdown', function(e){ onPointerDown(e, gid, el); });
-    el.addEventListener('click', function(){ onGroupClick(gid); });   // selection via click (works for real taps AND programmatic clicks)
+    el.addEventListener('click', function(e){ onGroupClick(gid, e); });   // selection via click (works for real taps AND programmatic clicks)
     el.addEventListener('mouseenter', function(){ var g=groupById(gid); if(g && g.cards.length===1) showCard(g.cards[0]); });
   }
   // A click that wasn't a drag = select / (double) break the group.
-  function onGroupClick(gid){
+  function onGroupClick(gid, e){
     if(justDragged) return;
     var g=groupById(gid); if(g && g.cards[0]) showCard(g.cards[0]);
     if(peeking) return;                                     // while peeking: inspect only (show the card) — never select/play
+    if(answerLive()){ if(!answerPickerOpen()) answerTap(gid, e); return; }   // answering: one card, out of its group (ruling 27)
     onTap(gid);
   }
   /* ---- STAGING A CAST (drag-and-stack step 1, rulings 2, 9 and 11) ----
@@ -10671,13 +10687,15 @@ window.CardFace = {};
   }
   // does casting this card open a choice first? Mirrors `activate`'s own routing, which decides it there
   function castNeedsChoice(card){
+    if(answerRecordLive()) return !!(card && answerChoiceFor(card));   // answering asks the box's questions, not Main's
     var eff=card?E.effectOf(card):null; if(!eff) return false;
     if(eff.kind==='removeEquip' || eff.kind==='counterfeit' || eff.kind==='phantasm') return true;
     if(isHostileSingular(eff)) return true;
     return !!(eff.pitchHigh && E.pitchCands(state.players[YOU], card.id).length>1);
   }
   function stageCard(card){
-    staged={ cardId:card.id };
+    if(answerRecordLive()) setAsideHeld();
+    staged={ cardId:card.id, answer:answerRecordLive() };
     selected={}; selected[card.id]=true; showCard(card);
     if(castNeedsChoice(card)){ var a=ctxAction(); render(); if(a && a.ok && a.run) a.run(); return; }
     setMessage('<b>'+esc(E.cardName(card))+'</b> is staged — ⚡ <b>Activate</b> casts it, ✕ takes it back. Nothing is spent yet.');
@@ -10703,7 +10721,7 @@ window.CardFace = {};
        a card with nothing to choose still casts on the tap and never reaches this column. */
     if(!staged){ var held=(targeting && targeting.cardId) || (targetPick && targetPick.cardId)
                       || (pick && (pick.kind==='pitch' || pick.kind==='phantasm') && pick.cardId) || null;
-      if(held!=null) staged={ cardId:held }; }
+      if(held!=null) staged={ cardId:held, answer:answerPickerOpen() }; }
     if(staged && !stagedHeld()) staged=null;
     var card=staged ? cardById(staged.cardId) : null;
     if(card){
@@ -10797,7 +10815,7 @@ window.CardFace = {};
      inside the column keeps it; anywhere else unstages it. */
   var stagedDrag=null;
   function onStagedDown(e){
-    if(!staged || peeking || busy || castHolding()) return;
+    if(!staged || peeking || (busy && !answerLive()) || castHolding()) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var el=e.currentTarget; stagedDrag={ el:el, x:e.clientX, y:e.clientY, ghost:null };
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
@@ -10824,6 +10842,7 @@ window.CardFace = {};
   /* WHAT A DROP IN THE MIDDLE WOULD SAY. `canHumanPlay` is the whole question (turn, busy, stagers, lock, the
      lesson's card list, legality) — this only names the refusal, in the same words the Fight hint uses. */
   function fightDropVerdict(cards){
+    if(answerRecordLive()) return { ok:false, txt:'the window is yours — cast a Quick, or “'+declineLabel()+'”' };   // a play would cross over the open stack
     var tutSpecial=(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && cards.length<2);
     if(canHumanPlay(cards) && !tutSpecial) return { ok:true, txt:'▲ release to fight' };
     if(tutSpecial) return { ok:false, txt:'this step wants a Special' };
@@ -10836,7 +10855,8 @@ window.CardFace = {};
   }
   function onPointerDown(e, gid, el){
     if(peeking) return;                                     // no drag-to-play while reviewing
-    if(state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick) return;
+    var ans=answerLive();                                   // answering: the hand is live off-turn and through `busy`, but not while a picker holds the board
+    if(ans ? answerPickerOpen() : (state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick)) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var g=groupById(gid); if(g && g.cards[0]) showCard(g.cards[0]);
     drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, zone:null, hl:null };
@@ -10972,6 +10992,7 @@ window.CardFace = {};
     });
   }
   function canHumanPlay(cards){
+    if(answerRecordLive()) return false;                     // the window is yours: a play would cross over the open stack (step 4, piece 5)
     if(state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick || E.isLocked(state, YOU)) return false;
     /* ⚠ AND A DRAG OBEYS THE LESSON'S CARD LIST TOO. `only` was enforced in `updateActions`, which is the
        FIGHT BUTTON's path — a drag-to-play never passes through it, so a lesson could be broken by
@@ -11086,6 +11107,7 @@ window.CardFace = {};
      drag, instead of after you let go. */
   function ctxAction(){ return ctxActionFor(selectedCards()); }
   function ctxActionFor(sel){
+    if(answerLive()) return answerActionFor(sel);           // the window is yours: the board casts in answer, with the box's questions (piece 5)
     /* ⚠ A GATED LESSON STEP LOCKS ACTIONS, AND THIS IS THE FUNNEL THEY ALL COME THROUGH — the ⚡ button
        reads its result for both enabled-ness and the reason, and the Main Sub-Phase drag release calls
        `.run()` on it. Guarding here rather than at the button is the rule this file already carries from
@@ -11210,23 +11232,37 @@ window.CardFace = {};
     setActionLabel(fight,'Fight'); setActionLabel(pass,'Pass');
     fight.disabled=true; pass.disabled=true;
     if(state.finished){ hint.textContent=''; return; }
-    if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()){          // tutorial read step — hold the board until they press the button
-      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
-      hint.textContent='Read the tutorial tip, then press the button to continue.'; hint.className=''; return;
-    }
     var rsp=$('respondBtn'); if(rsp) rsp.style.display='none';
     if(answerLive()){
-      /* ANSWERING FROM THE BOARD (drag-and-stack step 4, piece 2). Pass declines priority and names the moment as the
-         box's decline did; Respond? brings the box back (ruling 24); Fight is off, since a play would cross over the
-         open stack. A lesson that needs something countered keeps Pass off, as its box keeps "Let it resolve" off. */
+      /* ANSWERING FROM THE BOARD (drag-and-stack step 4, pieces 2 and 5). Pass declines priority and names the moment
+         as the box's decline did; Respond? brings the box back (ruling 24); Fight is off, since a play would cross over
+         the open stack. ⚡ casts the selected card in answer, through `answerActionFor`, so the button, the reader's ⚡,
+         the column's ⚡ and the drop verdict cannot disagree. While a picker opened for the answer holds the board,
+         Pass waits with it (Clear backs out), as it does in Main. A lesson that needs something countered keeps Pass
+         off, as its box keeps "Let it resolve" off.
+         ABOVE THE LESSON'S READ-STEP LOCK: a window you hold is exempt from it, as the box always was — a stake-forced
+         window on a read step would otherwise have no exit after Yes. */
       var tutCtr = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
-      fight.disabled=true; pass.disabled=!!tutCtr; setActionLabel(pass, declineLabel());
-      if(rsp){ rsp.style.display=''; rsp.disabled=false; }
+      var aa=ctxAction(), oneSel=selectedCards(), one=(oneSel.length===1) ? oneSel[0] : null;
+      var oef=one && E.effectFor(state, YOU, one), choosing=answerPickerOpen();
+      fight.disabled=true; pass.disabled=!!tutCtr || choosing; setActionLabel(pass, declineLabel());
+      ctxBtn.style.display=''; ctxBtn.disabled=false; setActionLabel(ctxBtn, aa.label);
+      ctxBtn.classList.toggle('off', !aa.ok); ctxBtn.classList.toggle('gold', !!aa.gold);
+      ctxBtn.title = aa.ok ? 'Cast it in answer' : aa.reason;
+      if(oef && oef.impl && !choosing){ cardAct.style.display=''; cardAct.classList.toggle('off', !aa.ok); cardAct.disabled=false; cardAct.title=aa.ok ? 'Cast it in answer' : aa.reason; cardAct.textContent='⚡'; }
+      if(rsp && !choosing){ rsp.style.display=''; rsp.disabled=false; }
       hint.textContent = tutCtr ? 'This lesson needs this one countered — press Respond? and tap Counter Spell.'
-                                : 'Answering: Respond? to cast a Quick, or “'+declineLabel()+'”.';
+        : choosing ? (aa.ok ? 'Press ⚡ Activate to confirm, or Clear to cancel.' : aa.reason)
+        : (staged && selected[staged.cardId]) ? 'Staged — ⚡ Activate casts it, ✕ takes it back.'
+        : one ? (aa.ok ? '⚡ Activate casts it in answer.' : aa.reason)
+        : 'Answering: cast a Quick from your hand, or “'+declineLabel()+'”.';
       hint.className='pick';
       if(actRow) actRow.setAttribute('data-live','1');
       return;
+    }
+    if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()){          // tutorial read step — hold the board until they press the button
+      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
+      hint.textContent='Read the tutorial tip, then press the button to continue.'; hint.className=''; return;
     }
     if(!yourTurn){
       hint.textContent = (MP() && state.players[YOU].eliminated)
@@ -11443,6 +11479,10 @@ window.CardFace = {};
     // Phantasmal Illusion's swap is OPTIONAL when a bare copy already beats — 0 cards is a legal confirm there.
     var optional=(pick.kind==='phantasm' && pick.bare);
     if(optional ? (ids.length>pick.need) : (ids.length!==pick.need)) return;
+    if(pick.kind==='pitch' && pick.answer){                                // the pitch for a cast in ANSWER — back to the answer, never to Main's `activate`
+      var apo=pick.opts||{}; apo.pitch=ids[0]; var apc=pick.cardId; pick=null;
+      return answerCast(apc, apo);
+    }
     if(pick.kind==='pitch'){                                               // the Broadway pitch — re-enter the cast with the choice
       var po=pick.opts||{}; po.pitch=ids[0]; var pcid=pick.cardId; pick=null; selected={};
       return activate(pcid, po);
@@ -11525,12 +11565,14 @@ window.CardFace = {};
   function promptTargetPick(cardId, eff){ targetPick={ cardId:cardId, chosen:null, name:eff.name }; selected={}; setMessage('<b>'+eff.name+'</b> — tap the rival'+(MP()?' panel':'')+' to aim. Nothing is spent until you confirm.'); render(); }
   function chooseTargetSeat(seat){
     if(!targetPick) return;
+    if(targetPick.seats && targetPick.seats.indexOf(seat)<0) return;   // an answer's choice is `respondChoices`' set, nothing wider
     targetPick.chosen=seat;                                  // stage only — the player confirms with ⚡ Activate
     setMessage('<b>'+targetPick.name+'</b> aimed at <b>'+logName(seat)+'</b> — press <b>⚡ Activate</b> to confirm, or <b>Clear</b> to cancel.');
     render();
   }
   function confirmTargetPick(){
     if(!targetPick || targetPick.chosen==null) return;
+    if(targetPick.answer){ var tp=targetPick, to=tp.opts||{}; targetPick=null; to.target=tp.chosen; return answerCast(tp.cardId, to); }   // a seat in the LOCAL frame; the host un-rotates it
     var cid=targetPick.cardId, seat=targetPick.chosen; targetPick=null;
     activate(cid, { target: seat });
   }
@@ -11564,6 +11606,7 @@ window.CardFace = {};
     done(fin);
   }
   function activate(cardId, _opts){
+    if(answerRecordLive()) return answerCast(cardId, _opts);   // the window is yours: a cast now is an ANSWER, never Main's activation (step 4, piece 5)
     if(state.turn!==YOU||state.finished||busy||castHolding()||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     var card=cardById(cardId); var eff=card?E.effectOf(card):null;
@@ -11718,6 +11761,7 @@ window.CardFace = {};
     render();
   }
   function doRemove(cardId, targetId){
+    if(answerRecordLive()) return;                           // a removal is never a Quick: nothing to cast while you hold priority
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:targetId}); selected={}; targeting=null; busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
@@ -11848,7 +11892,7 @@ window.CardFace = {};
        sits you out of the round — and on your own turn the engine ACCEPTS that over an open stack and grafts a
        Main → Fight crossing onto it (measured, DRAG-AND-STACK-STEP4.md). Above `busy`, because `busy` is set in most
        windows you are asked to answer. */
-    if(answerLive()){ var a=answering; prioNote('  → you passed from the board'); return humanDeclines(a.g, a.cont); }
+    if(answerLive()){ if(answerPickerOpen()) return; var a=answering; prioNote('  → you passed from the board'); return humanDeclines(a.g, a.cont); }   // a pick for the answer holds the board: Clear backs out of it first
     if(peeking||busy||castHolding()||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
@@ -11955,6 +11999,7 @@ window.CardFace = {};
     render();
   }
   function doCounterfeit(cardId, copyId){
+    if(answerRecordLive()) return;                           // nor is Counterfeit
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     var src=state.pile?state.pile.combo.cards.filter(function(c){return c.id===copyId;})[0]:null;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, copyId:copyId}); selected={}; targeting=null; busy=true; render(); return; }
@@ -12016,7 +12061,7 @@ window.CardFace = {};
     return -1;
   }
   function doPhantasm(e){
-    if(busy||castHolding()||pick||targeting||targetPick) return;
+    if(answerRecordLive() || busy||castHolding()||pick||targeting||targetPick) return;   // nor Phantasmal Illusion
     var info=phantInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
     pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId, bare:!!info.bare };   // the swap is OPTIONAL
@@ -13106,13 +13151,149 @@ window.CardFace = {};
      the host's parks, a guest's `owedModal`) and false in others (your own cast's), and `respondFor===YOU` is
      also true while the box is still up. It holds only when the box is closed and the board is the answer. */
   var answering=null;
+  // the grant the record was made for is still the one on the table — whether the box is up, or a picker is open
+  function answerRecordLive(){
+    return !!(answering && state && !state.finished && answering.g===gen && state.respondFor===YOU && (state.prioGen||0)===answering.prioGen);
+  }
+  // a picker opened FOR this answer (Back Stab's seat, Annoint's Equipment, the Broadway pitch) belongs to the answer
+  function answerPickerOpen(){ return !!((pick && pick.answer) || (targeting && targeting.answer) || (targetPick && targetPick.answer)); }
   function answerLive(){
     var ov=$('overlay');
-    return !!(answering && state && !state.finished && answering.g===gen && state.respondFor===YOU &&
-              (state.prioGen||0)===answering.prioGen && !castHolding() && !peeking && !state.discardPending &&
-              !pick && !targeting && !targetPick && !(ov && ov.classList.contains('show')));
+    return !!(answerRecordLive() && !castHolding() && !peeking && !state.discardPending &&
+              !(pick && !pick.answer) && !(targeting && !targeting.answer) && !(targetPick && !targetPick.answer) &&
+              !(ov && ov.classList.contains('show')));
   }
-  function reopenRespond(){ if(!answerLive()) return; var a=answering; prioNote('  → you REOPENED the Respond? box'); promptHumanResponse(a.g, a.cont); }
+  function reopenRespond(){ if(!answerLive()) return; var a=answering; endAnswerUI(); render(); prioNote('  → you REOPENED the Respond? box'); promptHumanResponse(a.g, a.cont); }   // render: the hand under the box shows what was given back
+  /* WHAT ANSWERING ON THE BOARD BORROWS, AND GIVES BACK (drag-and-stack step 4, piece 5). To cast from the hand the
+     board needs the hand: a tap selects the card, a picker opens for its target, a drop stages it. All of that is UI
+     state, and it belongs to ONE grant. When the answer is spent — or the grant goes away under it (a new `prioGen`,
+     the game ending, priority leaving you) — the pickers and the staging go with it, and the selection you had before
+     you started answering comes back. That last part is the held Fight: your own Fight press opens a window you hold
+     first, its cards stay selected (`nettest_heldplay`), and tapping a Quick must not lose them. */
+  var answerHeldSel=null;
+  function setAsideHeld(){ if(answerHeldSel==null){ answerHeldSel={}; for(var k in selected) if(selected[k]) answerHeldSel[k]=true; } }
+  function endAnswerUI(){
+    if(pick && pick.answer) pick=null;
+    if(targeting && targeting.answer) targeting=null;
+    if(targetPick && targetPick.answer) targetPick=null;
+    if(staged && staged.answer) staged=null;
+    if(answerHeldSel!=null){
+      var hand=(state && state.players && state.players[YOU]) ? state.players[YOU].hand : [];
+      selected={}; hand.forEach(function(c){ if(answerHeldSel[c.id]) selected[c.id]=true; });
+      answerHeldSel=null;
+    }
+  }
+  function answerUIStale(){ return !answerRecordLive() && (answerHeldSel!=null || answerPickerOpen() || !!(staged && staged.answer)); }
+  /* A GUEST'S ANSWER CAN BE REFUSED, AND THE WINDOW IS STILL ITS OWN. The host replies `t:'err'` and re-broadcasts a
+     mirror it then de-dupes, so nothing new arrives: the sig is spent (no box) and the record was consumed at send (no
+     board). Re-arming the record from the answer just sent gives the board back for the same grant, and only that one. */
+  var lastAnswer=null;
+  function rearmAnswer(){
+    var la=lastAnswer; lastAnswer=null;
+    if(!la || !state || state.finished || state.respondFor!==YOU || (state.prioGen||0)!==la.prioGen || la.g!==gen) return false;
+    answering={ g:la.g, cont:la.cont, prioGen:la.prioGen }; busy=false;
+    prioNote('  ⚠ the host REFUSED that answer — the window is still yours'); render(); return true;
+  }
+  /* CASTING ON THE BOARD WHILE THE WINDOW IS YOURS (drag-and-stack step 4, piece 5). The cast is the box's own cast —
+     `humanResponds` with the stored `(g, cont)`, so a guest sends `{op:'respond'}`, the lesson's `respond` gate fires, and
+     the brake's own-cast exemption holds (only `E.respond` bumps `castSeq`). It never goes through `activate()`, which
+     refuses off-turn and asks Main's questions.
+     THE QUESTIONS ARE THE BOX'S QUESTIONS: `E.castRefusal` says whether the card may be cast (on `effectFor`, so a
+     Form-made Quick counts), and `E.respondChoices` / `E.pitchCands` say whether casting it needs a choice first — the
+     same sets `respond` validates against, so the board cannot offer what the host refuses.
+     COUNTER SPELL WAITS FOR ITS TARGET ON THE STACK (ruling 26, piece 7): until the visualizer can be tapped, the box
+     is where you choose what it counters, and the board says so rather than guessing. */
+  function answerChoiceFor(card){
+    var rc=E.respondChoices ? E.respondChoices(state, YOU, card) : null;
+    if(rc && rc.seats) return 'seat';
+    if(rc && rc.equip) return 'equip';
+    var ef=E.effectFor(state, YOU, card);
+    if(ef && ef.pitchHigh && E.pitchCands(state.players[YOU], card.id).length>1) return 'pitch';
+    return null;
+  }
+  function answerActionFor(sel){
+    if(targetPick && targetPick.answer){
+      if(targetPick.chosen!=null) return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
+      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the rival to lock out, then press ⚡ Activate.', run:null};
+    }
+    if(targeting && targeting.answer){
+      if(targeting.chosen!=null) return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ var t=targeting, o=t.opts||{}; targeting=null; o.target=t.chosen; answerCast(t.cardId, o); }};
+      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the Equipment of yours to protect, then press ⚡ Activate.', run:null};
+    }
+    if(sel.length!==1) return {mode:'activate', label:'⚡ Activate', ok:false, run:null,
+      reason:(sel.length ? 'Select a single Quick to cast it.' : 'Select a Quick to cast it, or “'+declineLabel()+'”.')};
+    var card=sel[0], why=E.castRefusal(state, YOU, card);
+    if(!why){                                                    // a lesson step that names its answer refuses the others (ruling 28)
+      var tutOk=(typeof TUT!=='undefined' && TUT.answerCards) ? TUT.answerCards() : null;
+      if(tutOk && tutOk.indexOf(card.id)<0) why=(TUT.answerHint && TUT.answerHint()) || 'Not that card — follow the step above.';
+    }
+    if(why) return {mode:'activate', label:'⚡ Activate', ok:false, reason:why, run:null};
+    var ef=E.effectFor(state, YOU, card);
+    if(ef.kind==='counter') return {mode:'activate', label:'🎯 Choose target', ok:false, run:null, reason:'Counter Spell — press Respond? to choose what it counters.'};
+    var ch=answerChoiceFor(card);
+    return {mode:'activate', label:(ch==='seat' || ch==='equip') ? '🎯 Choose target' : '⚡ Activate', ok:true, reason:'', run:function(){ answerCast(card.id); }};
+  }
+  function answerCast(cardId, opts){
+    if(!answerRecordLive()) return;
+    var a=answering, card=cardById(cardId); if(!card) return;
+    opts=opts||{};
+    var why=E.castRefusal(state, YOU, card); if(why){ setMessage(why); render(); return; }
+    var ef=E.effectFor(state, YOU, card), rc=E.respondChoices ? E.respondChoices(state, YOU, card) : null;
+    setAsideHeld();
+    if(rc && rc.seats && opts.target==null){
+      targetPick={ cardId:cardId, chosen:null, name:ef.name, answer:true, seats:rc.seats.slice(), opts:opts }; selected={};
+      setMessage('<b>'+esc(ef.name)+'</b> — tap the rival to lock out. Nothing is spent until you confirm.'); render(); return; }
+    if(rc && rc.equip && opts.target==null){
+      targeting={ cardId:cardId, chosen:null, name:ef.name, answer:true, protect:true, equip:rc.equip.map(function(x){ return x.id; }), opts:opts }; selected={};
+      setMessage('<b>'+esc(ef.name)+'</b> — tap the Equipment of yours to protect. Nothing is spent until you confirm.'); render(); return; }
+    if(ef.pitchHigh && !opts.pitch){
+      var pcs=E.pitchCands(state.players[YOU], cardId);
+      if(pcs.length>1){
+        pick={ kind:'pitch', need:1, chosen:{}, cardId:cardId, from:pcs.map(function(c){ return c.id; }), opts:opts, name:ef.name, answer:true }; selected={};
+        setMessage('<b>'+esc(ef.name)+'</b> — choose the Broadway card to discard as its extra cost. Nothing is spent until you confirm.'); render(); return; }
+    }
+    humanResponds(a.g, cardId, a.cont, opts.coid||null, opts.pitch||null, (opts.target==null ? null : opts.target));
+  }
+  function stageProtect(id){
+    if(!targeting || !targeting.protect || targeting.equip.indexOf(id)<0) return;
+    targeting.chosen=id;
+    var e=state.players[YOU].equipment.filter(function(x){ return x.id===id; })[0];
+    setMessage('<b>'+esc(targeting.name)+'</b> protects your <b>'+esc((e && e.name) || 'Equipment')+'</b> — press <b>⚡ Activate</b> to confirm, or <b>Clear</b> to cancel.');
+    render();
+  }
+  /* A TAP WHILE YOU ANSWER SELECTS ONE CARD, and a Quick inside a group comes out of it (ruling 27: *"breaks that
+     special and then selects the card"*). Casting is one card, and the column refuses a group, so a castable card
+     you could neither drop nor cast would be a dead end. The card under the pointer is the one taken; a click with no
+     pointer (a suite, a keyboard) takes the group's first castable card. A staged card holds the board (ruling 29):
+     another tap only reads the card. */
+  function answerTap(gid, e){
+    var g=groupById(gid); if(!g) return;
+    var card=g.cards[0];
+    if(staged && stagedHeld() && !g.cards.some(function(c){ return c.id===staged.cardId; })){
+      showCard(card); setMessage('A card is staged — ⚡ casts it, ✕ takes it back.'); return; }
+    setAsideHeld();
+    if(g.cards.length>1){
+      var castable=g.cards.filter(function(c){ return E.canCastQuick(state, YOU, c); });
+      if(!castable.length){
+        var allSel=g.cards.every(function(c){ return selected[c.id]; });
+        selected={}; if(!allSel) g.cards.forEach(function(c){ selected[c.id]=true; });
+        render(); return; }
+      card=castable[0];
+      if(e && e.clientX!=null && (e.clientX || e.clientY)){
+        var grp=document.querySelector('#hand .group[data-gid="'+gid+'"]');
+        Array.prototype.forEach.call(grp ? grp.querySelectorAll('.card[data-id]') : [], function(el){
+          var r=el.getBoundingClientRect(), id=el.getAttribute('data-id');
+          if(e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom){
+            var hit=castable.filter(function(c){ return c.id===id; })[0]; if(hit) card=hit; } });
+      }
+      var take=card;
+      withFlip(function(){ pullFromGroup(gid, take); });
+      selected={}; selected[take.id]=true; showCard(take); render(); return;
+    }
+    var only=selected[card.id] && Object.keys(selected).length===1;
+    selected={}; if(!only) selected[card.id]=true;
+    showCard(card); render();
+  }
   function declineLabel(){
     var pend = state && state.pending;
     if(pend) return pend.trig ? 'Let the counter come off' : 'Let it resolve';
@@ -13363,6 +13544,11 @@ window.CardFace = {};
        board, and "Respond?" in the action row brings the box back (ruling 24). */
     html+='<button id="respYes" class="respYes" title="Close this and answer from the board">Yes</button>';
     html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>'+declineLabel()+'</button></div>'+peekBtnHTML();
+    /* A MAIN STAGING DOES NOT SURVIVE INTO A WINDOW, and nothing was spent on it. `stagedHeld` cannot tell which window a
+       card was staged for, so its ⚡ would answer this one with a choice made for Main. An earlier grant's answer UI goes
+       too (`endAnswerUI` gives back the selection it borrowed). */
+    if(staged && !staged.answer){ staged=null; if(targeting && !targeting.answer) targeting=null; if(targetPick && !targetPick.answer) targetPick=null; if(pick && pick.kind==='pitch' && !pick.answer) pick=null; selected={}; }
+    endAnswerUI();
     answering={ g:g, cont:cont, prioGen:(state.prioGen||0) };
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
@@ -13389,11 +13575,11 @@ window.CardFace = {};
   }
   function humanResponds(g, quickId, cont, coid, pitch, target){
     cont = cont || function(){ resumeRival(g); };
-    answering=null;                                              // the answer record is consumed once (piece 2)
+    var rec=answering; answering=null;                           // the answer record is consumed once (piece 2) — and given back if the cast is refused
     /* THE CHOSEN TARGET TRAVELS AS AN OID, and the host re-validates it against its OWN stack — same rule as
        `resolveIds` and `phantasmSolveFor`: a client sends its CHOICE, never its solution. An oid is the
        host's own identifier for the object, so unlike a stack INDEX it cannot be rotated or stale-shifted. */
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you CAST ' + quickLabelFor(quickId) + ' — sent to the host'); hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null, pitch:pitch||null, target:(target==null?null:target)}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lastAnswer={ g:g, cont:cont, prioGen:(state && state.prioGen)||0 }; prioNote('  → you CAST ' + quickLabelFor(quickId) + ' — sent to the host'); hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null, pitch:pitch||null, target:(target==null?null:target)}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
@@ -13401,7 +13587,7 @@ window.CardFace = {};
     var pendName=((state.pending && state.pending.card && E.effectOf(state.pending.card))||{}).name
                || (state.pending && state.pending.trig ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
     var r=E.respond(state, YOU, quickId, {counterOid:coid||null, pitch:pitch||null, target:(target==null?null:target)});
-    if(!r.ok){ setMessage(r.reason); return; }
+    if(!r.ok){ answering=rec; setMessage(r.reason); render(); return; }   // refused: the window is still yours, and so is the board
     hideOverlay();
     if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); presentOwnCast(qcard); }
     if(qeff && qeff.kind==='counter'){ setMessage('🌀 You <b>Countered</b> '+pendName+'!'); say(YOU, '{who} countered '+pendName+' with '+qeff.name+'!', 'you'); }
@@ -13422,7 +13608,7 @@ window.CardFace = {};
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
     answering=null;                                              // the answer record is consumed once (piece 2)
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you DECLINED — sent to the host'); hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lastAnswer={ g:g, cont:cont, prioGen:(state && state.prioGen)||0 }; prioNote('  → you DECLINED — sent to the host'); hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     hideOverlay();
@@ -13794,7 +13980,7 @@ window.CardFace = {};
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
     castHoldOn=false; castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null; castHoldWaiters=[];   // a cast hold never outlives its game (ruling 20)
-    answering=null;                                              // nor does an answer record (step 4)
+    answering=null; answerHeldSel=null; lastAnswer=null;        // nor does an answer record, or what it borrowed (step 4)
     prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
@@ -14063,6 +14249,13 @@ window.CardFace = {};
     function needCards(){ var st=steps[i]; if(!active||!st||!st.only) return null;
       try{ var r=st.only(); return Object.prototype.toString.call(r)==='[object Array]' ? r : null; }catch(e){ return null; } }
     function onlyHint(){ var st=steps[i]; return (active && st && st.onlyHint) ? st.onlyHint : null; }
+    /* WHICH CARDS A STEP ACCEPTS AS AN ANSWER (ruling 28: *"make tutorials as painless as possible for new players.
+       activating the wrong cards is painful"*). Everything the engine allows may still be cast in a real game; a step that
+       names its answer refuses the others with a hint, the way `only` refuses a play — the Phases counter window offers
+       Leyline as well as Counter Spell, and spending Leyline there leaves the finale with nothing to cast. */
+    function answerCards(){ var st=steps[i]; if(!active||!st||!st.answers) return null;
+      try{ var r=st.answers(); return Object.prototype.toString.call(r)==='[object Array]' ? r : null; }catch(e){ return null; } }
+    function answerHint(){ var st=steps[i]; return (active && st && st.answersHint) ? st.answersHint : null; }
     /* DOES THE CURRENT STEP ACCEPT AN ACTIVATION? ASK ITS OWN GATE (Aj, 2026-09-25: *"lock actions, leave
        reading"*). A gate is a pure predicate of (type, data), so probing it with `'activate'` answers the
        question without a new per-step flag to remember — `t==='activate'` says yes, `t==='play'` and
@@ -14088,7 +14281,7 @@ window.CardFace = {};
       return flat.indexOf('#cardActivate')>=0 || flat.indexOf('#ctxBtn')>=0;
     }
     function blocking(){ return active && !!steps[i] && !steps[i].gate; }   // a READ step (no action gate): hold the board until they press the button, so they can't play ahead of the lesson
-    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, acceptsActivate:acceptsActivate, holdFor:holdFor, blocking:blocking, isActive:function(){return active;} };
+    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, answerCards:answerCards, answerHint:answerHint, acceptsActivate:acceptsActivate, holdFor:holdFor, blocking:blocking, isActive:function(){return active;} };
   })();
 
   // Rig a controlled opening so each lesson reliably works: a couple of strong jabs, a pair, a cheap effect
@@ -14829,6 +15022,7 @@ window.CardFace = {};
         only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?['#hand .card[data-id="'+tutPhAce+'"]','#fightBtn']:['#hand','#fightBtn']; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
+        answers:function(){ return tutPhCounter ? [tutPhCounter] : null; }, answersHint:'This step wants Counter Spell.',
         hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
       /* THE "THE WINDOW CAME BACK" STEP WAS HERE AND IS DELETED (2026-09-25). It taught a real behaviour:
          a counter used to MARK its target and leave it on the stack, so priority went round again over an
@@ -14878,6 +15072,7 @@ window.CardFace = {};
       { text:"Nothing in your hand beats a pair of <b>8s</b> — so <b>pass</b>. Passing is how a round <i>ends</i>: once nobody wants the lead, the fight resolves.",
         only:function(){ return []; }, hi:'#passBtn', gate:function(t){ return t==='pass'; }, wait:"Pass the round…" },
       { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b> — orange — and a <b>different</b> Quick answers this one. Spring <b>Leyline Ascension</b>: <i>you can’t lose this round.</i>",
+        answers:function(){ return tutPhLey ? [tutPhLey] : null; }, answersHint:'This step wants Leyline Ascension.',
         hi:'#hand', gate:function(t){ return t==='respond' || t==='shield'; }, wait:"Spring Leyline Ascension…" },
       { text:"Shield saved. Two Quicks, <b>two different windows</b> — Counter Spell answered a <b>cast</b>, Leyline answered a <b>loss</b>.<br><br>Windows can stop you often, so the <b>🔔 button</b> sets how often: <b>ON</b> every legal window · <b>AUTO</b> only when something’s at stake · <b>OFF</b> never — it passes for you and notes it in the log.",
         hi:'#promptMode', btn:"Finish" }
@@ -15602,7 +15797,7 @@ window.CardFace = {};
   $('rivalExBtn').addEventListener('click', function(){ openPileView('exile', RIVAL); });
   $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });
   $('youWho').addEventListener('click', function(){ if(!peeking) openNameEditor(); });   // your name, editable from the board   // energy piles are open information — view only
-  $('clearBtn').addEventListener('click', function(){ if(busy) return;   /* a play mid-crossing still owns its cards — see doFightBody */ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
+  $('clearBtn').addEventListener('click', function(){ if(busy && !answerLive()) return;   /* a play mid-crossing still owns its cards — see doFightBody; answering, Clear backs out of the answer's pick */ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   /* A wrapped handler, never the bare function: `cyclePromptMode` takes no arguments today, but this file
      has already shipped fifteen versions of a saved battle log reading "[object PointerEvent]" because a
@@ -17122,7 +17317,7 @@ window.CardFace = {};
         }
         else if(m.t==='concede'){ onOpponentConcede(); }
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
-        else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; setMessage('⚠ '+(m.reason||'Illegal move.')); } }
+        else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; rearmAnswer(); setMessage('⚠ '+(m.reason||'Illegal move.')); } }   // a refused answer gives the window back (step 4, piece 5)
         else if(m.t==='note'){ if(m.seat===mySeat) logMsg(esc(m.text), m.cls||''); }   // a private line from the host — escaped: it is data, never markup
         else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }
         else if(m.t==='crossed'){ if(m.seat==null || m.seat===mySeat){ clientCrossed(); } }   // the host crossed our move — lock the board until it lands (ruling 10)   // the host held our Fight — see heldPlayMessage

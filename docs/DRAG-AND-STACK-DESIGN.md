@@ -450,7 +450,20 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    yours, no hold, no box up) carries the window's continuation past the box and is consumed once. The board then
    answers: **Pass declines priority** (`humanDeclines`, not `E.pass`), named by `declineLabel`; Fight is off; and
    **Respond?** in the action row reopens the box (ruling 24). The helpers learned the after-Yes state (`windowUp`,
-   `clickDecline`, `driveStep`, `netwindows`, `lessonlib`'s `answerWindow`).
+   `clickDecline`, `driveStep`, `netwindows`, `lessonlib`'s `answerWindow`). *Piece 5 built (v1.33.16.6):* **the
+   board casts.** After Yes, the hand is live on any turn, and a card cast from it is the box's own cast
+   (`humanResponds`, so `{op:'respond'}` on a guest), decided by the box's questions: `E.castRefusal` for whether, and
+   `E.respondChoices` / `E.pitchCands` for whether a choice comes first. `answerActionFor` is the one verdict for the
+   ⚡ button, the reader's ⚡, the column's ⚡ and the drop; `answerCast` opens the answer's pickers (Back Stab's seat
+   limited to `respondChoices`, a narrowed `targeting.protect` mode that lights only YOUR Equipment for Annoint, and the
+   Broadway pitch), each flagged `answer` and confirmed back into the answer, never into `activate()`. Ruling 27: a
+   tap takes the castable Quick out of its group (`pullFromGroup`). The selection you had (a held Fight's cards) is
+   set aside on the first answering tap and given back when the answer ends or its grant goes away (`endAnswerUI`,
+   run from `render`). The middle refuses a drop; `doRemove`, `doCounterfeit` and the Illusion refuse; a Main staging
+   does not survive into a window; a window you hold is exempt from a lesson's read-step lock, as the box was; a
+   step may name the answers it accepts (`answers`, ruling 28's hook — Phases' counter and Leyline steps do); and a
+   guest whose answer the host refuses gets the window back (`rearmAnswer` on `t:'err'`). **Not yet: Counter Spell**
+   — ruling 26 puts its target on the stack, which is piece 7, so until then the board says to choose it in Respond?.
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
