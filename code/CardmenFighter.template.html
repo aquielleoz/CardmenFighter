@@ -975,6 +975,27 @@
   #hand .card.tut-spot{ box-shadow:0 0 0 3px var(--gold), 0 0 0 7px rgba(240,200,80,.28), 0 0 22px rgba(240,200,80,.55); }
   #hand .card.enter.tut-spot{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both, tutPulse 1.3s ease-in-out .46s infinite; }
   @media (prefers-reduced-motion: reduce){ #hand .card.enter.tut-spot{ animation:none; } }
+  /* THE ANSWER GLOW (drag-and-stack step 4, piece 6; ruling 7: *"you cards that can be cast glow"*). After Yes, every
+     card in your hand that `E.canCastQuick` says you may cast in this window carries `.answerable`. GREEN, because
+     gold already means three other things on a hand card — your selection, a lesson's spotlight, a transform you can
+     make — and a glow that reads as one of them says nothing.
+     BUILT THE WAY `.tut-spot` HAD TO BE (v1.33.15), because every rule that lost the cascade for it would lose it for
+     this too: the glow is an ANIMATION, which outranks the hover, `.sel` and `.gsel` shadows whatever their
+     specificity; a card dealt this round carries `.enter`, whose `dealIn` would replace the pulse, so the two are
+     combined; a spotlit card gets one keyframe that draws both rings, since two animations cannot both own
+     `box-shadow`; and under reduced motion every one of those cases falls back to a STATIC ring that out-ranks the
+     shadows it would otherwise lose to. Asserted in computed style, not by the class (`answerglowtest`). */
+  @keyframes answerPulse{ 0%,100%{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 12px 2px rgba(82,224,143,.42); } 50%{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 22px 5px rgba(82,224,143,.78); } }
+  @keyframes answerSpotPulse{ 0%,100%{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 0 7px var(--gold), 0 0 16px 6px rgba(240,200,80,.4); } 50%{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 0 9px var(--gold), 0 0 26px 8px rgba(240,200,80,.6); } }
+  #hand .card.answerable{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 16px 3px rgba(82,224,143,.6); animation:answerPulse 1.4s ease-in-out infinite; }
+  #hand .card.enter.answerable{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both, answerPulse 1.4s ease-in-out .46s infinite; }
+  #hand .card.answerable.tut-spot{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 0 7px var(--gold), 0 0 22px rgba(240,200,80,.55); animation:answerSpotPulse 1.3s ease-in-out infinite; }
+  #hand .card.enter.answerable.tut-spot{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both, answerSpotPulse 1.3s ease-in-out .46s infinite; }
+  @media (prefers-reduced-motion: reduce){
+    #hand .card.answerable, #hand .card.enter.answerable, #hand .card.answerable.tut-spot, #hand .card.enter.answerable.tut-spot{ animation:none; }
+    #hand .card.answerable, #hand .group.gsel .card.answerable, #hand:not(.disabled) .card.answerable:hover{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 16px 3px rgba(82,224,143,.6); }
+    #hand .card.answerable.tut-spot, #hand .group.gsel .card.answerable.tut-spot{ box-shadow:0 0 0 3px rgb(82,224,143), 0 0 0 7px var(--gold), 0 0 22px rgba(240,200,80,.55); }
+  }
   /* pile cards start off-transform; entrance is driven inline via JS FLIP */
   #pile .card{ transform-origin:center; }
   /* THE PILE IS THE FOCAL POINT and shows at most 5 cards (a straight or a full house), so it has far more room
@@ -5234,6 +5255,10 @@ __QR__
       pendingEnter={}; return;
     }
     reconcileLayout();
+    /* THE ANSWER GLOW IS ON ONLY WHILE THE BOARD IS THE ANSWER (piece 6): after Yes, with no picker holding the board and
+       nothing staged — a staged card holds the board (ruling 29), so nothing else may be cast and nothing else glows.
+       Pick mode, above, never glows: the hand is a list to choose a pitch from there, not a list to cast from. */
+    var glowOn = answerLive() && !answerPickerOpen() && !(staged && stagedHeld());
     // Hints (toggle, default OFF): dim groups you can't play right now; dashed = "break me, a card inside can beat the pile".
     var usable=null, plays=null;
     if(hintsOn && yourTurn && !busy && Object.keys(selected).length===0){
@@ -5255,6 +5280,7 @@ __QR__
       g.cards.forEach(function(c,idx){
         if(kind==='fullhouse' && idx===3){ var gap=document.createElement('span'); gap.className='fhgap'; cardrow.appendChild(gap); }
         var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c); markAfford(el, c);   // YOUR hand: judge Quick against YOUR zone
+        if(glowOn && E.canCastQuick(state, YOU, c)) el.classList.add('answerable');   // the answer glow: the engine's own answer, never the notification setting
         /* ⚠ NO `g.cards.length===1` HERE ANY MORE. A freshly drawn card that landed INSIDE a group — a
            pair, a trio — was silently excluded from the deal-in, so it appeared with no animation at all.
            It reads as a player-count bug and is not: the draw scales with the table (`drawCountFor` =
@@ -5880,7 +5906,7 @@ __QR__
         : choosing ? (aa.ok ? 'Press ⚡ Activate to confirm, or Clear to cancel.' : aa.reason)
         : (staged && selected[staged.cardId]) ? 'Staged — ⚡ Activate casts it, ✕ takes it back.'
         : one ? (aa.ok ? '⚡ Activate casts it in answer.' : aa.reason)
-        : 'Answering: cast a Quick from your hand, or “'+declineLabel()+'”.';
+        : 'Answering: cast a glowing card, or “'+declineLabel()+'”.';
       hint.className='pick';
       if(actRow) actRow.setAttribute('data-live','1');
       return;
