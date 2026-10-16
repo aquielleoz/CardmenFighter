@@ -488,6 +488,17 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    board (Yes, the card, ⚡, the target clicked on the board, confirm) and `respQuicks` reads the engine's offer for the
    window shown, so the suites that named their choice followed with no edits; nine that clicked the box's buttons
    directly were rewritten against the board, and quicktest's one-button-per-play leg is tombstoned.
+   *Piece 9 built (v1.33.16.10):* **coverage, and the loop it found.** Most of the inventory's new-coverage list had
+   already landed with pieces 5-8 (the lower stack target, the glow at every setting, Yes then Pass on a guest). What
+   was left: `nettest_priosig` (the same grant re-sent after Yes keeps the box closed, a new one opens it),
+   `nettest_roundlock` (the client's OWN window: locked under its box, live as the answer after Yes) and
+   `nettest_parity`, where every seat now answers via Yes then the board (`netwindows`' `viaYes`), the duel's guest
+   holding Leyline with prompts ON so windows really open. That leg found a LOOP, 1 duel in 6: a guest's board stayed
+   live while the host held priority in the guest's own crossing, its repeated Pass reached the host's crossing branch,
+   and `E.moveToPlay` — which never checks `respondFor` — re-granted the host's window every time. Fixed both ways
+   (piece 10's first hardening item, pulled forward): the host refuses a play, pass or Illusion from a seat while a
+   window is open, and a guest's board locks while another seat holds priority, its hint naming who
+   (`nettest_windowlock`, both halves A/B'd).
 5. **Phones and landscape**, from the measurements above.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
