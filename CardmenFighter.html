@@ -4150,6 +4150,9 @@
       }
       return null;
     }
+    /* EVERY RIVAL, WHEN IT HITS EVERY RIVAL (drag-and-stack step 4, piece 10): Back Stab under Hermes' Super carries
+       `all`, and resolution locks every living rival — naming ONE seat here told the others it was not aimed at them. */
+    if ((HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) && eff.all) return { allRivals: true };
     if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
     return null;
   }
@@ -7480,7 +7483,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.16.10';
+  var GAME_VERSION='v1.33.16.11';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7549,6 +7552,7 @@ window.CardFace = {};
   function sayCast(actor, card, r, cls, tail){
     var t=r&&r.target, aim='', foes;
     if(t && typeof t.seat==='number'){ aim=' — aimed at {foe}'; foes=[t.seat]; }
+    else if(t && t.allRivals){ aim=' — aimed at every rival'; }   // Back Stab under Hermes' Super (piece 10): one seat named here was a lie to the rest
     else if(t){ var o=t.equip||t.zone||t.effect;
       if(o && typeof o.owner==='number'){ aim=' — aimed at <b>'+esc(o.name||'a card')+'</b> (owned by {foe})'; foes=[o.owner]; } }
     say(actor, '{who} played '+effPhrase(card)+aim+pitchTail(r)+(tail||'')+'.'+(r&&r.isSuper?' <b>'+SUPER_LINE+'</b>':''), cls, foes);
@@ -10020,6 +10024,7 @@ window.CardFace = {};
     if(t.equip) return whose(t.equip.owner)+'<b>'+esc(t.equip.name||'Equipment')+'</b>';
     if(t.zone) return whose(t.zone.owner)+'<b>'+esc(t.zone.name||(t.zone.tier==='ride'?'Ride':'Form'))+'</b>';
     if(t.effect) return whose(t.effect.owner)+'<b>'+esc(t.effect.name||'effect')+'</b>';
+    if(t.allRivals) return '<b>every rival</b>';   // Back Stab under Hermes' Super locks them all (piece 10)
     if(typeof t.seat==='number') return '<b>'+esc(logName(t.seat))+'</b>';
     return '';
   }
@@ -11826,22 +11831,6 @@ window.CardFace = {};
       render();
     });
   }
-  // Direction 1: you cast a Technique — if a response window opened, let the Rival's
-  // AI answer it (Counter Spell / Annoint) synchronously.
-  function rivalMayRespond(humanEffName){
-    if(!state.pending || state.respondFor!==RIVAL) return null;
-    var resp=AI.respondDecision(state, RIVAL);
-    if(resp && resp.respondedWith){
-      if(resp.countered){
-        setMessage('🌀 Rival <b>countered</b> your '+humanEffName+'!');
-        logMsg('<b>Rival</b> countered your '+humanEffName+' with '+resp.respondName+'!', 'rival');
-      } else {
-        setMessage('Rival responded with <b>'+resp.respondName+'</b>.');
-        logMsg('<b>Rival</b> responded with '+resp.respondName+' — your '+humanEffName+' is stopped.', 'rival');
-      }
-    }
-    return resp;
-  }
 
   /* A PROACTIVE ACTION MAY NOT START WHILE A GO-ROUND IS OPEN (Aj, from two real duels, 2026-09-15/16:
      *"we really need that guard when somebody has a modal up. other player could activate stuff while the
@@ -12041,9 +12030,16 @@ window.CardFace = {};
     setMessage('You <b>counterfeited</b> a '+(src?cardSym(src):'card')+' — play the copy before the round ends.');
     sayCounterfeit(YOU, state, copyId, 'you');
     revealEffect(card, 'You'); presentOwnCast(card);
-    rivalMayRespond(eff.name);
-    if(state.finished){ render(); return endGame(); }
-    render();
+    /* SETTLED LIKE EVERY OTHER CAST (drag-and-stack step 4, piece 10). This called `rivalMayRespond`, which asked the
+       AI for SEAT 1 and nobody else: on a netplay host the AI answered for the human guest, at 3-6 players the other
+       seats were never asked, and a window your own cast handed back to YOU (the controller holds priority first) was
+       never shown — the only cast continuation with no `settleWindows`, which is why `grep 'settleWindows(gen'` could
+       not find it. The tail is `doRemove`'s, hop included: `NET.hostAfterOwnCast` is what hands a host its board back. */
+    settleWindows(gen, function(){
+      if(state.finished){ render(); return endGame(); }
+      if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
+      render();
+    });
   }
 
   // PHANTASMAL ILLUSION (fight action): is it available, and can it beat the current play?
@@ -13478,12 +13474,17 @@ window.CardFace = {};
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
      * Telekinesis aimed at P2 is none of your business, one aimed at YOU is worth a Counter Spell. */
     var caster=(pend && typeof pend.p==='number') ? pend.p : null;
+    /* THE OBJECT'S OWN EFFECT DECIDES WHO IT HITS, not the card's base one (piece 10): Back Stab under Hermes' Super
+       carries `all` on the stack object, and naming one rival told every other rival "It does not target you" about a
+       lock that takes them too. */
+    var pEff=(pend && pend.eff) || rivalEff, hitsAll=!!(pEff && pEff.all && E.HOSTILE_SINGLE && E.HOSTILE_SINGLE[pEff.kind]);
     var aimed=null;
-    if(caster!=null && E.effectTarget && (E.HOSTILE_SINGLE && E.HOSTILE_SINGLE[rivalEff.kind]))
+    if(caster!=null && !hitsAll && E.effectTarget && (E.HOSTILE_SINGLE && E.HOSTILE_SINGLE[rivalEff.kind]))
       aimed=E.effectTarget(state, caster, (pend&&pend.opts)||{});
     var casterTxt=(caster!=null) ? ('<b>'+logName(caster)+'</b>') : 'Someone';
     var aimTxt='';
     if(aimed!=null) aimTxt = (aimed===YOU) ? ' at <b class="respAtYou">YOU</b>' : (' at <b>'+logName(aimed)+'</b>');
+    if(hitsAll) aimTxt = (caster===YOU) ? ' at <b>every rival</b>' : ' at <b>every rival</b> — <b class="respAtYou">YOU</b> included';
     /* THE FIGHT END WINDOW HAS NO OBJECT, SO IT NEEDS ITS OWN COPY (epic step 14; step 2 left the placeholder
        this replaces). What the player must know is exactly what `openShieldGuardModal` learned to say in
        v1.31.120 and for the same reason: **name the seat and the play**, because at 3-6 players "Rival" names
@@ -17821,7 +17822,16 @@ window.CardFace = {};
       } else {
         try{
           switch(it.op){
-            case 'play': r=E.play(hostState, 1, resolveIds(1, it.ids)); break;   // engine rejects out-of-turn / illegal combos → r.ok===false
+            /* A HELD PLAY WHOSE CARDS CHANGED IS HELD, NOT SHRUNK (drag-and-stack step 4, piece 10). `resolveIds` drops an
+               id the seat no longer holds, so a play re-applied after its crossing used to land SMALLER — a pair the
+               seat answered out of (it cast a Quick from its own pressed cards, which the brake rightly does not count)
+               went down as a jab. The local seat refuses that case (`doFightBody`: "Your cards changed during the
+               crossing"); the remote one now holds it the same way, and the seat chooses again. Before the crossing a
+               mismatch is simply not a play it can make. */
+            case 'play': var rids=resolveIds(1, it.ids);
+              if(rids.length!==(it.ids||[]).length){ trace('play HELD — its cards changed', 'sent '+(it.ids||[]).length+', still held '+rids.length);
+                broadcastMirror(); if(hostState.subPhase==='play') send({t:'held', seat:1}); else send({t:'err', reason:'Those cards are not all in your hand.'}); return; }
+              r=E.play(hostState, 1, rids); break;   // engine rejects out-of-turn / illegal combos → r.ok===false
             case 'pass': r=E.pass(hostState, 1); break;
             default: return;   // unknown op ignored
           }
@@ -18198,6 +18208,9 @@ window.CardFace = {};
             if(E.isLocked(hostState, seat)){ r=E.pass(hostState, seat); say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); }
             /* A TRANSITION IS NOT A REFUSAL — see the duel handler. `hostSettleN` parks a remote seat on
                `netReact` and prompts the host for its own, then the intent is re-applied. */
+            else if(it.op==='play' && resolveIds(seat, it.ids).length!==(it.ids||[]).length){   // held, not shrunk — see the duel handler
+              trace('play HELD — its cards changed', 'seat '+seat+' sent '+(it.ids||[]).length);
+              broadcastMirror(); if(hostState.subPhase==='play') sendTo(seat, {t:'held', seat:seat}); else sendTo(seat, {t:'err', seat:seat, reason:'Those cards are not all in your hand.'}); return; }
             else if(it.op==='play'){ r=E.play(hostState, seat, resolveIds(seat, it.ids)); if(r&&r.ok===false&&r.transition==='play'){ return hostSettleN(g, function(){ if(g===gen) hostApplyMoveN(seat, it); }); } if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); bumpFight(seat, r.combo && r.combo.type); }
             else { r=E.pass(hostState, seat); if(r&&r.ok===false&&r.transition==='play'){ return hostSettleN(g, function(){ if(g===gen) hostApplyMoveN(seat, it); }); } if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} passed.', 'rival'); }
           }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }

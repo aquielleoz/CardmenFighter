@@ -2066,6 +2066,9 @@
       }
       return null;
     }
+    /* EVERY RIVAL, WHEN IT HITS EVERY RIVAL (drag-and-stack step 4, piece 10): Back Stab under Hermes' Super carries
+       `all`, and resolution locks every living rival — naming ONE seat here told the others it was not aimed at them. */
+    if ((HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) && eff.all) return { allRivals: true };
     if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
     return null;
   }

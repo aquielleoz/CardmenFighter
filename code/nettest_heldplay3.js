@@ -59,14 +59,14 @@ const why=p=>p.evaluate(()=>({
      without the check is how the pair drifts apart. */
   const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)}));
   async function quiet(){ let last=null,same=0; for(let i=0;i<80;i++){ const n=await snap(); same=(n===last && !JSON.parse(n).cer)?same+1:0; last=n; if(same>=4) return true; await wait(250);} console.log('   ⏱ never settled: '+last); return false; }
-  async function stage(h0,h1,h2){
-    const w=[want(h0),want(h1),want(h2)], pg=[host,c1,c2];
+  async function stage(h0,h1,h2,turn){
+    const w=[want(h0),want(h1),want(h2)], pg=[host,c1,c2], tn=turn==null?0:turn;
     for(let i=0;i<10;i++){
       await host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),
-        { hands:[h0,h1,h2], energies:[EN(),EN(),EN()], shields:[3,3,3], opts:{ turn:0, round:3 } });
+        { hands:[h0,h1,h2], energies:[EN(),EN(),EN()], shields:[3,3,3], opts:{ turn:tn, round:3 } });
       const landed = await until(async()=>{
         for(let s=0;s<3;s++){ if((await idsOn(pg[s]))!==w[s]) return false; }
-        return (await turnOf(host))===0;
+        return (await turnOf(host))===tn;
       }, 16);
       if(landed) return true;
     }
@@ -119,6 +119,24 @@ const why=p=>p.evaluate(()=>({
   await waitHold(c1);   // the host's Leyline holds client 1's board for its art flash (ruling 20)
   await c1.evaluate(()=>document.getElementById('fightBtn').click());
   ok(await until(async()=>!(await inHand(c1,'a11C')), 60), 'one Fight press then played the Jack through the host');
+
+  /* ---- 2 (drag-and-stack step 4, piece 10): client 1 LEADS a pair of 9♦ Leylines and answers its own go-round by
+     casting ONE of them. Its own cast does not brake it, so `hostApplyMoveN` re-applies the play — and `resolveIds`
+     dropped the cast card, so the pair landed as a jab of the other 9♦. LEADING, because a jab answering a pile is
+     refused by the engine anyway, which would hide the shrink. It must be HELD, as in the duel (`nettest_heldplay` C). */
+  await wait(2600);
+  const staged2=await stage([D(6,'C','h'),D(3,'H','h')], [D(9,'D','L1'),D(9,'D','L2'),D(4,'H','a')], [D(5,'S','b'),D(4,'S','b')], 1);
+  ok(staged2, '2: staged — client 1 leads holding a pair of 9♦ Leylines; nobody else holds a Quick');
+  await until(async()=>!/Hold on|fighting|Waiting/.test((await why(c1)).hint), 60);
+  await c1.evaluate(()=>{ ['L19D','L29D'].forEach(id=>{ const c=document.querySelector('#hand .card[data-id="'+id+'"]'); const g=c&&c.closest('.group'); if(g && !g.classList.contains('gsel')) g.click(); }); });
+  await wait(450);
+  await c1.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled) f.click(); });
+  let cast2=null; for(let k=0;k<80 && !cast2;k++){ cast2=await clickQuick(c1, {id:'L19D'}); if(!cast2) await wait(150); }
+  ok(!!cast2, '2: …it pressed Fight with the pair and cast ONE of them into its own go-round, from the board');
+  await waitHold(c1);
+  await until(()=>host.evaluate(()=>!window.__cmf.pending()), 80); await wait(1200);
+  const h2=await host.evaluate(()=>({ hand:window.__cmf.handOf(1), pile:[...document.querySelectorAll('#pile .card')].map(c=>c.getAttribute('data-id')) }));
+  ok(h2.hand.indexOf('L29D')>=0 && h2.pile.indexOf('L29D')<0, '2: THE PLAY IS HELD, NOT SHRUNK — the other 9♦ is still in client 1\'s hand, not played as a jab  '+JSON.stringify(h2));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

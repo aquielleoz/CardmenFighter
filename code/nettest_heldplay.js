@@ -17,6 +17,10 @@
  *
  * Each asserts: the card did NOT go down, it is STILL SELECTED, the board is in the Fight Sub-Phase without a
  * Next press, the Fight banner showed, the message says what happened — and then one Fight press plays it.
+ *   C  (drag-and-stack step 4, piece 10) the CLIENT presses Fight with a PAIR of 9♦ Leylines and answers its own
+ *      go-round by casting ONE of them from the board. Its own cast does not brake it (rightly), so the host
+ *      re-applies the play — and `resolveIds` dropped the cast card, so the pair used to land as a JAB of the other
+ *      9♦. It must be HELD instead: nothing goes down, the seat chooses again.
  *
  * Run: node nettest_heldplay.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
@@ -107,6 +111,28 @@ async function commitAndWatch(committer, caster, cardId, casterQuick){
   ok(/Fight/.test(bb.label) && !bb.fightOff, 'B: the button reads Fight and is live ('+bb.label+')');
   await join.evaluate(()=>document.getElementById('fightBtn').click());
   ok(await until(async()=>!(await inHand(join,'c11C'))), 'B: …and one press played the Jack through the host');
+
+  // ---------------- C: the CLIENT answers its own go-round out of its pressed pair — held, not shrunk ----------------
+  await wait(2600);
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su}); const E=(s,t)=>[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>C(n,s,t));
+    window.__cmf.forceAll([[C(10,'C','x'),C(3,'H','x'),C(4,'S','x')], [C(9,'D','cL1'),C(9,'D','cL2'),C(5,'C','x')]],
+                          [E('C','xe'), E('D','xd')], null, {round:3, turn:1}); });
+  ok(await until(()=>join.evaluate(()=>window.__cmf.turn()===0 && !!document.querySelector('#hand .card[data-id="cL19D"]') && !!document.querySelector('#hand .card[data-id="cL29D"]')), 80),
+     'C: STAGED — the client leads round 3 holding a pair of 9♦ Leylines');
+  await until(()=>join.evaluate(()=>{ const h=(document.getElementById('hint')||{}).textContent||''; return !/Hold on|fighting|Waiting/.test(h); }), 80);
+  await join.evaluate(()=>{ ['cL19D','cL29D'].forEach(id=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="'+id+'"]'))[0]; if(g && !g.classList.contains('gsel')) g.click(); }); });
+  await wait(450);
+  await join.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled) f.click(); });
+  const castC=await (async()=>{ for(let i=0;i<80;i++){ const t=await clickQuick(join, {id:'cL19D'}); if(t) return t; await wait(150); } return null; })();
+  ok(!!castC, 'C: …it pressed Fight with the pair, and answered its own go-round by casting ONE of them from the board  ['+castC+']');
+  await waitHold(join);
+  const settledC=await until(()=>host.evaluate(()=>!window.__cmf.pending() && window.__cmf.turn()===1), 80);
+  await wait(800);
+  const hc=await host.evaluate(()=>({ hand:window.__cmf.handOf(1), pile:[...document.querySelectorAll('#pile .card')].map(c=>c.getAttribute('data-id')) }));
+  ok(settledC && hc.hand.indexOf('cL29D')>=0 && hc.pile.indexOf('cL29D')<0,
+     'C: THE PLAY IS HELD, NOT SHRUNK — the other 9♦ is still in the client\'s hand, not played as a jab  '+JSON.stringify(hc));
+  ok(await until(()=>join.evaluate(()=>/Someone answered|selected|Pick again/.test((document.getElementById('message')||{}).textContent||'')), 40),
+     '  …and the client is told to choose again');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
