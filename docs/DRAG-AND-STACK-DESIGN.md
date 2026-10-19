@@ -275,13 +275,18 @@ The three earlier asks this answers:
     newest first. Tapping a card still reads it. *Built in step 5, piece 1.*
 32. **Portrait phones hide the card reader** (2026-10-19). Asked where the stack goes on a 390x844 phone, Aj asked
     *"why is there a description box at the bottom?"*, then chose to hide it: every portrait phone reads a card
-    through 🔍 View, as the ones under 800px tall already do.
+    through 🔍 View, as the ones under 800px tall already do. *Built in step 5, piece 2.*
 33. **On a narrow portrait phone the pile laps like a group in your hand, and the stack stays on the right** (Aj:
     *"can we overlap the in play cards similar to the grouping up in the hand? only for narrow screens?"*, confirmed
     as the pile, and *"stack should be on the right still"*). The lapped pile stops reaching under the column.
+    *Built in step 5, piece 2:* at least a hand group's lap, and further when the play is long or the table narrow
+    (`lapPile`), so any play centred on the table ends clear of the column.
 34. **On a narrow phone the Respond? box stays at the top and gets a minimize** (Aj: *"keep it at the top, this will
     have a minimize/peek right?"*, then *"Add a minimize"* over relying on Yes). It shrinks the box to a thin tab
     that opens it again, so the Rival's bar is readable while you decide.
+35. **A portrait phone's stack is the landscape one: smaller cards, no captions, fitted to the column** (2026-10-19).
+    Shown three casts at 360x740, where the 76px column wrapped each caption onto 4-5 lines and fitted two of three,
+    Aj chose *"Like landscape"*. *Built in step 5, piece 2.*
 
 ## Still open
 
@@ -532,8 +537,11 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    opens (`equipCollapsible`); `placeCastZone` clears any zone that reaches into the column's width, not only the
    corner ones, and fits the stack's cards to it (`--stkCs`, `.stkWrap`); the band's message drops the column's
    extra padding. `landscapetest` now puts three objects on the stack at every size but a portrait phone and
-   requires all three in view, clear of the pile and every zone. Pieces 2 (portrait, 32-33) and 3 (the box, 34)
-   follow.
+   requires all three in view, clear of the pile and every zone. *Piece 2 built (v1.33.16.13):* portrait phones
+   (rulings 32, 33, 35). Every phone hides the reader strip; the pile laps (`lapPile`); the stack is fitted and
+   uncaptioned there too (`compactStack`, one query for the CSS and the measure), with stack cards sized from the fit
+   scale because under 380px wide `.card` is a fixed 40x58 that ignores it. `landscapetest`'s column leg now covers
+   portrait phones. Piece 3 (the box, 34) follows.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
    deleted.

@@ -589,10 +589,10 @@ const CASES=[
        ever put a stack in it: in the landscape band three casts showed ONE card, cropped, wedged between the two corner
        Equipment chips, the rest scrolled out of sight. Three objects, the most a usual go-round holds: all three must be
        IN VIEW inside the column, none scrolled away, and the column must cover no pile card and no zone. The band's cards
-       are uncaptioned (ruling 31), everywhere else captioned. Portrait phones are measured from step 5's piece 2, where the
-       pile laps (ruling 33) and stops reaching under the column. */
-    const portraitPhone=!band && w<=720;
-    if(!portraitPhone){
+       are uncaptioned on both phone layouts (rulings 31 and 35), captioned elsewhere. Portrait phones joined at step 5's
+       piece 2, once their pile lapped (ruling 33): before it, the column sat on the pile's last card at every one of them. */
+    const phoneLayout=band || w<=720;
+    {
       await p.evaluate(()=>{ const st=window.__solo.st(), E=window.CardmenEngine, mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
         const o=(oid,q,c)=>({oid:oid,kind:'effect',p:q,card:c,eff:E.effectOf(c),opts:{target:0}});
         st.stack=[o('lt1',1,mk(5,'S','lt')), o('lt2',0,mk(5,'H','lt')), o('lt3',1,mk(4,'D','lt'))]; window.__solo.render(); });
@@ -613,7 +613,7 @@ const CASES=[
       });
       ok(sc.n===3 && sc.inside===3 && sc.scroll<=1, `${tag}: all three stack cards are IN VIEW in the cast column, none scrolled away (${sc.inside}/${sc.n} inside, ${sc.scroll}px of scroll, cards ${sc.card})`);
       ok(sc.pileCov<5 && sc.zoneCov<5, `${tag}: …and no stack card covers a pile card, and the column covers no zone (pile ${sc.pileCov}%${sc.pileCov?' — card '+sc.pileWho:''}, zone ${sc.zoneCov}%${sc.zoneWho?' — '+sc.zoneWho:''}; column ${sc.col})`);
-      if(band) ok(sc.caps===0, `${tag}: …uncaptioned in the landscape band (ruling 31) — ${sc.caps} captions showing`);
+      if(phoneLayout) ok(sc.caps===0, `${tag}: …uncaptioned on a phone (rulings 31 and 35) — ${sc.caps} captions showing`);
       else ok(sc.caps===3, `${tag}: …and captioned outside the band (${sc.caps} of 3)`);
       await p.evaluate(()=>{ window.__solo.st().stack=[]; window.__solo.render(); });
       await settledBoard(p);
