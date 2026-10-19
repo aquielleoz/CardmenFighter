@@ -14,8 +14,30 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 
 async function openLesson(id, viewport){
   const b=await chromium.launch(LAUNCH);
-  const p=await (await b.newContext({viewport:viewport||{width:1200,height:900}})).newPage();
+  /* `LESSON_VIEWPORT=390x844` runs a suite that names no viewport at that size — a phone pass of any lesson suite. */
+  const VP=/^(\d+)x(\d+)$/.exec(process.env.LESSON_VIEWPORT||''), vp=viewport||(VP?{width:+VP[1],height:+VP[2]}:{width:1200,height:900});
+  const p=await (await b.newContext({viewport:vp})).newPage();
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+  /* THE COACH MUST NOT COVER WHAT A STEP POINTS AT (drag-and-stack step 6b). Every 400ms: does the coach panel sit over
+     the centre of anything the step spotlights, or of the Respond? box's buttons? Phases shipped with the coach over
+     both, and a phone audit then found it over the named card or button in five more lessons, every suite green
+     throughout, because a suite clicks through the DOM. `done()` asserts it; a state counts only once it has held for
+     two samples in a row, so a sample taken while the coach is mid-move cannot flake a run. `LESSON_AUDIT=<file>`
+     also appends the per-step record as one JSON line, for a cross-lesson audit. */
+  const AUDIT=process.env.LESSON_AUDIT||'', audit={}, streak={}; let auditT=null;
+  auditT=setInterval(async()=>{ try{
+    const r=await p.evaluate(()=>{ const m=/(\d+)\s*\/\s*(\d+)/.exec((document.querySelector('.tutStep')||{}).textContent||''); if(!m) return null;
+      const t=document.getElementById('tutPanel'), out=[], els=[].slice.call(document.querySelectorAll('.tut-spot'));
+      const ov=document.getElementById('overlay'); if(ov && ov.classList.contains('show')) [].forEach.call(document.querySelectorAll('#modal button'), b=>{ if(b.offsetParent) els.push(b); });
+      els.forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width<2 || r.height<2) return; const cx=r.left+r.width/2, cy=r.top+r.height/2;
+        const name=el.id ? '#'+el.id : (el.dataset && el.dataset.id ? 'card '+el.dataset.id : String(el.className).split(' ')[0]);
+        if(cx<0 || cy<0 || cx>innerWidth || cy>innerHeight){ out.push(name+' OFFSCREEN'); return; }
+        const hit=document.elementFromPoint(cx, cy); if(t && hit && t.contains(hit)) out.push(name+' UNDER COACH'); });
+      return { step:+m[1], bad:out }; });
+    if(r){ const k='step '+r.step, now={};
+      r.bad.forEach(x=>{ const key=k+' · '+x; now[key]=1; streak[key]=(streak[key]||0)+1; if(streak[key]>=2){ audit[k]=audit[k]||{}; audit[k][x]=(audit[k][x]||0)+1; } });
+      Object.keys(streak).forEach(key=>{ if(!now[key]) delete streak[key]; }); }
+  }catch(e){} }, 400);
   /* LOAD ON DEMAND (2026-10-13). Every lesson flake on file was seen under a `-j 4` sweep and never solo, so
    * "wait for a loaded sweep to go red" was the only way to see one again. `LESSON_THROTTLE=n` slows this page's
    * own CPU n-fold through Chromium's DevTools protocol (`Emulation.setCPUThrottlingRate`): a loaded lane without a
@@ -285,6 +307,10 @@ async function openLesson(id, viewport){
       ok(await p.evaluate(i=>localStorage.getItem('cmf_lesson_'+i+'_v1')==='1', lessonId),'…and the lesson is marked done');
     },
     async done(){ ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
+      clearInterval(auditT);
+      const covered=Object.keys(audit).map(k=>k+': '+Object.keys(audit[k]).join(', '));
+      ok(covered.length===0, 'the coach never covered what a step points at ('+vp.width+'x'+vp.height+')'+(covered.length?'  ← '+covered.join(' | '):''));
+      if(AUDIT) require('fs').appendFileSync(AUDIT, JSON.stringify({ lesson:id, vp:vp.width+'x'+vp.height, audit:audit })+'\n');
       console.log('\nPASS: '+pass+'  FAIL: '+fail); await b.close(); process.exit(fail?1:0); } };
 }
 module.exports = { openLesson, URL };

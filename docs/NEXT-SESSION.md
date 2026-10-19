@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.16.15.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.16.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -574,6 +574,14 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   **FORCED 2026-10-13 AND NOT REPRODUCED, SO PARKED.** 16 runs at 4x and 8 at 20x page-CPU throttle (the 20x runs
   took 7s against 4s): the Q was spotlit every time. **Revives when it fails in a sweep**; the step print then says
   which half it is.
+  **IT FAILED IN A SWEEP 2026-10-19 (epic step 6b, 134/135) AND THE STEP PRINT SAYS WHICH HALF: ON THE STEP, LIT THE
+  FALLBACK.** `Tutorial · 2 / 4 … WHY: spots=cardActivate,hand,ctxBtn` — step 2's `hi` returns `'#hand'` only when
+  `tutFormId` is null, so `tutPrepForm` (step 1's `prep`) found NO Form in the hand or deck of the `state` it read. The
+  rig places a Q 8/8, so the live suspect is the prep READING THE WRONG STATE: it runs from `tryPrep`, a timer that
+  fires once the step shows, and if that can land before the lesson's own game replaces `state` it searches the
+  previous game and caches null for good (nothing re-runs the prep). Check the order of `TUT.start` against the
+  lesson's `startGame`, and whether `tutFormId` (never reset) should be re-derived at step 2 instead of cached at
+  step 1. 6/6 green solo straight after.
   `[id: lessontest-forms-poll]`
 
 - `parked`              · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
