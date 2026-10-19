@@ -3224,11 +3224,17 @@ function cards(ids) { return ids.map(card); }
       var caster = gg.turn;                                // captured BEFORE the turn — takeTurn moves it on
       (AI.takeTurn(gg, caster, 'knight') || []).forEach(function (e) {
         var ef = e && e.play && e.card ? E.effectOf(e.card) : null;
-        if (ef && HOSTILE[ef.kind]) { seen++; if (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster) named++; }
+        /* A BACK STAB CAST UNDER A SUPER LOCKS EVERY RIVAL, and since step 4 piece 10 its log entry says so
+           (`{allRivals:true}`) instead of naming one seat. Accepted for exactly that case: a Back Stab whose
+           effect, read with the caster's Forms, carries `all`. Anything else must still name a seat. This was
+           red ~1 run in 20 after piece 10, whenever a seeded game happened to give an AI a Super Back Stab. */
+        if (ef && HOSTILE[ef.kind]) { seen++;
+          var allR = !!(e.target && e.target.allRivals), fe = E.effectFor(gg, caster, e.card);
+          if (allR ? (ef.kind === 'lockout' && fe && fe.all) : (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster)) named++; }
       });
     }
   }
-  ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log (' + named + ' of ' + seen + ')');
+  ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log, or "every rival" for a Super Back Stab (' + named + ' of ' + seen + ')');
 })();
 
 /* ============ A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06) ============
