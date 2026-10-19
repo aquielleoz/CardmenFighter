@@ -577,3 +577,15 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    own Yes or No, and `answertest`'s "no Quick buttons" counts the box's buttons other than Yes, No and ▾, so it can
    still fail. A dead-code check found six never-called functions, all dead on `main` too, so they are filed as main
    work (`dead-template-functions`), not deleted here.
+   *Found while the release was open (v1.33.16.18):* an exchange between two AIs never showed as a stack. Aj: *"the
+   destroy flew to the stack visualizer... then it disappeared... then the other opponent countered the destruction with
+   a counterspell and then it flew to the visualizer... both cards should have been there because the stack is supposed
+   to resolve lifo"*. `ai.js` runs such an exchange (cast, answers, resolution) in one call, so when `buildOppBeats`
+   replays the turn the real stack is already empty, and every card took step 3's resolved-cast path: a ghost that rests
+   and fades alone. The replay now keeps its own stack (`replayStack`, drawn with the real one): an answered cast stays,
+   each answer lands on top, then they resolve newest first, a counter taking what it countered with it, and the board
+   says so. `oppbeatstest` films it: one counter, a counter on a counter, and an unanswered cast as the control.
+   Aj's saved log then showed a second fault under the first: `E.respond` never reported that an answer was a counter,
+   so every AI Counter Spell was logged and narrated as "answered at instant speed", and the replay would have resolved
+   the counter and then the countered Disarm anyway. It reports `countered` now. `oppbeatstest` also replays a log the
+   real AI wrote, unedited, and that leg goes red without the engine line.

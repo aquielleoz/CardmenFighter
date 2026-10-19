@@ -3649,6 +3649,7 @@ function cards(ids) { return ids.map(card); }
   var aC = answers(AI.takeTurn(gC, 1, 'knight', [0]))[0];
   ok(cast.ok && !!aC && aC.respBy === 2 && aC.respName === 'Counter Spell', 'in-turn answer: staged — seat 2 counters seat 1\'s Telekinesis inside seat 1\'s turn  ' + JSON.stringify(aC || null));
   ok(!!aC && aC.transition === false && aC.round === 4, 'in-turn answer: …logged as a response to a cast (not the transition), in round 4  ' + JSON.stringify(aC || null));
+  ok(!!aC && aC.countered === true, 'in-turn answer: …and logged AS a counter, so the line says "countered with" and the board\'s replay pops the Technique it hit  ' + JSON.stringify(aC || null));
   // the Main → Fight transition: seat 2, holding Back Stab with Perseus in its zone, springs it before seat 1's fight
   var gT = fresh();
   gT.players[2].hand = [mk(10, 'S'), mk(6, 'C'), mk(6, 'D')]; gT.players[2].energy = nrg(12, 'S');   // Back Stab, and a pair to follow it with

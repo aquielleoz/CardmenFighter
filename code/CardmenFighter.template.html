@@ -4725,7 +4725,7 @@ __QR__
     /* AND WHAT IT IS AIMED AT (stack-row-omits-target) — the noun the decision turns on. From
        `E.stackTargetOf`, which reads resolution's own lookups, so the row cannot name a different piece
        from the one answering will protect. Untargeted effects render exactly as before. */
-    var tTxt=stackTargetPhrase(E.stackTargetOf ? E.stackTargetOf(state, o) : null);
+    var tTxt=stackTargetPhrase(o.replay ? o.tgt : (E.stackTargetOf ? E.stackTargetOf(state, o) : null));   // a replayed object carries the aim the log recorded
     return '<span class="who">'+who+' ▸</span> '+label+sym+(tTxt?' <span class="stkTgt">→ '+tTxt+'</span>':'')+(isTop?' <span class="who">(resolves next)</span>':'');
   }
   function stackPendingLoss(){
@@ -4752,6 +4752,17 @@ __QR__
     return '<p class="respStake">🛡 When the stack clears, '+lWho+'’s '+lType+' wins the round and '+lHit+' '+lVerb+' a shield.</p>';
   }
   function stackObjects(){ return (state.stack||[]).filter(function(o){return o.kind==='effect';}); }
+  /* THE REPLAYED STACK (Aj, 2026-10-19: *"opponent 1 tried to destroy another opponents equip. so the destroy flew to the
+     stack visualizer... then it disappeared... then the other opponent countered the destruction with a counterspell and
+     then it flew to the visualizer... both cards should have been there because the stack is supposed to resolve lifo"*).
+     When two AIs trade inside an AI's turn, `ai.js` runs the cast, every answer and the resolution in one call, so by the
+     time the page replays the turn (`buildOppBeats`) the real stack is empty again, and each card took the resolved-cast
+     path: a ghost that rests and fades on its own. These are the replay's own stack objects: a cast that was answered
+     stays, each answer lands on top of it, and then they resolve newest first. Presentation only, never on `state`. */
+  var replayStack=[], replaySeq=0;
+  function shownStackObjects(){ return stackObjects().concat(replayStack); }
+  function replayPush(p, card, extra){ if(!card) return; var o={ oid:'rp'+(++replaySeq), kind:'effect', p:p, card:card, eff:E.effectOf(card), replay:true };
+    for(var k in extra) o[k]=extra[k]; replayStack.push(o); }
   // the Respond? box's "On the stack" rows — text, newest first (the board shows the same objects as cards)
   /* THE BOARD'S STACK IS CARDS (drag-and-stack step 3): each object shows the card that was cast, newest on top,
      captioned with `stackObjPhrase`. Rebuilt only when the stack CHANGES — a rebuild on every render would restart
@@ -4771,7 +4782,7 @@ __QR__
     return eq ? eq.card : null;
   }
   function renderStack(){
-    var el=$('stackView'), objs=stackObjects();
+    var el=$('stackView'), objs=shownStackObjects();
     if(objs.length<1){ el.style.display='none'; el.innerHTML=''; stackSig=null; return; }
     el.style.display='flex';
     var sig=objs.map(function(o){ return o.oid; }).join(',')+'|'+objs.map(function(o){ return o.trig ? (trigCard(o)?'c':'t') : ''; }).join('')+'|'+objs.map(function(o,i){ return stackObjPhrase(o, i===objs.length-1); }).join('§');
@@ -4809,7 +4820,7 @@ __QR__
   function presentStackArrival(seat, card){
     if(card && card.rank!=null && state) startCastHold(card);   // ruling 20: the game holds for this cast's art flash — reduced motion and an object already on the stack included
     if(!card || card.rank==null || !state || reduceMotion()) return;
-    if((state.stack||[]).some(function(o){ return o.card && o.card.id===card.id; })) return;
+    if(shownStackObjects().some(function(o){ return o.card && o.card.id===card.id; })) return;   // on the stack, real or replayed: its own fly-in shows it
     if(cardFlewRecently(card.id)) return;
     var cz=$('castZone'), src=stackSourceRect(seat, card.id); if(!cz || !src) return;
     recentlyFlown[card.id]=Date.now();
@@ -5585,7 +5596,7 @@ __QR__
        row while that keeps a card readable (scale .5, ~23x33px); below it the column is wider than a card, so two or
        three share a row (newest first) — at 3 players on an 800x360 phone that is 27x38px cards, all three in view,
        against 19x28 in single file with the third scrolled away. Past a floor the column scrolls, as it always could. */
-    var objs=compactStack() ? stackObjects().length : 0;
+    var objs=compactStack() ? shownStackObjects().length : 0;
     cz.classList.toggle('stkWrap', false);
     if(!objs){ cz.style.removeProperty('--stkCs'); return; }
     var cs=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cs'))||.82;
@@ -7614,11 +7625,27 @@ __QR__
    * played…" under an opponent's card, and their effects were invisible. Extracted so it cannot drift. */
   function buildOppBeats(log, seat){
     var who=logName(seat), beats=[];
-      log.forEach(function(e){
+      /* THE CHAIN being replayed: a cast that was answered, then each answer. When the next entry is not an answer, the
+         window closed and everything resolved, newest first; `chainResolves` adds those beats. */
+      var chain=[];
+      function chainResolves(){
+        var c=chain.slice(); chain=[];
+        while(c.length){
+          var top=c.pop(), hit=(top.countered && c.length) ? c.pop() : null;
+          (function(top, hit){ beats.push({ dwell:(reduceMotion()?300:900), run:function(){
+            replayStack.splice(hit ? -2 : -1, hit ? 2 : 1);
+            setMessage(hit ? '<b>'+esc(top.name)+'</b> resolves — <b>'+esc(hit.name)+'</b> is countered.' : '<b>'+esc(top.name)+'</b> resolves.');
+            render(); } }); })(top, hit);
+        }
+      }
+      log.forEach(function(e, idx){
+        var answered=!!(log[idx+1] && log[idx+1].respond);
         if(e.play){
           var eff=e.card?E.effectOf(e.card):null;
+          if(answered && e.card) chain.push({ name:(eff && eff.name) || 'a card', countered:false });
           beats.push({ dwell: revealDwell(e.card), run:function(){
             sayCast(seat, e.card, e, 'rival');   // `e.target` is the AI's activation result's aim
+            if(e.card && answered){ replayPush(seat, e.card, { tgt:e.target || null }); render(); }   // answered: it stays on the stack for its answers
             if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } presentStackArrival(seat, e.card); setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
           }});
         }
@@ -7649,8 +7676,17 @@ __QR__
            mid-turn and left this entry, and nothing read it. `respBy` is the seat that answered, usually NOT `seat`;
            the timing and round were sampled before the answer, the way `settleWindows` samples them. Same words,
            ledger line, cue and hold as an answer on your side of the table. */
-        else if(e.respond){ beats.push({ dwell:(reduceMotion()?300:1400), run:function(){ noteAIAnswer(e.respBy, e.respName, e.countered, e.transition, e.round, e.pitched); cueAIAnswer(e.respBy, e.respName, e.countered, e.respCard); render(); } }); }
+        else if(e.respond){
+          var isCounter=!!e.countered;   // set by `E.respond` since 2026-10-19 — before that it was always false, so a countered Technique replayed as resolving
+          if(e.respCard) chain.push({ name:e.respName || 'a Quick', countered:isCounter });   // only what is drawn can be popped
+          beats.push({ dwell:(reduceMotion()?300:1400), run:function(){
+            var below=replayStack[replayStack.length-1];
+            if(e.respCard) replayPush(e.respBy, e.respCard, { countered:isCounter, tgt:(isCounter && below) ? { effect:{ owner:below.p, name:(below.eff && below.eff.name) || 'that' } } : null });
+            noteAIAnswer(e.respBy, e.respName, isCounter, e.transition, e.round, e.pitched); cueAIAnswer(e.respBy, e.respName, isCounter, e.respCard); render(); } });
+          if(!answered) chainResolves();
+        }
       });
+    if(chain.length) chainResolves();
     return beats;
   }
 
@@ -8751,6 +8787,7 @@ __QR__
   function resetBoardMemory(){
     castHoldOn=false; castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null; castHoldWaiters=[];   // a cast hold never outlives its game (ruling 20)
     answering=null; answerHeldSel=null; lastAnswer=null;        // nor does an answer record, or what it borrowed (step 4)
+    replayStack=[];                                             // nor a replayed AI exchange cut off by a new game
     prevShields={}; oppShieldEls={}; holdShields=false; presentedStrip=0; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
        `startGame` and nowhere else, which is the family this repo has now paid for five times
