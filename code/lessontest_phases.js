@@ -18,6 +18,11 @@
  * Run: node lessontest_phases.js */
 const { openLesson } = require('./lessonlib');
 const { clickQuick } = require('./fightclick');
+/* is each selector's element the TOP element at its centre, or is the coach panel over it? */
+const coachClear = (p, sels)=>p.evaluate((sels)=>{ const t=document.getElementById('tutPanel'), out={};
+  sels.forEach(s=>{ const el=document.querySelector(s); if(!el){ out[s]='absent'; return; } const r=el.getBoundingClientRect();
+    const hit=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2); out[s]=(t && hit && t.contains(hit)) ? 'UNDER COACH' : (hit ? 'clear' : 'offscreen'); });
+  return out; }, sels);
 
 (async()=>{
   const L = await openLesson('phases');
@@ -142,6 +147,18 @@ const { clickQuick } = require('./fightclick');
      somewhere else, and the deal-hold fix moved that moment under a phase tint; an incidental sample is a
      coin flip dressed as an assertion. */
   await note();
+  /* THE COACH HIDES NOTHING THE ANSWER NEEDS (drag-and-stack step 6). On a desktop it docked over the card reader, which is
+     where the small box sits, so the box's Yes and No were under the coach — the hit-test above was green the whole time,
+     because it asks whether the coach is on TOP, not what it covers. Now the step asks the coach to move
+     (`placeAnswerCoach`): the box's buttons, and after Yes the spotlit card, must each be the top element at its centre. */
+  const step4 = (await step()).text;
+  ok(/\bYes\b/.test(step4) && /⚡\s*(<\/?b>)?\s*Activate/.test(step4), 'STEP 4 NAMES THE BOX\'S YES AND ⚡ ACTIVATE — the controls this answer actually takes');
+  const c4 = await coachClear(p, ['#respYes','#respDecline']);
+  ok(c4['#respYes']==='clear' && c4['#respDecline']==='clear', 'THE COACH DOES NOT COVER THE BOX — Yes and No are each the top element at their centre  '+JSON.stringify(c4));
+  await p.evaluate(()=>document.getElementById('respYes').click());
+  await until(()=>!!document.querySelector('#hand .card.answerable'), 'the board answers after Yes', 6000);
+  const c4b = await coachClear(p, ['#hand .card.tut-spot']);
+  ok(c4b['#hand .card.tut-spot']==='clear', '…and after Yes the spotlit Counter Spell is not under it either  '+JSON.stringify(c4b));
   ok(await respond('Counter Spell'), '…offering Counter Spell, which we spring');
   ok(await atStep(5), 'countering advanced the lesson to step 5 — straight to the payoff');
 
@@ -220,6 +237,8 @@ const { clickQuick } = require('./fightclick');
   const shBefore = (await st()).players[0].shields;
   const got2 = await until(boxUp, 'the Resolution window opens', 20000);
   ok(got2, 'their pair beat yours, and Resolution opened a window');
+  const c10 = await coachClear(p, ['#respYes','#respDecline']);
+  ok(c10['#respYes']==='clear' && c10['#respDecline']==='clear', 'STEP 10: the coach does not cover the box either  '+JSON.stringify(c10));
   ok(await respond('Leyline'), '…offering Leyline Ascension');
   /* A RED RUN MUST EXPLAIN ITSELF — this is the one assertion in the file with somewhere to hide, because
      "the lesson did not advance" is equally true of a gate that never fired, a modal still covering the
@@ -277,5 +296,21 @@ const { clickQuick } = require('./fightclick');
 
   await next();
   await L.finish('phases');
+  /* …AND ON A PORTRAIT PHONE, where the coach's default is over your hand and the box is at the top: up to the counter
+     step, the box's buttons clear, then after Yes the spotlit Counter Spell clear. Its own page, reported here. */
+  { const P = await openLesson('phases', {width:390,height:844}); const pp = P.p;
+    await P.atStep(1); await P.next(); await P.next(); await P.atStep(3);
+    await pp.evaluate(()=>{ const a=document.querySelector('#hand .card.tut-spot'); const g=a&&a.closest('.group'); if(g) g.click(); });
+    await new Promise(r=>setTimeout(r,200));
+    await pp.evaluate(()=>document.getElementById('fightBtn').click());
+    await P.atStep(4);
+    const up = await P.until(()=>{ const y=document.getElementById('respYes'); return !!(y && y.offsetParent); }, 'the phone box', 20000);
+    const pc = await coachClear(pp, ['#respYes','#respDecline']);
+    ok(up && pc['#respYes']==='clear' && pc['#respDecline']==='clear', 'PHONE 390x844: the coach does not cover the box at the top  '+JSON.stringify(pc));
+    await pp.evaluate(()=>document.getElementById('respYes').click());
+    await P.until(()=>!!document.querySelector('#hand .card.answerable'), 'the phone board answers after Yes', 6000);
+    const pc2 = await coachClear(pp, ['#hand .card.tut-spot']);
+    ok(pc2['#hand .card.tut-spot']==='clear', '…and after Yes the coach has left your hand: the spotlit Counter Spell is clear  '+JSON.stringify(pc2));
+    await P.b.close(); }
   await L.done();
 })().catch(e=>{ console.error('HARNESS ERROR', e.message); process.exit(2); });

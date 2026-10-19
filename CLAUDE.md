@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.14**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -75,7 +75,9 @@ node lessontest_energyorder.js                       # the "Energy Order" tutori
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
 #                                       # old Quicks one. Both base Quicks, the crossing FILMED (the strip reads
 #                                       # Fight while the Ace is still in hand), and pauses held on real
-#                                       # ceremony beats rather than forced windows (45). `lessontest_quicks.js`
+#                                       # ceremony beats rather than forced windows (51). Since drag-and-stack
+#                                       # step 6 its answer steps name Yes and ⚡, and the coach must leave the
+#                                       # box's buttons and the spotlit card UNCOVERED, desktop and phone (hit-tested). `lessontest_quicks.js`
 #                                       # is DELETED: its lesson no longer exists
 node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated, and the spotlit card must GLOW in its computed style, fly-in and reduced motion included (28)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
@@ -541,7 +543,7 @@ hoisting it to `tutIsTech` in v1.31.73 is what uncovered **three shipped bugs in
 one game in twelve. **The dangerous shape is a rig that needs a UNIQUE card**: the Quicks lesson wants the lone
 4♦ Counter Spell, and when it was behind a shield the rig placed nothing, `eligibleQuicks()` came back empty, the
 Respond? window never opened, and the player sat on step 2 being told to counter something that never arrived —
-no error, no log line, no way to finish. `tutPullShield` lifts it out and swaps a pool card in so the pile keeps
+no error, no log line, no way to finish. `tutPullShield` lifted it out (deleted with that lesson at drag-and-stack step 6; the trap stays live for any new rig) and swapped a pool card in so the pile kept
 its size. The Ride and Form rigs ask for `J♣ || any J` and `Q♣ || any Q` and so survive the same hole by luck;
 check for a fallback before assuming a rig is safe. `lessontest_phases` asserts the card accounting (52 cards,
 none duplicated, `shieldPile.length === shields`) precisely because a swap that dropped a card would still play.
@@ -631,7 +633,7 @@ anyway"*); its plays may not, so its 2s are ordered to keep every played combina
 other helper in that file has, and `lessontest_twos` caught it at once: that lesson's prep makes the RIVAL lead,
 so the board is busy at exactly the moment the suite answers. `playIds(ids)` (play an exact set) retries too.
 Since v1.31.74 the board says why out loud — "Hold on — the board is still resolving." — which is what named it.
-**A TUTORIAL PREP THAT PLAYS FOR THE RIVAL MUST NOT RESTORE THE TURN.** `tutCastRivalTech` saves and restores it
+**A TUTORIAL PREP THAT PLAYS FOR THE RIVAL MUST NOT RESTORE THE TURN.** `tutCastRivalTech` (deleted at drag-and-stack step 6) saved and restored it
 because an ACTIVATION is not a turn; `E.play` advances the turn itself, so restoring hands it straight back to
 the Rival and the player can never answer. Copying that function without noticing the difference cost a red run.
 
@@ -1214,7 +1216,7 @@ catches the next one without anyone re-reading every template.
 entry above says nineteen sites had the wrong one; a twentieth turned up the same day this audit ran, so
 "finished" deserved a number rather than a feeling. Every `logMsg(` call site triaged against this file's
 own question — *can this happen while netplay is live, and does another seat need to see it?*
-**CLEARED, and worth recording so nobody re-audits them:** `tutCastRivalTech` hardcodes "Rival" but is a
+**CLEARED, and worth recording so nobody re-audits them:** `tutCastRivalTech` (since deleted) hardcoded "Rival" but was a
 tutorial path a netplay host never reaches (a host's rival is a human and routes through `NET.hostSettle`).
 *(`rivalMayRespond` was cleared here on the same reasoning, and the reasoning was wrong: a HOST's own Counterfeit
 called it, so the AI answered for the human guest. Deleted at drag-and-stack step 4, piece 10 — `doCounterfeit`
@@ -1935,7 +1937,7 @@ the condition once and then *watching without writing* is what answered it; a pr
 can only ever show you the forced state.
 
 **A HAND-ROLLED PRIORITY CHECK OUTLIVES THE RULE IT ENCODED — SECOND INSTANCE, AND IT WAS THE
-`lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` casts as the RIVAL and then tested
+`lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` (deleted at drag-and-stack step 6) cast as the RIVAL and then tested
 `if(state.respondFor===YOU)`, with an `else` that did `state.turn=savedTurn; render();`. **Epic step 6 made
 the go-round start at the CONTROLLER**, so after a Rival cast priority is transiently the RIVAL's, the gate
 falls through, and the `else` **abandons an open window** — `pending` set, nobody who will ever drain it.
@@ -2654,7 +2656,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.14 — last FULL sweep 2026-10-19, `npm run sweep`, 134/134 in 508s** (this line was
+Status as of **v1.33.16.15 — last FULL sweep 2026-10-19, `npm run sweep`, 134/134 in 519s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2670,7 +2672,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 51, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

@@ -548,5 +548,18 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    (v1.33.16.14):* the box's minimize (ruling 34), pinned by the new `respmintest`. Step 5 is done.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
-   deleted.
+   deleted. *Built (v1.33.16.15), Phases and Quicks only, by Aj's call (2026-10-19: "Phases only, others later"):*
+   the counter and Leyline steps name Yes and ⚡ Activate and spotlight the card (the counter step also their card
+   on the stack); the hue word is gone and the never-firing `shield` arm with it. Playing it found the coach panel
+   COVERING the box: on a desktop both docked over the card reader, so Yes and No were under the coach, and on a
+   phone the coach sat over the Quick you were told to tap. An answer step now places the coach itself
+   (`coach:'answer'`, `placeAnswerCoach`: the least-covering of a few spots, re-measured as the box opens and
+   closes; a drag takes over), and `lessontest_phases` hit-tests it at both sizes. Deleted: the Quicks lesson
+   (`lessonQuicksSteps`, its rig, `tutCastRivalTech` and the decline retry that was its last caller,
+   `tutPullShield`, `tutIsTech`), and the dead `tutPhRound`; two stale comments corrected.
+6b. **The other ten lessons** (added 2026-10-19, Aj: *"do we have a step for the other tutorials?"*, then "others
+   later"). Play each at desktop and phone size and fix any step the epic made untrue. Already known: Zones of
+   Play never shows the cast column, the zone the epic added, and calls the play area simply "where the fight
+   happens"; Form Changes says *"hover any card — its description shows…"*, which a phone has neither of since
+   ruling 32.
 7. **Delete the old modal path**, sweep on the epic, merge.
