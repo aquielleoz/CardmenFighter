@@ -15,16 +15,16 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.16.17.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.34.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.16**. **`epic/drag-and-stack` is open** (2026-10-13): playing from the board, designed in
-[`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md), ruled by Aj the same day. Its steps PR into the epic;
-other work stays on `main` in ordinary `fix/`/`feat/` branches.
+`main` is at **v1.34.0**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
+branches.
 
 **⚑ WHERE TO PICK UP: the first entry under `### Open` in `## BACKLOG` below.** Open is in the order Aj
 ranked it (2026-10-13); everything waiting on something sits under `### Parked`, grouped by what revives it.
@@ -121,15 +121,6 @@ re-read its tag.
 *Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
-
-- `ready to build`      · **★ PLAY FROM THE BOARD: DROP ZONES, A STACK VISUALIZER, AND ANSWERING FROM YOUR HAND —
-  `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
-  friction behind it (*"accidentally, pressing next and then being unable to go back to main to
-  activate abilities"*) and his eight rulings are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
-  **Steps 1 to 6b are merged** (#421-#440: drop zones and no Next, Counterfeit on the board, the stack as cards, the
-  small Respond? box and answering from your hand, the phone and landscape layouts, and the lessons). **Step 7 is in
-  progress:** delete what is left of the old modal, sweep the epic, merge it to `main`.
-  `[id: priority-modal-redesign]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
