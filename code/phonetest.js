@@ -134,10 +134,10 @@ const actionRow = p => p.evaluate(()=>{
     const ar = await actionRow(p);
     ok(ar.rows===1, `  → the action row fits on ONE row (${ar.rows} row(s), ${ar.h}px)`);
     /* 🔍 View card JOINED THE ROW in v1.31.104, and its gate is NOT the icon breakpoint: it appears only where
-       the inline description strip is hidden (`max-width:720px and max-height:800px`), because on a taller phone
-       `#side` reads the card inline and the button would open a reader nobody needs. Of the three sizes here only
-       360×800 qualifies — so assert the GATE, not a fixed count, or the suite bakes in whichever it saw first. */
-    const wantView = (w<=720 && h<=800), n = wantView?6:5;
+       the inline description strip is hidden — since drag-and-stack ruling 32 (step 5), EVERY phone (`max-width:720px`;
+       it was `and max-height:800px`, which left the two taller sizes here with a 170px strip under the hand). So all
+       three sizes here qualify now. Still assert the GATE, not a fixed count, or the suite bakes in whichever it saw first. */
+    const wantView = (w<=720), n = wantView?6:5;
     const hasView = ar.bs.some(x=>x.id==='viewCardBtn');
     ok(ar.bs.length===n, `  → all ${n} buttons are on it (${ar.bs.map(x=>x.id.replace('Btn','')).join(' ')})`);
     ok(hasView===wantView, `  → 🔍 View card is ${wantView?'present':'correctly absent'} at ${w}×${h} (inline reader ${wantView?'hidden':'shown'})`);

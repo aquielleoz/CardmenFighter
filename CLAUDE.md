@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.12**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.13**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -67,9 +67,9 @@ node dragtest.js                                # WHERE YOU DROP DECIDES WHAT A 
                                                 # release will ask and writes the reason while the card is
                                                 # in the air. Asserting a post-release `#message` waits
                                                 # for something that by design never comes
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (299). Since step 5
-                                                # it puts three casts on the stack at every size but a portrait
-                                                # phone and requires all three IN VIEW, clear of the pile and zones
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (305). Since step 5
+                                                # it puts three casts on the stack at every size and requires
+                                                # all three IN VIEW, clear of the pile and zones
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (26)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
@@ -2340,8 +2340,9 @@ the board **scrolls**. Above the floor the promise is everything-on-one-screen; 
 only *nothing overlaps and everything is reachable*. The suite encodes both, and the floor cases assert
 reachability by really scrolling the board — don't weaken that into a check that would pass on a broken build.
 
-`viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
-and (max-height:800px)` — at a taller phone size it is correctly absent.
+`viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)` —
+every phone since drag-and-stack ruling 32 (it was `and (max-height:800px)`, so a taller phone had no 🔍 and kept the
+reader strip; `phonetest` asserts the gate at three phone sizes).
 
 Browser resolution lives in **`code/pwchrome.js`**: `$PW_CHROMIUM` if set, else `/opt/pw-browsers/chromium` if it
 exists (the old sandbox layout), else Playwright's own download. Launch through it — `chromium.launch(LAUNCH)` —
@@ -2647,7 +2648,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.12 — last FULL sweep 2026-10-19, `npm run sweep`, 133/133 in 520s** (this line was
+Status as of **v1.33.16.13 — last FULL sweep 2026-10-19, `npm run sweep`, 133/133 in 583s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2661,7 +2662,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 299, `decktest` 42, `viewtest` 26,
+`test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 45, `lessontest_howto` 28,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

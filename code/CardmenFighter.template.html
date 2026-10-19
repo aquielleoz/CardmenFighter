@@ -661,10 +661,9 @@
   /* LIVES IN `#actions` SINCE v1.31.104 (Aj: *"can we include the view card in that row? as a magnifying
      glass?"*). It was a gold `.specialsRef` pill in the hand-meta strip beside 🃏 Specials list; in the action
      row it takes `#actions button` styling like everything else, and collapses to 🔍 on the same breakpoint.
-     THE GATE IS UNCHANGED and is NOT the icon breakpoint: it shows only where the inline description strip is
-     hidden (`max-width:720px and max-height:800px`), because on a taller phone `#side` reads the card inline
-     and the button would open a reader nobody needs. So between 481 and 720px wide it correctly shows the
-     WORDS in the row. */
+     THE GATE IS NOT the icon breakpoint: it shows only where the inline description strip is hidden — every phone
+     since drag-and-stack ruling 32 (`max-width:720px`; it was `and max-height:800px`, which kept a 170px strip under
+     the hand of a tall phone). So between 481 and 720px wide it correctly shows the WORDS in the row. */
   #viewCardBtn{display:none;}
   #viewCardBtn:disabled{opacity:.4; cursor:default;}   /* nothing selected → nothing to read */
   .statBtn{font:inherit; color:inherit; background:none; border:none; margin:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; gap:4px;}
@@ -1006,6 +1005,19 @@
   }
   /* pile cards start off-transform; entrance is driven inline via JS FLIP */
   #pile .card{ transform-origin:center; }
+  /* A PORTRAIT PHONE LAPS THE PILE LIKE A GROUP IN YOUR HAND (drag-and-stack ruling 33; Aj: *"can we overlap the in play
+     cards similar to the grouping up in the hand? only for narrow screens?"*, and *"stack should be on the right
+     still"*). A five-card play filled the table's width there, centred, so the cast column on the right edge sat on its
+     last card (71% covered at 390 wide, all of it at 360). Each card after the first slides under the next by the same
+     share as the hand's `.group.multi` (~57% of its width), keeping its rank and suit, top left, in view. Always on a
+     portrait phone, not only while the column shows, so the pile never shifts when someone casts. */
+  @media (max-width:720px) and (orientation:portrait){
+    #pile{gap:0;}
+    #pile .card + .card{ margin-left:calc(-1 * var(--pileLap, calc(22px*var(--cs)*var(--pm)))); }   /* `lapPile` laps further when it must */
+    /* …and its label ("RIVAL · SPECIAL FULL HOUSE") stays clear of the column too, padded on BOTH sides so it stays centred
+       over the pile it names; it wraps rather than run under the stack. */
+    #table.colShown #pileLabel{padding-inline:80px; box-sizing:border-box;}
+  }
   /* THE PILE IS THE FOCAL POINT and shows at most 5 cards (a straight or a full house), so it has far more room
      than the hand — yet it rendered via .card.sm at a 38x55 base, i.e. SMALLER than the hand's 46x66. Give it
      its own multiplier on top of --cs. Kept modest on phones, where 5 cards across 390px is the binding
@@ -1692,9 +1704,12 @@
        rival's bar was not part of the declutter, so its ⊘ is still the one this rule hides. */
     #rival .exStat{display:none;}
   }
-  /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
-     offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
-  @media (max-width:720px) and (max-height:800px){
+  /* EVERY PHONE READS A CARD FULL-SCREEN (drag-and-stack ruling 32). The inline description strip eats scarce space, so
+     drop it and offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the
+     description box). This was `and (max-height:800px)`, so a tall phone (390x844, 412x915) kept the strip: ~170px
+     under the hand, empty until you tapped a card. Asked where the stack goes on such a phone, Aj asked *"why is there a
+     description box at the bottom?"*, then chose to hide it; the table takes the height. */
+  @media (max-width:720px){
     #board{grid-template-rows:minmax(0,1fr) auto;}   /* no description row — reclaim its height. minmax(0,…): see the note above */
     #board > #side{display:none;}
     #viewCardBtn{display:inline-block;}
@@ -1732,6 +1747,14 @@
     .equipZone .eq.eqOpen .eqEff{display:block;}
     .equipZone .eq.eqOpen .eqName{font-size:13.5px; max-width:150px;}
     .equipZone .eq.eqOpen .eqCtr{font-size:12px;} .equipZone .eq.eqOpen .eqCtr b{font-size:13.5px;}
+    /* THE STACK IS UNCAPTIONED CARDS FITTED TO THE COLUMN on both phone layouts: the landscape band (ruling 31, *"Smaller
+       cards, no captions"*) and a portrait phone (ruling 35, *"Like landscape"*), where a 76px column wrapped each caption
+       onto 4-5 lines and fitted two of three casts. `--stkCs` is the scale `placeCastZone` measures (`compactStack`, the
+       same query); tapping a card still reads it. */
+    #castZone .stkCap{display:none;}
+    #stackView .stkCard .card{--cs:var(--stkCs,.82); width:calc(46px*var(--cs)); height:calc(66px*var(--cs));}   /* sized HERE, not by `.card`: under 380px wide `.card` is a fixed 40x58 that ignores `--cs`, and the fit collapsed to its floor */
+    #castZone.stkWrap #stackView{flex-direction:row; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:2px;}
+    #castZone.stkWrap #stackView .stkCard{width:auto;}
   }
 
   @media (orientation:landscape) and (max-height:520px){
@@ -1769,12 +1792,6 @@
     .equipZone.lsCol .eq:not(.eqOpen) .eqName{display:none;}
     .equipZone.lsCol .eqCtr{white-space:nowrap;}
     .equipZone.lsCol.zoneOpen{z-index:7;}   /* open, it is a popover over the left column: above the Forms and the other chip */
-    /* …AND THE STACK SHRINKS TO FIT THE RIGHT EDGE, uncaptioned (ruling 31). `--stkCs` is the scale `placeCastZone`
-       measures; tapping a card still reads it. */
-    #castZone .stkCap{display:none;}
-    #stackView .stkCard .card{--cs:var(--stkCs,.82);}
-    #castZone.stkWrap #stackView{flex-direction:row; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:2px;}
-    #castZone.stkWrap #stackView .stkCard{width:auto;}
     header{padding:3px 10px; gap:6px;}
     header h1{font-size:13px;}
     header h1 small{display:none;}
@@ -4253,9 +4270,9 @@ __QR__
      has to open it — filling a panel nobody can see is the bug. Where the panel exists, filling it is right and
      throwing a full-screen overlay over the board would be obnoxious.
      GATED ON WHETHER THE 🔍 IS ON SCREEN, NOT ON A COPY OF ITS MEDIA QUERY. `#viewCardBtn` is displayed by
-     exactly the rule that hides `#side` (`max-width:720px and max-height:800px`), so asking the button is
+     exactly the rule that hides `#side` (`max-width:720px`, ruling 32), so asking the button is
      asking the real condition — and it cannot drift if that breakpoint ever moves. Note the boundary is
-     narrow-AND-short, not portrait: a 667x375 landscape phone has no panel either, while 844x390 keeps one.
+     width, not portrait: a 667x375 landscape phone has no panel either, while 844x390 keeps one.
      HOVER IS DELIBERATELY UNTOUCHED — a mouse pointer implies a panel, and hover-to-open-an-overlay would be
      unusable. This is the TAP path only. */
   function readCard(card){
@@ -5027,6 +5044,7 @@ __QR__
     paintCounterAims();                   // what Counter Spell may aim at, repainted as the pick moves (piece 7)
     placeEquipZones();                    // Equipment beside Forms & Rides (ruling 15) — before the column measures the right edge
     renderCastZone();                     // after the stack: the column shows while either it or a staged card has something
+    lapPile();                            // a portrait phone's pile laps clear of that column (ruling 33)
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
     document.body.classList.toggle('spectating', spectating);
@@ -5495,6 +5513,21 @@ __QR__
       }
     }
   }
+  /* THE PORTRAIT PILE LAPS AS FAR AS IT HAS TO (ruling 33). At least as far as a group in your hand (`--pileLap`'s
+     default, the CSS), and further when the play is long or the table narrow: centred, it must end clear of the cast
+     column on the right, so it gets the table's width less the column's, on both sides. A five-card play needs no more
+     than the default at 360 wide and some more at 327; a ten-card straight under custom rules needs more again. Each card
+     keeps at least 8px in view, its rank and suit. Measured after the column is placed, every render, because the
+     play, the table and the column all move. */
+  function lapPile(){
+    var pile=$('pile'), tb=$('table'), cz=$('castZone'); if(!pile || !tb || !cz) return;
+    var portraitPhone=!!(window.matchMedia && window.matchMedia('(max-width:720px) and (orientation:portrait)').matches);
+    var cards=pile.querySelectorAll('.card'), n=cards.length, cw=n ? cards[0].offsetWidth : 0;
+    if(!portraitPhone || n<2 || !cw){ pile.style.removeProperty('--pileLap'); return; }
+    var rs=getComputedStyle(document.documentElement), k=(parseFloat(rs.getPropertyValue('--cs'))||1)*(parseFloat(rs.getPropertyValue('--pm'))||1);
+    var avail=tb.clientWidth - 2*(cz.offsetWidth + 10), need=cw - (avail - cw)/(n-1);
+    pile.style.setProperty('--pileLap', Math.min(cw-8, Math.max(22*k, need)).toFixed(1)+'px');
+  }
   /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
      shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
      is equipped — so a fixed CSS height either wasted the edge on a desktop or, on a 390px-tall landscape table,
@@ -5516,6 +5549,16 @@ __QR__
       if((r.top+r.bottom)/2 < tr.top+tr.height/2) top=Math.max(top, Math.round(r.bottom - tr.top) + 4);
       else bottom=Math.max(bottom, Math.round(tr.bottom - r.top) + 4);
     });
+    /* …AND BELOW THE SMALL RESPOND? BOX when it sits at the top of the screen (a phone: no reader to sit over, ruling 32).
+       Its bottom edge reaches ~32px into a tall phone's table, over the column's top card, and ruling 23 keeps the column
+       readable while you are asked. Only while at least 120px of column is left: on a 667x375 landscape table the box
+       covers most of the table, and squeezing the column under it would hide the stack it asks about (ruling 34's
+       minimize is the answer there). `placeRespondBox` re-places the column whenever it moves the box. */
+    var rov=$('overlay'), rm=$('modal');
+    if(rov && rov.classList.contains('show') && rov.classList.contains('respond') && rm && rm.classList.contains('atTop')){
+      var mr=rm.getBoundingClientRect(), below=Math.round(mr.bottom - tr.top) + 4;
+      if(mr.width && mr.right>cr.left && mr.left<cr.right && below>top && (tr.height - below - bottom)>=120) top=below;
+    }
     cz.style.top=top+'px'; cz.style.bottom=bottom+'px'; cz.style.transform='none'; cz.style.maxHeight='none';
     /* THE LANDSCAPE STACK SHRINKS TO FIT (ruling 31; Aj chose *"Smaller cards, no captions"*). The band's table is
        78-149px tall, which held one captioned card: three casts showed the newest, cropped, and scrolled the rest out of
@@ -5523,14 +5566,18 @@ __QR__
        row while that keeps a card readable (scale .5, ~23x33px); below it the column is wider than a card, so two or
        three share a row (newest first) — at 3 players on an 800x360 phone that is 27x38px cards, all three in view,
        against 19x28 in single file with the third scrolled away. Past a floor the column scrolls, as it always could. */
-    var objs=shortLandscape() ? stackObjects().length : 0;
+    var objs=compactStack() ? stackObjects().length : 0;
     cz.classList.toggle('stkWrap', false);
     if(!objs){ cz.style.removeProperty('--stkCs'); return; }
     var cs=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cs'))||.82;
     var slot=$('stagedSlot'), held=(slot && slot.classList.contains('on')) ? slot.getBoundingClientRect().height+2 : 0;
-    var H=(tr.height-top-bottom) - 10 - held, W=cz.clientWidth - 6, best=0, bestK=1;
+    var H=(tr.height-top-bottom) - 12 - held, W=cz.clientWidth - 6, best=0, bestK=1;
+    /* A CARD'S SIZE AT SCALE 1, read off a real stack card: it is 46x66 on a desktop and 40x58 on a narrow phone, and a
+       fit computed from the wrong one left the third cast scrolled away at 327 wide. */
+    var c0=document.querySelector('#stackView .stkCard .card'), c0s=c0 ? parseFloat(getComputedStyle(c0).getPropertyValue('--cs')) : 0;
+    var uw=(c0 && c0s && c0.offsetWidth) ? c0.offsetWidth/c0s : 46, uh=(c0 && c0s && c0.offsetHeight) ? c0.offsetHeight/c0s : 66;
     for(var k=1;k<=Math.min(3,objs);k++){
-      var rows=Math.ceil(objs/k), s=Math.min(cs, (W-(k-1)*2)/(k*46), (H-(rows-1)*2)/(rows*66));
+      var rows=Math.ceil(objs/k), s=Math.min(cs, (W-(k-1)*2)/(k*uw), (H-(rows-1)*2)/(rows*uh));
       if(k===1 && s>=.5){ best=s; bestK=1; break; }
       if(s>best+.001){ best=s; bestK=k; }
     }
@@ -8828,8 +8875,10 @@ __QR__
   function placeRespondBox(){
     var ov=$('overlay'), m=$('modal'); if(!ov || !m || !ov.classList.contains('respond') || !ov.classList.contains('show')) return;
     var W=document.documentElement.clientWidth, H=window.innerHeight, cv=$('cardView'), r=(cv && cv.offsetParent!==null) ? cv.getBoundingClientRect() : null;
+    var atTop=!(r && r.width>=230 && r.height>=120 && r.top<H-60); m.classList.toggle('atTop', atTop);   // read by `placeCastZone` (the column clears it) and by the minimize (ruling 34)
     if(r && r.width>=230 && r.height>=120 && r.top<H-60){ m.style.left=Math.round(r.left)+'px'; m.style.top=Math.round(r.top)+'px'; m.style.width=Math.round(r.width)+'px'; m.style.maxHeight=Math.round(Math.max(120, Math.min(r.bottom, H)-r.top))+'px'; }
     else { m.style.left='8px'; m.style.top='4px'; m.style.width=Math.max(200, W-16)+'px'; m.style.maxHeight=Math.round(H*0.5)+'px'; }
+    var cz=$('castZone'); if(cz) placeCastZone(cz);   // the column clears a box at the top (see `placeCastZone`)
   }
   window.addEventListener('resize', function(){ placeRespondBox(); });
   function hideOverlay(){
@@ -10826,6 +10875,9 @@ __QR__
   }
   // where the Equipment box is a chip that a tap expands: a portrait phone's panels, and the landscape band (ruling 30)
   function equipCollapsible(){ return zonesInPanel() || shortLandscape(); }
+  /* where the stack is uncaptioned cards fitted to the column: both phone layouts (rulings 31 and 35). The SAME query as
+     the CSS block that hides the captions, so the measuring and the drawing cannot disagree about which layout this is. */
+  function compactStack(){ return !!(window.matchMedia && window.matchMedia('(max-width:720px), (orientation:landscape) and (max-height:520px)').matches); }
   function placeZones(){
     /* The list lives INSIDE the function on purpose. As a `var` beside it, the declaration hoists but the
        ASSIGNMENT does not — and this is called from the wiring block several hundred lines earlier, so it read
