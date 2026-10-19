@@ -264,11 +264,31 @@ The three earlier asks this answers:
     nothing spent. So no window can open over a staged card, and the inventory's question about one dissolves.
     One wording fix is owed: with a second card selected the hint still says "⚡ Activate casts it" while that ⚡
     is off.
+30. **Landscape: Equipment moves to the left column, on its seat's Forms, in a collapsible** (2026-10-19). Shown three
+    casts on an 844x390 table wedged into the 30-50px between the two corner Equipment chips, Aj: *"left, under forms
+    in a collapsible. is that possible?"*. The Rival's chip sits under its Forms, yours just above your Forms (under
+    yours is the table's edge); collapsed it shows its counter over its art, and a tap opens the desktop box as a
+    popover. Where the table is too short for both (667x375), each sits beside its own Forms. The right edge is then
+    the stack's alone. *Built in step 5, piece 1.*
+31. **Landscape: the stack is smaller cards, no captions** (2026-10-19, Aj's pick of three). Every card takes the
+    same scale, the largest at which all of them fit; when one per row would be under about 23x33px they share rows,
+    newest first. Tapping a card still reads it. *Built in step 5, piece 1.*
+32. **Portrait phones hide the card reader** (2026-10-19). Asked where the stack goes on a 390x844 phone, Aj asked
+    *"why is there a description box at the bottom?"*, then chose to hide it: every portrait phone reads a card
+    through 🔍 View, as the ones under 800px tall already do.
+33. **On a narrow portrait phone the pile laps like a group in your hand, and the stack stays on the right** (Aj:
+    *"can we overlap the in play cards similar to the grouping up in the hand? only for narrow screens?"*, confirmed
+    as the pile, and *"stack should be on the right still"*). The lapped pile stops reaching under the column.
+34. **On a narrow phone the Respond? box stays at the top and gets a minimize** (Aj: *"keep it at the top, this will
+    have a minimize/peek right?"*, then *"Add a minimize"* over relying on Yes). It shrinks the box to a thin tab
+    that opens it again, so the Rival's bar is readable while you decide.
 
 ## Still open
 
 - ~~**Does a cast on the board pass priority in AUTO (step 4)?**~~ Ruled: ruling 21, it passes for you, as today.
-- **Where the visualizer sits on a portrait phone (step 5).** Measured with a full five-card play on the table:
+- ~~**Where the visualizer sits on a portrait phone (step 5).**~~ Ruled 2026-10-19: rulings 30-34. Re-measured that day
+  in a browser before building: the column was 26-57px tall in the landscape band (one of three casts in view) and
+  covered 71-100% of the pile's last card on a portrait phone. The original measurements, for the record:
 
   | viewport | play area | room right of the pile | card size there |
   | --- | --- | --- | --- |
@@ -507,7 +527,13 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    `E.stackTargetOf` returns `{allRivals:true}` for a seat-targeted effect carrying `all`, and the caption, the box
    (which read the card's BASE effect) and the cast line say so. The engine guards and `hostApplyMoveN`'s grant check
    exist on `main` unchanged, so they are `main` work, held while the epic is open.
-5. **Phones and landscape**, from the measurements above.
+5. **Phones and landscape**, from the measurements above, ruled as 30-34. *Piece 1 built (v1.33.16.12):* the landscape
+   band (rulings 30-31). `placeEquipZones` stacks each seat's Equipment on its Forms as a counter chip that a tap
+   opens (`equipCollapsible`); `placeCastZone` clears any zone that reaches into the column's width, not only the
+   corner ones, and fits the stack's cards to it (`--stkCs`, `.stkWrap`); the band's message drops the column's
+   extra padding. `landscapetest` now puts three objects on the stack at every size but a portrait phone and
+   requires all three in view, clear of the pile and every zone. Pieces 2 (portrait, 32-33) and 3 (the box, 34)
+   follow.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
    deleted.

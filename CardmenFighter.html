@@ -315,7 +315,10 @@
      instead of the desktop's margin for the corner zones, and drops the words, keeping the card and its ✕. */
   @media (orientation:landscape) and (max-height:520px){ #castZone{max-height:calc(100% - 8px); width:88px; padding:3px 2px;} #castZone .czIn{gap:2px;}
     #stagedSlot .stgNote{display:none;}
-    #table.colShown #message{padding-right:96px;} }
+    /* NO EXTRA ROOM FOR THE COLUMN HERE (step 5): the band's message already sits in a channel 132px clear of each edge
+       (`expanding-zone-pushes-board`), wider than the 96px the column takes, so padding for it as well reserved the
+       right edge twice and wrapped "You have the initiative…" onto 3-4 lines, over your bar at 800x360. */
+    #table.colShown #message{padding-right:0;} }
   .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
@@ -1757,6 +1760,21 @@
      * precedent, in this very component. The chips carry a per-card tooltip and read on tap. */
     .formZone .zoneLbl{display:none;}
     .equipZone .eqName{max-width:84px;}
+    /* THE LEFT-COLUMN CHIP (ruling 30): the Equipment sits on its seat's Forms (`placeEquipZones`), collapsed to its
+       counter over its art, and a tap expands it to the desktop box, as a phone's panel chip does. Its name is what
+       goes: with it the chip is ~120px wide and reaches under the pile; the art, the colour and a tap say whose and
+       what. Side by side when a seat holds more than one. */
+    .equipZone.lsCol{flex-direction:row; align-items:center; gap:4px; max-width:none;}
+    .equipZone.lsCol .eq:not(.eqOpen){padding:2px 7px;}
+    .equipZone.lsCol .eq:not(.eqOpen) .eqName{display:none;}
+    .equipZone.lsCol .eqCtr{white-space:nowrap;}
+    .equipZone.lsCol.zoneOpen{z-index:7;}   /* open, it is a popover over the left column: above the Forms and the other chip */
+    /* …AND THE STACK SHRINKS TO FIT THE RIGHT EDGE, uncaptioned (ruling 31). `--stkCs` is the scale `placeCastZone`
+       measures; tapping a card still reads it. */
+    #castZone .stkCap{display:none;}
+    #stackView .stkCard .card{--cs:var(--stkCs,.82);}
+    #castZone.stkWrap #stackView{flex-direction:row; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:2px;}
+    #castZone.stkWrap #stackView .stkCard{width:auto;}
     header{padding:3px 10px; gap:6px;}
     header h1{font-size:13px;}
     header h1 small{display:none;}
@@ -7483,7 +7501,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.16.11';
+  var GAME_VERSION='v1.33.16.12';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9308,16 +9326,17 @@ window.CardFace = {};
       }
       else if(targeting && !targeting.copy && !targeting.counter){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
       else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(e.card); }   // already open → tap opens the reader, exactly like a formMini
-      /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
-         place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
-         therefore nothing to expand. One gate, not a second one to drift.
+      /* ONLY WHERE THE CHIP EXISTS: a portrait phone's seat panels, and since step 5 the landscape band's left
+         column (ruling 30: *"left, under forms in a collapsible"*), where the chip is collapsed to its counter.
+         `equipCollapsible()` is that gate; desktop keeps the untouched tap-to-read, because there is no chip there
+         and therefore nothing to expand.
          AND IT DOES NOT CLOSE THE FORMS ZONE. The first cut cleared `formsOpen` here, on a tidy-looking "one
          zone open at a time" instinct — and `landscapetest`'s new expanded-state staging went red with 0 mini
          cards, which is the whole point Aj was making: he had his J/Q/K open and wanted the equipment open
          BESIDE them. Both zones stop the event, so neither document-level outside-tap handler sees the other's
          click, and they coexist. */
       else if(e.card){ (function(fc,zk){ box.addEventListener('click', function(ev){ ev.stopPropagation();
-        if(!zonesInPanel()){ readCard(fc); return; }
+        if(!equipCollapsible()){ readCard(fc); return; }
         equipOpen=zk; render(); }); })(e.card, opts.zk||null); }
     }
     return box;
@@ -9327,7 +9346,7 @@ window.CardFace = {};
     el.innerHTML='';
     if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
     var zkey=zoneKeyFor(seat), zk=zkey+':', now=Date.now(), live={}, flashing=false;   // per-SEAT fx key: 'rival' collided across opponents
-    var open=(equipOpen===zkey) && zonesInPanel();   // a rotation out of the phone branch puts the box back, no state to clear
+    var open=(equipOpen===zkey) && equipCollapsible();   // a rotation out of a chip layout puts the box back, no state to clear
     el.classList.toggle('zoneOpen', open);   // the zone's own max-width clamps the expanded box otherwise
     (pl.equipment||[]).forEach(function(e){
       var info=equipInfo(e, mine, seat), key=zk+e.id, prev=equipFx[key];
@@ -10812,22 +10831,47 @@ window.CardFace = {};
      Forms zone's width moves with what it holds (chips, the INCARNATION line, expanded cards): the Equipment starts
      12px past its right edge, or at the corner when that seat has no Forms. The rival's sits at the Forms' own
      height (below the round tag), yours at the bottom like its Forms. Only on the table — a portrait phone moves
-     both into the seat panels (`placeZones`) — and NOT in the landscape band, where the left column is already
-     full and the pile's channel is measured against it (see the band's CSS); that layout is step 5's. */
+     both into the seat panels (`placeZones`).
+     THE LANDSCAPE BAND STACKS IT ON THE FORMS INSTEAD (ruling 30; Aj, 2026-10-19: *"left, under forms in a
+     collapsible"*). Beside them it would run under a five-card pile (the left column ends ~45px short of it at
+     844x390), so there it is a counter-only chip (`.lsCol`, which a tap expands to the desktop box): the rival's
+     just under its Forms, yours just above your Forms, since under yours is the table's edge. When the table is too
+     short for both (667x375 leaves 26px between the two Forms rows), each chip sits beside its own Forms instead,
+     where that table's pile is far enough right. The right edge is then the stack's alone. */
   function placeEquipZones(){
     var tb=$('table'); if(!tb) return;
-    var onLeft=!shortLandscape(), tr=null;
+    var land=shortLandscape(), tr=null, placed=[];
+    function clear(ez){ ez.classList.remove('leftSide','lsCol'); ez.style.left=''; ez.style.top=''; ez.style.bottom=''; }
     [['rivalFormZone','rivalEquipZone'],['youFormZone','youEquipZone']].forEach(function(pr){
       var fz=$(pr[0]), ez=$(pr[1]); if(!ez) return;
-      if(!onLeft || ez.parentNode!==tb){
-        if(ez.classList.contains('leftSide')){ ez.classList.remove('leftSide'); ez.style.left=''; ez.style.top=''; }
-        return; }
+      if(ez.parentNode!==tb){ if(ez.classList.contains('leftSide')) clear(ez); return; }
       tr=tr||tb.getBoundingClientRect();
+      var fr=(fz && fz.parentNode===tb && fz.offsetParent!==null && fz.childElementCount) ? fz.getBoundingClientRect() : null;
+      if(fr && !fr.width) fr=null;
+      if(land){
+        ez.classList.add('leftSide','lsCol'); ez.style.left=(fr ? Math.round(fr.left-tr.left) : 8)+'px';
+        if(pr[1]==='rivalEquipZone'){ ez.style.bottom=''; ez.style.top=(fr ? Math.round(fr.bottom-tr.top)+3 : 30)+'px'; }
+        else { ez.style.top='auto'; ez.style.bottom=(fr ? Math.round(tr.bottom-fr.top)+3 : 4)+'px'; }
+        placed.push({ ez:ez, fr:fr, rival:pr[1]==='rivalEquipZone' });
+        return; }
+      if(ez.classList.contains('lsCol')) clear(ez);
       var x=8;
-      if(fz && fz.parentNode===tb && fz.offsetParent!==null && fz.childElementCount){ var fr=fz.getBoundingClientRect(); if(fr.width) x=Math.round(fr.right-tr.left)+12; }
+      if(fr) x=Math.round(fr.right-tr.left)+12;
       ez.classList.add('leftSide'); ez.style.left=x+'px';
       if(pr[1]==='rivalEquipZone') ez.style.top='30px';
     });
+    /* TOO SHORT FOR BOTH: measured after placing, because a chip's height is whatever it holds. Only chips that hold
+       something can collide, and only a seat with Forms has a "beside" to go to. */
+    var a=placed[0], b=placed[1];
+    if(a && b && a.ez.childElementCount && b.ez.childElementCount){
+      var ra=a.ez.getBoundingClientRect(), rb=b.ez.getBoundingClientRect();
+      if(ra.bottom > rb.top-2 && ra.top < rb.bottom+2){
+        placed.forEach(function(s){ if(!s.fr) return;
+          s.ez.style.left=(Math.round(s.fr.right-tr.left)+6)+'px';
+          if(s.rival) s.ez.style.top=Math.round(s.fr.top-tr.top)+'px';
+          else s.ez.style.bottom=Math.round(tr.bottom-s.fr.bottom)+'px'; });
+      }
+    }
   }
   /* THE COLUMN FILLS THE BAND BETWEEN THE TWO CORNER EQUIPMENT ZONES, measured, not guessed. The right edge is
      shared with them (`#rivalEquipZone` top right, `#youEquipZone` bottom right), and their height moves with what
@@ -10838,11 +10882,38 @@ window.CardFace = {};
     var tb=$('table'); if(!tb) return;
     var tr=tb.getBoundingClientRect(); if(!tr.height) return;
     var top=6, bottom=6;
-    function edge(id){ var z=$(id); if(!z || !tb.contains(z) || !z.childElementCount || z.offsetParent===null || z.classList.contains('leftSide')) return null; return z.getBoundingClientRect(); }
-    var rz=edge('rivalEquipZone'), yz=edge('youEquipZone');
-    if(rz) top=Math.max(top, Math.round(rz.bottom - tr.top) + 4);
-    if(yz) bottom=Math.max(bottom, Math.round(tr.bottom - yz.top) + 4);
+    /* ANY ZONE THAT REACHES INTO THE COLUMN'S WIDTH, not only the two corner Equipment zones (step 5). With Equipment
+       beside the Forms (ruling 15) a wide one can still reach the right edge on a narrow table: at 768x1024 the Rival's
+       Cursed Pendant ran to x=436 and the column began at 396, so the column's box (the drop highlight during a drag)
+       painted over it. A zone in the top half pushes the column down, one in the bottom half pushes it up. An open
+       Equipment popover (`zoneOpen`) is a passing overlay and moves nothing. */
+    var cr=cz.getBoundingClientRect();
+    Array.prototype.forEach.call(tb.querySelectorAll('.formZone,.equipZone'), function(z){
+      if(z.parentNode!==tb || !z.childElementCount || z.offsetParent===null || z.classList.contains('zoneOpen')) return;
+      var r=z.getBoundingClientRect(); if(!r.width || r.right<=cr.left || r.left>=cr.right) return;
+      if((r.top+r.bottom)/2 < tr.top+tr.height/2) top=Math.max(top, Math.round(r.bottom - tr.top) + 4);
+      else bottom=Math.max(bottom, Math.round(tr.bottom - r.top) + 4);
+    });
     cz.style.top=top+'px'; cz.style.bottom=bottom+'px'; cz.style.transform='none'; cz.style.maxHeight='none';
+    /* THE LANDSCAPE STACK SHRINKS TO FIT (ruling 31; Aj chose *"Smaller cards, no captions"*). The band's table is
+       78-149px tall, which held one captioned card: three casts showed the newest, cropped, and scrolled the rest out of
+       sight. Every card gets the same scale, the largest at which all of them fit beside whatever is staged. One per
+       row while that keeps a card readable (scale .5, ~23x33px); below it the column is wider than a card, so two or
+       three share a row (newest first) — at 3 players on an 800x360 phone that is 27x38px cards, all three in view,
+       against 19x28 in single file with the third scrolled away. Past a floor the column scrolls, as it always could. */
+    var objs=shortLandscape() ? stackObjects().length : 0;
+    cz.classList.toggle('stkWrap', false);
+    if(!objs){ cz.style.removeProperty('--stkCs'); return; }
+    var cs=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cs'))||.82;
+    var slot=$('stagedSlot'), held=(slot && slot.classList.contains('on')) ? slot.getBoundingClientRect().height+2 : 0;
+    var H=(tr.height-top-bottom) - 10 - held, W=cz.clientWidth - 6, best=0, bestK=1;
+    for(var k=1;k<=Math.min(3,objs);k++){
+      var rows=Math.ceil(objs/k), s=Math.min(cs, (W-(k-1)*2)/(k*46), (H-(rows-1)*2)/(rows*66));
+      if(k===1 && s>=.5){ best=s; bestK=1; break; }
+      if(s>best+.001){ best=s; bestK=k; }
+    }
+    cz.classList.toggle('stkWrap', bestK>1);
+    cz.style.setProperty('--stkCs', Math.max(.42, best).toFixed(3));
   }
   /* DRAGGING A STAGED CARD OUT OF THE COLUMN TAKES IT BACK (ruling 2). Its own small gesture rather than the hand's,
      because the hand's refuses to start while a stager is open — and a staged card with a choice IS one. A release
@@ -16131,6 +16202,8 @@ window.CardFace = {};
     if(!window.matchMedia) return false;
     return window.matchMedia('(max-width:720px)').matches && !shortLandscape();
   }
+  // where the Equipment box is a chip that a tap expands: a portrait phone's panels, and the landscape band (ruling 30)
+  function equipCollapsible(){ return zonesInPanel() || shortLandscape(); }
   function placeZones(){
     /* The list lives INSIDE the function on purpose. As a `var` beside it, the declaration hoists but the
        ASSIGNMENT does not — and this is called from the wiring block several hundred lines earlier, so it read
