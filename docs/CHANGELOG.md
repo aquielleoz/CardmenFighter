@@ -29,7 +29,8 @@ pressing next and then being unable to go back to main to activate abilities. pu
 - **The stack is cards.** Every cast lands in the column as its card, newest on top, captioned with who cast it and
   at what. Yours, an AI's, another player's online, and answers all fly in the same way, and each cast holds the game
   for its art flash. An Equipment's upkeep trigger shows that Equipment's card. A shield loss is not drawn there: it
-  is not on the stack.
+  is not on the stack. An exchange between two AIs stays there until it resolves, newest first, a counter taking what
+  it countered with it; and an AI's Counter Spell now reads "countered" in the log, where it used to read "answered".
 - **Equipment moved left,** beside Forms & Rides, so the right edge is the stack's alone.
 - **Counterfeit picks its copy on the pile,** not in a dialog.
 - **A small Respond? box instead of the modal:** the card being cast and what it is aimed at, then **Yes** or **No**.
@@ -47,7 +48,7 @@ pressing next and then being unable to go back to main to activate abilities. pu
 
 **Under the hood:** the answer record (`answering`, one grant at a time), board answers through `humanResponds`,
 `placeCastZone` / `placeRespondBox` / `placeCoach` measuring rather than fixing positions, the host's window refusal,
-and new suites: `dragtest` rewritten, `answertest`, `answercasttest`, `answerglowtest`, `castholdtest`,
+the replay's own stack for an AI's turn (`replayStack`), `E.respond` reporting `countered`, and new suites: `dragtest` rewritten, `answertest`, `answercasttest`, `answerglowtest`, `castholdtest`,
 `upkeepstrandtest`, `nettest_windowlock`, `nettest_counterfeit`, `nettest_stackfly`, `nettest_answer`,
 `respmintest`, `lessontest_phonepass`, and a column leg in `landscapetest`. Every lesson suite now asserts the coach
 never covers what a step points at.

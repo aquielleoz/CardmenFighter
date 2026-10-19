@@ -155,7 +155,14 @@ const hostPending = p => p.evaluate(()=>!!window.__cmf.pending());
   ok(await until(async()=>await tapTarget(host), 40), '…and taps the last Equipment');
   ok(await until(async()=>await hostPending(host), 60), 'the window is open on the host — read there, so a stale client modal cannot fake it');
   const ledBefore = (await join.evaluate(()=>window.__cmf.prioLog())).length;
-  await clickDecline(join);
+  /* POLL THE PRESS, because the host's window opens BEFORE the client's box does — the client learns of it from the
+     next mirror. `clickDecline` returns false when there is no box yet, and a single call that ignored it pressed
+     nothing under sweep load (2026-10-19): netwindows then passed the window for it, which never writes
+     "→ you DECLINED", and this leg went red reading "REPRODUCED". Printed when the first try missed, so a late box
+     shows up in green runs too. */
+  let tries=0; const pressed = await until(async()=>{ tries++; return await clickDecline(join); }, 60);
+  ok(pressed, 'the client\'s window is up and its "Let it resolve" is pressed');
+  if(tries>1) console.log(`   (the client's box was not up yet: pressed on try ${tries})`);
   const grew = await until(async()=>(await join.evaluate(()=>window.__cmf.prioLog())).some(l=>/→ you DECLINED/.test(l)), 60);
   const led = await join.evaluate(()=>window.__cmf.prioLog());
   ok(grew, `LEG 2b · the CLIENT's own ledger records its decline (${ledBefore} → ${led.length} entries)`+

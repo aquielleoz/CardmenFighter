@@ -2002,6 +2002,11 @@
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
     res.respondedWith = qeff.id; res.respondKind = qeff.kind; res.respondName = qeff.name;
+    /* AND WHETHER THE ANSWER IS A COUNTER, which nothing set until 2026-10-19: `ai.js` logs `countered: !!rr.countered`,
+       so every AI Counter Spell was narrated "answered at instant speed" and the board's replay of an AI exchange
+       resolved the countered Technique anyway. It names the ATTEMPT — the counter is on the stack, not resolved,
+       and can itself be countered. */
+    res.countered = qeff.kind === 'counter';
     res.respondCard = { rank: qcard.rank, suit: qcard.suit, id: qcard.id };   // the answer's public face, so the board can show it (drag-and-stack step 3)
     if (qPitch) res.pitched = { rank: qPitch.rank, suit: qPitch.suit, id: qPitch.id };
     return res;
