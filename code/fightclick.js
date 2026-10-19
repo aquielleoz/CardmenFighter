@@ -229,7 +229,7 @@ async function installPageHelpers(page, budgetMs) {
  * on a fresh page ("no window ever opened") is the one place PRESENCE is right: a closed window's button still
  * proves it opened, so presence can only fail loudly, never pass by accident.
  * Inside a larger `evaluate`, inline the same test:
- *   [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null) */
+ *   [].some.call(document.querySelectorAll('#respYes,#respDecline'), b => b.offsetParent !== null) */
 /* WHAT THIS SEAT IS OFFERED IN THE WINDOW ON SCREEN (drag-and-stack step 4, piece 8). The box stops listing the Quicks
  * (it shrinks to its sentence and Yes / No), so reading its buttons would see nothing. This is the engine's castable
  * list, named, but ONLY while a window is SHOWN to this seat — its box is up, or it pressed Yes and answers from the
@@ -315,7 +315,7 @@ function holdsPriority(page) {
 /* A Respond? window is open for this seat: its box is on screen, OR the seat pressed Yes and is answering from the
    board (drag-and-stack step 4, `answering()`), which leaves no box up. */
 function windowUp(page) {
-  return page.evaluate(() => [].some.call(document.querySelectorAll('.respQuick,#respDecline'), b => b.offsetParent !== null) ||
+  return page.evaluate(() => [].some.call(document.querySelectorAll('#respYes,#respDecline'), b => b.offsetParent !== null) ||
     !!((window.__cmf && window.__cmf.answering && window.__cmf.answering()) || (window.__solo && window.__solo.answering && window.__solo.answering())));
 }
 /* Decline the window: the box's "Let it resolve" while it is on screen and live, or — after Yes — the board's Pass,
