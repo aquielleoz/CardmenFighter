@@ -15,6 +15,43 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.34.0 — play from the board: two drop zones, a stack you can see, and answering from your hand
+
+The drag-and-stack epic (`epic/drag-and-stack`, 2026-10-13 to 2026-10-19), designed and ruled in
+[`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md) (rulings 1-35). It began with Aj's friction: *"accidentally,
+pressing next and then being unable to go back to main to activate abilities. punishes casual players"*.
+
+**What you'll see:**
+- **No Next button.** Drag a card into the middle of the table to fight; drag it onto the **cast column** on the right
+  to get a cast ready. A staged card waits with **⚡** and **✕**, and nothing is spent until ⚡ (✕ or dragging it back
+  out takes it back). A ⚡ tap on a card with no choice still casts at once. **Fight** lights only for a play it can
+  make, and every turn flashes your hand yellow as it moves into the Fight sub-phase.
+- **The stack is cards.** Every cast lands in the column as its card, newest on top, captioned with who cast it and
+  at what. Yours, an AI's, another player's online, and answers all fly in the same way, and each cast holds the game
+  for its art flash. An Equipment's upkeep trigger shows that Equipment's card. A shield loss is not drawn there: it
+  is not on the stack.
+- **Equipment moved left,** beside Forms & Rides, so the right edge is the stack's alone.
+- **Counterfeit picks its copy on the pile,** not in a dialog.
+- **A small Respond? box instead of the modal:** the card being cast and what it is aimed at, then **Yes** or **No**.
+  Yes hands you the board: the Quicks you can cast **glow green**, you cast one from your hand, and **Counter Spell
+  aims at a card on the stack**. Pass declines the window (it no longer sits you out of the round), and **Respond?**
+  in the action row brings the box back. Lessons refuse the wrong glowing card with a hint.
+- **Phones and landscape:** the stack is fitted, uncaptioned cards on the right edge; in landscape Equipment sits on
+  its Forms as a counter chip a tap opens; every phone reads a card through 🔍; a portrait phone laps the pile like a
+  group in your hand; and where the Respond? box sits at the top of the screen, a **▾** shrinks it to a tab.
+- **Online:** every seat sees every cast and answer the same way. While another seat decides, your board waits and
+  says who it is waiting on, and the host refuses a second press instead of re-asking them. A Counterfeit asks every
+  seat that can answer it; Back Stab under Hermes' Super says "every rival"; a held fight is never shrunk to a jab.
+- **Tutorials:** Phases and Quicks teaches the box and the board; Zones of Play shows the cast column; and the coach
+  panel no longer sits over the card or button a step names, on a desktop or a phone.
+
+**Under the hood:** the answer record (`answering`, one grant at a time), board answers through `humanResponds`,
+`placeCastZone` / `placeRespondBox` / `placeCoach` measuring rather than fixing positions, the host's window refusal,
+and new suites: `dragtest` rewritten, `answertest`, `answercasttest`, `answerglowtest`, `castholdtest`,
+`upkeepstrandtest`, `nettest_windowlock`, `nettest_counterfeit`, `nettest_stackfly`, `nettest_answer`,
+`respmintest`, `lessontest_phonepass`, and a column leg in `landscapetest`. Every lesson suite now asserts the coach
+never covers what a step points at.
+
 ### v1.33.16 — at 3+ players, an AI's round win no longer leaves two opponent loops running
 
 **What you'll see:** in a 3-6 player game, after an AI wins a round, the AIs again take the next round one turn at
