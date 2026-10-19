@@ -283,7 +283,9 @@ The three earlier asks this answers:
     (`lapPile`), so any play centred on the table ends clear of the column.
 34. **On a narrow phone the Respond? box stays at the top and gets a minimize** (Aj: *"keep it at the top, this will
     have a minimize/peek right?"*, then *"Add a minimize"* over relying on Yes). It shrinks the box to a thin tab
-    that opens it again, so the Rival's bar is readable while you decide.
+    that opens it again, so the Rival's bar is readable while you decide. *Built in step 5, piece 3:* ▾ shows only
+    while the box is at the top (`atTop`); minimized, it is its title, ≤40px, clear of the Rival's bar, and of the
+    pile and the stack on a 667x375 table. The backdrop still holds the board until Yes or No.
 35. **A portrait phone's stack is the landscape one: smaller cards, no captions, fitted to the column** (2026-10-19).
     Shown three casts at 360x740, where the 76px column wrapped each caption onto 4-5 lines and fitted two of three,
     Aj chose *"Like landscape"*. *Built in step 5, piece 2.*
@@ -541,7 +543,9 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    (rulings 32, 33, 35). Every phone hides the reader strip; the pile laps (`lapPile`); the stack is fitted and
    uncaptioned there too (`compactStack`, one query for the CSS and the measure), with stack cards sized from the fit
    scale because under 380px wide `.card` is a fixed 40x58 that ignores it. `landscapetest`'s column leg now covers
-   portrait phones. Piece 3 (the box, 34) follows.
+   portrait phones. With no reader, the small Respond? box moved to the top of a tall phone and reached over the
+   column's top card; the column now starts below a box at the top while 120px of column is left. *Piece 3 built
+   (v1.33.16.14):* the box's minimize (ruling 34), pinned by the new `respmintest`. Step 5 is done.
 6. **The lessons.** Phases and Quicks rebuilt around the box and the board, every lesson that mentions
    answering re-read (a lesson that narrates a mechanic is an audit of it), and the dead `lessonQuicksSteps`
    deleted.
