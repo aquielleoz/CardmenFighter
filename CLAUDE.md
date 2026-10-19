@@ -313,7 +313,7 @@ node nettest_rename.js                          # A MID-GAME RENAME MUST REACH T
                                                 # table, plus the announcement's grammar in BOTH frames and
                                                 # a host-side cooldown that ESCALATES. `__cmf.renameBase`
                                                 # shrinks the 20s base so the doubling is testable
-node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (24). A client whose prompt
+node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (25). A client whose prompt
                                                 # for a timing is off answers with the SAME `{op:'decline'}`
                                                 # a player clicking "Let it resolve" sends, so the host
                                                 # narrated both. Three legs: a real decline STILL narrates,
@@ -2684,7 +2684,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 82 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 82 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 25, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
