@@ -301,7 +301,9 @@
      dims under "<name> is deciding…" (`showTrimWait`), and the column sat under it — so the stack was hidden at
      exactly the moment you are waiting on someone to answer it. */
   #table.waitDim #castZone{z-index:8;}
-  #castZone.arriving{opacity:1;}   /* a cast that already resolved still lands here, briefly (`presentStackArrival`) */
+  #castZone.arriving{opacity:1;}
+  #castZone.tut-spot{opacity:1; border-color:rgba(232,195,122,.55); background-color:rgba(232,195,122,.06);}   /* the Zones tour points at it while it is empty */
+  #castZone.tut-spot .czLbl{display:block;}   /* a cast that already resolved still lands here, briefly (`presentStackArrival`) */
   @media (max-width:1199px){ #castZone{width:104px;} }
   /* WHILE THE COLUMN IS UP THE CENTRED MESSAGE MAKES ROOM FOR IT, or the two print over each other on a narrow table
      (measured in the first screenshots: a phone's staged-card message ran under the column). Only while it shows,
@@ -8900,7 +8902,7 @@ __QR__
     if(r && r.width>=230 && r.height>=120 && r.top<H-60){ m.style.left=Math.round(r.left)+'px'; m.style.top=Math.round(r.top)+'px'; m.style.width=Math.round(r.width)+'px'; m.style.maxHeight=Math.round(Math.max(120, Math.min(r.bottom, H)-r.top))+'px'; }
     else { m.style.left='8px'; m.style.top='4px'; m.style.width=Math.max(200, W-16)+'px'; m.style.maxHeight=Math.round(H*0.5)+'px'; }
     var cz=$('castZone'); if(cz) placeCastZone(cz);   // the column clears a box at the top (see `placeCastZone`)
-    if(typeof TUT!=='undefined' && TUT.reapply) TUT.reapply();   // an answer step's coach moves off the box (`placeAnswerCoach`); opening the box renders nothing
+    if(typeof TUT!=='undefined' && TUT.reapply) TUT.reapply();   // the coach moves off the box (`placeCoach`); opening the box renders nothing
   }
   window.addEventListener('resize', function(){ placeRespondBox(); });
   function hideOverlay(){
@@ -8941,10 +8943,12 @@ __QR__
       /* AN ANSWER STEP PLACES THE COACH WHERE IT HIDES NOTHING YOU NEED (drag-and-stack step 6). Its usual spots are
          exactly the wrong ones for answering: on a desktop it docks over the card reader, which is where the small
          Respond? box sits (ruling 23), so the box's sentence and its Yes and No were under the coach; on a phone it sits
-         over your hand, so the Quick you were told to tap was under it. `placeAnswerCoach` measures instead, every render
-         while the step is up, because the box opens, closes and moves. A drag takes over (`_autoAnswer` off). */
-      if(st.coach==='answer') p._autoAnswer=true;
-      else if(p._autoAnswer){ p._autoAnswer=false; p.style.left=''; p.style.top=''; p.style.right=''; p.style.bottom=''; p.style.transform=''; }
+         over your hand, so the Quick you were told to tap was under it. `placeCoach` measures instead, every render
+         while the step is up, because the box opens, closes and moves. A drag takes over (`_dragged`). */
+      /* …AND EVERY OTHER STEP DOES TOO (step 6b): a phone audit of all ten lessons found the coach over the very card or
+         button a step names in five of them (How to Play, Initiative, Specials, Form Changes and The 2), green suites
+         throughout. A step with `stage:true` keeps its own spot, and a drag keeps the player's for the rest of the lesson. */
+      p._autoPlace = !st.stage && !p._dragged;
       $('tutSkipBtn').onclick=skip;
       var nb=$('tutNextBtn'); if(nb) nb.onclick=next;
       prepped=false;
@@ -8959,28 +8963,33 @@ __QR__
       // gate-only step (e.g. "press Pass") wouldn't — so always repaint here.
       try{ if(typeof render==='function') render(); }catch(e){}
     }
-    function spotNow(){ var st=steps[i]; if(!st) return; var hi=(typeof st.hi==='function')?st.hi():st.hi; applySpot(hi); }
-    function reapply(){ if(!active) return; spotNow(); var p=panel(), st=steps[i]; if(p && st && st.coach==='answer' && p._autoAnswer) placeAnswerCoach(p); }        // render() rebuilds the hand DOM and wipes .tut-spot — re-add it each paint
-    /* Of a few places, the first that covers least of what the step needs seen: the Respond? box while it is up, the
-       spotlit card, the cast column and the action row's ⚡ and Pass. The coach's own default comes first, so it only
-       moves when its default is in the way. */
-    function placeAnswerCoach(p){
+    /* the coach is placed wherever the spotlight lands — at a render, and when a step's prep spotlights after it (tryPrep) */
+    function spotNow(){ var st=steps[i]; if(!st) return; var hi=(typeof st.hi==='function')?st.hi():st.hi; applySpot(hi); var p=panel(); if(p && p._autoPlace) placeCoach(p, st.coach==='answer'); }
+    function reapply(){ if(!active) return; spotNow(); }        // render() rebuilds the hand DOM and wipes .tut-spot — re-add it each paint
+    /* Of a few places, the one that covers the fewest CENTRES of what the step needs seen, then the least of their area:
+       the Respond? box's buttons while it is up, everything the step spotlights, the stack's cards, and on an answer step
+       ⚡ and Pass. The coach STAYS PUT while it covers no centre, so a step that was fine keeps the coach where it was;
+       only one in the way moves it. */
+    function placeCoach(p, answer){
       var keep=[];
       function add(el){ if(!el) return; var r=el.getBoundingClientRect(); if(r.width>1 && r.height>1 && getComputedStyle(el).visibility!=='hidden') keep.push(r); }
-      var ov=$('overlay'); if(ov && ov.classList.contains('show')) add($('modal'));
-      spots.forEach(function(el){ if(el && el.id!=='hand' && el.id!=='castZone') add(el); });
+      var ov=$('overlay'); if(ov && ov.classList.contains('show')) Array.prototype.forEach.call(document.querySelectorAll('#modal button'), function(b){ if(b.offsetParent) add(b); });
+      spots.forEach(function(el){ if(el && el.id!=='castZone') add(el); });
       /* the CARDS in the column, not the column: on a phone it runs nearly the table's height, so keeping all of it clear
          made every place cost something and the coach never left your hand */
       Array.prototype.forEach.call(document.querySelectorAll('#stackView .stkCard .card, #stackView .stkTrig, #stagedSlot.on'), add);
-      add($('ctxBtn')); add($('passBtn'));
+      if(answer){ add($('ctxBtn')); add($('passBtn')); }
       var W=document.documentElement.clientWidth, H=window.innerHeight, pr=p.getBoundingClientRect(), w=pr.width, h=pr.height, m=8;
-      if(!w || !h) return;
-      var cands=[[pr.left, pr.top], [W-w-16, 150], [m, 110], [m, m], [W-w-m, m], [(W-w)/2, m], [m, H-h-m], [W-w-m, H-h-m], [(W-w)/2, H-h-m]];
-      var best=null, bestCost=Infinity;
+      if(!w || !h || !keep.length) return;
+      function cost(x, y){ var c=0, a=0; keep.forEach(function(k){ var cx=(k.left+k.right)/2, cy=(k.top+k.bottom)/2;
+        if(cx>=x && cx<=x+w && cy>=y && cy<=y+h) c++;
+        a+=Math.max(0, Math.min(x+w, k.right)-Math.max(x, k.left))*Math.max(0, Math.min(y+h, k.bottom)-Math.max(y, k.top)); }); return [c, a]; }
+      var here=cost(pr.left, pr.top); if(!here[0]) return;
+      var cands=[[W-w-16, 150], [m, 110], [m, m], [W-w-m, m], [(W-w)/2, m], [m, H-h-m], [W-w-m, H-h-m], [(W-w)/2, H-h-m]];
+      var best=null, bc=here;
       cands.forEach(function(c){
-        var x=Math.round(Math.max(m, Math.min(c[0], W-w-m))), y=Math.round(Math.max(m, Math.min(c[1], H-h-m))), cost=0;
-        keep.forEach(function(k){ cost+=Math.max(0, Math.min(x+w, k.right)-Math.max(x, k.left))*Math.max(0, Math.min(y+h, k.bottom)-Math.max(y, k.top)); });
-        if(cost<bestCost-1){ bestCost=cost; best=[x, y]; }
+        var x=Math.round(Math.max(m, Math.min(c[0], W-w-m))), y=Math.round(Math.max(m, Math.min(c[1], H-h-m))), k=cost(x, y);
+        if(k[0]<bc[0] || (k[0]===bc[0] && k[1]<bc[1]-1)){ bc=k; best=[x, y]; }
       });
       if(!best) return;
       p.style.transform='none'; p.style.right='auto'; p.style.bottom='auto'; p.style.left=best[0]+'px'; p.style.top=best[1]+'px';
@@ -9005,7 +9014,7 @@ __QR__
     function releaseHold(){ var cb=holdCb; holdCb=null; if(cb) try{ cb(); }catch(e){} }
     function next(){ releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
     function note(type, data){ if(!active) return; var st=steps[i]; if(!st||!st.gate) return; try{ if(st.gate(type, data)) next(); }catch(e){} }
-    function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; } show(); }
+    function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; p._dragged=false; } show(); }   // a new lesson starts from the coach's own spot, not the last lesson's drag
     function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); tutLockBuilderCancel(false); }   // an abandoned lesson must not leave the builder's Cancel dead
     function skip(){ stop(); setMessage('Tutorial dismissed — play on! You can restart it from New Duel.'); }
     function finish(){
@@ -9191,7 +9200,7 @@ __QR__
          `lessontest_howto` asserts step NUMBERS — `atStep(2)` through `atStep(10)` — so inserting a step
          renumbers every assertion below it: measured, **7 pass / 17 fail** on the first attempt. Anyone
          adding a step to any lesson pays that; check the suite before reaching for one. */
-      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead — or drag it into the middle of the table. <span class=\"rNote\">(Lead a middling card — save that 2! Fight stays grey until you pick a card it can play.)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead — or drag it into the middle of the table. <span class=\"rNote\">(Lead a middling card — save that 2!)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"You led a <b>jab</b>. <b>Every card you play banks into your ⚡ energy</b> — win or lose. But a jab only <b>takes the round</b>; it never breaks a shield. Jabs are your <b>safe</b> way to bank energy.", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"To <b>break shields</b> you need a <b>Special</b>, and those unlock from <b>Round 2</b>. The simplest is a <b>pair</b> — two cards of the <b>same number</b>. Select two and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"That’s a <b>Special</b>! Winning it made the Rival <b>lose a shield</b> 🛡. <b>Only Specials break shields</b> — that’s the whole game plan.", hi:'#rivalShields', btn:"Next ▸" },
@@ -9204,7 +9213,7 @@ __QR__
          twos lesson's boost step. Copied on the Energy, Rides and Forms activate steps. */
       { only:function(){ return []; }, text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you fight or pass, the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"Quick tour of your <b>zones</b>: your <b>hand</b> (the cards you hold), your <b>🂠 deck</b> (draw 2 each round), your <b>⚡ energy</b> (cards you’ve fought), and your <b>♻ shuffle pile</b> (spent energy). Spend energy → it goes to the shuffle pile; when your deck empties, the shuffle pile becomes your new deck. Keep the cycle turning and you won’t run dry.", hi:['#youNrgSuits','#handMeta .stat.deck','#youShuf'], btn:"Next ▸" },
-      { text:"That’s the loop: <b>fight</b> → bank <b>energy</b> → spend it on <b>effects</b> → win <b>Specials</b> to break shields → land the <b>Kick</b>. You won’t always win an exchange — when you can’t, <b>pass</b> and still bank energy (that’s the <b>Initiative</b> lesson). Need a refresher on card ranks or Specials? Tap <b>🃏 Specials list</b> above your hand any time. Now play this out and land the Kick! 🥊", btn:"Finish" }
+      { text:"That’s the loop: <b>fight</b> → bank <b>energy</b> → spend it on <b>effects</b> → win <b>Specials</b> to break shields → land the <b>Kick</b>. You won’t always win an exchange — when you can’t, <b>pass</b> and still bank energy (that’s the <b>Initiative</b> lesson). Need a refresher on card ranks or Specials? Open the <b>🃏 Specials list</b> any time (on a phone it lives in the ☰ menu). Now play this out and land the Kick! 🥊", btn:"Finish" }
     ];
   }
   function lessonInitiativeSteps(){
@@ -9283,7 +9292,7 @@ __QR__
       { text:"This is the <b>Full</b> game. A <b>J</b> can <b>transform</b> into your <b>Forms &amp; Rides zone</b> as a <b>Ride</b> — instead of fighting with it, you park it there for a <b>persistent aura</b> that buffs your plays.", prep:tutPrepRide, hi:function(){ return tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand'; }, btn:"Show me ▸" },
       /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
       { only:function(){ return []; }, text:"Transforms unlock as the table loses shields — the <b>J (Ride)</b> tier is open now. <b>Read it</b>, then select your glowing <b>J</b> and tap <b>⚡ Activate</b> to call your Ride.", hi:function(){ return [ tutRideId?('#hand .card[data-id="'+tutRideId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your J…" },
-      { text:"Your <b>Ride</b> now sits in the zone on the left. It <b>persists</b> (no decay) and its aura keeps working <b>every fight</b> while it’s there — e.g. your plays fight at +1. You hold <b>one per rank</b>: calling a new J banks the old one to energy.", hi:'#youFormZone', btn:"Next ▸" },
+      { text:"Your <b>Ride</b> now sits in your <b>Forms &amp; Rides</b> zone. It <b>persists</b> (no decay) and its aura keeps working <b>every fight</b> while it’s there — e.g. your plays fight at +1. You hold <b>one per rank</b>: calling a new J banks the old one to energy.", hi:'#youFormZone', btn:"Next ▸" },
       { text:"That’s Rides. The <b>Q</b> and <b>K</b> — called <b>Forms</b> — work <b>differently</b>: instead of a standing aura, they <b>upgrade your cards’ effects</b>. That’s the next lesson. 🏍", btn:"Finish" }
     ];
   }
@@ -9316,7 +9325,7 @@ __QR__
       { text:"<b>Forms</b> are the <b>Q</b> and <b>K</b>. Unlike a Ride’s standing aura, a Form <b>upgrades your cards’ effects</b> while it sits in the zone — it makes what you already do <b>hit harder</b>.", prep:tutPrepForm, hi:function(){ return tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand'; }, btn:"Show me ▸" },
       /* `only:[]`: this step teaches ⚡ Activate, so a fight must not spend the card — see the How to Play note */
       { only:function(){ return []; }, text:"The <b>Form</b> tier is open (the table’s bled enough shields). First <b>read it</b> — then select your glowing <b>Q</b> and tap <b>⚡ Activate</b> to transform it.", hi:function(){ return [ tutFormId?('#hand .card[data-id="'+tutFormId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, stage:true, gate:function(t,d){ return t==='activate' && d && d.kind==='transform'; }, wait:"Transform your Q…" },
-      { text:"Your <b>Form</b> is in the zone. Now <b>hover any card</b> — its description shows an <b>upgraded</b> effect line (marked active). Forms empower a whole set of your cards at once, no decay.", hi:'#youFormZone', btn:"Next ▸" },
+      { text:"Your <b>Form</b> is in the zone. Now read one of your cards — its text shows an <b>upgraded</b> effect line (marked active). Forms empower a whole set of your cards at once, no decay.", hi:'#youFormZone', btn:"Next ▸" },
       { text:"Top tier: hold a <b>Ride + two different Forms</b> (a Q <i>and</i> a K) and you ignite <b>Super Mode</b> — the strongest boost of all. Deciding “fight now, or build my zone?” is the heart of the Full game. That’s Forms!", btn:"Finish" }
     ];
   }
@@ -9676,7 +9685,7 @@ __QR__
          the lesson still has to teach is true on every turn now (ruling 10): ONE press of Fight first crosses you
          into the Fight sub-phase — the strip changes and the beat plays — and only then does your card go down.
          `only` names the Ace, so the step cannot be satisfied by anything else; its gate is the play. */
-      { text:"Now leave Main the way you always will: select your <b>Ace</b> and press <b>⚔️ Fight</b> — or drag it into the middle of the table. Watch your hand flash yellow as you do: that is <b>the crossing into the Fight sub-phase</b>, and the Ace goes down with it. <br><br>Crossing over is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you.",
+      { text:"Select your <b>Ace</b> and press <b>⚔️ Fight</b> — or drag it into the middle of the table. Your hand flashes yellow as it goes: that’s the <b>Fight sub-phase</b>, and the Ace goes down with it. <br><br>Crossing over is also a <b>priority point</b>: everyone gets the chance to act before the fight starts. Most of the time there is nothing worth doing, so it passes without stopping you.",
         only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?['#hand .card[data-id="'+tutPhAce+'"]','#fightBtn']:['#hand','#fightBtn']; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace. It lands on the <b>stack</b>, the column on the right.<br><br><b>Their cast opens a window for you.</b> That’s what priority means: nobody acts unpaused. The <b>Respond?</b> box asks — press <b>Yes</b>, tap your glowing <b>Counter Spell</b>, and press <b>⚡ Activate</b>. It aims at their card on the stack.",
@@ -9716,7 +9725,7 @@ __QR__
         hi:hw, hold:'cleanup', btn:"Next ▸" },
       /* ONE PRESS CROSSES OVER AND LEADS THEM, which is the only route there is since drag-and-stack step 1 (the
          old copy described a two-press route through `Next`). */
-      { text:"This time there’s nothing worth activating — and that’s fine. <b>You still have to leave Main.</b> Select your <b>pair of 3s</b> and press <b>⚔️ Fight</b>: with cards chosen, one press crosses over <i>and</i> leads them.",
+      { text:"Round 2, and Specials are open. Select your <b>pair of 3s</b> and press <b>⚔️ Fight</b>.",
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
         gate:function(t){ return t==='play'; }, wait:"Select the pair, then press Fight…" },
@@ -9741,9 +9750,12 @@ __QR__
 
   function lessonZonesSteps(){
     return [
-      { text:"A quick tour of the <b>five zones</b>. First, your <b>Hand</b> — the cards you’re holding, ready to fight or activate.", hi:'#hand', btn:"Next ▸" },
+      { text:"A quick tour of the <b>six zones</b>. First, your <b>Hand</b> — the cards you’re holding, ready to fight or activate.", hi:'#hand', btn:"Next ▸" },
       { text:"Your <b>Deck</b> (🂠) — you draw 2 from it each round. It’s fine to <b>end a round with an empty hand</b>; you only <b>deck out</b> (and lose) if you ever have to <b>draw with both your deck and shuffle pile empty</b>. So keep the cycle fed.", hi:'#handMeta .stat.deck, #pilesWrap:has(.stat.deck) > #pilesBtn', btn:"Next ▸" },
-      { text:"The <b>Play area</b> — where the fight happens. Cards played here are compared; the higher one wins the round.", hi:'#pile', btn:"Next ▸" },
+      { text:"The <b>Play area</b> — the middle of the table, where the fight happens. Cards played here are compared; the higher one wins the round.", hi:'#pile', btn:"Next ▸" },
+      /* THE ZONE THE EPIC ADDED (drag-and-stack step 6b). The tour said "five zones" and never showed it. It is invisible
+         until something is staged or cast, so `#castZone.tut-spot` shows it for the step. */
+      { text:"The <b>Cast column</b> — the right edge of the table. A card you cast waits here to resolve, and so do the Rival’s: that’s the <b>stack</b>, newest on top. Drop a card on it to get it ready, then ⚡ Activate fires it.", hi:'#castZone', btn:"Next ▸" },
       { text:"Your <b>Energy pile</b> (⚡) — every card you fight banks here. It’s the fuel you spend on card effects.", hi:'#youNrgSuits', btn:"Next ▸" },
       { text:"Your <b>Shuffle pile</b> (♻) — spent energy lands here, and when your <b>Deck</b> runs dry the shuffle pile becomes your new deck. Cards cycle Hand → Play/Energy → Shuffle → Deck → Hand. That’s the board!", hi:'#youShuf, #pilesWrap:has(#youShuf) > #pilesBtn', btn:"Finish" }
     ];
@@ -10343,7 +10355,7 @@ __QR__
       var r=p.getBoundingClientRect();
       on=true; sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top;
       // Pin by top/left only — clear the CSS bottom/right so the box keeps its height instead of stretching top→bottom.
-      p.classList.remove('atStage'); p._autoAnswer=false;   // a manual drag takes over from any staged or answer-step auto-position
+      p.classList.remove('atStage'); p._autoPlace=false; p._dragged=true;   // a manual drag takes over from any staged or auto-position, for the rest of the lesson
       p.style.transform='none'; p.style.left=r.left+'px'; p.style.top=r.top+'px'; p.style.bottom='auto'; p.style.right='auto';
       p.classList.add('dragging'); try{ p.setPointerCapture(e.pointerId); }catch(_){}
     });

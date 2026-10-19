@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.33.16.16**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -75,27 +75,35 @@ node lessontest_energyorder.js                       # the "Energy Order" tutori
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
 #                                       # old Quicks one. Both base Quicks, the crossing FILMED (the strip reads
 #                                       # Fight while the Ace is still in hand), and pauses held on real
-#                                       # ceremony beats rather than forced windows (51). Since drag-and-stack
+#                                       # ceremony beats rather than forced windows (52). Since drag-and-stack
 #                                       # step 6 its answer steps name Yes and ⚡, and the coach must leave the
 #                                       # box's buttons and the spotlit card UNCOVERED, desktop and phone (hit-tested). `lessontest_quicks.js`
 #                                       # is DELETED: its lesson no longer exists
-node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated, and the spotlit card must GLOW in its computed style, fly-in and reduced motion included (28)
-node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
-node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (22)
-node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (21)
-node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
-node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
-node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
+node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated, and the spotlit card must GLOW in its computed style, fly-in and reduced motion included (29)
+node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (26)
+node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (23)
+node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (22)
+node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (19)
+node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (16)
+node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (16)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
-                                        # DERIVED from the live rules, not a hardcoded string (35)
+                                        # DERIVED from the live rules, not a hardcoded string (36)
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
 #   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
-node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (11). `card <id>
+node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (12). `card <id>
 #                                       # has no group` is NOT a DOM bug — it is PICK MODE, whose branch in
 #                                       # `renderHand` appends bare cards with no `.group`. Forces the
 #                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
 #                                       # `answerWindow()`'s pick escape are not untested code
-#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly.
+node lessontest_phonepass.js            # THE LESSONS ON A PORTRAIT PHONE (126): reruns How to Play,
+#                                       # Initiative, Specials, Form Changes and The 2 at 390x844
+#                                       # (`LESSON_VIEWPORT`) and adds up their counts. On a phone the coach
+#                                       # covered the card or button a step named in all five, every suite green
+#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly. Since drag-and-stack
+#   step 6b its `done()` ASSERTS THE COACH NEVER COVERED WHAT A STEP POINTS AT (a spotlit element's centre, or the
+#   Respond? box's buttons, for two samples running), so each lessonlib suite has one assertion more than its
+#   lesson's own. `LESSON_VIEWPORT=390x844` runs any of them at that size; `LESSON_AUDIT=<file>` writes the per-step
+#   record as JSON lines.
 #   `LESSON_THROTTLE=n node lessontest_x.js` slows that lesson page's CPU n-fold (Chromium DevTools), to test
 #   a load-only flake on demand. These lessons mostly wait on the game's own timers, so 4x barely moves them;
 #   20x adds 40-75% wall time. 72 throttled runs (2026-10-13) reproduced none of the three load-only lesson flakes
@@ -2656,7 +2664,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16.15 — last FULL sweep 2026-10-19, `npm run sweep`, 134/134 in 519s** (this line was
+Status as of **v1.33.16.16 — last FULL sweep 2026-10-19, `npm run sweep`, 135/135 in 532s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2672,9 +2680,9 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 51, `lessontest_howto` 28,
-`lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
-`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
+`lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
+`lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 82 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,

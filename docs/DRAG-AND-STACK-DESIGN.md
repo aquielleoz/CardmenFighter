@@ -561,5 +561,12 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    later"). Play each at desktop and phone size and fix any step the epic made untrue. Already known: Zones of
    Play never shows the cast column, the zone the epic added, and calls the play area simply "where the fight
    happens"; Form Changes says *"hover any card — its description shows…"*, which a phone has neither of since
-   ruling 32.
+   ruling 32. *Built (v1.33.16.16):* every step's text read against the build. Zones of Play is a six-zone tour with
+   the cast column (shown while it is pointed at), and the play area is "the middle of the table". The wording that
+   explained the missing Next button is cut (Aj: *"no need to call attention really that there is no next button"*):
+   Phases 3 and 8, How to Play 3. Form Changes reads instead of hovering; Rides puts the Ride in "your Forms & Rides
+   zone", not "on the left"; How to Play says where the Specials list is on a phone. Playing all ten at 1200x900 and
+   390x844 with a coach audit found the coach over the named card or button on a phone in five lessons; step 6's
+   placement now covers every step (`placeCoach`, run wherever the spotlight lands), `lessonlib` asserts it in every
+   lesson suite, and `lessontest_phonepass` reruns those five at phone size.
 7. **Delete the old modal path**, sweep on the epic, merge.
