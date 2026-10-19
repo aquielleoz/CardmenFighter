@@ -1281,6 +1281,19 @@
   .overlay.respond.show{ display:block; }
   .overlay.respond .modal.respSmall{ position:absolute; max-width:none; padding:12px 14px; text-align:left; overflow-y:auto; box-shadow:0 12px 34px rgba(0,0,0,.7); }
   .modal.respSmall h2{ font-size:17px; margin:0 0 8px; }
+  /* THE MINIMIZE (drag-and-stack ruling 34; Aj: *"keep it at the top, this will have a minimize/peek right?"*, then
+     *"Add a minimize"*). Only where the box sits at the top of the screen (`atTop`: a phone, no reader to sit over), where it
+     covers the Rival's bar — and on a 667x375 landscape table the pile and the stack too. ▾ shrinks it to its title, a thin
+     tab you tap to open again; the backdrop still holds the board until Yes or No. Every rule is scoped to `atTop`, so a
+     rotation that puts the box back over the reader shows it whole whatever state it was left in. */
+  .modal.respSmall .respHead{ display:flex; align-items:center; gap:8px; }
+  .modal.respSmall .respMin{ display:none; margin-left:auto; width:30px; height:26px; padding:0; border-radius:8px; font-size:14px; line-height:1;
+    align-items:center; justify-content:center; border:1px solid var(--line); background:rgba(255,255,255,.07); color:inherit; cursor:pointer; }
+  .modal.respSmall.atTop .respMin{ display:inline-flex; }
+  .modal.respSmall.atTop.respMinimized{ padding:3px 10px; cursor:pointer; }
+  .modal.respSmall.atTop.respMinimized > :not(.respHead){ display:none; }
+  .modal.respSmall.atTop.respMinimized .respHead{ margin:0; font-size:14px; line-height:1.1; }
+  .modal.respSmall.atTop.respMinimized .respMin{ transform:rotate(180deg); height:22px; }
   .modal.respSmall .respCast{ display:flex; gap:10px; align-items:flex-start; }
   .modal.respSmall .respCast .card{ flex:0 0 auto; cursor:help; }
   .modal.respSmall .respWhat p{ margin:0 0 5px; font-size:13px; line-height:1.4; }
@@ -8281,7 +8294,7 @@ __QR__
        board is not the answer, and a live Pass behind it would cross over the open stack.
        THE CARD, NOT ITS RULES TEXT (ruling 25: *"card being cast + target"*). The reader shows the text on a tap. */
     var castCard = pend ? (pend.card || (pend.trig ? trigCard(pend) : null)) : null;
-    var html='<h2>Respond?</h2><div class="respCast">'+(castCard ? '<span id="respCardSlot"></span>' : '')+'<div class="respWhat">'+lead+'</div></div>';
+    var html='<h2 class="respHead" id="respHead">Respond?<button id="respMin" class="respMin" type="button" title="Minimize — read the board, then tap the tab to open it again" aria-label="Minimize">▾</button></h2><div class="respCast">'+(castCard ? '<span id="respCardSlot"></span>' : '')+'<div class="respWhat">'+lead+'</div></div>';
     /* THE LESSON THAT NEEDS SOMETHING COUNTERED keeps No disabled, VISIBLE, with the reason beside it — a dead button
        with no explanation is its own dead end on a phone, where there is no tooltip. Yes is the way through. */
     var tutNeedsCounter = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
@@ -8301,6 +8314,13 @@ __QR__
     placeRespondBox();
     $('respDecline').addEventListener('click', function(){ humanDeclines(g, cont); });
     $('respYes').addEventListener('click', function(){ prioNote('  → you pressed YES — answering from the board'); hideOverlay(); render(); });
+    /* ▾ MINIMIZES AND THE TITLE REOPENS (ruling 34). Both live inside the box's own markup, rebuilt on every show, so no
+       listener outlives it; the column is re-placed each way because it clears the box's bottom edge (`placeCastZone`). */
+    function setMin(on){ var m=$('modal'); m.classList.toggle('respMinimized', on); var b=$('respMin');
+      if(b){ b.title = on ? 'Open the Respond? box again' : 'Minimize — read the board, then tap the tab to open it again'; b.setAttribute('aria-label', on ? 'Open' : 'Minimize'); }
+      var cz=$('castZone'); if(cz) placeCastZone(cz); }
+    $('respMin').addEventListener('click', function(ev){ ev.stopPropagation(); setMin(!$('modal').classList.contains('respMinimized')); });
+    $('respHead').addEventListener('click', function(){ if($('modal').classList.contains('respMinimized')) setMin(false); });
   }
   /* A CLIENT'S OWN ACTIONS BELONG IN ITS OWN LEDGER (2026-09-23). `humanResponds` and `humanDeclines` both
      sent the intent and RETURNED above their `prioNote`, so a client's saved ledger recorded what it was
