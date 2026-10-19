@@ -62,7 +62,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const a=await p.evaluate(()=>({ yes:!!(document.querySelector('#respYes')||{}).offsetParent, decline:!!(document.querySelector('#respDecline')||{}).offsetParent }));
   ok(a.yes && a.decline, 'A · THE BOX OFFERS YES AND NO  ['+JSON.stringify(a)+']');
   const a1=await p.evaluate(()=>{ const m=document.getElementById('modal'), d=document.getElementById('respDecline');
-    return { quicks:m.querySelectorAll('.respQuick').length, peek:!!document.getElementById('peekBtn'), card:!!m.querySelector('#respCardSlot .card[data-id="bt3C"]'),
+    return { quicks:m.querySelectorAll('button:not(#respYes):not(#respDecline):not(#respMin)').length, peek:!!document.getElementById('peekBtn'), card:!!m.querySelector('#respCardSlot .card[data-id="bt3C"]'),
              no:(d.textContent||'').trim(), title:d.title, lead:((m.querySelector('.respWhat p')||{}).textContent||'').trim() }; });
   ok(a1.quicks===0 && !a1.peek && a1.card && a1.no==='No' && a1.title==='Let it resolve' && /You cast Brilliant Tactic/.test(a1.lead),
      'A1 · THE SMALL BOX: no Quick buttons, no Peek, the card being cast beside its sentence, and No titled with the moment  ['+JSON.stringify(a1)+']');

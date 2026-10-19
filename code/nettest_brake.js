@@ -64,7 +64,7 @@ const why=p=>p.evaluate(()=>({
   fightLabel:((document.getElementById('fightBtn')||{}).textContent||'').trim(),
   passDisabled:!!((document.getElementById('passBtn')||{}).disabled),
   hand:document.querySelectorAll('#hand .card').length,
-  modal:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
+  modal:[].some.call(document.querySelectorAll('#respYes,#respDecline'),b=>b.offsetParent!==null)
 }));
 const held=p=>p.evaluate(()=>/pass is on hold/i.test((document.getElementById('message')||{}).textContent||''));
 const clickPassBtn=p=>p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled){ b.click(); return true; } return false; });
@@ -181,7 +181,7 @@ async function lead(p, id, other){
     cer:window.__cmf.ceremony(),
     h:[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.getAttribute('data-id')).join(','),
     rs:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
-    m:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
+    m:[].some.call(document.querySelectorAll('#respYes,#respDecline'),b=>b.offsetParent!==null)
   }));
   async function quiet(){
     let last=null, same=0;

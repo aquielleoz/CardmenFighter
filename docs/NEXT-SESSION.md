@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.16.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.33.16.17.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -126,10 +126,9 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   `epic/drag-and-stack`, OPENED AND RULED 2026-10-13.** Aj's design, his three earlier asks, the Next-button
   friction behind it (*"accidentally, pressing next and then being unable to go back to main to
   activate abilities"*) and his eight rulings are in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
-  **Steps 1 and 2 are merged** (#421, #422) and **step 3 is built** — the stack shows cards, every cast and answer
-  arrives in the column on every seat — on `feat/stack-shows-cards`, in review as a PR into the epic. **Next: step 4**,
-  the Respond? box and answering on the board, which needs the AUTO question ruled first (whether a cast passes
-  priority in AUTO). Step 5 owns the phone and landscape layouts, including Equipment in the landscape band.
+  **Steps 1 to 6b are merged** (#421-#440: drop zones and no Next, Counterfeit on the board, the stack as cards, the
+  small Respond? box and answering from your hand, the phone and landscape layouts, and the lessons). **Step 7 is in
+  progress:** delete what is left of the old modal, sweep the epic, merge it to `main`.
   `[id: priority-modal-redesign]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
@@ -179,6 +178,13 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   with Aj, then build it with a `test.js` leg for the Back Stab answer, keeping the leak fix above (the turn
   hand-off still has to reset the sub-phase).
   `[id: illusion-on-the-stack]`
+
+- `ready to build`      · **SIX FUNCTIONS IN THE TEMPLATE THAT NOTHING CALLS: `activateSelected`, `cancelTargetPick`,
+  `isAISeat`, `isLocalSeat`, `livingOpps`, `seatLabel`.** Found 2026-10-19 by drag-and-stack step 7's dead-code
+  check (a name that appears only at its own definition, so not exported either). All six are dead on `main` too, so
+  by the routing test this is `main` work, not the epic's. Delete them, then follow CLAUDE.md's deletion rules: grep
+  the export literals for `name:name`, and run `mptest` before the sweep.
+  `[id: dead-template-functions]`
 
 ### Parked — each entry says what revives it
 

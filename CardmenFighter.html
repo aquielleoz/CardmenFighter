@@ -1268,14 +1268,16 @@
   @media(max-width:560px){ .modal .galDetail{flex-direction:column; align-items:center; text-align:left;} .modal .galFaceWrap{width:62%; max-width:210px;} .modal .galDetail .cvText{width:100%;} }
   .modal .respOpts{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
   .modal .respOpts button{margin-top:0; text-align:left; display:flex; flex-direction:column; gap:2px; line-height:1.3;}
-  .modal .respQuick{background:var(--gold); color:#3a2a08;}
+  /* THE GOLD CALL-TO-ACTION in a dialog: the end screen's play-again and a lesson's "next lesson". It was `.respQuick`,
+     the old Respond? modal's per-Quick button, until that modal's buttons were deleted (drag-and-stack step 4, piece 8)
+     and the name outlived them; renamed at step 7 so no harness reads one of these as an open window. */
+  .modal .modalGo{background:var(--gold); color:#3a2a08;}
   .stkTgt{font-weight:600;}
   /* COUNTERFEIT PICKS ON THE PILE (drag-and-stack step 2): the cards you may copy pulse like any other target, and
      the staged one turns gold — a copy, not a hit, so it does not borrow `.aimed`'s red. */
   #pile .card.copyable{cursor:pointer; box-shadow:0 0 0 2px var(--pick), 0 0 12px rgba(201,139,255,.8); animation:tgtPulse .9s ease-in-out infinite;}
   #pile .card.copyAim{box-shadow:0 0 0 2px var(--gold), 0 0 16px rgba(232,195,122,.6) !important; animation:none;}
-  .modal .respQuick:disabled{opacity:.5; cursor:default;}
-  .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
+  .modal .modalGo:disabled{opacity:.5; cursor:default;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
   /* THE SMALL RESPOND? BOX (step 4, piece 8; ruling 23): no dim and no blur behind it, so the board stays readable; its
      place is set by `placeRespondBox`. The card being cast sits beside the sentence (ruling 25), Yes and No side by side. */
@@ -7533,7 +7535,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.33.16.16';
+  var GAME_VERSION='v1.33.16.17';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -14201,7 +14203,7 @@ window.CardFace = {};
     var again = !online ? (MP()?'New Game':'New Duel') : (host ? '↩ Back to the lobby' : '🔄 Ask for a rematch');
     showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(winnerName+' Wins'))+'</h2>'+
       '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
-      '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+again+'</button>'+
+      '<div class="respOpts"><button id="againBtn" class="modalGo" style="text-align:center;">'+again+'</button>'+
       (online ? '<p class="endNote" id="rematchAsk">'+(host ? 'Everyone keeps their connection — each player picks a deck and hits Ready to take a seat.' : 'Only the host can reopen the lobby; when they do, you land there automatically.')+'</p>' : '')+
       '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
       '<button id="endSaveBtn" class="respLet">⤓ Save the battle log</button>'+
@@ -14405,7 +14407,7 @@ window.CardFace = {};
       // Actionable hand-off: a Tutorials button right here so moving to the next lesson is one tap.
       showModal('<h2>🎓 Lesson complete'+(lsn?' — '+lsn.title:'')+'</h2>'+
         '<p>'+(more?'Nice! Next up: <b>'+more.title+'</b>.':'You’ve finished the Basics — you know the core loop!')+' You can also play this duel out for practice.</p>'+
-        '<div class="respOpts"><button id="lsnMore" class="respQuick" style="text-align:center;">🎓 '+(more?'Next: '+more.title:'Open Tutorials')+'</button>'+
+        '<div class="respOpts"><button id="lsnMore" class="modalGo" style="text-align:center;">🎓 '+(more?'Next: '+more.title:'Open Tutorials')+'</button>'+
         '<button id="lsnHub" class="respLet">All tutorials</button>'+
         '<button id="lsnPlay" class="respLet">Keep playing this duel</button></div>');
       var mm=more;

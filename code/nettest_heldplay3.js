@@ -29,7 +29,7 @@ const why=p=>p.evaluate(()=>({
   hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,55),
   passDisabled:!!((document.getElementById('passBtn')||{}).disabled),
   hand:document.querySelectorAll('#hand .card').length,
-  modal:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
+  modal:[].some.call(document.querySelectorAll('#respYes,#respDecline'),b=>b.offsetParent!==null)
 }));
 
 (async()=>{
@@ -57,7 +57,7 @@ const why=p=>p.evaluate(()=>({
      without it returns early and stages onto a board about to gain cards. This suite shows zero misses
      today and the blindness is identical, so it is fixed preventively: leaving one of two sibling suites
      without the check is how the pair drifts apart. */
-  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)}));
+  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:[].some.call(document.querySelectorAll('#respYes,#respDecline'),b=>b.offsetParent!==null)}));
   async function quiet(){ let last=null,same=0; for(let i=0;i<80;i++){ const n=await snap(); same=(n===last && !JSON.parse(n).cer)?same+1:0; last=n; if(same>=4) return true; await wait(250);} console.log('   ⏱ never settled: '+last); return false; }
   async function stage(h0,h1,h2,turn){
     const w=[want(h0),want(h1),want(h2)], pg=[host,c1,c2], tn=turn==null?0:turn;

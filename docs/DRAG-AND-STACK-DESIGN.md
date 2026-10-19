@@ -569,4 +569,11 @@ epic's fourth number. The full sweep runs on the epic before it merges.
    390x844 with a coach audit found the coach over the named card or button on a phone in five lessons; step 6's
    placement now covers every step (`placeCoach`, run wherever the spotlight lands), `lessonlib` asserts it in every
    lesson suite, and `lessontest_phonepass` reruns those five at phone size.
-7. **Delete the old modal path**, sweep on the epic, merge.
+7. **Delete the old modal path**, sweep on the epic, merge. *The deletion (v1.33.16.17):* step 4's piece 8 had already
+   removed the modal's per-Quick buttons, its copy of the stack and its Peek, so what was left was the name. The gold
+   dialog button kept the old `.respQuick` class (the end screen's play-again, a lesson's "next lesson"), and six suites
+   plus `fightclick` still asked "is a window up?" as `.respQuick,#respDecline`, which since piece 8 matched only those
+   two buttons: an end screen could read as an open window. The class is `.modalGo` now, the checks ask for the box's
+   own Yes or No, and `answertest`'s "no Quick buttons" counts the box's buttons other than Yes, No and ▾, so it can
+   still fail. A dead-code check found six never-called functions, all dead on `main` too, so they are filed as main
+   work (`dead-template-functions`), not deleted here.
