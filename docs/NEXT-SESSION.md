@@ -582,6 +582,11 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   previous game and caches null for good (nothing re-runs the prep). Check the order of `TUT.start` against the
   lesson's `startGame`, and whether `tutFormId` (never reset) should be re-derived at step 2 instead of cached at
   step 1. 6/6 green solo straight after.
+  **AND TWICE MORE ON 2026-10-20, BOTH INSIDE `lessontest_phonepass` (the lesson at 390x844), in 2 of #447's 3 sweeps,
+  while the 4 sweeps of other branches that day were green.** 12 runs of the lesson at 390x844, four at a time, were
+  12/12, so it still needs a full sweep's load. Neither red could say which half: the wrapper kept only `✗` and
+  timeouts and indented them, so the step print never reached the sweep log. **It passes every evidence line through
+  now (behind `←`)**, so the next sweep failure prints the `WHY:` line this entry has been waiting for.
   `[id: lessontest-forms-poll]`
 
 - `parked`              · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
