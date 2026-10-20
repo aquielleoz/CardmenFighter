@@ -20,7 +20,11 @@ function run(f){ return new Promise(res=>{ let out='';
     /* "n passed, m failed", NOT the suite's own "PASS: n" — the sweep reads the FIRST line carrying a PASS: token as a suite's
        summary, and this file's own total is the last. */
     console.log((m && +m[2]===0 && r.code===0 ? '✓' : '✗')+' '+r.f+' at 390x844 — '+(m ? m[1]+' passed, '+m[2]+' failed' : 'no summary line (exit '+r.code+')'));
-    if(!m || +m[2]>0 || r.code!==0) r.out.split('\n').filter(l=>/^✗|TIMED OUT|ERR/.test(l)).slice(0,6).forEach(l=>console.log('    '+l));
+    /* EVERY LINE A CHILD WROTE TO EXPLAIN ITSELF, behind a `←` (2026-10-20). This kept only `✗` and timeouts, so a red
+       Forms lesson arrived without the `WHY:` step print that `lessonlib` adds on a timeout — the one line that says which
+       half of `lessontest-forms-poll` fired. And it INDENTED what it kept, so the sweep's anchored `^✗` dropped those
+       too: two red sweeps showed a heading and one timeout line. `←` survives the sweep's filter wherever it sits. */
+    if(!m || +m[2]>0 || r.code!==0) r.out.split('\n').filter(l=>/^✗|TIMED OUT|ERR|WHY:|←|⚠|⏱/.test(l)).slice(0,12).forEach(l=>console.log('  ← '+l.trim()));
   });
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   process.exit(fail?1:0);
