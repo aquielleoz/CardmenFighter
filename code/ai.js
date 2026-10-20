@@ -1121,7 +1121,7 @@
     }
     if (st.discardPending) {                                 // a forced discard from a prior suspended action
       if (isHuman(humans, st.discardPending.player)) return log;   // still needs the human to choose
-      var dr0 = E.resolveDiscard(st); if (dr0.ok && dr0.discarded.length) log.push({ forcedDiscard: dr0.discarded.length, who: dr0.player });
+      var dr0 = E.resolveDiscard(st); if (dr0.ok && dr0.discarded.length) log.push({ forcedDiscard: dr0.discarded.length, who: dr0.player, banked: !!dr0.banked });
     }
     if (E.isLocked(st, p)) {                                  // Back Stab: can't play or activate — pass/skip
       var lr = E.pass(st, p);

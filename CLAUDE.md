@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.34.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.34.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 720 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 727 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 720 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 727 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -2695,7 +2695,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.34.3 — last FULL sweep 2026-10-20, `npm run sweep`, 137/137 in 539s** (this line was
+Status as of **v1.34.4 — last FULL sweep 2026-10-20, `npm run sweep`, SWEEP_PENDING** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2709,9 +2709,9 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 720, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 727, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

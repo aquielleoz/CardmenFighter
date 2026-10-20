@@ -3341,6 +3341,60 @@ function cards(ids) { return ids.map(card); }
   ok(P[1].shields === sh - 1 && g.stripRound === 4, 'a mid-turn Critical Hit breaks a shield and stamps NOTHING — it has no ceremony and must shatter at once (shields ' + sh + '→' + P[1].shields + ', stripRound=' + g.stripRound + ')');
 })();
 
+/* ============ WHO WAS SAVED, AND BY WHAT (2026-10-20) ============
+   `prevented` said only that SOME loss was stopped, so Aj's log read "Vyers won with a Full House - but the loss was
+   prevented" when it was Aj's own Holy Shroud saving Aj. The result now names each saved seat and the card. Both cards
+   are CAST for real on the Rival's turn, so the flag setters are covered and not just the ladder; the control is a
+   strike with no protection, where `saved` must stay unset. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var EN = function (su, t) { return [1,2,3,4,5,6,7,8,9,10,11,12].map(function (n) { return mk(n, su, t + n); }); };
+  var g = E.newGame(null, { numPlayers: 2, starter: 0 }), P = g.players;
+  var drain = function () { while (g.respondFor != null) E.declineResponse(g, g.respondFor); };
+  var go = function (f) { var r = f(); if (r && r.transition === 'play') { drain(); r = f(); } drain(); return g.resolutionResult || r; };
+  var deal = function (rnd, h0, h1) { g.round = rnd; g.turn = 0; g.initiative = 0; g.pile = null; g.lastPlayer = null; g.passes = 0; g.subPhase = 'main';
+    P[0].hand = h0; P[1].hand = h1; P[0].energy = []; };
+  var castFor1 = function (card, su) { g.turn = 1; g.subPhase = 'main'; P[1].hand.push(card); P[1].energy = EN(su, 'n' + card.id);
+    var r = E.activate(g, 1, card.id, {}); drain(); g.turn = 0; g.subPhase = 'main'; return r; };
+  var strike = function () { go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); }); return go(function () { return E.pass(g, 1); }); };
+  // Holy Shroud (9♥) absorbs the strike
+  deal(4, [mk(9, 'C', 'a9'), mk(9, 'S', 'b9'), mk(4, 'D', 'x4')], [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')]);
+  var hs = castFor1(mk(9, 'H', 'shroud'), 'H'), sh = P[1].shields;
+  var r1 = strike();
+  ok(hs && hs.ok !== false && P[1].shields === sh, 'STAGED: the Rival cast Holy Shroud, and the strike cost it no shield  (' + sh + '→' + P[1].shields + ')');
+  ok(r1 && r1.prevented && JSON.stringify(r1.saved) === JSON.stringify([{ seat: 1, by: 'Holy Shroud' }]),
+     'a prevented loss names WHO was saved and BY WHAT: the Rival, by Holy Shroud  ' + JSON.stringify(r1 && r1.saved));
+  // Leyline Ascension (9♦), cast in the Rival's Main: the ward's own name
+  deal(6, [mk(10, 'C', 'c10'), mk(10, 'S', 'd10'), mk(4, 'D', 'y4')], [mk(3, 'H', 'k3'), mk(5, 'S', 'k5')]);
+  var ly = castFor1(mk(9, 'D', 'ley'), 'D'); sh = P[1].shields;
+  var r2 = strike();
+  ok(ly && ly.ok !== false && P[1].wardBy === null && P[1].shields === sh, 'STAGED: Leyline held the strike, and the clean-up cleared the ward\'s name with the ward');
+  ok(r2 && r2.prevented && JSON.stringify(r2.saved) === JSON.stringify([{ seat: 1, by: 'Leyline Ascension' }]),
+     '…and a ward names its card too: Leyline Ascension  ' + JSON.stringify(r2 && r2.saved));
+  // control: an unprotected strike
+  deal(8, [mk(11, 'C', 'e11'), mk(11, 'S', 'f11'), mk(4, 'D', 'z4')], [mk(3, 'H', 'm3'), mk(5, 'S', 'm5')]);
+  P[1].equipment = []; sh = P[1].shields;
+  var r3 = strike();
+  ok(r3 && r3.shieldStripped && !r3.prevented && r3.saved == null && P[1].shields === sh - 1, 'CONTROL: a strike nothing stops leaves `saved` unset and takes the shield');
+})();
+
+/* ============ BANKED, NOT DISCARDED (2026-10-20) ============
+   Superior Training reads "Put 2 into your Energy Pile", and the log said "You discarded 7♣, Q♥". `resolveDiscard`
+   now says which kind of pick it resolved: the owner's own dig (`discardPending.from`) is `banked`, a discard a
+   Rival forced is not. Same engine path, two meanings — so both halves are asserted. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var g = E.newGame(null, { numPlayers: 2, starter: 0 });
+  g.players[0].hand = [mk(7, 'C', 'b7'), mk(12, 'H', 'bq'), mk(4, 'S', 'b4')];
+  g.discardPending = { player: 0, count: 2, from: ['b7', 'bq'] };
+  var d1 = E.resolveDiscard(g, ['b7', 'bq']);
+  ok(d1.ok && d1.banked === true && d1.discarded.length === 2, 'a dig\'s pick is BANKED — the owner kept looked cards  ' + JSON.stringify({ ok: d1.ok, banked: d1.banked }));
+  g.players[1].hand = [mk(9, 'D', 'f9'), mk(3, 'C', 'f3')];
+  g.discardPending = { player: 1, count: 1 };
+  var d2 = E.resolveDiscard(g, ['f3']);
+  ok(d2.ok && d2.banked === false && d2.player === 1, '…and a discard a Rival forced is NOT  ' + JSON.stringify({ ok: d2.ok, banked: d2.banked }));
+})();
+
 /* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============
    Staged so a default and a choice are DISTINGUISHABLE: the lowest Broadway card (a 10) is the one worth
    keeping and a higher one (an Ace) is spare — "which card left" is the assertion, never "the hand shrank". */

@@ -15,6 +15,42 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.34.4 — the battle log says what happened: who was saved, what you banked, and only this game
+
+Four fixes from Aj's saved log of 2026-10-19, plus one bug found on the way.
+
+**What you'll see in the log:**
+- **A prevented loss names who was saved and by what.** "Vyers won with a Full House - but the loss was prevented"
+  is now "Vyers won with a Full House - but Holy Shroud saved You." The same goes for Leyline Ascension, Sanctuary
+  under Apollo, and Equipment that protects against Specials. Where no card can be named, it says "… - but You lost
+  no shield."
+- **Cards you keep from a dig are banked, not discarded.** After Superior Training, "You discarded 7♣, Q♥ → energy
+  pile" is now "You banked 7♣, Q♥ into energy", which matches the card ("Put 2 into your Energy Pile"). A discard
+  a Rival forces on you still says discarded. The AI's lines and a netplay guest's say the same.
+- **The saved log's ROUND BOUNDARY section covers this game only.** It used to open with the previous game's rounds
+  (23 lines of rounds 1–3 in Aj's file, then round 1 again).
+- **The downloaded ledger's "PROMPT OFF" is now "NO STAKE (AUTO)".** It never meant your OFF setting: in AUTO it means
+  the window wasn't shown because nothing was at stake for you. That name came from the per-card checkboxes
+  retired on 2026-09-30. OFF still reads "NOTIFICATIONS OFF".
+- **Also fixed:** at 3–6 players, a guest's discard was narrated with `logMsg`, which only the host sees, so no other
+  seat, the guest included, ever read it. It's a public line now.
+
+**Why each happened:**
+- **Saved:** the engine recorded only `prevented: true`. Each prevention branch now notes `{seat, by}` in
+  `result.saved`. The flag setters record the card that set them, and the Holy Shroud path returns its name (still
+  truthy for every caller). `ceremonyResFor` rotates the new seats for each guest. The line puts the card as subject
+  and the seat as object, so no verb has to agree with "You". It's narration only: the 720-game seeded fingerprint is
+  byte-identical to v1.34.3.
+- **Banked:** one engine path, `resolveDiscard`, serves both kinds of pick. It now returns `banked` when the pending
+  discard was the owner's own dig (`discardPending.from`), and all five narration sites read it.
+- **The trace:** `E.resetBoundaryTrace` was exported when the trace was written and never called. It now runs beside
+  `PRIO_LOG=[]` in `startGame` and on a guest's `t:'setup'`. The netplay host starts through `startGame` too.
+
+**Tests:** `test.js` 721 (+7): the saved seat and card for a real Holy Shroud and a real Leyline cast, a control where
+`saved` stays unset, and banked versus forced discards. Disabling `noteSaved` reds two of them. `logtest` gains a leg
+that concedes, starts a new game the way a player does, and requires an empty trace, after checking the old game had
+entries. `resolutiontest_ui` reads the renamed label.
+
 ### v1.34.3 — an open window stays the one being answered
 
 **What you'll see:** online, mostly nothing — three ways a press could land on the wrong window are closed. Solo
