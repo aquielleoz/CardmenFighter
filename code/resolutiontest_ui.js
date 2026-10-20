@@ -358,11 +358,11 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
     const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
     ok(done, 'C3 · the round resolved with no modal to answer — nothing forced a prompt');
     const led = await p.evaluate(() => window.__solo.prioLog());
-    const off = led.filter(l => /\[resolution\]/.test(l) && /PROMPT OFF/.test(l) && /Armor Piercing/.test(l))[0];
+    const off = led.filter(l => /\[resolution\]/.test(l) && /NO STAKE \(AUTO\)/.test(l) && /Armor Piercing/.test(l))[0];
     ok(!!off,
        'C3 · …and the ledger records the suppressed prompt AT RESOLUTION by name' +
        (off ? '  [' + off.slice(0, 110) + ']'
-            : '  ← no [resolution] PROMPT OFF line  {' + led.filter(l => /resolution/.test(l)).join(' // ').slice(0, 160) + '}'));
+            : '  ← no [resolution] NO STAKE (AUTO) line  {' + led.filter(l => /resolution/.test(l)).join(' // ').slice(0, 160) + '}'));
     const forced = led.filter(l => /SHIELD AT RISK/.test(l))[0];
     ok(!forced,
        'C3 · …and NOTHING was forced — the override really is gated on the card still mattering' +
@@ -878,7 +878,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        the discriminator below carry "and nothing else wears the label". */
     ok(own.length > 0,
        'H · THE LEDGER NAMES THE RULE, NOT A CHECKBOX — the respond auto-pass reads YOUR OWN CAST' +
-       (own.length ? '  [' + own[0].slice(0, 92) + ']' : '  ← REPRODUCED: filed under "PROMPT OFF"; the reader is sent to a row that cannot explain it'));
+       (own.length ? '  [' + own[0].slice(0, 92) + ']' : '  ← REPRODUCED: filed under "NO STAKE (AUTO)"; the reader is sent to a row that cannot explain it'));
     /* THE DISCRIMINATOR, and the first version of it asked for the wrong thing. It required a BOUNDARY
        auto-pass reading `PROMPT OFF` on this board — but crossing Main -> Fight here OPENS a window and
        shows it (`[respond] window SHOWN to you  offering: Leyline Ascension`), so the line it waited for

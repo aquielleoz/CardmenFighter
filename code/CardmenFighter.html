@@ -2821,13 +2821,13 @@
     if (!hit) return false;
     var owner = st.players[hit.owner], shroud = hit.e;
     shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
-    return true;
+    return shroud.name || true;                                                  // TRUTHY either way; the name feeds the round's "saved" line
   }
   // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
   // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
   function shieldSaved(st, q) {
     var pl = st.players[q];
-    if (pl.shieldImmune) return true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
+    if (pl.shieldImmune) return pl.wardBy || true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
                                                                                  // "Sphere of Invulnerability"; that name outlived the card by a long way.)
     return absorbSaved(st, q);                                                   // Holy Shroud absorber
   }
@@ -4261,14 +4261,14 @@
         /* Apollo (Super): Sanctuary also locks the CASTER's shields for the round. The base card is already
          * symmetric (`shieldAll` — every player gains a shield, a wash on the shield race), so THIS is the only
          * asymmetric protection left once Leyline and Holy Shroud are shared, and WARD_ALL shares it too. */
-        if (eff.shieldImmune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
+        if (eff.shieldImmune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.draw) drawCards(pl, eff.draw);
         spendCard(pl, card); break;
       case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle
         // WARD_ALL shares it with the table — see the note in `reclaim`. THIS is the base card's branch; the
         // reclaim branch is the boosted variant, and both must honour the flag or the study measures nothing.
-        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
-        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
+        if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
+        if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
@@ -4362,8 +4362,8 @@
          * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
          * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
          * buys a private edge. Flag, default off. */
-        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
-        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
+        if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
+        if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
       case 'counterfeit':                                 // Counterfeit: copy a card from the Rival's current play into hand as a temp
         var poolCF = (st.pile && st.pile.byPlayer !== p) ? st.pile.combo.cards : null, srcCF = null;
@@ -4517,7 +4517,7 @@
     }
     var discarded = discardChosen(pl, chosenIds, dp.count);
     st.discardPending = null;
-    return { ok: true, discarded: discarded, player: dp.player };
+    return { ok: true, discarded: discarded, player: dp.player, banked: !!(dp.from && dp.from.length) };   // `banked`: the owner kept looked cards (a dig), not a discard forced on them
   }
 
   // Fight plays resolve immediately. Value modifiers (equipment + pre-fight boosts like Infuse /
@@ -4933,16 +4933,25 @@
   // resolves. resolveRoundWin queues one object per loser, then drives the stack: each object
   // either opens a guard window (target holds an immunity card) or resolves (strips its shields).
   function newOid(st) { st.oidSeq = (st.oidSeq || 0) + 1; return 'o' + st.oidSeq; }
+  /* WHO WAS SAVED, AND BY WHAT (2026-10-20). `prevented` said only that SOME loss was stopped, so the round line read
+     "won with a Full House - but the loss was prevented" when it was Aj's own Holy Shroud saving Aj. Narration only:
+     one entry per seat, and the name is null where no card can be named. */
+  function noteSaved(result, q, by) {
+    var nm = (typeof by === 'string') ? by : null, list = result.saved = result.saved || [];
+    if (!list.some(function (x) { return x.seat === q; })) list.push({ seat: q, by: nm });
+  }
   // Apply one shield-loss object's strips to its target (parity with the old doStrips inner loop).
   function resolveShieldLossObj(st, obj, result) {
     var q = obj.target, opp = st.players[q];
     var wasBroken = opp.shields <= 0;                       // already at 0 coming in = a finishing strike
     for (var s2 = 0; s2 < obj.n && !st.finished; s2++) {
       if (opp.shields > 0) {                                                                            // you still have a shield to protect
-        if (opp.cantLoseRound) { result.prevented = true; (result.spared = result.spared || []).push(q); continue; }   // Leyline: "can't lose this round"
-        if (shieldSaved(st, q)) { result.prevented = true; continue; }                                 // Sphere / Holy Shroud
-        if (opp.equipment.some(function (e) { return e.protect === 'special'; })) { result.prevented = true; continue; }
-        if (opp.preventShield) { opp.preventShield = false; result.prevented = true; continue; }
+        if (opp.cantLoseRound) { result.prevented = true; (result.spared = result.spared || []).push(q); noteSaved(result, q, opp.wardBy); continue; }   // Leyline: "can't lose this round"
+        var sv = shieldSaved(st, q);
+        if (sv) { result.prevented = true; noteSaved(result, q, sv); continue; }                       // Sphere / Holy Shroud
+        var pe = opp.equipment.filter(function (e) { return e.protect === 'special'; })[0];
+        if (pe) { result.prevented = true; noteSaved(result, q, pe.name); continue; }
+        if (opp.preventShield) { opp.preventShield = false; result.prevented = true; noteSaved(result, q, null); continue; }
         opp.shields -= 1; result.shieldStripped = true; opp.lastAttacker = obj.winner;                  // take a shield (+ grudge the striker)
         (result.struck = result.struck || []).push(q);   // WHO lost it — the UI could only say "a rival" without this
         if (SHIELD_CARDS && opp.shieldPile && opp.shieldPile.length) {                                  // Mechanic 1: the broken shield's card returns to its owner's hand
@@ -4951,7 +4960,8 @@
         }
       }
       else if (wasBroken && !obj.noKick) {                                                             // struck while already at 0 = the Fighter Kick
-        if (opp.cantLoseRound || absorbSaved(st, q)) { result.prevented = true; break; }               // "can't lose this round" (Leyline) or a Holy Shroud counter absorbs the killing blow; plain shield-immunity (Sphere) can't save a shield you don't have
+        var kv = opp.cantLoseRound ? (opp.wardBy || true) : absorbSaved(st, q);   // same order as before: the shroud is spent only when no ward holds
+        if (kv) { result.prevented = true; noteSaved(result, q, kv); break; }               // "can't lose this round" (Leyline) or a Holy Shroud counter absorbs the killing blow; plain shield-immunity (Sphere) can't save a shield you don't have
         st.players[obj.winner].kicksLanded = (st.players[obj.winner].kicksLanded || 0) + 1;            // hidden per-player stat (seeds the future Assassin)
         result.kick = true; (result.eliminated = result.eliminated || []).push(q);
         if (st.numPlayers === 2) { st.finished = true; st.winner = obj.winner; }                       // duel: the kick ends it (unchanged)
@@ -5206,8 +5216,8 @@
   var WARD_ALL = false;
   function setWardAll(v) { WARD_ALL = !!v; }
   function isWardAll() { return WARD_ALL; }
-  function wardTable(st, field) {                        // share a shield ward with every living player
-    for (var w = 0; w < st.numPlayers; w++) if (!st.players[w].eliminated) st.players[w][field] = true;
+  function wardTable(st, field, by) {                    // share a shield ward with every living player (`by`: the card, for the round's "saved" line)
+    for (var w = 0; w < st.numPlayers; w++) if (!st.players[w].eliminated) { st.players[w][field] = true; st.players[w].wardBy = by || st.players[w].wardBy || null; }
   }
   function hostileTargets(st, p, oppIdx, which, eff) {
     // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
@@ -5521,7 +5531,7 @@
       } else { st.initiative = winner; st.turn = winner; }
     },
     pileClear: function (st) { st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false; },
-    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = 0; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
+    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.wardBy = null; pl.finishingBlow = 0; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
     /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
        immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
        is what `pushUpkeepTicks` does once the round reset is complete. */
@@ -6896,7 +6906,7 @@
     }
     if (st.discardPending) {                                 // a forced discard from a prior suspended action
       if (isHuman(humans, st.discardPending.player)) return log;   // still needs the human to choose
-      var dr0 = E.resolveDiscard(st); if (dr0.ok && dr0.discarded.length) log.push({ forcedDiscard: dr0.discarded.length, who: dr0.player });
+      var dr0 = E.resolveDiscard(st); if (dr0.ok && dr0.discarded.length) log.push({ forcedDiscard: dr0.discarded.length, who: dr0.player, banked: !!dr0.banked });
     }
     if (E.isLocked(st, p)) {                                  // Back Stab: can't play or activate — pass/skip
       var lr = E.pass(st, p);
@@ -7549,7 +7559,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.34.3';
+  var GAME_VERSION='v1.34.4';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9975,7 +9985,7 @@ window.CardFace = {};
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
     if(tutorialMode) ngOpts.shields=tutShields;   // shorter HP so a guided lesson can reach the Fighter Kick
-    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; pick=null; targeting=null; targetPick=null; busy=false; resetHandPresentation(); drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
+    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; if(E.resetBoundaryTrace) E.resetBoundaryTrace(); pick=null;   /* the ROUND BOUNDARY trace is per-game too: exported since it was written and never called, so a saved log carried the previous game's rounds (2026-10-20) */ targeting=null; targetPick=null; busy=false; resetHandPresentation(); drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
@@ -11735,8 +11745,10 @@ window.CardFace = {};
       var r=E.resolveDiscard(state, ids);
       if(!r.ok){ setMessage(r.reason); return; }
       pick=null; selected={};
-      say(YOU, '{who} discarded '+discSyms.join(', ')+' → energy pile.', 'you');
-      setMessage('Discarded '+ids.length+' card'+(ids.length>1?'s':'')+'.');
+      /* BANKED, NOT DISCARDED, WHEN THE CARDS ARE YOUR OWN DIG (2026-10-20): Superior Training reads "Put 2 into your Energy
+         Pile", and "You discarded 7♣, Q♥" read as losing them. `r.banked` is the engine's own answer (`discardPending.from`). */
+      say(YOU, r.banked ? ('{who} banked '+discSyms.join(', ')+' into energy.') : ('{who} discarded '+discSyms.join(', ')+' → energy pile.'), 'you');
+      setMessage((r.banked?'Banked ':'Discarded ')+ids.length+' card'+(ids.length>1?'s':'')+(r.banked?' into energy.':'.'));
       render();
       if(state.finished) return endGame();
       if(rg!=null) return resumeRival(rg);   // Rival-forced discard mid-turn — resume the AI
@@ -11949,7 +11961,7 @@ window.CardFace = {};
        Telekinesis "aimed at Rozalin", then "Rival discarded 2 cards."). A 2026-09-30 fix to the AI's twin of this
        line closed the entry by mistake, so this one stayed. `d.player` is the engine's own answer. */
     var d=E.resolveDiscard(state);   // an AI seat is the one discarding — auto-pick (avoids breaking its Specials)
-    if(d.ok) say(d.player, '{who} discarded '+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+'.', 'rival');
+    if(d.ok) say(d.player, '{who} '+(d.banked?'banked ':'discarded ')+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+(d.banked?' into energy.':'.'), 'rival');
     return false;
   }
   /* STAGE ONLY — the removeEquip twin of `chooseTargetSeat`. Tapping an Equipment / Ride / Form target used
@@ -12369,8 +12381,22 @@ window.CardFace = {};
       sayOnce(w, '💥 {who} landed the FIGHTER KICK — it took {foe} out!', cls, kickedSeats);
     }
     else if(res.prevented && !res.shieldStripped){
-      setMessage('🛡 The loss was prevented!');
-      sayOnce(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+      /* NAME WHO WAS SAVED, AND BY WHAT (2026-10-20). It read "won with a Full House - but the loss was prevented" when it
+         was Aj's own Holy Shroud saving Aj. `res.saved` is the engine's record (seats, rotated for a guest by
+         `ceremonyResFor`). The CARD is the subject and the seat the object, so no verb has to agree with {foe}: the
+         copula rule. One card for every saved seat names it; otherwise the seats alone. */
+      var sv=res.saved||[], svSeats=sv.map(function(x){ return x.seat; }),
+          svBy=(sv.length && sv.every(function(x){ return x.by && x.by===sv[0].by; })) ? sv[0].by : null;
+      if(svSeats.length && svBy){
+        setMessage('🛡 <b>'+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
+        sayOnce(w, '{who} won with a '+spec+' - but '+esc(svBy)+' saved {foe}.', cls, svSeats);
+      } else if(svSeats.length){
+        setMessage('🛡 <b>'+svSeats.map(logName).join(' & ')+'</b> lost no shield!');
+        sayOnce(w, '{who} won with a '+spec+' - but {foe} lost no shield.', cls, svSeats);
+      } else {
+        setMessage('🛡 The loss was prevented!');
+        sayOnce(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+      }
     }
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
@@ -13067,7 +13093,7 @@ window.CardFace = {};
            that game and not one line says who was hit, so "I was targeted and nothing happened" and
            "someone else was targeted" are the same text — which is the shape this repo's own rule calls
            a diagnostic that cannot explain itself. */
-        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say((e.who!=null?e.who:seat), '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
+        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say((e.who!=null?e.who:seat), '{who} '+(e.banked?'banked ':'discarded ')+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+(e.banked?' into energy.':'.'), 'rival'); } }); }
         else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
         else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} ran out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
         /* AN AI'S ANSWER INSIDE THIS TURN (ai-answer-in-ai-turn-unnarrated). `ai.js` drained a window that opened
@@ -13649,7 +13675,10 @@ window.CardFace = {};
        not established — except this one CAN establish it, from the same condition `promptWanted` used. */
     else if(eligible.length && ownCast) prioNote('['+tName+'] auto-passed for you — YOUR OWN CAST' + onWhat,
       'AUTO never interrupts you to answer yourself; you could still have cast: ' + feNames(eligible) + '  (notifications → ON)');
-    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'PROMPT OFF') + onWhat,
+    /* ⚠ `NO STAKE (AUTO)` WAS `PROMPT OFF` UNTIL 2026-10-20. That name came from the per-card checkboxes retired on
+       2026-09-30, and Aj read a ledger full of it as his OFF setting when he was on AUTO. In AUTO this branch means one
+       thing: the window was not shown because nothing was at stake for you. */
+    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'NO STAKE (AUTO)') + onWhat,
       'you could have cast: ' + feNames(eligible) +
       (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (notifications → ON)'));
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
@@ -17397,7 +17426,7 @@ window.CardFace = {};
           /* AND THE LEDGER IS PER-GAME. `PRIO_LOG` is cleared in `startGame` and nowhere else — `stashLog`
              clears `fullLog` at the lobby return and leaves this — so on a client it accumulated across
              every game of the session while the host's reset cleanly. Fourth member of the same family. */
-          PRIO_LOG=[];
+          PRIO_LOG=[]; if(E.resetBoundaryTrace) E.resetBoundaryTrace();   // …and the ROUND BOUNDARY trace with it: the same per-game family, on the seat that never runs `startGame`
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
             var nn=m.names.length, loc=[];
             for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
@@ -17960,7 +17989,7 @@ window.CardFace = {};
         if(!netDiscard && !trimWin){ trace('discard IGNORED', 'no open discard window (netDiscard null, netReact='+(netReact?netReact.kind:'null')+')'); return; }
         try{ var d=E.resolveDiscard(hostState, (it.ids||[])); if(d && d.ok===false){ send({t:'err', reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } }
         catch(e){ send({t:'err', reason:'Discard rejected.'}); broadcastMirror(); return; }
-        say(1, '{who} discarded '+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+'.', 'rival');
+        say(1, '{who} '+(d&&d.banked?'banked ':'discarded ')+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+(d&&d.banked?' into energy.':'.'), 'rival');
         if(netDiscard){ var nd=netDiscard; netDiscard=null; return hostRivalWindows(nd.g, nd.cont); }
         var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
@@ -18182,6 +18211,7 @@ window.CardFace = {};
          this is the v1.29.6 lesson — never infer the loser, read `result.struck` — as a redaction gap. */
       if(res.struck) o.struck=res.struck.map(rot);
       if(res.spared) o.spared=res.spared.map(rot);
+      if(res.saved) o.saved=res.saved.map(function(x){ return { seat:rot(x.seat), by:x.by }; });   // who a prevented loss saved, and by what
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }
@@ -18362,7 +18392,7 @@ window.CardFace = {};
              first one silently fixes a v1.31.58-class bug: it narrated with `logMsg`, which is HOST-LOCAL,
              so a remote seat springing a guard was never seen by anyone else — while the sibling `respond`
              arm ten lines above correctly uses `say()`. The replacement is that `respond` arm. */
-          else if(it.op==='discard'){ if(netReact.kind!=='discard'){ trace('react KIND MISMATCH', 'op=discard but the open window is '+netReact.kind); return; } var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> discarded '+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+'.', 'rival'); }
+          else if(it.op==='discard'){ if(netReact.kind!=='discard'){ trace('react KIND MISMATCH', 'op=discard but the open window is '+netReact.kind); return; } var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } say(seat, '{who} '+(d&&d.banked?'banked ':'discarded ')+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+(d&&d.banked?' into energy.':'.'), 'rival'); }   // `say`, NOT `logMsg`: it was host-local, so no other seat (the discarder included) ever read it
         }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Rejected.'}); broadcastMirror(); return; }
         var nr=netReact; netReact=null; return nr.resume();
       }

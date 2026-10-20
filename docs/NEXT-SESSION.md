@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**720**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**727**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.34.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.34.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.34.3**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.34.4**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -582,6 +582,11 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   previous game and caches null for good (nothing re-runs the prep). Check the order of `TUT.start` against the
   lesson's `startGame`, and whether `tutFormId` (never reset) should be re-derived at step 2 instead of cached at
   step 1. 6/6 green solo straight after.
+  **AND TWICE MORE ON 2026-10-20, BOTH INSIDE `lessontest_phonepass` (the lesson at 390x844), in 2 of #447's 3 sweeps,
+  while the 4 sweeps of other branches that day were green.** 12 runs of the lesson at 390x844, four at a time, were
+  12/12, so it still needs a full sweep's load. Neither red could say which half: the wrapper kept only `✗` and
+  timeouts and indented them, so the step print never reached the sweep log. **It passes every evidence line through
+  now (behind `←`)**, so the next sweep failure prints the `WHY:` line this entry has been waiting for.
   `[id: lessontest-forms-poll]`
 
 - `parked`              · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`

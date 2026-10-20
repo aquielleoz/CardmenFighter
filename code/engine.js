@@ -685,13 +685,13 @@
     if (!hit) return false;
     var owner = st.players[hit.owner], shroud = hit.e;
     shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
-    return true;
+    return shroud.name || true;                                                  // TRUTHY either way; the name feeds the round's "saved" line
   }
   // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
   // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
   function shieldSaved(st, q) {
     var pl = st.players[q];
-    if (pl.shieldImmune) return true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
+    if (pl.shieldImmune) return pl.wardBy || true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
                                                                                  // "Sphere of Invulnerability"; that name outlived the card by a long way.)
     return absorbSaved(st, q);                                                   // Holy Shroud absorber
   }
@@ -2125,14 +2125,14 @@
         /* Apollo (Super): Sanctuary also locks the CASTER's shields for the round. The base card is already
          * symmetric (`shieldAll` — every player gains a shield, a wash on the shield race), so THIS is the only
          * asymmetric protection left once Leyline and Holy Shroud are shared, and WARD_ALL shares it too. */
-        if (eff.shieldImmune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
+        if (eff.shieldImmune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.draw) drawCards(pl, eff.draw);
         spendCard(pl, card); break;
       case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle
         // WARD_ALL shares it with the table — see the note in `reclaim`. THIS is the base card's branch; the
         // reclaim branch is the boosted variant, and both must honour the flag or the study measures nothing.
-        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
-        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
+        if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
+        if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
@@ -2226,8 +2226,8 @@
          * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
          * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
          * buys a private edge. Flag, default off. */
-        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
-        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
+        if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
+        if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
       case 'counterfeit':                                 // Counterfeit: copy a card from the Rival's current play into hand as a temp
         var poolCF = (st.pile && st.pile.byPlayer !== p) ? st.pile.combo.cards : null, srcCF = null;
@@ -2381,7 +2381,7 @@
     }
     var discarded = discardChosen(pl, chosenIds, dp.count);
     st.discardPending = null;
-    return { ok: true, discarded: discarded, player: dp.player };
+    return { ok: true, discarded: discarded, player: dp.player, banked: !!(dp.from && dp.from.length) };   // `banked`: the owner kept looked cards (a dig), not a discard forced on them
   }
 
   // Fight plays resolve immediately. Value modifiers (equipment + pre-fight boosts like Infuse /
@@ -2797,16 +2797,25 @@
   // resolves. resolveRoundWin queues one object per loser, then drives the stack: each object
   // either opens a guard window (target holds an immunity card) or resolves (strips its shields).
   function newOid(st) { st.oidSeq = (st.oidSeq || 0) + 1; return 'o' + st.oidSeq; }
+  /* WHO WAS SAVED, AND BY WHAT (2026-10-20). `prevented` said only that SOME loss was stopped, so the round line read
+     "won with a Full House - but the loss was prevented" when it was Aj's own Holy Shroud saving Aj. Narration only:
+     one entry per seat, and the name is null where no card can be named. */
+  function noteSaved(result, q, by) {
+    var nm = (typeof by === 'string') ? by : null, list = result.saved = result.saved || [];
+    if (!list.some(function (x) { return x.seat === q; })) list.push({ seat: q, by: nm });
+  }
   // Apply one shield-loss object's strips to its target (parity with the old doStrips inner loop).
   function resolveShieldLossObj(st, obj, result) {
     var q = obj.target, opp = st.players[q];
     var wasBroken = opp.shields <= 0;                       // already at 0 coming in = a finishing strike
     for (var s2 = 0; s2 < obj.n && !st.finished; s2++) {
       if (opp.shields > 0) {                                                                            // you still have a shield to protect
-        if (opp.cantLoseRound) { result.prevented = true; (result.spared = result.spared || []).push(q); continue; }   // Leyline: "can't lose this round"
-        if (shieldSaved(st, q)) { result.prevented = true; continue; }                                 // Sphere / Holy Shroud
-        if (opp.equipment.some(function (e) { return e.protect === 'special'; })) { result.prevented = true; continue; }
-        if (opp.preventShield) { opp.preventShield = false; result.prevented = true; continue; }
+        if (opp.cantLoseRound) { result.prevented = true; (result.spared = result.spared || []).push(q); noteSaved(result, q, opp.wardBy); continue; }   // Leyline: "can't lose this round"
+        var sv = shieldSaved(st, q);
+        if (sv) { result.prevented = true; noteSaved(result, q, sv); continue; }                       // Sphere / Holy Shroud
+        var pe = opp.equipment.filter(function (e) { return e.protect === 'special'; })[0];
+        if (pe) { result.prevented = true; noteSaved(result, q, pe.name); continue; }
+        if (opp.preventShield) { opp.preventShield = false; result.prevented = true; noteSaved(result, q, null); continue; }
         opp.shields -= 1; result.shieldStripped = true; opp.lastAttacker = obj.winner;                  // take a shield (+ grudge the striker)
         (result.struck = result.struck || []).push(q);   // WHO lost it — the UI could only say "a rival" without this
         if (SHIELD_CARDS && opp.shieldPile && opp.shieldPile.length) {                                  // Mechanic 1: the broken shield's card returns to its owner's hand
@@ -2815,7 +2824,8 @@
         }
       }
       else if (wasBroken && !obj.noKick) {                                                             // struck while already at 0 = the Fighter Kick
-        if (opp.cantLoseRound || absorbSaved(st, q)) { result.prevented = true; break; }               // "can't lose this round" (Leyline) or a Holy Shroud counter absorbs the killing blow; plain shield-immunity (Sphere) can't save a shield you don't have
+        var kv = opp.cantLoseRound ? (opp.wardBy || true) : absorbSaved(st, q);   // same order as before: the shroud is spent only when no ward holds
+        if (kv) { result.prevented = true; noteSaved(result, q, kv); break; }               // "can't lose this round" (Leyline) or a Holy Shroud counter absorbs the killing blow; plain shield-immunity (Sphere) can't save a shield you don't have
         st.players[obj.winner].kicksLanded = (st.players[obj.winner].kicksLanded || 0) + 1;            // hidden per-player stat (seeds the future Assassin)
         result.kick = true; (result.eliminated = result.eliminated || []).push(q);
         if (st.numPlayers === 2) { st.finished = true; st.winner = obj.winner; }                       // duel: the kick ends it (unchanged)
@@ -3070,8 +3080,8 @@
   var WARD_ALL = false;
   function setWardAll(v) { WARD_ALL = !!v; }
   function isWardAll() { return WARD_ALL; }
-  function wardTable(st, field) {                        // share a shield ward with every living player
-    for (var w = 0; w < st.numPlayers; w++) if (!st.players[w].eliminated) st.players[w][field] = true;
+  function wardTable(st, field, by) {                    // share a shield ward with every living player (`by`: the card, for the round's "saved" line)
+    for (var w = 0; w < st.numPlayers; w++) if (!st.players[w].eliminated) { st.players[w][field] = true; st.players[w].wardBy = by || st.players[w].wardBy || null; }
   }
   function hostileTargets(st, p, oppIdx, which, eff) {
     // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
@@ -3385,7 +3395,7 @@
       } else { st.initiative = winner; st.turn = winner; }
     },
     pileClear: function (st) { st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false; },
-    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = 0; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
+    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.wardBy = null; pl.finishingBlow = 0; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
     /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
        immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
        is what `pushUpkeepTicks` does once the round reset is complete. */

@@ -4583,7 +4583,7 @@ __QR__
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
     if(tutorialMode) ngOpts.shields=tutShields;   // shorter HP so a guided lesson can reach the Fighter Kick
-    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; pick=null; targeting=null; targetPick=null; busy=false; resetHandPresentation(); drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
+    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; if(E.resetBoundaryTrace) E.resetBoundaryTrace(); pick=null;   /* the ROUND BOUNDARY trace is per-game too: exported since it was written and never called, so a saved log carried the previous game's rounds (2026-10-20) */ targeting=null; targetPick=null; busy=false; resetHandPresentation(); drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
@@ -6343,8 +6343,10 @@ __QR__
       var r=E.resolveDiscard(state, ids);
       if(!r.ok){ setMessage(r.reason); return; }
       pick=null; selected={};
-      say(YOU, '{who} discarded '+discSyms.join(', ')+' → energy pile.', 'you');
-      setMessage('Discarded '+ids.length+' card'+(ids.length>1?'s':'')+'.');
+      /* BANKED, NOT DISCARDED, WHEN THE CARDS ARE YOUR OWN DIG (2026-10-20): Superior Training reads "Put 2 into your Energy
+         Pile", and "You discarded 7♣, Q♥" read as losing them. `r.banked` is the engine's own answer (`discardPending.from`). */
+      say(YOU, r.banked ? ('{who} banked '+discSyms.join(', ')+' into energy.') : ('{who} discarded '+discSyms.join(', ')+' → energy pile.'), 'you');
+      setMessage((r.banked?'Banked ':'Discarded ')+ids.length+' card'+(ids.length>1?'s':'')+(r.banked?' into energy.':'.'));
       render();
       if(state.finished) return endGame();
       if(rg!=null) return resumeRival(rg);   // Rival-forced discard mid-turn — resume the AI
@@ -6557,7 +6559,7 @@ __QR__
        Telekinesis "aimed at Rozalin", then "Rival discarded 2 cards."). A 2026-09-30 fix to the AI's twin of this
        line closed the entry by mistake, so this one stayed. `d.player` is the engine's own answer. */
     var d=E.resolveDiscard(state);   // an AI seat is the one discarding — auto-pick (avoids breaking its Specials)
-    if(d.ok) say(d.player, '{who} discarded '+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+'.', 'rival');
+    if(d.ok) say(d.player, '{who} '+(d.banked?'banked ':'discarded ')+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+(d.banked?' into energy.':'.'), 'rival');
     return false;
   }
   /* STAGE ONLY — the removeEquip twin of `chooseTargetSeat`. Tapping an Equipment / Ride / Form target used
@@ -6977,8 +6979,22 @@ __QR__
       sayOnce(w, '💥 {who} landed the FIGHTER KICK — it took {foe} out!', cls, kickedSeats);
     }
     else if(res.prevented && !res.shieldStripped){
-      setMessage('🛡 The loss was prevented!');
-      sayOnce(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+      /* NAME WHO WAS SAVED, AND BY WHAT (2026-10-20). It read "won with a Full House - but the loss was prevented" when it
+         was Aj's own Holy Shroud saving Aj. `res.saved` is the engine's record (seats, rotated for a guest by
+         `ceremonyResFor`). The CARD is the subject and the seat the object, so no verb has to agree with {foe}: the
+         copula rule. One card for every saved seat names it; otherwise the seats alone. */
+      var sv=res.saved||[], svSeats=sv.map(function(x){ return x.seat; }),
+          svBy=(sv.length && sv.every(function(x){ return x.by && x.by===sv[0].by; })) ? sv[0].by : null;
+      if(svSeats.length && svBy){
+        setMessage('🛡 <b>'+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
+        sayOnce(w, '{who} won with a '+spec+' - but '+esc(svBy)+' saved {foe}.', cls, svSeats);
+      } else if(svSeats.length){
+        setMessage('🛡 <b>'+svSeats.map(logName).join(' & ')+'</b> lost no shield!');
+        sayOnce(w, '{who} won with a '+spec+' - but {foe} lost no shield.', cls, svSeats);
+      } else {
+        setMessage('🛡 The loss was prevented!');
+        sayOnce(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+      }
     }
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
@@ -7675,7 +7691,7 @@ __QR__
            that game and not one line says who was hit, so "I was targeted and nothing happened" and
            "someone else was targeted" are the same text — which is the shape this repo's own rule calls
            a diagnostic that cannot explain itself. */
-        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say((e.who!=null?e.who:seat), '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
+        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say((e.who!=null?e.who:seat), '{who} '+(e.banked?'banked ':'discarded ')+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+(e.banked?' into energy.':'.'), 'rival'); } }); }
         else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
         else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} ran out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
         /* AN AI'S ANSWER INSIDE THIS TURN (ai-answer-in-ai-turn-unnarrated). `ai.js` drained a window that opened
@@ -8257,7 +8273,10 @@ __QR__
        not established — except this one CAN establish it, from the same condition `promptWanted` used. */
     else if(eligible.length && ownCast) prioNote('['+tName+'] auto-passed for you — YOUR OWN CAST' + onWhat,
       'AUTO never interrupts you to answer yourself; you could still have cast: ' + feNames(eligible) + '  (notifications → ON)');
-    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'PROMPT OFF') + onWhat,
+    /* ⚠ `NO STAKE (AUTO)` WAS `PROMPT OFF` UNTIL 2026-10-20. That name came from the per-card checkboxes retired on
+       2026-09-30, and Aj read a ledger full of it as his OFF setting when he was on AUTO. In AUTO this branch means one
+       thing: the window was not shown because nothing was at stake for you. */
+    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'NO STAKE (AUTO)') + onWhat,
       'you could have cast: ' + feNames(eligible) +
       (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (notifications → ON)'));
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
@@ -12005,7 +12024,7 @@ __QR__
           /* AND THE LEDGER IS PER-GAME. `PRIO_LOG` is cleared in `startGame` and nowhere else — `stashLog`
              clears `fullLog` at the lobby return and leaves this — so on a client it accumulated across
              every game of the session while the host's reset cleanly. Fourth member of the same family. */
-          PRIO_LOG=[];
+          PRIO_LOG=[]; if(E.resetBoundaryTrace) E.resetBoundaryTrace();   // …and the ROUND BOUNDARY trace with it: the same per-game family, on the seat that never runs `startGame`
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
             var nn=m.names.length, loc=[];
             for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
@@ -12568,7 +12587,7 @@ __QR__
         if(!netDiscard && !trimWin){ trace('discard IGNORED', 'no open discard window (netDiscard null, netReact='+(netReact?netReact.kind:'null')+')'); return; }
         try{ var d=E.resolveDiscard(hostState, (it.ids||[])); if(d && d.ok===false){ send({t:'err', reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } }
         catch(e){ send({t:'err', reason:'Discard rejected.'}); broadcastMirror(); return; }
-        say(1, '{who} discarded '+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+'.', 'rival');
+        say(1, '{who} '+(d&&d.banked?'banked ':'discarded ')+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+(d&&d.banked?' into energy.':'.'), 'rival');
         if(netDiscard){ var nd=netDiscard; netDiscard=null; return hostRivalWindows(nd.g, nd.cont); }
         var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
@@ -12790,6 +12809,7 @@ __QR__
          this is the v1.29.6 lesson — never infer the loser, read `result.struck` — as a redaction gap. */
       if(res.struck) o.struck=res.struck.map(rot);
       if(res.spared) o.spared=res.spared.map(rot);
+      if(res.saved) o.saved=res.saved.map(function(x){ return { seat:rot(x.seat), by:x.by }; });   // who a prevented loss saved, and by what
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }
@@ -12970,7 +12990,7 @@ __QR__
              first one silently fixes a v1.31.58-class bug: it narrated with `logMsg`, which is HOST-LOCAL,
              so a remote seat springing a guard was never seen by anyone else — while the sibling `respond`
              arm ten lines above correctly uses `say()`. The replacement is that `respond` arm. */
-          else if(it.op==='discard'){ if(netReact.kind!=='discard'){ trace('react KIND MISMATCH', 'op=discard but the open window is '+netReact.kind); return; } var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> discarded '+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+'.', 'rival'); }
+          else if(it.op==='discard'){ if(netReact.kind!=='discard'){ trace('react KIND MISMATCH', 'op=discard but the open window is '+netReact.kind); return; } var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } say(seat, '{who} '+(d&&d.banked?'banked ':'discarded ')+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+(d&&d.banked?' into energy.':'.'), 'rival'); }   // `say`, NOT `logMsg`: it was host-local, so no other seat (the discarder included) ever read it
         }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Rejected.'}); broadcastMirror(); return; }
         var nr=netReact; netReact=null; return nr.resume();
       }

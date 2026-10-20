@@ -157,6 +157,20 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      `  → …with real rows, not an empty heading ["${bline.slice(0,72)}"]`);
   ok(/CLEANUP exit/.test(saved2||'') && /BEGIN exit/.test(saved2||''),
      '  → …and the boundary in it is COMPLETE — both queues reach their exit line, which is what makes a SHORT block the finding');
+  /* AND THE TRACE IS PER-GAME (2026-10-20). `E.resetBoundaryTrace` was exported when the trace was written and never
+     called, so Aj's saved log opened its ROUND BOUNDARY section with 23 lines of the PREVIOUS game's rounds 1-3 and then
+     round 1 again. Start a fresh game the way a player does — concede, Again, Go first — and the trace must be empty.
+     The vacuity guard comes first: it has to hold entries before, or "empty after" proves nothing. */
+  const before = await p.evaluate(()=>window.CardmenEngine.boundaryTrace().length);
+  ok(before > 0, `  STAGED: this game's trace holds ${before} boundary lines before a new game starts`);
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  await p.evaluate(()=>{ const c=document.getElementById('confirmCon'); if(c) c.click(); }); await wait(600);
+  await p.evaluate(()=>{ const a=document.getElementById('againBtn'); if(a) a.click(); }); await wait(400);
+  await p.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g) g.click(); }); await wait(1100);
+  const fresh = await p.evaluate(()=>({ round: window.__solo.st().round, finished: window.__solo.st().finished, trace: window.CardmenEngine.boundaryTrace() }));
+  ok(fresh.round === 1 && !fresh.finished && fresh.trace.length === 0,
+     '  → a NEW GAME starts with an empty boundary trace, so the saved log cannot carry the last game\'s rounds  ' +
+     (fresh.trace.length ? '← still holds ' + fresh.trace.length + ': ' + JSON.stringify(fresh.trace.slice(0, 2)) : '(round ' + fresh.round + ')'));
 
   /* ---- THE PLAYTEST RECORD KEEPS THE WHOLE LOG, NOT THE RENDERED 80 (2026-09-24) ----
      `logMsg` trims the PANEL to 80 entries, which is right — it is a view. The game record was built from
