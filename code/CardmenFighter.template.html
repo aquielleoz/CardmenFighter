@@ -5867,6 +5867,7 @@ __QR__
   }
   function playCards(cards){
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
+    if(ceremonyBlocks()) return;   // the funnel every play reaches, the drag release included: see `ceremonyBlocks`
     /* ⚠ CAPTURE BEFORE THE CLIENT RETURNS, OR YOUR OWN PLAY NEVER FLIES (Aj, 2026-09-16: *"i expected the
        cards to fly into the play area"*). `animatePileEntrance` does a true FLIP from the card's own slot
        in your hand when `flipFrom` holds its rect, and otherwise slides a card in from a seat's side. The
@@ -6107,6 +6108,11 @@ __QR__
       /* …AND SAYS WHO, when the wait is somebody else's window (piece 9): on a guest's own turn its crossing can hand
          priority to another seat, and the board is locked for that, not for an animation. */
       hint.textContent=(state.respondFor!=null && state.respondFor!==YOU) ? (seatName(state.respondFor)+' is deciding…') : 'Hold on — the board is still resolving.'; hint.className='';
+      return;
+    }
+    if(ceremonyBlocks()){                                      // the round is ending: see `ceremonyBlocks`
+      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
+      hint.textContent='The round is over — the next one is about to begin.'; hint.className='';
       return;
     }
     if(castHolding()){                                         // ruling 20: a cast's art flash holds the game; `startCastHold` re-renders when it ends
@@ -6413,7 +6419,7 @@ __QR__
   }
   function activate(cardId, _opts){
     if(answerRecordLive()) return answerCast(cardId, _opts);   // the window is yours: a cast now is an ANSWER, never Main's activation (step 4, piece 5)
-    if(state.turn!==YOU||state.finished||busy||castHolding()||pick||targeting||targetPick) return;
+    if(state.turn!==YOU||state.finished||busy||castHolding()||pick||targeting||targetPick||ceremonyBlocks()) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     var card=cardById(cardId); var eff=card?E.effectOf(card):null;
     if(!card||!eff||!eff.impl) return;
@@ -6621,7 +6627,7 @@ __QR__
      CLIENT's pass goes through `E.pass`, which refuses with `transition:'play'` and is re-applied under a
      brake. The hole is the LOCAL funnel that reaches past the engine, so this is where it closes. */
   function doFight(){
-    if(peeking||busy||castHolding()||pick||targeting||targetPick) return;
+    if(peeking||busy||castHolding()||pick||targeting||targetPick||ceremonyBlocks()) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     /* AN EMPTY PRESS IS NOT A MOVE (drag-and-stack step 1). It used to be `Next`, the phase move out of Main,
        and a client sent `toFight` for it. The button is disabled with nothing chosen now, so a call that gets
@@ -6683,7 +6689,7 @@ __QR__
        Main → Fight crossing onto it (measured, DRAG-AND-STACK-STEP4.md). Above `busy`, because `busy` is set in most
        windows you are asked to answer. */
     if(answerLive()){ if(answerPickerOpen()) return; var a=answering; prioNote('  → you passed from the board'); return humanDeclines(a.g, a.cont); }   // a pick for the answer holds the board: Clear backs out of it first
-    if(peeking||busy||castHolding()||pick||targeting||targetPick) return;
+    if(peeking||busy||castHolding()||pick||targeting||targetPick||ceremonyBlocks()) return;   // below the answering branch: Pass still declines a window the ceremony parks on you
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
@@ -6858,7 +6864,7 @@ __QR__
     return -1;
   }
   function doPhantasm(e){
-    if(answerRecordLive() || busy||castHolding()||pick||targeting||targetPick) return;   // nor Phantasmal Illusion
+    if(answerRecordLive() || busy||castHolding()||pick||targeting||targetPick||ceremonyBlocks()) return;   // nor Phantasmal Illusion
     var info=phantInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
     pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId, bare:!!info.bare };   // the swap is OPTIONAL
@@ -7979,6 +7985,18 @@ __QR__
   }
   // a picker opened FOR this answer (Back Stab's seat, Annoint's Equipment, the Broadway pitch) belongs to the answer
   function answerPickerOpen(){ return !!((pick && pick.answer) || (targeting && targeting.answer) || (targetPick && targetPick.answer)); }
+  /* THE ROUND CEREMONY HOLDS YOUR BOARD (2026-10-20) — the cause of `round-ceremony-reruns-with-stale-res`. In a duel, a
+     round ended by the Rival's pass is resolved in `finishStep`, and `drainResolution` clears `busy` before the ceremony
+     ("what follows is the ceremony and it manages `busy` itself" — it never did). The ceremony is not instant when a
+     window parks inside it: every Resolution / Clean-up / Upkeep window you could cast into opens on you and AUTO passes
+     it, and each of those waits hands the event loop a turn. A Fight there landed in the NEXT round before its cards
+     were dealt; the ceremony then drew and announced over it ("Round 8 begins" after round 8's first jab), every later
+     round ran one ceremony out of step, and a Clean-up window ended up parked on you with nothing to prompt it — the
+     board refusing every move. Found by `browsertest`'s stall watchdog; `ceremonylocktest` stages it on demand.
+     The netplay host already refused a GUEST's move mid-ceremony (`CEREMONY_REFUSE`); this is the same refusal for
+     your own. NOT `busy`, on purpose: the ceremony hosts two things you must still be able to do — your end-of-round
+     pick (`pick`) and answering a window it parks on you (`answering`) — and both are exempt here by name. */
+  function ceremonyBlocks(){ return !!(inCeremony && state && !state.finished && !pick && !answerRecordLive()); }
   function answerLive(){
     var ov=$('overlay');
     return !!(answerRecordLive() && !castHolding() && !peeking && !state.discardPending &&
@@ -13831,7 +13849,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, ceremonyBlocks:function(){ return ceremonyBlocks(); }, /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
        CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
        very end, so every "wait until the board stops moving" check returns early and stages onto a
        board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
@@ -13878,7 +13896,7 @@ __QR__
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, ceremonyBlocks:function(){ return ceremonyBlocks(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
