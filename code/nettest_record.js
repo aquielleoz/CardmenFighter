@@ -67,7 +67,7 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
     const c=document.querySelector('#hand .card[data-id="1D"]'); if(c)c.click();
     const ca=document.getElementById('cardActivate'), cx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)) ca.click();
-    else if(cx&&!cx.disabled&&!/off/.test(cx.className)&&/Activate/i.test(cx.textContent||'')) cx.click(); });
+    else if(cx&&cx.offsetParent!==null&&!cx.disabled&&!/off/.test(cx.className)&&/Activate/i.test(cx.textContent||'')) cx.click(); });
   await waitFor(async()=>!(await cHand()).includes('1D'), 40);
   ok(!(await cHand()).includes('1D'), 'the client landed a real Technique (so the seat-1 Technique assertion is not vacuous)');
 

@@ -12,7 +12,6 @@
  * client-only test: the CLIENT must send an intent and not resolve locally, and the HOST must still play.
  * Run: node nettest_drag.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8341),ROOM='DG'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -36,7 +35,10 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 async function dragToTable(page, id){
   const g = await page.evaluate((cid)=>{
     const el=document.querySelector('#hand .card[data-id="'+cid+'"]'); if(!el) return null;
-    const r=el.getBoundingClientRect(), t=document.getElementById('table').getBoundingClientRect();
+    /* AIM AT THE PILE — THE MIDDLE ZONE, which FIGHTS (drag-and-stack step 1). The play area has a second drop zone
+       now, the cast column on the right, and the table's own centre is only "the middle" while that column is
+       narrow; the pile is the middle by definition. */
+    const r=el.getBoundingClientRect(), t=document.getElementById('pile').getBoundingClientRect();
     return { cx:r.left+r.width/2, cy:r.top+r.height/2, tx:t.left+t.width/2, ty:t.top+t.height/2 };
   }, id);
   if(!g) return false;
@@ -72,15 +74,22 @@ async function dragToTable(page, id){
 
   // ---- HOST leads by DRAGGING. The negative half: the guard must not kill dragging for the host. ----
   const hostRoundBefore=(await snap(host)).round;
-  /* DRAG-TO-PLAY LIVES IN THE FIGHT SUB-PHASE NOW (epic step 20, Aj: *"dragging to play activates card
-     effects now, except when in the fight sub-phase"*). In MAIN the same gesture ACTIVATES the card, so
-     this suite's subject — a dragged PLAY going through the host — simply does not happen there, and its
-     failure message ("the drag resolved locally") would be reporting the v1.31.56 bug that is not
-     occurring. Move to the sub-phase the feature lives in before driving it. */
-  await enterFight(host);
+  /* A DROP IN THE MIDDLE PLAYS FROM MAIN NOW (drag-and-stack step 1: where you drop decides, not the sub-phase), so
+     this suite no longer steps into the Fight Sub-Phase first — it used to, because from epic step 20 a Main drag
+     ACTIVATED. The drop crosses into the Fight Sub-Phase and plays in one gesture, through `doFight`. */
+  /* WAIT FOR THE ROUND CARD TO LAND BEFORE DRAGGING. Its overlay (`#roundfx.show`) covers the board while it shows
+     and swallows a drop in silence. This suite pressed Next before dragging until drag-and-stack step 1, which
+     happened to give the card time to land; with that press gone it dragged into the card, and under a parallel
+     sweep it lost 4 runs in 4 — measured on the epic's own build, so it was step 1's, not step 2's. */
+  const boardReady=page=>until(()=>page.evaluate(()=>!/show/.test((document.getElementById('roundfx')||{}).className||'')
+    && !/Hold on/.test((document.getElementById('hint')||{}).textContent||'')), 100);
+  await boardReady(host);
+  await host.evaluate(()=>{ window.__dragAt='roundfx="'+((document.getElementById('roundfx')||{}).className||'')+'" hint="'+((document.getElementById('hint')||{}).textContent||'').slice(0,40)+'"'; });
   ok(await dragToTable(host,'h3D'), 'the host card was draggable');
   const hostPlayed = await until(async()=>(await snap(host)).pile>0, 60);
-  ok(hostPlayed, 'HOST: dragging to the table still plays the card');
+  const hostWhy = hostPlayed ? '' : await host.evaluate(()=>{ const st=window.__cmf, t=id=>((document.getElementById(id)||{}).textContent||'').trim().slice(0,90);
+    return 'turn='+st.turn()+' hand='+st.hand().join(',')+' hint="'+t('hint')+'" msg="'+t('message')+'" drop="'+t('dropHint')+'" fight="'+t('fightBtn')+'" roundfx="'+((document.getElementById('roundfx')||{}).className||'')+'" | AT THE DRAG: '+(window.__dragAt||'?'); });
+  ok(hostPlayed, 'HOST: dragging to the table still plays the card'+(hostWhy?'\n   WHY: '+hostWhy:''));
   ok(await until(async()=>(await snap(join)).pile>0, 60), '  → and the client sees it, so the host path is unbroken');
   ok(await until(async()=>(await snap(join)).yourTurn, 60), 'the turn reached the client');
 
@@ -99,7 +108,7 @@ async function dragToTable(page, id){
 
   // ---- CLIENT plays by DRAGGING. This is the bug. ----
   const joinRoundBefore=(await snap(join)).round;
-  await enterFight(join);
+  await boardReady(join);
   ok(await dragToTable(join,'c9D'), 'the client card was draggable');
 
   const sent = await until(async()=>/clientSend play/.test(await trace(join)), 40);

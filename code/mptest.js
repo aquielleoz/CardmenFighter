@@ -7,7 +7,7 @@
  * NOTE ai.js already handled both correctly for AI-vs-AI turns; only the human-acts paths were broken.
  * Run: node mptest.js */
 const { chromium } = require('playwright');
-const { clickFight, driveStep } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { clickFight, driveStep, waitHold } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -123,6 +123,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   // The window OPENS for seat 2 (verified at engine level: respondFor===2). The fix is that it now DRAINS.
   // P3 declines here because Back to the Books is a harmless draw — respondDecision only counters real
   // threats — so the observable proof is the drain, not a counter line.
+  await waitHold(p); await wait(250);   // the AI seats answer only once your cast's art flash has run (ruling 20)
   ok(await p.evaluate(()=>{ const st=window.__solo.st(); return !st.pending && st.respondFor==null; }),
      'the seat-2 response window DRAINED (before the fix nothing handled respondFor 2+ and the turn parked)');
   ok(await p.evaluate(()=>window.__solo.st().turn===0), '…and it is still your turn, not a stalled board');
@@ -257,6 +258,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   await p.evaluate(()=>{ const t=document.querySelector('.oppPanel[data-seat="2"]'); if(t)t.click(); }); await wait(250);
   await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(700);
   ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)<nrg0, 'confirming with ⚡ Activate finally spends the energy');
+  await waitHold(p); await wait(300);   // …and the target discards once the cast's art flash has run (ruling 20)
   ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length<2), '…and resolves against the seat you aimed at (P3, not the default next seat)');
   /* …AND THE LOG NAMES THE SEAT THAT DISCARDED (discard-line-hardcodes-rival). The line after YOUR discard effect
      was a hardcoded "Rival discarded 2 cards." — nobody in particular at three seats (Bibong's v1.33.1 log, after
@@ -608,7 +610,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(/nothing to use yet/i.test(mainHint.dead),
      `a dead Main sub-phase says so  ["${mainHint.dead.slice(0,64)}"]` +
      (/nothing to use yet/i.test(mainHint.dead) ? '' : '  ← REPRODUCED: offers a sub-phase in which nothing can be used'));
-  ok(/drag a card to use it/i.test(mainHint.live),
+  ok(/drag right to use a card/i.test(mainHint.live),   // the cast column's wording since drag-and-stack step 1
      `  …and a LIVE one still invites you in — the control  ["${mainHint.live.slice(0,64)}"]`);
 
   /* ============ EVERY WINDOW NAMES ITSELF — THE STRIP AND THE PASS BUTTON (2026-10-07) ============
@@ -682,7 +684,10 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       window.__seqStop=()=>{ clearInterval(window.__seqT); close(performance.now()); return { seq:window.__seq, dur:window.__dur }; };
       window.__seqT=setInterval(()=>{
         const hw=document.getElementById('handWrap'); if(!hw) return;
-        const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
+        /* THE FIGHT SUB-PHASE IS A FLASH SINCE 2026-10-14 (Aj: "keep the yellow color and skip the announcement"):
+           a quiet crossing and its play land in one call, so the strip shows the Fight yellow as `fightFlash`
+           rather than holding `spFight`. Either is the yellow the player sees, so either counts as reaching it. */
+        const c=hw.classList.contains('fightFlash') ? 'spFight' : (hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
         if(c!==window.__cur){ close(now); window.__cur=c; t0=now; window.__seq.push(c); } }, 12); });
     /* ⚠ BOUND BY UNPRODUCTIVE ITERATIONS, NEVER A RAW COUNT — and this file's own history says so
        (v1.31.85: `exporttest` looped `i<160`, went red under `-j 4` and 5/5 green alone, because an
@@ -841,13 +846,22 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     /* PLAY THE MOMENT A CARD IS CLICKABLE — no settle wait, because the wait IS the fix's absence of a
        trigger. One press of Fight with a card selected plays from the Main Sub-Phase when the transition
        auto-advances, so a single evaluate both plays and reads whether the opening card was still up. */
+    /* ⚠ THE PLAY LANDS AFTER THE CROSSING BEAT, NOT ON THE PRESS (drag-and-stack ruling 10). Your crossing now
+       shows the Fight Sub-Phase for ~700ms before the card goes down, so "played" is read by polling after the
+       press — and "the card was still up" is read at the LANDING, because the hazard is a play that lands while
+       the opening card is on screen; a press under the card whose play lands after it would stage nothing. */
     let early=null;
     for(let i=0;i<80 && !early;i++){
-      early = await p.evaluate(()=>{ const st=window.__solo && window.__solo.st(); if(!st || st.numPlayers!==3 || st.turn!==0) return null;
+      early = await p.evaluate(async ()=>{ const st=window.__solo && window.__solo.st(); if(!st || st.numPlayers!==3 || st.turn!==0) return null;
         const f=document.getElementById('fightBtn'), rf=document.getElementById('roundfx'), clr=document.getElementById('clearBtn');
         for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){   // round 1 is jabs only: a pair's group leaves Fight dark
           g.click();
-          if(f && !f.disabled){ const cardUp=!!(rf && rf.className); f.click(); return { cardUp:cardUp, played:!!(st.pile && st.pile.byPlayer===0) }; }
+          if(f && !f.disabled){
+            f.click();
+            for(let k=0;k<100;k++){ const s=window.__solo.st();
+              if(s.pile && s.pile.byPlayer===0) return { cardUp:!!(rf && rf.className), played:true };
+              await new Promise(r=>setTimeout(r,30)); }
+            return { cardUp:!!(rf && rf.className), played:false }; }
           if(clr) clr.click();
         }
         return null; });

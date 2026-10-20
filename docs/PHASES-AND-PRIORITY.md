@@ -330,13 +330,19 @@ pile stands.
     select cards to fight with and then be stopped because someone decided to cast a quick."*
   - **THE WINDOW IS A PHASE TRANSITION, NOT AN ANNOUNCED PLAY** (Aj, 2026-09-11, after MTG Arena's
     move-to-combat button):
-    1. the active player clicks **Fight**, which ONLY moves them from the Main Sub-Phase to the Play
-       Sub-Phase — it plays nothing;
+    1. the active player leaves the Main Sub-Phase for the Fight Sub-Phase. **Since drag-and-stack step 1
+       there is no button that only does this** (Aj, 2026-10-13: *"Maybe we remove Next button... But we
+       still keep the fight sub-phase of course."*): **Fight with a play selected, a drop in the middle of
+       the table, or Pass** each crosses first, and the play is carried across the crossing, not made at it;
     2. the active player passes priority;
     3. the other players pass priority;
-    4. the Fight Sub-Phase begins, and only now is a shedding play made.
-    **Nothing is cancelled because nothing was selected** — the cancellation rule existed only to undo an
-    announcement that no longer happens. The old reason it was needed is still worth knowing: a shedding
+    4. the Fight Sub-Phase begins, and only now is the shedding play made. **Every crossing shows**, a quiet
+       one included (drag-and-stack ruling 10, 2026-10-13), so the sub-phase is visible even on the turns
+       where nobody could act at it. Since ruling 17 (2026-10-14) it shows as a yellow flash on the hand,
+       with no banner and no pause.
+    **Nothing is cancelled because nothing is played until the crossing completes**: if someone casts at
+    it, the play is held and you choose again (the next bullet). The cancellation rule existed only to undo
+    an announcement that no longer happens. The old reason it was needed is still worth knowing: a shedding
     play is **not an effect**, so it never goes on The Stack (§1) and there is nothing for responses to
     resolve above; an announced fight has no state anywhere, which is why it could never simply "wait".
   - **AUTO-ADVANCE WHEN NOBODY CAN ACT** (Aj's call). Measured: the active player can cast at their own
@@ -353,11 +359,15 @@ pile stands.
     `moveToPlayThen`'s `stopIfActed`, a netplay client via `t:'held'` from both host handlers (it used to
     have its play re-applied regardless — v1.32.4). "Someone else" is the `stackMark` rule — your own cast
     never holds your own press, same as the Pass brake.
-  - **THE SUB-PHASE DECIDES WHAT A GESTURE MEANS** (Aj, 2026-09-11). In the **Main Sub-Phase**, dragging a
-    card to the play area **activates** it — including the cards that need choices, so it is also how
-    targeting (confirm-first: stage into `targetPick.chosen`, then the context button) and the Phantasmal
-    Illusion picker are entered. In the **Fight Sub-Phase**, dragging plays the card as the shedding play.
-    One gesture, two meanings, chosen by the phase — which is why the sub-phase must live on STATE.
+  - **WHERE YOU DROP DECIDES WHAT A DRAG MEANS, NOT THE SUB-PHASE** (drag-and-stack, Aj 2026-10-13:
+    *"drop to the stack vis and then activate. or you can drag it out to clear, or there will be an x button
+    to cancel your attempt. once you activate, that x button disappears."*). This replaces the 2026-09-11
+    rule that the sub-phase decided. The play area has two drop zones: **the middle fights**, crossing first
+    if you are still in Main, and **the cast column on the right** activates. A drop in the column STAGES
+    the card — nothing spent, seen by nobody else — and a card with a choice opens its picker from there
+    (targeting is still confirm-first, `targetPick.chosen`); **⚡ Activate** casts it, and ✕ or dragging it
+    back out cancels. Rulings and build order: [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md).
+    The sub-phase still lives on STATE, because priority does.
 
 - **Fight Sub-Phase.** The active player plays a fight card or passes. Playing or passing ends the turn.
 

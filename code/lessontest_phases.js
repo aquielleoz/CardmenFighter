@@ -17,18 +17,24 @@
  *
  * Run: node lessontest_phases.js */
 const { openLesson } = require('./lessonlib');
-const { clickFight } = require('./fightclick');
+const { clickQuick } = require('./fightclick');
+/* is each selector's element the TOP element at its centre, or is the coach panel over it? */
+const coachClear = (p, sels)=>p.evaluate((sels)=>{ const t=document.getElementById('tutPanel'), out={};
+  sels.forEach(s=>{ const el=document.querySelector(s); if(!el){ out[s]='absent'; return; } const r=el.getBoundingClientRect();
+    const hit=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2); out[s]=(t && hit && t.contains(hit)) ? 'UNDER COACH' : (hit ? 'clear' : 'offscreen'); });
+  return out; }, sels);
 
 (async()=>{
   const L = await openLesson('phases');
   const { p, ok, until, atStep, next, playSpot, passTurn, st, step, errs } = L;
   const cls = ()=>p.evaluate(()=>((document.getElementById('handWrap')||{}).className||'').match(/sp[A-Z][a-z]+/g)||[]);
-  /* ⚠ VISIBLE, NOT MERELY PRESENT. `hideOverlay()` leaves `#modal`'s markup in the DOM, so a plain
-     `querySelectorAll('.respQuick')` keeps matching the PREVIOUS window's buttons. Not a harmless miss: it
-     returned true, the suite reported the card "offered", and the Leyline claim below then passed against a
-     shield that was never at risk — a green assertion observing nothing. */
-  const respond = (re)=>p.evaluate(rx=>{ const b=[].slice.call(document.querySelectorAll('.respQuick'))
-      .filter(x=>x.offsetParent && new RegExp(rx,'i').test(x.textContent||''))[0]; if(!b) return false; b.click(); return true; }, re);
+  /* ANSWERED FROM THE BOARD (drag-and-stack step 4, piece 8): the box lists no Quicks, so Yes, then the card, ⚡, and —
+     for Counter Spell — the target on the stack (ruling 26). `clickQuick` refuses a card that is not castable BEFORE it
+     presses Yes, so a miss leaves the window as it found it.
+     ⚠ VISIBLE, NOT MERELY PRESENT, still holds for the box's own buttons: `hideOverlay()` leaves `#modal`'s markup in
+     the DOM, so a plain query keeps matching the PREVIOUS window's. The box checks below read Yes by `offsetParent`. */
+  const respond = (re)=>clickQuick(p, new RegExp(re, 'i')).then(t=>t!=null);
+  const boxUp = ()=>{ const y=document.getElementById('respYes'); return !!(y && y.offsetParent!==null); };
   /* ONE DEFINITION FOR ALL THREE WINDOWS — the go-round, Resolution and Clean-up.
      ⚠ VISIBILITY, NEVER PRESENCE: `hideOverlay()` leaves `#modal`'s markup in the DOM, so
      `getElementById('respDecline')` keeps finding the PREVIOUS window's button, which is often correctly
@@ -47,98 +53,77 @@ const { clickFight } = require('./fightclick');
   await note();
   ok((await cls())[0]==='spMain', 'step 1 — the hand is painted for the MAIN sub-phase  ['+(await cls()).join(',')+']');
 
-  await next(); ok(await atStep(2), 'step 2 names the blue Main sub-phase');
-  await next(); ok(await atStep(3), 'step 3 asks you to press Fight');
+  await next(); ok(await atStep(2), 'step 2 names the Main sub-phase');
+  await next(); ok(await atStep(3), 'step 3 asks you to lead the Ace with Fight');
 
-  /* THE STEP LOCKS ACTIONS (Aj, 2026-09-25: *"i should not be able to click outside of the tutorial's
-     intent here as it will break the tutorial"*, then *"lock actions, leave reading"*). Staging a card on
-     THIS step is what made its own claim false — `doFight` is only a doorway on an empty selection, so
-     with a card up it transitioned AND played, and Aj "skipped through the fight phase".
-     ⚠ ANY PROBE THAT CLICKS MUST CLICK BACK, or the leftover selection stages a fight and every later
-     assertion reads a board the suite broke itself. */
+  /* THE STEP LOCKS ACTIONS (Aj, 2026-09-25: *"lock actions, leave reading"*): its card list names the Ace and its
+     spotlight names no ⚡, so an activation is refused and only the step's own play is accepted.
+     ⚠ ANY PROBE THAT CLICKS MUST CLICK BACK, or the leftover selection stages a fight and every later assertion
+     reads a board the suite broke itself. */
   const actState = await p.evaluate(()=>{
     const g=document.querySelector('#hand .group'); if(!g) return 'no card';
     g.click();
     const a=document.getElementById('cardActivate');
     const out = !a ? 'absent' : ((a.disabled || a.classList.contains('off')) ? 'refused' : 'LIVE');
     const c=document.getElementById('clearBtn'); if(c && !c.disabled) c.click();
-    [].forEach.call(document.querySelectorAll('#hand .card.sel'), el=>el.click());
+    [].forEach.call(document.querySelectorAll('#hand .card.sel, #hand .group.gsel'), el=>el.click());
     return out;
   });
   ok(actState==='refused' || actState==='absent',
-     'THE DOORWAY STEP REFUSES AN ACTIVATION — you cannot act outside the step\'s intent  ['+actState+']');
-  /* AND READING STAYS FREE — the half Aj asked for by name: *"especially allow the peeks, it helps people
-     see the color changes"*. A lock that also locked the reader would teach nothing. */
+     'THE STEP REFUSES AN ACTIVATION — you cannot act outside the step\'s intent  ['+actState+']');
   ok(await p.evaluate(()=>{ const s=document.getElementById('sortBtn'); return !!s && !s.disabled; }),
      '…while Sort stays live, because reading and organising are not acting');
 
-  /* THE STEP MUST NAME THE BUTTON THAT IS ON SCREEN, AND NOTHING IN THIS FAMILY COULD SEE THAT (2026-09-29).
-     Every lesson helper presses the control through `__pressFight`, which presses whatever is there BY
-     DESIGN — so a step whose copy names the OTHER button passes every assertion while dead-ending a
-     beginner. It shipped exactly that way: this step requires an empty selection (`only:[]`, because
-     `doFight` is a doorway only on one), an empty selection returns early from `updateActions` with the
-     resting label, and the copy said "press Fight" at a button reading `▶ Next`. The how-to lesson had
-     fixed the same thing for itself nine days earlier.
-     ASSERT THE PAIR AND BOTH WAYS. A label check alone passes on any copy; a copy check alone goes stale
-     the day the label moves; and because this step's prose legitimately mentions the word "Fight" twice
-     (the sub-phase, and the note that it is one button), the claim has to be about which button the
-     IMPERATIVE names — hence `Press <word>`, required for the live label and refused for the other. */
-  const doorway = await p.evaluate(()=>({
-    label: ((document.getElementById('fightBtn')||{}).textContent||'').trim(),
-    sel  : document.querySelectorAll('#hand .card.sel').length
-  }));
-  ok(doorway.sel===0, 'the doorway step really has an empty selection — which is WHY the label is `Next`');
-  const btnWord = /^Next$/i.test(doorway.label) ? 'Next' : /^Fight$/i.test(doorway.label) ? 'Fight' : null;
-  ok(btnWord==='Next', 'the button on screen reads `Next` at the doorway step  ['+doorway.label+']');
+  /* THE STEP MUST NAME THE BUTTON THAT IS ON SCREEN (2026-09-29). Since drag-and-stack step 1 the button only
+     ever reads `Fight`, so the old pair — "the label is Next AND the copy says press Next" — collapses to: the
+     label is Fight, the copy says press Fight, and the copy never names Next, a button that no longer exists. */
+  const lbl = await p.evaluate(()=>((document.getElementById('fightBtn')||{}).textContent||'').trim());
+  ok(lbl==='Fight', 'the button on screen reads `Fight`, the only label it has  ['+lbl+']');
   const copy = (await step()).text;
-  const rx = w => new RegExp('Press\\s+[^A-Za-z]{0,3}' + w + '\\b');
-  const names = !!btnWord && rx(btnWord).test(copy), misnames = !!btnWord && rx(btnWord==='Next'?'Fight':'Next').test(copy);
-  ok(names && !misnames,
-     'AND THE STEP TELLS YOU TO PRESS THAT BUTTON, not the other one  [label "'+doorway.label+
-     '" · names it '+names+' · names the other '+misnames+']');
+  ok(/press\s+[^A-Za-z]{0,3}Fight\b/i.test(copy) && !/\bNext\b/.test(copy),
+     'AND THE STEP TELLS YOU TO PRESS FIGHT, and never names Next');
 
-  /* THE DOORWAY — the lesson's headline claim, and the one players most misread. Count the hand BEFORE and
-     AFTER: the whole point is that Fight moves you a sub-phase and plays NOTHING. */
-  const handBefore = (await st()).players[0].hand.length;
-  const pileBefore = !!(await st()).pile;
-  await clickFight(p);
-  ok(await atStep(4), 'pressing Fight advanced the lesson to step 4');
-  const s4 = await st();
-  ok(s4.players[0].hand.length===handBefore && !s4.pile && !pileBefore,
-     'FIGHT PLAYED NOTHING — hand '+handBefore+'→'+s4.players[0].hand.length+', pile still empty. That is the doorway claim');
-  ok(s4.subPhase==='play', '…and it really moved you into the Fight sub-phase');
-  /* ⚠ AND THE STEP'S NEW SENTENCE IS A CLAIM ABOUT THE BUILD (2026-09-30). It now says crossing the
-     doorway is *"also a priority point: everyone gets the chance to act before the fight starts. Usually
-     nobody can, so it passes in silence."* That is the `MAIN → FIGHT` go-round, and "in silence" is
-     literally the `auto-advanced — nobody could add to the stack` branch — so the ledger is where the
-     claim is checkable. Asserting the sentence is PRESENT would prove nothing; asserting the ledger
-     recorded the crossing proves the lesson is describing this game.
-     WHY IT WAS ADDED AT ALL: Main → Fight is the third boundary, it is LIVE every single turn (`stakeFor`
-     has a `prefight` branch, and a lockout's moment to matter is exactly here), and the lesson walked
-     players straight through it while explaining the doorway as a phase change only. Upkeep and Clean-up
-     stay untaught on purpose — they default OFF, so naming them teaches a window nobody meets. */
+  /* THE CROSSING COMES BEFORE THE PLAY — the step's headline claim, and true of every turn since ruling 10 (Aj,
+     2026-10-13: *"Show Fight briefly every turn"*). The doorway this step replaced claimed "Fight plays nothing";
+     with Next gone the claim is that ONE press first crosses you into the Fight sub-phase and THEN the Ace goes
+     down. FILMED IN THE PAGE: the strip and the hand are sampled every 30ms from the press, because the claim is
+     an ORDER, and a reading taken after the play can only see that both things happened. */
+  const film = await p.evaluate(async()=>{
+    const ace=document.querySelector('#hand .card.tut-spot'); if(!ace) return { err:'no spotlit card' };
+    const id=ace.dataset.id, g=ace.closest('.group'); if(!g) return { err:'the Ace has no group' };
+    g.click(); await new Promise(r=>setTimeout(r,120));
+    const f=document.getElementById('fightBtn'); if(!f || f.disabled) return { err:'Fight is not live with the Ace selected' };
+    const t0=Date.now(); f.click();
+    const out={ id:id, fightWhileHeld:false, landed:false, samples:0 };
+    for(let k=0;k<140;k++){
+      const held=!!document.querySelector('#hand .card[data-id="'+id+'"]');
+      out.samples++;
+      if(!held){ out.landed=true; break; }
+      await new Promise(r=>setTimeout(r,30));
+    }
+    /* THE CROSSING IS A FLASH SINCE 2026-10-14 (Aj: "keep the yellow color and skip the announcement"), and the flash
+       and the play land in ONE task, so sampling can never see the strip yellow with the Ace still held. The flash
+       record (`__solo.fightFlashes()`) holds the hand at the instant of the flash, which is the order itself. */
+    out.fightWhileHeld=window.__solo.fightFlashes().filter(x=>x.at>=t0).some(x=>x.turn===0 && x.hand.indexOf(id)>=0);
+    return out; });
+  ok(!film.err, 'STAGED: the spotlit Ace was selected and Fight pressed'+(film.err?'  ← '+film.err:''));
+  ok(film.fightWhileHeld, 'THE HAND FLASHED THE FIGHT YELLOW WHILE THE ACE WAS STILL IN HAND — the crossing comes first, as the step says');
+  ok(film.landed, '…and THEN the Ace went down');
+  ok(await atStep(4), 'leading it advanced the lesson to step 4');
+  /* AND THE STEP'S PRIORITY-POINT SENTENCE IS A CLAIM ABOUT THE BUILD (2026-09-30): *"everyone gets the chance to
+     act before the fight starts … it passes without stopping you"*. That is the `MAIN → FIGHT` go-round, so the
+     ledger is where it is checkable — the crossing recorded, and the lesson moving on without a modal. (The rig
+     puts Counter Spell in your hand, so somebody CAN act there; AUTO simply does not stop you at an empty-stack
+     crossing, which is why the claim is about not being stopped.) */
   const walk = await p.evaluate(()=>{ try{ return (window.__solo.prioLog()||[]).filter(function(l){ return /MAIN → FIGHT/.test(l); }); }catch(e){ return ['NO LEDGER: '+e.message]; } });
   ok(walk.length>0, 'the crossing really IS a priority point — the ledger recorded it  ["'+((walk[0]||'').slice(0,74))+'"]');
-  /* ⚠ AND THE FIRST WORDING OF THAT SENTENCE WAS FALSE, CAUGHT BY THIS ASSERTION ON ITS FIRST RUN. It
-     said *"usually nobody CAN, so it passes in silence"* and the ledger came back
-     `go-round opened  origin=You  priority→You` — because the lesson stages Counter Spell in the player's
-     hand, so somebody demonstrably CAN act. They are simply not stopped, since nothing is at stake at an
-     empty-stack transition and AUTO does not interrupt for that.
-     SO THE CLAIM IS ABOUT NOT BEING STOPPED, NOT ABOUT NOBODY BEING ABLE — which is true on BOTH
-     branches, `go-round opened` and `auto-advanced`, and is what a player actually experiences. Assert
-     that: the crossing is recorded, and the lesson advanced without a modal having to be dismissed. */
   ok(!(await p.evaluate(()=>{ const m=document.getElementById('modal'); return !!(m && m.offsetParent); })),
      '  …and it passed WITHOUT STOPPING YOU, exactly as the step says  ['+walk.length+' crossing(s) logged]');
-  await note();
-  ok(seen.has('spFight'), 'AND THE HAND CHANGED COLOUR with it — the thing the lesson points at  ['+[...seen].join(',')+']');
-
-  const why4 = await playSpot(12000);
-  ok(why4===null, 'you led the Ace the step spotlit'+(why4?' — '+why4:''));
-  ok(await atStep(5), 'leading it advanced the lesson to step 5');
+  seen.add('spFight');   // filmed above, while the Ace was still in hand
 
   /* THE COUNTER — ported from `lessontest_quicks`. The Rival casts Infuse with Magic to push its King past
      your Ace; countering is what makes the next step's claim ("they cannot beat it") literally true. */
-  const got = await until(()=>[].some.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null), 'the Respond? window opens', 20000);
+  const got = await until(boxUp, 'the Respond? window opens', 20000);
   ok(got, 'the Rival cast a Technique and the Respond? window opened');
   /* ⚠ HIT-TEST, BECAUSE NO DOM ASSERTION CAN SEE A STACKING BUG. `#tutPanel` was `z-index:80`, chosen
      when `.overlay` was 30; the overlay became `--zNetroot + 1` and the coach panel spent every version
@@ -162,8 +147,20 @@ const { clickFight } = require('./fightclick');
      somewhere else, and the deal-hold fix moved that moment under a phase tint; an incidental sample is a
      coin flip dressed as an assertion. */
   await note();
+  /* THE COACH HIDES NOTHING THE ANSWER NEEDS (drag-and-stack step 6). On a desktop it docked over the card reader, which is
+     where the small box sits, so the box's Yes and No were under the coach — the hit-test above was green the whole time,
+     because it asks whether the coach is on TOP, not what it covers. Now the step asks the coach to move
+     (`placeAnswerCoach`): the box's buttons, and after Yes the spotlit card, must each be the top element at its centre. */
+  const step4 = (await step()).text;
+  ok(/\bYes\b/.test(step4) && /⚡\s*(<\/?b>)?\s*Activate/.test(step4), 'STEP 4 NAMES THE BOX\'S YES AND ⚡ ACTIVATE — the controls this answer actually takes');
+  const c4 = await coachClear(p, ['#respYes','#respDecline']);
+  ok(c4['#respYes']==='clear' && c4['#respDecline']==='clear', 'THE COACH DOES NOT COVER THE BOX — Yes and No are each the top element at their centre  '+JSON.stringify(c4));
+  await p.evaluate(()=>document.getElementById('respYes').click());
+  await until(()=>!!document.querySelector('#hand .card.answerable'), 'the board answers after Yes', 6000);
+  const c4b = await coachClear(p, ['#hand .card.tut-spot']);
+  ok(c4b['#hand .card.tut-spot']==='clear', '…and after Yes the spotlit Counter Spell is not under it either  '+JSON.stringify(c4b));
   ok(await respond('Counter Spell'), '…offering Counter Spell, which we spring');
-  ok(await atStep(6), 'countering advanced the lesson to step 6 — straight to the payoff');
+  ok(await atStep(5), 'countering advanced the lesson to step 5 — straight to the payoff');
 
   /* THE GO-ROUND STEP IS GONE (2026-09-25). A counter now splices its target off the stack, so the
      second window it used to leave — priority coming back round over an already-countered Technique —
@@ -181,7 +178,7 @@ const { clickFight } = require('./fightclick');
 
   const trace = async(tag)=>{ const x=await st();
     console.log('   · '+tag+': round '+x.round+' turn '+x.turn+' init '+x.initiative+' sub '+x.subPhase+' pile '+(x.pile?'set':'empty')); };
-  await trace('at step 6');
+  await trace('at step 5');
   console.log('   LOG: ' + (await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim())
     .filter(t=>/won|round|pass|played|Countered/i.test(t)).slice(-6).join('  ||  '))));
   /* THE TWO PHASE PAUSES ARE CEREMONY HOLDS NOW, NOT FORCED WINDOWS (Aj, 2026-09-25). The lesson used to
@@ -197,7 +194,7 @@ const { clickFight } = require('./fightclick');
      lesson has already moved to the NEXT step and `hold:'resolve'` no longer matches, so it sails
      through the phase it meant to pause on. Both halves measured.
      THE STRIP IS THE SIGNAL and it is also the claim, so polling it and asserting it are the same act. */
-  await next(); ok(await atStep(7), 'step 7 is the ORANGE pause — Resolution');
+  await next(); ok(await atStep(6), 'step 6 is the ORANGE pause — Resolution');
   const heldRes = await until(()=>/spResolve/.test((document.getElementById('handWrap')||{}).className||''),
                               'the ceremony to park in Resolution', 25000);
   await note();
@@ -205,16 +202,16 @@ const { clickFight } = require('./fightclick');
   ok(await p.evaluate(()=>{ const d=document.getElementById('respDecline'); return !d || !d.offsetParent; }),
      '…and NO window was forced open to get the pause — nothing to decline on a round you won');
 
-  await next(); ok(await atStep(8), 'releasing it advanced to step 8 — the yellow pause');
+  await next(); ok(await atStep(7), 'releasing it advanced to step 7 — the yellow pause');
   const heldCln = await until(()=>/spCleanup/.test((document.getElementById('handWrap')||{}).className||''),
                               'the ceremony to park in Clean-up', 25000);
   await note();
   ok(heldCln, 'THE CEREMONY IS PARKED IN CLEAN-UP — the strip is yellow while you read  ['+(await cls()).join(',')+']');
 
-  await next(); ok(await atStep(9), 'releasing it advanced to step 9 — the pair');
+  await next(); ok(await atStep(8), 'releasing it advanced to step 8 — the pair');
   ok(await until(()=>window.__solo.st().round>=2, 'the round resolves in your favour', 20000),
      '…and only THEN does round 2 begin  [round '+((await st()).round)+']');
-  await trace('at step 9');
+  await trace('at step 8');
   await note();
 
   /* ROUND 2 — the same structure with nothing to activate, which is the step's whole teaching point. */
@@ -224,39 +221,40 @@ const { clickFight } = require('./fightclick');
   const r2 = await st();
   ok(r2.turn===0, 'ROUND 2 IS YOURS TO LEAD — you won round 1, so initiative is yours' +
      '  [turn '+r2.turn+', initiative '+r2.initiative+', round '+r2.round+', pile '+(r2.pile?'set':'empty')+']');
-  await clickFight(p);
-  const why8 = await playSpot(15000);
+  const why8 = await playSpot(15000);   // one press crosses over AND leads — there is no empty crossing to make first
   ok(why8===null, 'you led the pair the step spotlit'+(why8?' — '+why8:''));
-  ok(await atStep(10), 'leading it advanced the lesson to step 10 — the pass');
+  ok(await atStep(9), 'leading it advanced the lesson to step 9 — the pass');
 
   /* PASS FIRST — the Rival beating your pair does NOT end the round, and until it ends there is no
      Resolution and nothing for Leyline to answer. Measured on the build before this step existed: Leyline
      still in hand, the log stopping at "Rival 2 played a Special - Pair (8♦, 8♦)", and the shield
      assertion passing because no shield had ever been at risk. */
   ok(await passTurn(20000), 'you passed, which is what ENDS the round');
-  ok(await atStep(11), 'passing advanced the lesson to step 11 — the Resolution window');
+  ok(await atStep(10), 'passing advanced the lesson to step 10 — the Resolution window');
 
   /* LEYLINE — the SECOND window, answered by a DIFFERENT Quick. Shields before and after is the claim, and
      it means something only because the pass above put a shield at risk. */
   const shBefore = (await st()).players[0].shields;
-  const got2 = await until(()=>[].some.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null), 'the Resolution window opens', 20000);
+  const got2 = await until(boxUp, 'the Resolution window opens', 20000);
   ok(got2, 'their pair beat yours, and Resolution opened a window');
+  const c10 = await coachClear(p, ['#respYes','#respDecline']);
+  ok(c10['#respYes']==='clear' && c10['#respDecline']==='clear', 'STEP 10: the coach does not cover the box either  '+JSON.stringify(c10));
   ok(await respond('Leyline'), '…offering Leyline Ascension');
   /* A RED RUN MUST EXPLAIN ITSELF — this is the one assertion in the file with somewhere to hide, because
      "the lesson did not advance" is equally true of a gate that never fired, a modal still covering the
      panel, and a step that advanced somewhere unexpected. Print all three. */
-  const stepped = await atStep(12);
+  const stepped = await atStep(11);
   if(!stepped) console.log('   WHY: ' + JSON.stringify(await p.evaluate(()=>{
       const s=window.__solo.st(), b=document.getElementById('respDecline');
       return { panel:((document.querySelector('.tutStep')||{}).textContent||'').trim(),
                wait:((document.querySelector('.tutWait')||{}).textContent||'').trim().slice(0,40),
-               modalUp: !!(b && b.offsetParent), quicks:[].filter.call(document.querySelectorAll('.respQuick'),b=>b.offsetParent!==null).length,
+               modalUp: !!(b && b.offsetParent), quicks:(window.__solo.castableQuicks()||[]).map(function(q){ return q.name; }),
                nextBtn: !!document.getElementById('tutNextBtn'),
                round:s.round, turn:s.turn, sub:s.subPhase, rf:s.respondFor, pend:!!s.pending,
                resolution:!!s.resolution, cleanup:!!s.cleanup, upkeep:!!s.upkeep,
                shields:s.players[0].shields, hand:s.players[0].hand.map(function(c){return c.id;}),
                log:[].map.call(document.querySelectorAll('#log .le'),function(e){return e.textContent.trim();}).slice(-7) }; })));
-  ok(stepped, 'springing it advanced the lesson to step 12');
+  ok(stepped, 'springing it advanced the lesson to step 11');
   /* ⚠ AND PROVE THE SHIELD COULD HAVE BEEN LOST. "Shields unchanged" is equally true of a board where
      nothing was ever at risk — which is exactly how this assertion passed for three runs while Leyline sat
      unplayed in hand and the round had not even resolved. The losing fight is the other half of the claim. */
@@ -264,7 +262,11 @@ const { clickFight } = require('./fightclick');
      The win establishes a shield really was on the line; "prevented" establishes Leyline is what stopped it.
      Asserting the shield COUNT alone is what let this pass for three runs with Leyline unplayed in hand and
      the round not even resolved, so the count below is kept as the outcome and this is kept as the stake. */
-  const tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
+  /* THE ROUND RESOLVES ONCE LEYLINE'S ART FLASH HAS RUN (drag-and-stack ruling 20: every cast holds the game for it),
+     so the "prevented" line lands about 2.5s after the step advances. Poll for it rather than read once. */
+  let tail = [];
+  for (let i = 0; i < 60; i++) { tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
+    if (tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t))) break; await new Promise(r=>setTimeout(r,100)); }
   ok(tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t)),
      '…on a round you actually LOST, and the log says the loss was PREVENTED  [' + (tail.filter(t=>/prevented/i.test(t))[0]||'no such line') + ']');
   ok((await st()).players[0].shields===shBefore,
@@ -294,5 +296,21 @@ const { clickFight } = require('./fightclick');
 
   await next();
   await L.finish('phases');
+  /* …AND ON A PORTRAIT PHONE, where the coach's default is over your hand and the box is at the top: up to the counter
+     step, the box's buttons clear, then after Yes the spotlit Counter Spell clear. Its own page, reported here. */
+  { const P = await openLesson('phases', {width:390,height:844}); const pp = P.p;
+    await P.atStep(1); await P.next(); await P.next(); await P.atStep(3);
+    await pp.evaluate(()=>{ const a=document.querySelector('#hand .card.tut-spot'); const g=a&&a.closest('.group'); if(g) g.click(); });
+    await new Promise(r=>setTimeout(r,200));
+    await pp.evaluate(()=>document.getElementById('fightBtn').click());
+    await P.atStep(4);
+    const up = await P.until(()=>{ const y=document.getElementById('respYes'); return !!(y && y.offsetParent); }, 'the phone box', 20000);
+    const pc = await coachClear(pp, ['#respYes','#respDecline']);
+    ok(up && pc['#respYes']==='clear' && pc['#respDecline']==='clear', 'PHONE 390x844: the coach does not cover the box at the top  '+JSON.stringify(pc));
+    await pp.evaluate(()=>document.getElementById('respYes').click());
+    await P.until(()=>!!document.querySelector('#hand .card.answerable'), 'the phone board answers after Yes', 6000);
+    const pc2 = await coachClear(pp, ['#hand .card.tut-spot']);
+    ok(pc2['#hand .card.tut-spot']==='clear', '…and after Yes the coach has left your hand: the spotlit Counter Spell is clear  '+JSON.stringify(pc2));
+    await P.b.close(); }
   await L.done();
 })().catch(e=>{ console.error('HARNESS ERROR', e.message); process.exit(2); });

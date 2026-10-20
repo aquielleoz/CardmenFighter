@@ -7,7 +7,7 @@
  *                     and the remote (active) is locked → force-skipped.
  * Over BroadcastChannel. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickQuick } = require('./fightclick');
+const { selectAndFight, clickFight, clickQuick, respQuicks } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8301),ROOM='PF'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;   // this suite's SUBJECT is a boundary window, which defaults OFF — see promptDefault
@@ -19,6 +19,9 @@ const HERMES=[{rank:11,suit:'S',tier:'ride',name:'J'},{rank:12,suit:'S',tier:'qu
 const EN=()=>Array.from({length:12},(_,i)=>D(2,'S','e'+i));                                         // 12 ♠ energy — covers the 10-cost super Back Stab
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const modalUp=p=>p.evaluate(()=>document.getElementById('overlay').classList.contains('show'));
+/* THE WINDOW IS DETECTED BY WHAT IT OFFERS, NOT BY ITS PROSE (drag-and-stack step 4, piece 8): the box lists no Quicks
+   any more, and a transition window's sentence is "You have priority…" — "Back Stab" was only ever its button.
+   `respQuicks` is the engine's offer for the window shown to that seat. */
 const modalTxt=p=>p.evaluate(()=>{ var o=document.getElementById('overlay'); return (o&&o.classList.contains('show'))?(o.textContent||''):''; });
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
@@ -53,7 +56,7 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   // Host leads a jab → the pre-fight window should open for the NEXT seat (c1, remote).
   await selectAndFight(host, ['3D']);   // two-state button (epic step 20) — see fightclick.js
-  ok(await waitFor(async()=>await modalUp(c1) && /about to fight|Back Stab|Spring/i.test(await modalTxt(c1))),'remote holder (c1) got the pre-fight modal from its mirror');
+  ok(await waitFor(async()=>await modalUp(c1) && (await respQuicks(c1)).some(t=>/Back Stab/i.test(t))),'remote holder (c1) got the pre-fight modal from its mirror');
   const sprang=await clickQuick(c1).then(t=>t==null?null:t.slice(0,14));
   ok(sprang && /Back Stab/i.test(sprang),'c1 sprang Back Stab over the wire ('+sprang+')');
   await wait(1600);
@@ -74,7 +77,7 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   // c2 leads a jab → the host (next seat after 2) should get its OWN pre-fight modal.
   await selectAndFight(c2, ['6C']);   // two-state button (epic step 20) — see fightclick.js
-  ok(await waitFor(async()=>await modalUp(host) && /about to fight|Back Stab|Spring/i.test(await modalTxt(host))),'host holder got its own pre-fight modal');
+  ok(await waitFor(async()=>await modalUp(host) && (await respQuicks(host)).some(t=>/Back Stab/i.test(t))),'host holder got its own pre-fight modal');
   const hostSprang=await clickQuick(host).then(t=>t==null?null:t.slice(0,14));
   ok(hostSprang && /Back Stab/i.test(hostSprang),'host sprang Back Stab ('+hostSprang+')');
   await wait(1800);

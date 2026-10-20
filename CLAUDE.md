@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.33.16**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.34.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 713 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 714 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,50 +41,69 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 713 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 714 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (42 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (26)
-node dragtest.js                                # DRAGGING MEANS TWO THINGS AND THE SUB-PHASE DECIDES (21).
-                                                # In MAIN a drag ACTIVATES; in the Fight Sub-Phase it PLAYS
-                                                # (epic step 20). `nettest_drag` drives only the PLAY half
-                                                # and says so — it steps OUT of Main first — so the half
-                                                # that CHANGED had no coverage. Every leg runs the SAME
-                                                # card from the SAME staging and varies only the
-                                                # sub-phase, because "a drag activated" is also true of a
-                                                # build that lost the branch.
+node dragtest.js                                # WHERE YOU DROP DECIDES WHAT A DRAG MEANS, NOT THE SUB-PHASE
+                                                # (43). Drag-and-stack step 1: the MIDDLE fights, the cast
+                                                # column (`#castZone`) STAGES a cast that ⚡ Activate sends,
+                                                # and ✕ or a drag back out cancels it with nothing spent.
+                                                # The column's own ⚡ (beside the ✕) MIRRORS the action row's
+                                                # button rather than casting by itself: it must cast, and it
+                                                # must read 🎯 while a choice is open. A ⚡ TAP on a card with a
+                                                # choice shows it in the column too (ruling 16), against the
+                                                # control that a no-choice tap still casts at once (ruling 11).
+                                                # Every claim is a pair off ONE staging — the same card
+                                                # dropped in both zones, in Main and again in the Fight
+                                                # Sub-Phase — because "a drag cast" is also true of a build
+                                                # that does one thing everywhere. It REPLACED epic step 20's
+                                                # suite, which pinned the rule this one overturns.
                                                 # ⚠ THE REFUSALS ARE LIVE, IN `#dropHint`, NOT a message
                                                 # after release — `highlightTarget` asks the question the
                                                 # release will ask and writes the reason while the card is
                                                 # in the air. Asserting a post-release `#message` waits
                                                 # for something that by design never comes
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (245)
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (305). Since step 5
+                                                # it puts three casts on the stack at every size and requires
+                                                # all three IN VIEW, clear of the pile and zones
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (26)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
-#                                       # old Quicks one. Both base Quicks, the doorway, and pauses held on
-#                                       # real ceremony beats rather than forced windows (48). `lessontest_quicks.js`
+#                                       # old Quicks one. Both base Quicks, the crossing FILMED (the strip reads
+#                                       # Fight while the Ace is still in hand), and pauses held on real
+#                                       # ceremony beats rather than forced windows (52). Since drag-and-stack
+#                                       # step 6 its answer steps name Yes and ⚡, and the coach must leave the
+#                                       # box's buttons and the spotlit card UNCOVERED, desktop and phone (hit-tested). `lessontest_quicks.js`
 #                                       # is DELETED: its lesson no longer exists
-node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated, and the spotlit card must GLOW in its computed style, fly-in and reduced motion included (28)
-node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
-node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (22)
-node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (21)
-node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
-node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
-node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
+node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated, and the spotlit card must GLOW in its computed style, fly-in and reduced motion included (29)
+node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (26)
+node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (23)
+node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (22)
+node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (19)
+node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (16)
+node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (16)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
-                                        # DERIVED from the live rules, not a hardcoded string (35)
+                                        # DERIVED from the live rules, not a hardcoded string (36)
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
 #   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
-node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (11). `card <id>
+node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (12). `card <id>
 #                                       # has no group` is NOT a DOM bug — it is PICK MODE, whose branch in
 #                                       # `renderHand` appends bare cards with no `.group`. Forces the
 #                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
 #                                       # `answerWindow()`'s pick escape are not untested code
-#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly.
+node lessontest_phonepass.js            # THE LESSONS ON A PORTRAIT PHONE (126): reruns How to Play,
+#                                       # Initiative, Specials, Form Changes and The 2 at 390x844
+#                                       # (`LESSON_VIEWPORT`) and adds up their counts. On a phone the coach
+#                                       # covered the card or button a step named in all five, every suite green
+#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly. Since drag-and-stack
+#   step 6b its `done()` ASSERTS THE COACH NEVER COVERED WHAT A STEP POINTS AT (a spotlit element's centre, or the
+#   Respond? box's buttons, for two samples running), so each lessonlib suite has one assertion more than its
+#   lesson's own. `LESSON_VIEWPORT=390x844` runs any of them at that size; `LESSON_AUDIT=<file>` writes the per-step
+#   record as JSON lines.
 #   `LESSON_THROTTLE=n node lessontest_x.js` slows that lesson page's CPU n-fold (Chromium DevTools), to test
 #   a load-only flake on demand. These lessons mostly wait on the game's own timers, so 4x barely moves them;
 #   20x adds 40-75% wall time. 72 throttled runs (2026-10-13) reproduced none of the three load-only lesson flakes
@@ -124,19 +143,27 @@ node roartest.js                                # THE ROAR BANNER ON THE HOST/SO
                                                 # must SHOW, show INSIDE the ceremony (before the next round's
                                                 # banner), never overlap the round banner, and fire ONCE.
                                                 # `nettest_ceremony` owns the netplay CLIENT's flush
-node fightbeattest.js                           # THE FIGHT SUB-PHASE BEAT IS FOR `Next`, NOT A COMMIT (13).
-                                                # The repro needs YOU to hold a castable Quick: the go-round
-                                                # starts at the controller, so your own pass renders "your turn,
-                                                # Fight Sub-Phase" before the play lands. Without one the crossing
-                                                # auto-advances and NO build fires the beat — the quiet legs are
-                                                # controls, not evidence. `nettest_fightbeat` is the client (11)
-node nettest_heldplay.js                        # A HELD FIGHT, BOTH SEATS (22). Someone ELSE casts into your
+node fightbeattest.js                           # EVERY CROSSING SHOWS THE FIGHT SUB-PHASE BEFORE THE PLAY LANDS
+                                                # (21). Drag-and-stack ruling 10, as ruling 17 SHOWS it: a quiet
+                                                # crossing auto-advances inside one engine call, so with Next gone
+                                                # the sub-phase would be invisible on most turns. Every crossing
+                                                # flashes the hand yellow (`flashFight`) exactly once, BEFORE the
+                                                # play lands (`__solo.fightFlashes()` logs each flash with the
+                                                # hand), and with NO banner and NO pause (Aj, 2026-10-14: *"like
+                                                # hitting a speed bump at full speed"*). Quiet, two kinds of
+                                                # window, and Pass. The flash does not dim the board.
+                                                # `nettest_fightbeat` is the netplay client, which cannot see its
+                                                # own crossing and needs the host to say so (`t:'crossed'`) (16)
+node nettest_heldplay.js                        # A HELD FIGHT, BOTH SEATS (26). Someone ELSE casts into your
                                                 # Fight press's go-round → you are moved into the Fight
                                                 # Sub-Phase with the beat, cards STILL SELECTED, and choose
                                                 # again (Aj, 2026-10-05). Staged with a HUMAN caster — the AI
                                                 # will not cast on demand. Leg B (the client) was red on v1.32.3:
-                                                # the host re-applied its play. `nettest_heldplay3` (11) is
-                                                # `hostApplyMoveN`'s copy, which a duel never reaches
+                                                # the host re-applied its play. Leg C (step 4, piece 10): a seat
+                                                # that casts a Quick OUT OF its own pressed pair is HELD, not
+                                                # shrunk — `resolveIds` dropped the cast card and the pair landed
+                                                # as a jab. `nettest_heldplay3` (14) is `hostApplyMoveN`'s copy,
+                                                # which a duel never reaches, and LEADS so the shrunk jab is legal
 node nettest_clientride.js                      # A CLIENT CALLS A RIDE AND THE HOST GETS THE WINDOW (35) — the
                                                 # direction `nettest_ridewedge` does not drive. Declined,
                                                 # answered, and answered with the client asked AGAIN (the
@@ -145,16 +172,121 @@ node nettest_clientride.js                      # A CLIENT CALLS A RIDE AND THE 
                                                 # `nettest_clientride3` (26) is `hostApplyMoveN`'s copy: ANOTHER
                                                 # client holds the window, and the host's own modal opens in the
                                                 # middle of it. Both A/B'd by deleting the hand-back / `driveN()`
-node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET (7) — "→ Tank’s Spiked Armor",
+node stackrowtest.js                            # THE STACK ROW NAMES ITS TARGET (25) — "→ Tank’s Spiked Armor",
                                                 # "→ your Holy Bow", "→ You"; NOT the other piece on the same
-                                                # seat; an untargeted row unchanged. The board's #stackView and
-                                                # the Respond? modal are one function (`stackRowsHTML`)
-node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: one Respond?
-                                                # button per Broadway card for a pitch Quick, and a Broadway-only
-                                                # pick (Confirm / Cancel) in Main. Asserts WHICH card left via the
+                                                # seat; an untargeted row unchanged. The phrase is the board's
+                                                # stack caption (`stackObjPhrase`); the small Respond? box names
+                                                # the target with the same `stackTargetPhrase` (step 4, piece 8).
+                                                # Back Stab under Hermes' Super reads "every rival" in the caption,
+                                                # the box and the cast line — it named one seat (piece 10)
+                                                # Drag-and-stack step 3: the stack as CARDS newest-first, one ghost
+                                                # per new cast and none left behind, a hit test under the waiting
+                                                # dim landing on the column, and a cast that resolved at once still
+                                                # ARRIVING. `nettest_stackfly` (14) is the netplay half: the host's
+                                                # instant Technique and its Sabotage land in the guest's column, and
+                                                # a guest's answer lands in both. Rulings 18-19: a pending shield
+                                                # loss is NOT drawn on the stack (a shield loss is not an effect),
+                                                # and an upkeep trigger shows its Equipment's card, a tile only once
+                                                # that Equipment is gone. And the ART POP clears the column, both
+                                                # ways: shifted at 1440 wide, shrunk at 1100. And an arriving ghost is
+                                                # FIXED over the column with the board's height unchanged — it is a
+                                                # `.card`, and `.card`'s `position:relative` once beat `.stkGhost`'s
+                                                # `fixed` in the cascade, so it sat in flow and moved the hand up
+node answertest.js                              # YES, AND ANSWERING FROM THE BOARD (12). Drag-and-stack step 4, piece 2:
+                                                # the Respond? box gains Yes, which closes it and leaves the window yours
+                                                # (`answering` / `answerLive()`, NOT `busy` and not raw `respondFor`). The
+                                                # board then answers: Pass DECLINES priority (it used to run `E.pass`, a
+                                                # round pass the engine accepts over an open stack on your own turn) and
+                                                # "Respond?" reopens the box (ruling 24). Pins Yes, the board's state after
+                                                # it, the reopen, Pass declining without sitting you out, and a reopened
+                                                # box still answering. Piece 8's SMALL BOX: no Quick buttons, no Peek,
+                                                # the cast card beside its sentence, a non-seat target named, and the box
+                                                # CLEAR of the pile, the cast column and the strip with nothing dimmed
+                                                # (ruling 23), on desktop and a portrait phone. `nettest_answer` (16) is the guest: its Pass travels
+                                                # as `op:'decline'`, and one that presses Yes and walks away is passed by
+                                                # `netwindows` after its grace (its new after-Yes state); leg C (piece 5)
+                                                # casts from the guest's board and requires `op:'respond'`, never `activate`;
+                                                # leg D (piece 7) counters from the board and requires the aimed oid in the
+                                                # guest's `clientSend` trace line, which carries `coid=` for that reason
+node respmintest.js                             # THE RESPOND? BOX MINIMIZES WHERE IT SITS AT THE TOP (9). Ruling 34,
+                                                # step 5: on a phone there is no reader for the box to sit over, so
+                                                # it covers the Rival's bar (and at 667x375 the pile and the stack).
+                                                # ▾ shrinks it to its title, the title reopens it, the board stays
+                                                # held, No still answers. CONTROL: desktop shows no ▾. NOT a nettest_
+                                                # or lessontest file, so it is in `sweep.js`'s allowlist by name
+node answercasttest.js                          # CASTING ON THE BOARD WHILE THE WINDOW IS YOURS (22). Step 4, piece 5:
+                                                # after Yes, a card cast from the hand is the BOX'S cast (`humanResponds`,
+                                                # so `E.respond`), never Main's `activate()`, which returns silently
+                                                # off-turn. Its legs are a player's gestures: the hand live on the RIVAL's
+                                                # turn, ruling 27 (a Quick in a pair comes out of it), the engine's own
+                                                # refusal, the middle refusing a drop, ⚡ and the column's ⚡, Annoint asking
+                                                # which of YOUR Equipment, the Broadway pitch, and a held Fight's cards
+                                                # given back. J/K are piece 7: Counter Spell never casts on the tap (ruling
+                                                # 26), its target is tapped ON THE STACK, and with two targets the one you
+                                                # tap — the LOWER one in K — is the oid that goes on the stack.
+                                                # ⚠ A SPARE QUICK KEEPS THE STACK STILL: with nothing else
+                                                # castable your answer resolves inside `E.respond`, so the stack is empty
+                                                # before you can look — and a cast is paid in ITS OWN SUIT, so the spare
+                                                # Leyline needs a second ♦9 of energy or it is silently uncastable
+node answerglowtest.js                          # THE ANSWER GLOW (14). Step 4, piece 6: after Yes, exactly the engine's
+                                                # castable set (`E.canCastQuick`) glows GREEN — never the notification
+                                                # setting, and no legal target means no glow. Every leg reads COMPUTED
+                                                # style: a card flying in (`.enter`), selected, hovered, spotlit by a
+                                                # lesson, under reduced motion and on a portrait phone, plus nothing
+                                                # under the box, nothing while a card is staged, nothing after Pass.
+                                                # ⚠ RENDER BEFORE READING "NOTHING UNDER THE BOX": the box opens without
+                                                # a render, so reading the hand as it was passes on a build that glows
+                                                # under it (measured — the first cut did)
+node upkeepstrandtest.js                        # NO WINDOW OWED TO THE RIVAL SURVIVES THE ROUND CEREMONY (7). The
+                                                # ceremony's boundary drain returned once the round was STAMPED, and the
+                                                # stamp lands in the untap queue BEFORE Upkeep parks: a parked Upkeep went
+                                                # undrained, the draw ran over it, and your board refused every move
+                                                # ("The round is over…"). It timed `browsertest` out in two sweeps, about
+                                                # 2 duels in 100 under load, and predated drag-and-stack. STAGED from five
+                                                # dumps (the natural trigger was not found): a real round end leaves Upkeep
+                                                # parked on the Rival, stamped. The pair: a control, and the ceremony
+                                                # answering it BEFORE the draw. A floor (`drainStrandedWindow`) drains any
+                                                # AI window still open at a hand-back and logs `⚠ … WAS STILL OPEN AT THE
+                                                # HAND-BACK`; mutants: no root fix → the floor's line, neither → the wedge
+node castholdtest.js                            # EVERY CAST HOLDS THE GAME FOR ITS ART FLASH (10). Drag-and-stack
+                                                # ruling 20 (Aj: *"as long as the art flash should be good"*, and
+                                                # *"yes"* to holding the game for your own and other humans' casts).
+                                                # One timer, started where every seat presents a cast
+                                                # (`presentStackArrival`): the board refuses plays, casts and passes
+                                                # (`castHolding()`), the hint names the card, a Respond? box and
+                                                # solo's AI answers wait for it. Pairs: a no-cast CONTROL; your cast
+                                                # held and released at ~2.5s; reduced motion at ~0.9s (the hold IS the
+                                                # flash's length); and in ON your own box opening after the flash, not
+                                                # at 136ms. `nettest_stackfly` leg C is the guest's own cast.
+                                                # ⚠ NOT `busy`: a dozen drivers clear `busy`, and a guest recomputes it
+                                                # from every mirror. ⚠ AND NOT A `Date.now()` TIMESTAMP: `browsertest`
+                                                # clamps every `setTimeout` to 8ms, a timestamp ignored the clamp, and
+                                                # twelve duels outran the 300s cap. A flag a `setTimeout` clears, with
+                                                # its waiters QUEUED and run by that timer after the re-render. A suite that casts and then acts must wait the
+                                                # hold out (`__solo.castHold()` / `__cmf.castHold()` read what is left;
+                                                # `fightclick`'s `waitHold`, and `clickFight`/`clickPass` already do).
+                                                # Two traps the first sweep after it found, 13 suites red: the hold
+                                                # HIDES `#ctxBtn` with its "⚡ Activate" label intact, so a helper that
+                                                # matched the label and not `offsetParent` "cast" nothing (fourteen
+                                                # copies across nine suites, all fixed); and a polled timestamp left
+                                                # ~15ms between "the hold reads 0" and the render that re-enabled
+                                                # Fight, where `.click()` on a disabled button does nothing. The timer
+                                                # closed that gap; the helpers still wait one beat past a hold
+node nettest_pitch.js                           # THE BROADWAY PITCH IS CHOSEN, from a CLIENT: answering from the
+                                                # board, the hand turns into a pick of EXACTLY the Broadway cards
+                                                # (step 4, piece 8 — it was one Respond? button per card), and a
+                                                # Broadway-only pick (Confirm / Cancel) in Main. Asserts WHICH card left via the
                                                 # host's copy of the hand — the 10 is the default, the Ace the choice.
                                                 # Both screens' battle logs must NAME the pitched Ace, on the cast
-                                                # and on the answer (18)
+                                                # and on the answer (19)
+node nettest_counterfeit.js                     # COUNTERFEIT'S PICK ON THE PILE, from a CLIENT (15). The host leads a
+                                                # pair of 7s and the client picks the SECOND one: the host's copy of
+                                                # the client's hand must hold that card (`CF7H#…`), a tap must send
+                                                # nothing, and BOTH logs must name the copy — a guest's Counterfeit
+                                                # never said what it copied until drag-and-stack step 2. Leg B
+                                                # (step 4, piece 10): the HOST's own Counterfeit SETTLES — the
+                                                # guest is asked, not answered for by the AI (`rivalMayRespond`,
+                                                # its only caller, is deleted)
 node sorttest.js                                # THE STRAIGHTS SORT (6): the HIGHEST legal five-card straight
                                                 # first (Aj's 7-8-9-10-J), and only legal ones — 2-3-4-5-6 under
                                                 # the default low-2 rule, J-Q-K-A-2 only when the 2 chains high
@@ -173,7 +305,7 @@ node nettest_prefightduel.js                    # THE PRE-FIGHT WINDOW IN A **DU
                                                 # which routes through `settleWindows` and so parks in the
                                                 # right family. A/B'd by deleting the duel resume — the
                                                 # filed symptom reproduces exactly
-node nettest_rename.js                          # A MID-GAME RENAME MUST REACH THE TABLE (17). The editor
+node nettest_rename.js                          # A MID-GAME RENAME MUST REACH THE TABLE (18). The editor
                                                 # committed four LOCAL calls and sent nothing, so a name
                                                 # travelled exactly twice — a client's `t:'join'` and the
                                                 # host's `t:'setup'`, both before the game existed. Asserts
@@ -181,7 +313,7 @@ node nettest_rename.js                          # A MID-GAME RENAME MUST REACH T
                                                 # table, plus the announcement's grammar in BOTH frames and
                                                 # a host-side cooldown that ESCALATES. `__cmf.renameBase`
                                                 # shrinks the 20s base so the doubling is testable
-node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (24). A client whose prompt
+node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (25). A client whose prompt
                                                 # for a timing is off answers with the SAME `{op:'decline'}`
                                                 # a player clicking "Let it resolve" sends, so the host
                                                 # narrated both. Three legs: a real decline STILL narrates,
@@ -223,14 +355,19 @@ node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRI
                                                 # (`handPresetN`), never the order: a fair shuffle reproduces
                                                 # the engine's order 1 time in 720, so an order assertion is a
                                                 # mystery red waiting to happen
-node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME CEREMONY (21). FILMS what each
+node nettest_parity.js                          # HOST AND CLIENT SHOW THE SAME CEREMONY (22). FILMS what each
                                                 # seat RENDERS through a real duel and a 3-player game and diffs
                                                 # the round ceremonies. `PARITY_DUMP=1` prints every ceremony,
                                                 # `PARITY_RAW=1` every strip change with that seat's flags.
                                                 # ⚠ A REPAINT OF THE PHASE ON SCREEN IS NOT A NEW PHASE: after
                                                 # a parked Resolution window the client repaints Resolve once
                                                 # an invisible burst is filtered out, and segmenting on it
-                                                # filmed an extra empty ceremony 1 run in 4 (`settled()`)
+                                                # filmed an extra empty ceremony 1 run in 4 (`settled()`).
+                                                # Every seat answers its windows via YES, then the board
+                                                # (`netwindows`' `viaYes`), and the duel's guest holds Leyline
+                                                # with prompts ON so that really happens — left to the deal it
+                                                # ran ZERO windows as often as not. That leg found the loop
+                                                # `nettest_windowlock` pins
 node nettest_strip.js                          # THE STRIP AFTER THE CLEAN-UP DWELL COMES FROM THE GAME, ON EVERY SEAT (16).
                                                 # Leg 1: the host picks its end-of-round discards and the GUEST
                                                 # must read Clean-up (`trimPending`), not the turn colour. Leg 2:
@@ -241,9 +378,18 @@ node nettest_strip.js                          # THE STRIP AFTER THE CLEAN-UP DW
                                                 # drain the whole boundary BEFORE its ceremony starts, and the
                                                 # first cut of leg 2 staged exactly that and read a correct strip
 node nettest_roundlock.js                       # A CLIENT'S BOARD IS LOCKED WHILE A ROUND WINDOW IS OPEN,
-                                                # UPKEEP INCLUDED (9). Injects mirrors through the REAL
+                                                # UPKEEP INCLUDED (13). Injects mirrors through the REAL
                                                 # handler, one window each; the CONTROL must be LIVE and a
-                                                # STALLED Upkeep (nobody on priority) must stay live too
+                                                # STALLED Upkeep (nobody on priority) must stay live too.
+                                                # And the client's OWN window: locked under its box, LIVE as
+                                                # the answer after Yes, and a re-sent mirror changes neither
+node nettest_windowlock.js                      # A TURN OP WHILE SOMEBODY ELSE HOLDS PRIORITY IS REFUSED, AND
+                                                # THE GUEST'S BOARD LOCKS (7). Found by parity's Yes leg, 1 duel
+                                                # in 6: a guest's live Pass during the host's crossing window
+                                                # re-reached the crossing branch, where `E.moveToPlay` never
+                                                # checks `respondFor`, so every repeat re-granted the host's
+                                                # window and the table never moved. The host refuses (the
+                                                # authority) and the guest locks (the courtesy); both A/B'd
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (133).
                                                 # Its forced-discard leg FORCES what its phase-strip driver once stalled on
                                                 # — an AI discard aimed at you — and drives it with that same `driveOnce`.
@@ -304,9 +450,10 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # the STRIKER too (Armor Piercing under Hippolyta); C3
                                                 # keeps the narrowness claim C2 used to carry — the same
                                                 # board with the strip already banked forces nothing.
-                                                # F adds the STACK IN THE WINDOW. B's answer line must name the
+                                                # F: the board's STACK stays readable while the box asks —
+                                                # clear of it, undimmed (step 4, piece 8). B's answer line must name the
                                                 # ♦10 it pitched. C8b leaves a closed window's buttons in the page
-                                                # and the shared visible-only reads must refuse them (73)
+                                                # and the shared visible-only reads must refuse them (74)
 node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
                                                 # checkboxes were RETIRED 2026-09-30 and two thirds of this
                                                 # suite went with them — it asserted six rendered rows, that
@@ -404,7 +551,7 @@ hoisting it to `tutIsTech` in v1.31.73 is what uncovered **three shipped bugs in
 one game in twelve. **The dangerous shape is a rig that needs a UNIQUE card**: the Quicks lesson wants the lone
 4♦ Counter Spell, and when it was behind a shield the rig placed nothing, `eligibleQuicks()` came back empty, the
 Respond? window never opened, and the player sat on step 2 being told to counter something that never arrived —
-no error, no log line, no way to finish. `tutPullShield` lifts it out and swaps a pool card in so the pile keeps
+no error, no log line, no way to finish. `tutPullShield` lifted it out (deleted with that lesson at drag-and-stack step 6; the trap stays live for any new rig) and swapped a pool card in so the pile kept
 its size. The Ride and Form rigs ask for `J♣ || any J` and `Q♣ || any Q` and so survive the same hole by luck;
 check for a fallback before assuming a rig is safe. `lessontest_phases` asserts the card accounting (52 cards,
 none duplicated, `shieldPile.length === shields`) precisely because a swap that dropped a card would still play.
@@ -494,7 +641,7 @@ anyway"*); its plays may not, so its 2s are ordered to keep every played combina
 other helper in that file has, and `lessontest_twos` caught it at once: that lesson's prep makes the RIVAL lead,
 so the board is busy at exactly the moment the suite answers. `playIds(ids)` (play an exact set) retries too.
 Since v1.31.74 the board says why out loud — "Hold on — the board is still resolving." — which is what named it.
-**A TUTORIAL PREP THAT PLAYS FOR THE RIVAL MUST NOT RESTORE THE TURN.** `tutCastRivalTech` saves and restores it
+**A TUTORIAL PREP THAT PLAYS FOR THE RIVAL MUST NOT RESTORE THE TURN.** `tutCastRivalTech` (deleted at drag-and-stack step 6) saved and restored it
 because an ACTIVATION is not a turn; `E.play` advances the turn itself, so restoring hands it straight back to
 the Rival and the player can never answer. Copying that function without noticing the difference cost a red run.
 
@@ -1077,9 +1224,12 @@ catches the next one without anyone re-reading every template.
 entry above says nineteen sites had the wrong one; a twentieth turned up the same day this audit ran, so
 "finished" deserved a number rather than a feeling. Every `logMsg(` call site triaged against this file's
 own question — *can this happen while netplay is live, and does another seat need to see it?*
-**CLEARED, and worth recording so nobody re-audits them:** `rivalMayRespond`'s two lines and
-`tutCastRivalTech` hardcode "Rival" but are AI/tutorial paths a netplay host never reaches (a host's rival
-is a human and routes through `NET.hostSettle`); the three opener lines and the client's own are
+**CLEARED, and worth recording so nobody re-audits them:** `tutCastRivalTech` (since deleted) hardcoded "Rival" but was a
+tutorial path a netplay host never reaches (a host's rival is a human and routes through `NET.hostSettle`).
+*(`rivalMayRespond` was cleared here on the same reasoning, and the reasoning was wrong: a HOST's own Counterfeit
+called it, so the AI answered for the human guest. Deleted at drag-and-stack step 4, piece 10 — `doCounterfeit`
+settles through `settleWindows` like every other cast. "A host never reaches it" is a claim to test, not to
+reason: `grep` the callers.)* The three opener lines and the client's own are
 deliberately per-frame; the `t:'say'` renderer is correct by definition; concede is framed locally on each
 side; the lobby/disconnect/Passo family DOES reach other clients, via `t:'peer'` + `renderDisconBar`, as a
 deliberately generic banner rather than a named line; two are debug hooks.
@@ -1795,7 +1945,7 @@ the condition once and then *watching without writing* is what answered it; a pr
 can only ever show you the forced state.
 
 **A HAND-ROLLED PRIORITY CHECK OUTLIVES THE RULE IT ENCODED — SECOND INSTANCE, AND IT WAS THE
-`lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` casts as the RIVAL and then tested
+`lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` (deleted at drag-and-stack step 6) cast as the RIVAL and then tested
 `if(state.respondFor===YOU)`, with an `else` that did `state.turn=savedTurn; render();`. **Epic step 6 made
 the go-round start at the CONTROLLER**, so after a Rival cast priority is transiently the RIVAL's, the gate
 falls through, and the `else` **abandons an open window** — `pending` set, nobody who will ever drain it.
@@ -2206,8 +2356,9 @@ the board **scrolls**. Above the floor the promise is everything-on-one-screen; 
 only *nothing overlaps and everything is reachable*. The suite encodes both, and the floor cases assert
 reachability by really scrolling the board — don't weaken that into a check that would pass on a broken build.
 
-`viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
-and (max-height:800px)` — at a taller phone size it is correctly absent.
+`viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)` —
+every phone since drag-and-stack ruling 32 (it was `and (max-height:800px)`, so a taller phone had no 🔍 and kept the
+reader strip; `phonetest` asserts the gate at three phone sizes).
 
 Browser resolution lives in **`code/pwchrome.js`**: `$PW_CHROMIUM` if set, else `/opt/pw-browsers/chromium` if it
 exists (the old sandbox layout), else Playwright's own download. Launch through it — `chromium.launch(LAUNCH)` —
@@ -2513,32 +2664,32 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.33.16 — last FULL sweep 2026-10-13, `npm run sweep`, 124/124 in 387s** (this line was
+Status as of **v1.34.0 — last FULL sweep 2026-10-19, `npm run sweep`, 135/135 in 563s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
 before sweeping**: the gate catches it, but only after a five-minute run.
-`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 8, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 13, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
 note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
-the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 124 with `nettest_parity`, `nettest_roundlock`, `deckouttest`, `nettest_strip`, the `nettest_clientride` pair and `nettest_piles`.) (four lanes; background
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 133 with `nettest_parity`, `nettest_roundlock`, `deckouttest`, `nettest_strip`, the `nettest_clientride` pair, `nettest_piles`, `nettest_counterfeit`, `nettest_stackfly`, `castholdtest`, `upkeepstrandtest`, `answertest`, `nettest_answer`, `answercasttest`, `answerglowtest` and `nettest_windowlock`.) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 713, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 714, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 22, `counterfeittest` 12, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 73, `lessontest_phases` 48, `lessontest_howto` 28,
-`lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
-`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 35, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
+`lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
+`lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 78 netplay suites: `nettest_3p` 7, `parity` 21, `roundlock` 9, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 82 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 25, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 18, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12.
+`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -4004,6 +4155,10 @@ now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits
   the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
 - `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
   Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
+- `docs/DRAG-AND-STACK-DESIGN.md` — the design for `epic/drag-and-stack`: playing from the board instead of the
+- `docs/DRAG-AND-STACK-STEP4.md` — the inventory taken before step 4 (answering on the board): what changes, which
+  suites move, the traps, the build order and the open questions. A measurement of the epic at `dbbe80d`; re-check before building on it.
+  Respond? modal, with Aj's rulings. **Read it before touching the drag, `#stackView` or `promptHumanResponse`.**
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
   https origin actually unblock the camera? **Read it for the answer; do not summarise it here.** This line used
   to say *"results table still empty"* — it had been RUN AND SETTLED on 2026-08-28 and the summary rotted while

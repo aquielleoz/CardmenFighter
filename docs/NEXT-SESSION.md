@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**713**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**714**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,15 +15,16 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.33.16.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.34.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.33.16**. `epic/priority-windows` landed as v1.32.0, so all work is on `main` in ordinary
-`fix/`/`feat/` branches.
+`main` is at **v1.34.0**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
+branches.
 
 **⚑ WHERE TO PICK UP: the first entry under `### Open` in `## BACKLOG` below.** Open is in the order Aj
 ranked it (2026-10-13); everything waiting on something sits under `### Parked`, grouped by what revives it.
@@ -46,8 +47,10 @@ The facts people trip over:
 - **The Play Phase is Main · Fight · Resolution** (renamed from "Fight Phase"; the old Fight End is Resolution).
   `fightEnd` in a `.js` file is a leftover. The one surviving `'fightend'` is the `localStorage` prompt-timing
   migration, which must know the old key.
-- **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move, Fight commits the cards.
-  Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
+- **There is no Next button (drag-and-stack step 1).** `#fightBtn` only reads Fight: one press with a play
+  selected crosses Main → Fight and then plays it, and every crossing shows Fight for a beat. **Where you drop
+  decides what a drag means:** the middle of the play area fights, and the cast column on the right stages a
+  cast that ⚡ Activate sends.
 - **Pass is an auto-pass with a brake:** one press carries you through, and it stops if anyone ELSE acts in the
   window it opened (`stackMark`).
 - **The equipment counter tick is the game's first triggered ability.** A trigger is an effect carrying `trig`.
@@ -119,38 +122,6 @@ re-read its tag.
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
-- `needs a decision`    · **★ PRIORITY WINDOWS IN THE HAND: REPLACE THE PER-CARD MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE
-  QUICKS", AND SHOW THE STACK INSTEAD OF NARRATING IT.** Three of Aj's asks, one change:
-  - *"can we redesign? instead of having a modal for each card... can we just like pause the game and
-    highlight the castable quicks?"* (2026-09-10)
-  - *"not elegant but it works haha i think we need to overhaul this with a stack visualizer in the future"*
-    (2026-09-11)
-  - *"there still are no animations for the answered quicks… maybe it's because we use modals instead of
-    prompt the user's hand"* (2026-09-18, from a side-by-side of both seats)
-
-  **WHY:** priority is a real go-round at several timings, and the window is a MODAL LISTING CARDS — a second
-  presentation of a hand you are already looking at. In a real game (his saved log, rounds 6 and 7) both
-  prompts were useless: Counter Spell offered against an empty stack (since refused at cast), and Leyline on a
-  jab win with nothing at stake — **legal and not a bug**, his words, but a modal you read and dismiss to learn
-  there was nothing to do. The stack is described in prose on a button (*"counter Holy Bow (Adell)"*) when it
-  is the one piece of state a player most needs laid out, and holding priority can now stack several Quicks.
-  **THE SHAPE:** pause, light up the castable cards in the hand you already have, tap one or pass, with the
-  stack shown beside it. **Do the two halves together** (Aj) — a visualiser plus in-hand highlighting IS the
-  replacement for the modal, and shipping one leaves the prose half in place.
-  **IT ALSO FIXES THE MISSING ANIMATION, FOR FREE:** a Quick chosen off a button in an overlay has no card in
-  the hand to fly from, so it never reaches `buildOppBeats`' `revealEffect` + `revealDwell`. Putting the card
-  back on the board lets those beats apply. Do NOT bolt an animation onto the modal path — that is a third
-  presentation to keep in step.
-  **THE SCOPE IS SMALLER THAN IT WAS:** the engine side is done (`E.canCastQuick` is the per-card predicate and
-  the offer list is exactly what it admits), and every seat's window — solo, the netplay host's own seat, and a
-  guest — is built in ONE function, `promptHumanResponse`. The stack rows come from `stackRowsHTML`, shared by
-  the board's `#stackView` and the modal. (This entry used to name three prompt paths; epic step 20 deleted
-  two.) The deferral — *"those starred entries… can actually be done after it's merged"* (2026-09-30) — is
-  satisfied: the epic merged as v1.32.0.
-  **WHAT IT NEEDS NEXT IS A DESIGN, NOT CODE:** what pauses, how castable cards light, how the stack is laid
-  out, phone and landscape. Draft it for Aj to rule on before building.
-  `[id: priority-modal-redesign]`
-
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
   measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
@@ -165,6 +136,46 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   **11 / 14 / 20 / 31** at 2 / 3 / 4 / 6 players. Thinning does not move them, so it is not the lever, but
   any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
+
+- `root cause found`    · **AFTER A PHANTASMAL ILLUSION, THE NEXT SEAT'S TURN HAS NO MAIN.** `E.phantasm` hands the
+  turn on (`st.turn = nextPlayer(st, p)`) without the `st.subPhase = 'main'; st.toPlay = null;` that every other
+  hand-off writes (`play`, `pass`, the round reset). The AI always casts its Illusion after crossing into the
+  fight (`takeTurn` calls `E.moveToPlay` before `tryPhantasm`), so the next seat inherits `subPhase:'play'`:
+  every Main effect is refused with *"The Fight Sub-Phase has begun — play a card or pass."*, and the strip
+  paints Fight with no beat. **Measured in the engine, 4 of 4** (2026-10-13): seat 1 crosses and casts a swapped
+  Illusion over a 3-7 straight, seat 0's fresh turn reads `subPhase play`, and `E.activate` refuses its draw
+  card. A human's Illusion cast from Main does not leak, because it never crossed.
+  **Rare, but it costs a whole Main** (Illusions are cast a few times per 100 games). Found by the drag-and-stack
+  design recheck, whose step 1 will meet it, so it is filed here rather than fixed on the epic.
+  **The fix:** the missing reset beside the hand-off, and a `test.js` assertion that the seat after an Illusion
+  starts its turn in Main. Placed third by the session that filed it, below Aj's two ranked items; re-rank freely.
+  `[id: illusion-leaks-fight-subphase]`
+
+- `needs a decision`    · **PHANTASMAL ILLUSION SHOULD GO ON THE STACK, AND ITS RESOLUTION SHOULD CROSS INTO THE FIGHT.**
+  Ruled by Aj on 2026-10-14, while the drag-and-stack design was asking which drop zone takes the card:
+  *"fully activating the phastasmal illusion puts the effect on the stack. it's a copy+fight as you mentioned.
+  an opponent can still try to backstab you at that point. and since we resolve in lifo, back stab effectively
+  cancels the fight part of the phantasmal illusion. also, resolving phantasmal illusion also causes the phase
+  change, and resolving it does the priority dance before changing subphases and before it resolves. this is
+  just a complex card"*.
+  **TODAY IT DOES NONE OF THAT.** `E.phantasm` never pushes to the stack and never opens a window: it pays, puts
+  the copy on the pile and hands the turn on in one call. A human casts it from Main with no crossing; the AI
+  crosses first and then casts. So this is a rules change in `engine.js`, `ai.js` (`tryPhantasm`) and the
+  template's `doPhantasm`, and it is `main` work: none of that code is touched by `epic/drag-and-stack`, whose
+  only part is to route a dropped Illusion to the cast column.
+  **WHAT IS LEFT TO DECIDE before building:** what a Back Stab that "cancels the fight part" leaves behind (is
+  the Illusion card still spent, and its energy?); whether the crossing's priority round happens with the
+  Illusion still on the stack or after it leaves; and what the AI should do with the new window. Settle those
+  with Aj, then build it with a `test.js` leg for the Back Stab answer, keeping the leak fix above (the turn
+  hand-off still has to reset the sub-phase).
+  `[id: illusion-on-the-stack]`
+
+- `ready to build`      · **SIX FUNCTIONS IN THE TEMPLATE THAT NOTHING CALLS: `activateSelected`, `cancelTargetPick`,
+  `isAISeat`, `isLocalSeat`, `livingOpps`, `seatLabel`.** Found 2026-10-19 by drag-and-stack step 7's dead-code
+  check (a name that appears only at its own definition, so not exported either). All six are dead on `main` too, so
+  by the routing test this is `main` work, not the epic's. Delete them, then follow CLAUDE.md's deletion rules: grep
+  the export literals for `name:name`, and run `mptest` before the sweep.
+  `[id: dead-template-functions]`
 
 ### Parked — each entry says what revives it
 
@@ -560,6 +571,14 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   **FORCED 2026-10-13 AND NOT REPRODUCED, SO PARKED.** 16 runs at 4x and 8 at 20x page-CPU throttle (the 20x runs
   took 7s against 4s): the Q was spotlit every time. **Revives when it fails in a sweep**; the step print then says
   which half it is.
+  **IT FAILED IN A SWEEP 2026-10-19 (epic step 6b, 134/135) AND THE STEP PRINT SAYS WHICH HALF: ON THE STEP, LIT THE
+  FALLBACK.** `Tutorial · 2 / 4 … WHY: spots=cardActivate,hand,ctxBtn` — step 2's `hi` returns `'#hand'` only when
+  `tutFormId` is null, so `tutPrepForm` (step 1's `prep`) found NO Form in the hand or deck of the `state` it read. The
+  rig places a Q 8/8, so the live suspect is the prep READING THE WRONG STATE: it runs from `tryPrep`, a timer that
+  fires once the step shows, and if that can land before the lesson's own game replaces `state` it searches the
+  previous game and caches null for good (nothing re-runs the prep). Check the order of `TUT.start` against the
+  lesson's `startGame`, and whether `tutFormId` (never reset) should be re-derived at step 2 instead of cached at
+  step 1. 6/6 green solo straight after.
   `[id: lessontest-forms-poll]`
 
 - `parked`              · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`

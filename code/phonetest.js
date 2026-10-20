@@ -71,13 +71,10 @@ const actionRow = p => p.evaluate(()=>{
     await p.goto(URL); await wait(700);
     await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
     await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1100);
-    /* MOVE TO THE FIGHT SUB-PHASE (epic step 20), because this file measures the ACTION ROW and two of its
-       claims only exist there. `#passBtn` is not rendered in the Main Sub-Phase at all, so "all six buttons
-       are on one row" would be asserting five; and `#fightBtn` is the PHASE MOVE in Main, so it is never
-       disabled there and the enabled-vs-disabled gold comparison would have no off state to compare against.
-       Both assertions stay exactly as strong — they just need the sub-phase where the controls live. */
-    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
-    await wait(400);
+    /* NO MOVE TO THE FIGHT SUB-PHASE NEEDED ANY MORE. This file measures the ACTION ROW, and it used to step out
+       of Main first because `#fightBtn` was the always-enabled `Next` there (no off state to compare) and Pass
+       was hidden. Since drag-and-stack step 1 Main renders the whole row and Fight rests disabled until a legal
+       selection, so both claims hold in Main. */
 
     await stage(p, GROUPED); ok(await sortToPairs(p), `${label} ${w}×${h}: sorted by pairs`);
     await wait(300);
@@ -137,10 +134,10 @@ const actionRow = p => p.evaluate(()=>{
     const ar = await actionRow(p);
     ok(ar.rows===1, `  → the action row fits on ONE row (${ar.rows} row(s), ${ar.h}px)`);
     /* 🔍 View card JOINED THE ROW in v1.31.104, and its gate is NOT the icon breakpoint: it appears only where
-       the inline description strip is hidden (`max-width:720px and max-height:800px`), because on a taller phone
-       `#side` reads the card inline and the button would open a reader nobody needs. Of the three sizes here only
-       360×800 qualifies — so assert the GATE, not a fixed count, or the suite bakes in whichever it saw first. */
-    const wantView = (w<=720 && h<=800), n = wantView?6:5;
+       the inline description strip is hidden — since drag-and-stack ruling 32 (step 5), EVERY phone (`max-width:720px`;
+       it was `and max-height:800px`, which left the two taller sizes here with a 170px strip under the hand). So all
+       three sizes here qualify now. Still assert the GATE, not a fixed count, or the suite bakes in whichever it saw first. */
+    const wantView = (w<=720), n = wantView?6:5;
     const hasView = ar.bs.some(x=>x.id==='viewCardBtn');
     ok(ar.bs.length===n, `  → all ${n} buttons are on it (${ar.bs.map(x=>x.id.replace('Btn','')).join(' ')})`);
     ok(hasView===wantView, `  → 🔍 View card is ${wantView?'present':'correctly absent'} at ${w}×${h} (inline reader ${wantView?'hidden':'shown'})`);
@@ -195,13 +192,10 @@ const actionRow = p => p.evaluate(()=>{
     await p.goto(URL); await wait(700);
     await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
     await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1100);
-    /* MOVE TO THE FIGHT SUB-PHASE (epic step 20), because this file measures the ACTION ROW and two of its
-       claims only exist there. `#passBtn` is not rendered in the Main Sub-Phase at all, so "all six buttons
-       are on one row" would be asserting five; and `#fightBtn` is the PHASE MOVE in Main, so it is never
-       disabled there and the enabled-vs-disabled gold comparison would have no off state to compare against.
-       Both assertions stay exactly as strong — they just need the sub-phase where the controls live. */
-    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
-    await wait(400);
+    /* NO MOVE TO THE FIGHT SUB-PHASE NEEDED ANY MORE. This file measures the ACTION ROW, and it used to step out
+       of Main first because `#fightBtn` was the always-enabled `Next` there (no off state to compare) and Pass
+       was hidden. Since drag-and-stack step 1 Main renders the whole row and Fight rests disabled until a legal
+       selection, so both claims hold in Main. */
     const wide = await actionRow(p);
     const collapsed = wide.bs.filter(x=>x.fs===0);
     ok(collapsed.length===0, `a 768px tablet keeps the WORDS (${collapsed.map(x=>x.id).join(',')||'none collapsed'})`);

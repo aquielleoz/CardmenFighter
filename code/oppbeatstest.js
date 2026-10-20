@@ -189,6 +189,60 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
      slot bug kept the page's round in front and appended the engine's as `  7`. The arrow lines are indented under
      their window, hence `\s+`. */
   ok(new RegExp('^r'+R+'\\s+→ Victim CAST Counter Spell  \\(a counter\\)$').test(cLine), `the ledger records it, stamped with the entry's round and nothing trailing  ["${cLine}"]`);
+  /* THE REPLAYED STACK IS LIFO (Aj, 2026-10-19: *"opponent 1 tried to destroy another opponents equip. so the destroy
+     flew to the stack visualizer... then it disappeared... then the other opponent countered the destruction with a
+     counterspell and then it flew to the visualizer... both cards should have been there"*). ai.js resolves an AI-vs-AI
+     exchange in one call, so this replay is the only place the stack can be seen. FILMED, because the claim is an ORDER:
+     Sabotage alone, then Counter Spell ON TOP of it, then both gone together, and the board saying why. The control is
+     an unanswered cast, which must still pass through as a ghost and never sit in the column. */
+  /* ITS OWN THREE-PLAYER PAGE: the legs above run on a duel and only NAME a seat 2, which is enough for a log line and
+     not for drawing seat 2's card. */
+  const p3=await ctx.newPage(); p3.on('pageerror',e=>errs.push('3p: '+e.message));
+  await p3.goto(URL); await wait(700);
+  await p3.evaluate(()=>document.getElementById('newBtn').click()); await wait(400);
+  await p3.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(200);
+  await p3.evaluate(()=>document.getElementById('goFirstBtn').click());
+  for(let k=0;k<60 && !(await p3.evaluate(()=>!!(window.__solo.st() && window.__solo.st().numPlayers===3 && document.querySelectorAll('#hand .card').length))); k++) await wait(150);
+  for(let k=0;k<60 && await p3.evaluate(()=>{ const r=document.getElementById('roundfx'); return !!(r && r.classList.contains('show')); }); k++) await wait(150);
+  const film = (log)=>p3.evaluate(async(log)=>{ const snaps=[], seen=new Set(), msgs=new Set();
+    window.__solo.oppBeats(log, 1);
+    for(let k=0;k<140;k++){ const s=[...document.querySelectorAll('#stackView .stkCard .card')].map(c=>c.dataset.id||c.getAttribute('data-card')||'?').join(',');
+      if(!snaps.length || snaps[snaps.length-1]!==s) snaps.push(s); msgs.add(((document.getElementById('message')||{}).textContent||'').trim());
+      await new Promise(r=>setTimeout(r,60)); }
+    return { snaps, msgs:[...msgs] }; }, log);
+  const lifo = await film([{ play:'X', card:{rank:5,suit:'S',id:'sab5S'}, target:{ equip:{ owner:2, name:'Holy Bow' } } },
+                           { respond:'counter', respName:'Counter Spell', respCard:{rank:4,suit:'D',id:'cs4D'}, respBy:2, countered:true, transition:false, round:3 }]);
+  const both = lifo.snaps.indexOf('cs4D,sab5S'), alone = lifo.snaps.indexOf('sab5S'), gone = lifo.snaps.lastIndexOf('');
+  ok(both>=0, 'THE REPLAYED STACK HOLDS BOTH CARDS AT ONCE — Counter Spell on top of the Sabotage it answers  '+JSON.stringify(lifo.snaps));
+  ok(alone>=0 && alone<both && gone>both, '  …in order: Sabotage alone, then Counter Spell over it, then the stack empty  '+JSON.stringify(lifo.snaps));
+  ok(lifo.msgs.some(m=>/Counter Spell resolves — Sabotage is countered/.test(m)), '  …and the board says what resolved: "Counter Spell resolves — Sabotage is countered."');
+  /* …AND A COUNTER ON A COUNTER: three deep, then the top two leave TOGETHER (the second Counter Spell takes the first
+     with it), and only then does the Sabotage resolve, alone. */
+  const deep = await film([{ play:'X', card:{rank:5,suit:'S',id:'sab5S'}, target:{ equip:{ owner:2, name:'Holy Bow' } } },
+                           { respond:'counter', respName:'Counter Spell', respCard:{rank:4,suit:'D',id:'cs4D'}, respBy:2, countered:true, transition:false, round:3 },
+                           { respond:'counter', respName:'Counter Spell', respCard:{rank:4,suit:'H',id:'cs4H'}, respBy:1, countered:true, transition:false, round:3 }]);
+  const d3=deep.snaps.indexOf('cs4H,cs4D,sab5S'), d1=deep.snaps.indexOf('sab5S', Math.max(0,d3)), d0=deep.snaps.lastIndexOf('');
+  ok(d3>=0 && d1>d3 && d0>d1, 'A COUNTER ON A COUNTER: three deep, then the top two leave together and the Sabotage resolves last  '+JSON.stringify(deep.snaps));
+  /* …AND A LOG THE REAL AI WROTE, unedited. The legs above hand-write `countered:true`, and until 2026-10-19 the AI
+     never wrote it: `E.respond` did not report a counter, so Aj's board — a Disarm countered by Counter Spell — would
+     have replayed the counter resolving and then the Disarm resolving anyway. Seat 1 casts Telekinesis, seat 2 holds
+     Counter Spell and the fuel for it (test.js's in-turn staging, with a rival on enough cards to be worth hitting). */
+  const E=require('./engine.js'), AI=require('./ai.js');
+  const mkc=(r,su,t)=>({rank:r,suit:su,id:(t||'')+r+su}), fuel=(n,su)=>Array.from({length:n},(_,i)=>mkc(3,su,'e'+i));
+  const g=E.newGame(null,{numPlayers:3}); g.round=4; g.turn=1; g.passes=0; g.pile=null; g.lastPlayer=null;
+  g.players.forEach(p=>{ p.hand=[mkc(9,'C','x'),mkc(5,'H','x')]; p.energy=[]; });
+  g.players[0].hand=[9,5,6,7,8,10,11].map((r,i)=>mkc(r,i%2?'H':'C','a'));
+  g.players[1].hand=[mkc(3,'D'),mkc(9,'C','y')]; g.players[1].energy=fuel(8,'D');
+  g.players[2].hand.push(mkc(4,'D')); g.players[2].energy=fuel(8,'D');
+  const realLog=AI.takeTurn(g,1,'knight',[0]), realAns=realLog.find(e=>e.respond);
+  ok(!!realLog.find(e=>e.play && e.card && e.card.id==='3D') && !!realAns && realAns.respBy===2 && realAns.countered===true,
+     'staged: the real AI casts Telekinesis and seat 2 counters it — and the log SAYS it countered  '+JSON.stringify(realAns||null));
+  const real = await film(realLog);
+  const r2=real.snaps.indexOf('4D,3D');
+  ok(r2>=0 && real.snaps.slice(r2+1).every(s=>s!=='3D'), 'THE REAL AI LOG REPLAYS LIFO: Counter Spell over Telekinesis, then both leave together — the Telekinesis never resolves on its own  '+JSON.stringify(real.snaps));
+  ok(real.msgs.some(m=>/Counter Spell resolves — Telekinesis is countered/.test(m)), '  …and the board says so: "Counter Spell resolves — Telekinesis is countered."  '+JSON.stringify(real.msgs.filter(m=>/resolves/.test(m))));
+  const lone = await film([{ play:'X', card:{rank:3,suit:'D',id:'gt3D'}, target:null }]);
+  ok(lone.snaps.every(s=>s===''), 'CONTROL: an unanswered cast still passes through as a ghost and never sits in the column  '+JSON.stringify(lone.snaps));
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

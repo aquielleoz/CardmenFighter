@@ -49,10 +49,13 @@ async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 const boardUsable=p=>p.evaluate(()=>{
   var rs=((document.getElementById('rivalStatus')||{}).textContent||'').trim();
   if(rs!=='') return false;
-  var c=document.querySelector('#hand .card'); if(!c) return false;
-  c.click();
-  var f=document.getElementById('fightBtn'), okNow=!!(f && !f.disabled);
-  c.click();
+  /* TRY EVERY GROUP, NOT THE FIRST CARD (drag-and-stack step 1). Fight is live only for a LEGAL selection in Main
+     now too, so a first card that cannot beat the pile no longer means the board is dead; a live Pass counts as
+     well. Every probe click is clicked back — a probe that clicks must leave no selection behind. */
+  var f=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+  var okNow=!!(pb && pb.offsetParent!==null && !pb.disabled && /Pass/.test(pb.textContent||''));
+  var gs=[].slice.call(document.querySelectorAll('#hand .group')); if(!gs.length && !okNow) return false;
+  for(var i=0;i<gs.length && !okNow;i++){ gs[i].click(); okNow=!!(f && !f.disabled); gs[i].click(); }
   var clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
   return okNow;
 });
@@ -74,7 +77,7 @@ const armCast=(p,id)=>p.evaluate(cid=>{
   c.click();
   var ca=document.getElementById('cardActivate'), cx=document.getElementById('ctxBtn');
   if(ca && ca.offsetParent!==null && !ca.disabled && !/off/.test(ca.className)){ ca.click(); return 'icon'; }
-  if(cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
+  if(cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
   return 'not offerable';
 }, id);
 // step 2: tap the target. `.targetable` exists only while `targeting` is live, so this doubles as proof of step 1.

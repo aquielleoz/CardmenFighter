@@ -49,7 +49,6 @@
  *     be worth nothing, so that check belongs with the flag.
  * Run: node nettest_ridewedge.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8365),ROOM='RW'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -66,10 +65,13 @@ async function until(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 const boardUsable=p=>p.evaluate(()=>{
   var rs=((document.getElementById('rivalStatus')||{}).textContent||'').trim();
   if(rs!=='') return false;                                  // still parked on the opponent
-  var c=document.querySelector('#hand .card'); if(!c) return false;
-  c.click();
-  var f=document.getElementById('fightBtn'), okNow=!!(f && !f.disabled);
-  c.click();
+  /* TRY EVERY GROUP, NOT THE FIRST CARD (drag-and-stack step 1). Fight is live only for a LEGAL selection in Main
+     now too, so a first card that cannot beat the pile no longer means the board is dead; a live Pass counts as
+     well. Every probe click is clicked back — a probe that clicks must leave no selection behind. */
+  var f=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+  var okNow=!!(pb && pb.offsetParent!==null && !pb.disabled && /Pass/.test(pb.textContent||''));
+  var gs=[].slice.call(document.querySelectorAll('#hand .group')); if(!gs.length && !okNow) return false;
+  for(var i=0;i<gs.length && !okNow;i++){ gs[i].click(); okNow=!!(f && !f.disabled); gs[i].click(); }
   var clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
   return okNow;
 });
@@ -80,7 +82,7 @@ const activate=(p,id)=>p.evaluate(cid=>{
   c.click();
   var ca=document.getElementById('cardActivate'), cx=document.getElementById('ctxBtn');
   if(ca && ca.offsetParent!==null && !ca.disabled && !/off/.test(ca.className)){ ca.click(); return 'icon'; }
-  if(cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
+  if(cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
   return 'not offerable';
 }, id);
 /* A RED RUN MUST EXPLAIN ITSELF — today's whole lesson is that the answer was in the first trace anyone

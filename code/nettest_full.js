@@ -1,7 +1,7 @@
 /* Full-UI netplay core loop: two tabs on the REAL board. Turn-driven, patient bot that waits out the async
  * mirror round-trip. Verifies both play, rounds resolve in sync, no errors. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8273),ROOM='F'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}`;
@@ -19,7 +19,7 @@ const clear=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c
  * is the same deal-dependence already fixed in nettest_log and nettest_names: a suite about the core loop had
  * no business depending on the shuffle.
  * Deselects between attempts, because a leftover multi-card selection is staged as a different play entirely. */
-const beatAny=async p=>{ await enterFight(p);   // Fight in Main is the phase move — see fightclick.js
+const beatAny=async p=>{   // Fight is enabled only for a legal selection, in either sub-phase — see fightclick.js
   return p.evaluate(()=>{
   var clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn');
   function reset(){
@@ -99,8 +99,11 @@ async function playLanded(p, before){
       beaten[role+':'+s.round]=1;
       const beatId=await beatAny(p);
       if(beatId){
-        await wait(300);
-        const s2=await snap(p);
+        /* POLL FOR THE LANDING, never a fixed wait. This was `wait(300)`, which was longer than a beat took
+           until drag-and-stack step 1 gave every crossing a Fight beat (700ms): a beat still in its crossing
+           then read as "the click did not take", was passed over and never credited, and a seat that never
+           held the lead scored 0 — 1 run in 4. */
+        let s2=s; for(let k=0;k<40;k++){ s2=await snap(p); if(!s2.yourTurn || s2.hand.length<s.hand.length) break; await wait(100); }
         // still our turn with the same hand = the click did not take; treat it as no beat, never as a play
         if(s2.yourTurn && s2.hand.length===s.hand.length){ await clear(p); await passT(p); }
         else { role==='host'?hostPlayed++:joinPlayed++; progressed(); }

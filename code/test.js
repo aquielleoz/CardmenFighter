@@ -3224,11 +3224,17 @@ function cards(ids) { return ids.map(card); }
       var caster = gg.turn;                                // captured BEFORE the turn — takeTurn moves it on
       (AI.takeTurn(gg, caster, 'knight') || []).forEach(function (e) {
         var ef = e && e.play && e.card ? E.effectOf(e.card) : null;
-        if (ef && HOSTILE[ef.kind]) { seen++; if (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster) named++; }
+        /* A BACK STAB CAST UNDER A SUPER LOCKS EVERY RIVAL, and since step 4 piece 10 its log entry says so
+           (`{allRivals:true}`) instead of naming one seat. Accepted for exactly that case: a Back Stab whose
+           effect, read with the caster's Forms, carries `all`. Anything else must still name a seat. This was
+           red ~1 run in 20 after piece 10, whenever a seeded game happened to give an AI a Super Back Stab. */
+        if (ef && HOSTILE[ef.kind]) { seen++;
+          var allR = !!(e.target && e.target.allRivals), fe = E.effectFor(gg, caster, e.card);
+          if (allR ? (ef.kind === 'lockout' && fe && fe.all) : (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster)) named++; }
       });
     }
   }
-  ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log (' + named + ' of ' + seen + ')');
+  ok(seen > 0 && named === seen, 'every hostile single-target AI cast carries the seat it hit in its log, or "every rival" for a Super Back Stab (' + named + ' of ' + seen + ')');
 })();
 
 /* ============ A ROUND ALREADY WON IS NOT OPEN FOR PLAY (2026-10-06) ============
@@ -3643,6 +3649,7 @@ function cards(ids) { return ids.map(card); }
   var aC = answers(AI.takeTurn(gC, 1, 'knight', [0]))[0];
   ok(cast.ok && !!aC && aC.respBy === 2 && aC.respName === 'Counter Spell', 'in-turn answer: staged — seat 2 counters seat 1\'s Telekinesis inside seat 1\'s turn  ' + JSON.stringify(aC || null));
   ok(!!aC && aC.transition === false && aC.round === 4, 'in-turn answer: …logged as a response to a cast (not the transition), in round 4  ' + JSON.stringify(aC || null));
+  ok(!!aC && aC.countered === true, 'in-turn answer: …and logged AS a counter, so the line says "countered with" and the board\'s replay pops the Technique it hit  ' + JSON.stringify(aC || null));
   // the Main → Fight transition: seat 2, holding Back Stab with Perseus in its zone, springs it before seat 1's fight
   var gT = fresh();
   gT.players[2].hand = [mk(10, 'S'), mk(6, 'C'), mk(6, 'D')]; gT.players[2].energy = nrg(12, 'S');   // Back Stab, and a pair to follow it with

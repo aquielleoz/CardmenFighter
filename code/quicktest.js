@@ -13,7 +13,7 @@
  *
  * Run: node quicktest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
-const { selectAndFight, clickFight, clickDecline } = require('./fightclick');
+const { selectAndFight, clickFight, clickDecline, respQuicks } = require('./fightclick');
 /* TWO URLS, AND THE PAIR IS THE POINT (2026-09-30). This suite's subject is ELIGIBILITY — does the offer
    list read `effectFor` — so it needs a window to open at all, and since 2026-09-23 the DEFAULT mode is
    AUTO, which interrupts you only when `stakeFor` says you have one. The Rival here casts a plain
@@ -103,12 +103,18 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       const t=(m.textContent||'');
       return /Respond|answer|Quick/i.test(t) ? t.replace(/\s+/g,' ') : null;
     });
-    if(modal){ offers = await p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' '))); break; }
+    if(modal){ offers = await respQuicks(p); break; }   // the engine's offer for the window SHOWN to you: the box lists no Quicks since step 4, piece 8
     await wait(60);
   }
   ok(!!modal, 'the Respond? window OPENS while you hold a Form-made Quick'+(modal?'':' — it auto-declined instead'));
   ok(offers.some(t=>/Sanctuary/i.test(t)),
-     `  → and it offers Sanctuary by name — ${offers.length} button(s): [${offers.map(t=>t.split(' ')[0]).join('|')}]`);
+     `  → and it offers Sanctuary by name — ${offers.length} on offer: [${offers.map(t=>t.split(' ')[0]).join('|')}]`);
+  /* …AND AFTER YES THE CARD GLOWS, which is how a player now reads the offer (step 4, pieces 6 and 8): a Form-made Quick
+     the eligibility list misses would sit dark in the hand. Computed style, never the class. */
+  await p.evaluate(()=>{ const y=document.getElementById('respYes'); if(y && y.offsetParent) y.click(); }); await wait(350);
+  const glow=await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="sanc"]'); return c ? getComputedStyle(c).boxShadow : ''; });
+  ok(glow.indexOf('rgb(82, 224, 143)')>=0, '  → and after Yes, Sanctuary GLOWS in your hand  ['+glow.slice(0,50)+']');
+  await clickDecline(p);
 
   /* ---------- LEG 2: THE SAME BOARD UNDER AUTO MUST STAY SILENT — and still RECORD.
      Identical staging, no `prompts=all`. Nothing on this board is at stake for you (the Rival casts a
@@ -143,52 +149,14 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      '  → and the ledger still records the auto-pass, so silent is not unexplainable'+(/auto-passed/i.test(led)?'':' — ledger: '+led.slice(-220)));
   ok(qerrs.length===0,'no JS errors on the AUTO leg'+(qerrs.length?': '+qerrs.slice(0,2).join(' | '):''));
 
-  /* ---------- LEG 3: ONE BUTTON PER PLAY, NOT PER CARD INSTANCE (2026-09-30).
-     Aj, 2026-09-11: holding TWO Counter Spells against two legal targets rendered FOUR buttons, of which
-     two pairs were the same play. Which physical copy leaves your hand changes nothing, so the duplicate
-     is a choice you must read and cannot act on differently. Keyed on rank+suit (which IS the effect's
-     identity — `EFFECTS` is keyed by suit+rank, and a class deck ships duplicate rank+suit with distinct
-     ids like `7D#24`), never on card id.
-     ⚠ BOTH WAYS ON ONE BOARD, because "one button" is equally true of a build that dropped the loop: the
-     same window is asked for TWO COPIES of one card (expect 1) and then for TWO DIFFERENT Quicks (expect
-     2). A dedupe keyed on the wrong thing passes the first and fails the second. */
-  const dup=await ctx.newPage(); const derrs=[]; dup.on('pageerror',e=>derrs.push(e.message));
-  await dup.goto(URL); await wait(700);
-  await dup.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
-  await dup.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1200);
-  async function offersFor(hand){
-    await dup.evaluate(STAGE); await wait(150);
-    await dup.evaluate((h)=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
-      st.players[0].hand=[{rank:2,suit:'S',id:'y2'}].concat(h.map((c,i)=>mk(c[0],c[1],'q'+i)));
-      /* ⚠ ENERGY IN BOTH SUITS. `STAGE` banks HEARTS, and the control here is ♦9 Leyline — with hearts
-         alone it is simply unaffordable, so the window offered one button and the leg reported the
-         product deduping too hard when nothing had been staged to dedupe. Affordability is a colour
-         question in this game; a two-card control needs energy for both. */
-      st.players[0].energy=[]
-        .concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'H','eh'+n)))
-        .concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'D','ed'+n)));
-      window.__solo.render(); }, hand);
-    await wait(200);
-    await dup.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')]
-      .filter(el=>el.querySelector('.card[data-id="y2"]'))[0]; if(g) g.click(); }); await wait(250);
-    await clickFight(dup);
-    for(let i=0;i<160;i++){
-      const got=await dup.evaluate(()=>{ const m=document.getElementById('modal');
-        if(!m || !m.offsetParent) return null;
-        return [].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ').split(' ·')[0]); });
-      if(got && got.length){ return got; }
-      await wait(60);
-    }
-    return [];
-  }
-  const twoSame = await offersFor([[10,'H'],[10,'H']]);      // two Sanctuaries — one PLAY
-  ok(twoSame.length===1,
-     `TWO COPIES OF ONE QUICK OFFER ONE BUTTON (${twoSame.length}: [${twoSame.join('|')}]) — which copy leaves your hand changes nothing`);
-  await clickDecline(dup); await wait(400);
-  const twoDiff = await offersFor([[10,'H'],[9,'D']]);       // Sanctuary + Leyline — two PLAYS
-  ok(twoDiff.length===2,
-     `  …and two DIFFERENT Quicks still offer two (${twoDiff.length}: [${twoDiff.join('|')}]) — the dedupe is on the effect, not on "a card"`);
-  ok(derrs.length===0,'no JS errors on the dedupe leg'+(derrs.length?': '+derrs.slice(0,2).join(' | '):''));
+  /* ---------- LEG 3 IS TOMBSTONED (drag-and-stack step 4, piece 8), AND ITS HISTORY IS WHY THIS IS A TOMBSTONE.
+     It asserted ONE BUTTON PER PLAY, NOT PER CARD INSTANCE (2026-09-30): Aj, 2026-09-11, held TWO Counter Spells against
+     two legal targets and the Respond? box rendered FOUR buttons, two pairs of them the same play. The fix keyed the
+     box's dedupe on rank+suit (the effect's identity), and this leg pinned it both ways — two copies of one Quick offer
+     ONE, two different Quicks offer TWO — because "one button" is also true of a build that dropped the loop.
+     The box no longer lists Quicks at all: you press Yes and cast from your hand, where each copy is simply a card, and
+     Counter Spell's target is tapped on the stack. The confusion it guarded against — a list of choices that were the
+     same choice — has no list left to appear in. If a per-play LIST ever comes back anywhere, this is its test. */
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

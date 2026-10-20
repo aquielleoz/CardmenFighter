@@ -13,7 +13,7 @@
  * would pass the first assertion on its own.
  * Run: node nettest_stale.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8421),ROOM='ST'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -53,12 +53,10 @@ const snap=p=>p.evaluate(()=>({
   /* ── HALF TWO FIRST, because it needs the pile intact. A PLAY aimed at a pile that has moved on must be
    * refused AND the player told — without this, half one below could be satisfied by a guard that refuses
    * nothing at all. */
-  /* GET THE TRANSITION OUT OF THE WAY BEFORE STAGING STALENESS (epic step 20). A client's first Fight press
-     sends `{op:'toFight'}`, which is board-INDEPENDENT and so deliberately unstamped — and the mirror that
-     comes back RECOMPUTES the client's board stamp, quietly undoing the `forceBS` below. The suite would
-     then send a perfectly current play and assert it was refused. Enter first; the staleness staged after
-     this survives, because the play press that follows makes no further round trip. */
-  await enterFight(join);
+  /* NO TRANSITION TO GET OUT OF THE WAY ANY MORE. Until drag-and-stack step 1 a client's first Fight press
+     sent `{op:'toFight'}` — unstamped, and its returning mirror RECOMPUTED the board stamp, undoing the
+     `forceBS` below — so this suite crossed first. That intent is gone: the one press below is the stamped
+     play itself, so the staleness staged here reaches the host intact. */
   const stamp = await host.evaluate(()=>window.__cmf.boardStamp());
   await join.evaluate(()=>window.__cmf.forceBS('9:99/pair2/9.9'));      // a board that never existed
   await join.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });

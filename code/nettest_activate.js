@@ -2,7 +2,7 @@
  * its own turn. Verifies {op:'activate'} reaches the host, the engine applies it (client ramps), the host settles
  * with no counter, the client keeps its turn, and both boards stay error-free and in sync. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const { selectAndFight, clickFight, clickPass } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, waitHold } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8281),ROOM='V'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -41,11 +41,12 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   ok((await join.evaluate(()=>window.__cmf.hand())).indexOf('1D')>=0,'client holds Gather Energy (1D)');
 
   // Client selects 1D and activates — this crosses the wire to the host.
+  await waitHold(join); await waitHold(host);   // the last cast's art flash holds each board (ruling 20)
   await armFx(join); await armFx(host);
   await join.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="1D"]'); if(c)c.click();
     var ca=document.getElementById('cardActivate'); var ctx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)){ ca.click(); }
-    else if(ctx&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
+    else if(ctx&&ctx.offsetParent!==null&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
   await wait(1000);
 
   /* THE CLIENT'S OWN CAST MUST SHOW ITS ART (Aj, 2026-09-02: *"no animation on the client when activating a
@@ -68,11 +69,12 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   await host.evaluate((a)=>window.__cmf.force(a.hh,a.rh,a.he,a.re,3,3),
     {hh:[D(9,'C'),D(9,'H')],rh:[D(11,'D')].concat(filler),he:energy,re:energy});
   await wait(500);
+  await waitHold(join); await waitHold(host);   // the last cast's art flash holds each board (ruling 20)
   await armFx(join); await armFx(host);
   await join.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="11D"]'); if(c)c.click();
     var ca=document.getElementById('cardActivate'); var ctx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)){ ca.click(); }
-    else if(ctx&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
+    else if(ctx&&ctx.offsetParent!==null&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
   const fxRide=await fxSeen(join);
   ok(fxRide.length>0,'the CLIENT sees its own JACK pop'+(fxRide.length?' ['+fxRide.join(' | ')+']':' — NOTHING flashed'));
   /* NOT VACUOUS: the pop above means nothing unless the Ride actually entered the zone — a gated-shut board
@@ -90,11 +92,11 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   ok(!!plainRide && !/INCARNATION/.test(plainRide), 'the lone Ride is a plain cast line on the host  ["…'+plainRide.slice(-50)+'"]');
   await host.evaluate((a)=>window.__cmf.forceAll([a.hh,a.rh],[a.he,a.re],[3,3],{forms:[null,[{rank:12,suit:'D',tier:'queen'},{rank:13,suit:'D',tier:'king'}]]}),
     {hh:[D(9,'C'),D(9,'H')],rh:[D(11,'S')].concat(filler),he:energy,re:energy});
-  await wait(500);
+  await wait(500); await waitHold(join); await waitHold(host);   // the lone Ride's art flash still holds the client (ruling 20)
   await join.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="11S"]'); if(c)c.click();
     var ca=document.getElementById('cardActivate'); var ctx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)){ ca.click(); }
-    else if(ctx&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
+    else if(ctx&&ctx.offsetParent!==null&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
   const SUPER=/played a Ride - J♠ .*Transformation Requirements Complete! JQK — INCARNATION!$/;
   let hostSuper='', joinSuper='';
   for(let i=0;i<60 && !(hostSuper && joinSuper);i++){
@@ -112,11 +114,12 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   // re-stage the host's energy: several rounds have been played since the first force() and it has been spending.
   await host.evaluate((a)=>window.__cmf.force(a.hh,a.rh,a.he,a.re),{hh:[D(9,'C'),D(9,'H'),D(1,'D','h')],rh:filler,he:energy,re:energy});
   await wait(400);
+  await waitHold(join); await waitHold(host);   // the last cast's art flash holds each board (ruling 20)
   await armFx(join); await armFx(host);
   await host.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="h1D"]'); if(c)c.click();
     var ca=document.getElementById('cardActivate'); var ctx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)){ ca.click(); }
-    else if(ctx&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
+    else if(ctx&&ctx.offsetParent!==null&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
   const fxJoin2=await fxSeen(join);
   ok(fxJoin2.length>0,'the CLIENT sees the HOST\'s cast pop'+(fxJoin2.length?' ['+fxJoin2.join(' | ')+']':' — NOTHING flashed'));
 
@@ -127,11 +130,12 @@ const playFirst=p=>selectAndFight(p);                       // two-state button 
   await host.evaluate((a)=>window.__cmf.force(a.hh,a.rh,a.he,a.re,3,3),
     {hh:[D(11,'C','h')].concat(filler),rh:[D(9,'S'),D(9,'D')],he:energy,re:energy});
   await wait(500);
+  await waitHold(join); await waitHold(host);   // the last cast's art flash holds each board (ruling 20)
   await armFx(join);
   await host.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="h11C"]'); if(c)c.click();
     var ca=document.getElementById('cardActivate'); var ctx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)){ ca.click(); }
-    else if(ctx&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
+    else if(ctx&&ctx.offsetParent!==null&&!ctx.disabled&&!/off/.test(ctx.className)&&/Activate/i.test(ctx.textContent||'')){ ctx.click(); } });
   const fxRide2=await fxSeen(join);
   ok(fxRide2.length>0,'the CLIENT sees the HOST\'s JACK pop'+(fxRide2.length?' ['+fxRide2.join(' | ')+']':' — NOTHING flashed'));
   let rode2=false; for(let i=0;i<30;i++){ if(await join.evaluate(()=>{ var z=document.getElementById('rivalFormZone'); return !!(z && z.offsetParent!==null && z.children.length>1); })){ rode2=true; break; } await wait(150); }

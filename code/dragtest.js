@@ -1,79 +1,68 @@
-/* DRAGGING A CARD TO THE TABLE MEANS TWO DIFFERENT THINGS, AND THE SUB-PHASE DECIDES WHICH.
+/* WHERE YOU DROP DECIDES WHAT A DRAG MEANS, NOT THE SUB-PHASE (drag-and-stack step 1).
  *
- * Epic step 20 (Aj: *"dragging to play activates card effects now, except when in the fight sub-phase"*).
- * In the FIGHT sub-phase a drag PLAYS the card; in MAIN the same gesture ACTIVATES it — which is also the
- * way into targeting and the Phantasmal picker, so it is not a shortcut for a subset of cards.
+ * Aj, 2026-10-13: *"the idea is to be able to drag cards to the right side of the play area to activate and
+ * drag to the middle of the play area to fight"*, and ruling 2: *"drop to the stack vis and then activate. or
+ * you can drag it out to clear, or there will be an x button to cancel your attempt. once you activate, that x
+ * button disappears."* So the play area has two drop zones: the MIDDLE fights, and the CAST COLUMN on the right
+ * (`#castZone`) takes casts — and a card dropped there is STAGED, not cast: it waits with its ✕ until ⚡
+ * Activate (ruling 9). A ⚡ tap still casts at once (ruling 11); this suite is about the drag.
+ * This REPLACES epic step 20's rule (*"dragging to play activates card effects now, except when in the fight
+ * sub-phase"*), and the suite that pinned that rule is rewritten rather than patched.
  *
- * ONLY HALF OF THAT WAS TESTED. `nettest_drag` drives drag-to-PLAY and says in its own comment that it
- * steps OUT of Main first, because its subject — a dragged play going through the host — does not happen
- * there. So the Main half, the one that CHANGED at step 20, has been driven by nothing at all, and the
- * handoff has listed it as an uncovered gesture since.
+ * WHY EVERY CLAIM IS A PAIR OFF ONE STAGING: "a drag cast" and "a drag played" are each true of a build that
+ * lost the branch and does one thing everywhere. So the SAME CARD from the SAME staging is dropped in BOTH
+ * zones and only the zone changes — and then the same two drops again in the Fight Sub-Phase, where the column
+ * refuses (effects are a Main-half move) and the middle still plays. The sub-phase still decides what is LEGAL;
+ * the zone decides what you ASKED FOR.
  *
- * WHY THE PAIR IS THE TEST, not two separate ones: "a drag activated" and "a drag played" are each true of
- * a build that has lost the branch entirely and does the same thing in both sub-phases. Every leg below
- * runs the SAME CARD from the SAME staging and differs only in the sub-phase, so the assertion is about
- * the branch rather than about either outcome. That is the both-ways habit `resolutiontest_ui` is built on.
- *
- * AND THE REFUSALS ARE PART OF THE FEATURE. The handler has two, both with player-facing copy: a
- * multi-card group in Main ("one card at a time") and a card with nothing to activate. A silent no-op is
- * the failure mode a drag cannot explain — there is no tooltip on a phone — so each is asserted by its
- * message AND by the board not moving.
- *
- * ✅ A/B'd BY DELETING THE BRANCH — `if(state.subPhase==='play')` removed from the drop handler, so a drag
- * always PLAYS:  14/3, all three reds in leg 1, with the dump reading `pile:1` and energy 6 -> 7 (banked,
- * not spent) on a board still in MAIN.
- * **LEG 2 STAYS GREEN THROUGH THAT MUTATION**, which is the whole argument for the pair: a suite that only
- * checked "a drag plays in the Fight Sub-Phase" would not notice the branch had gone. Four clean runs.
+ * AND THE REFUSALS ARE LIVE, IN `#dropHint`, WHILE THE CARD IS IN THE AIR. `highlightTarget` asks the question
+ * the release will ask, so a refused release does nothing and says nothing afterwards; assert the hint before
+ * releasing, never a `#message` after.
  *
  * Run: node dragtest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
-const { clickFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,110)); }
 async function until(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 
-/* The same gesture `nettest_drag` uses — mouse down on the card, a small move to arm `drag.moved`, then
-   into `#table` so the drop zone reads `ok`. Anything less and the release is treated as a click. */
-/* ⚠ THE REFUSALS ARE LIVE, NOT POST-HOC — read `#dropHint` BEFORE releasing. `highlightTarget` asks the
-   question the release will ask (step 20 made that two questions: PLAY in the Fight sub-phase, ACTIVATE
-   in Main), sets `drag.playZone` from the answer, and writes the reason into the drop hint while the card
-   is still in the air. A refused release therefore does nothing AND says nothing afterwards, which is
-   correct and is not what the first cut of this suite asserted: it waited for a `#message` that by design
-   never comes, and read the resulting silence as a broken feature.
-   THIS ALSO MAKES `setMessage('One card at a time…')` IN THE DROP HANDLER UNREACHABLE — a multi-card
-   group in Main can never reach `playZone==='ok'`, so that line cannot fire. Harmless (the live hint says
-   the same thing, sooner and better) but dead, and worth knowing before anyone "fixes" a refusal that is
-   already working. */
-async function dragToTable(page, id){
-  const g = await page.evaluate((cid)=>{
-    const el=document.querySelector('#hand .card[data-id="'+cid+'"]'); if(!el) return null;
-    const r=el.getBoundingClientRect(), t=document.getElementById('table').getBoundingClientRect();
-    return { cx:r.left+r.width/2, cy:r.top+r.height/2, tx:t.left+t.width/2, ty:t.top+t.height/2 };
-  }, id);
+/* THE GESTURE: mouse down on the card, a small move to arm `drag.moved` (which is also what shows the cast
+   column), then onto the zone. The zone's rect is read AFTER the drag starts, because the column is only laid
+   out as a target while a drag is on. `where` is 'middle' (aim at the pile) or 'column' (aim at `#castZone`).
+   The hover state is captured before the release — the refusals live there. */
+async function dragTo(page, id, where, from){
+  const g = await page.evaluate((a)=>{
+    const el=document.querySelector(a.from+' .card[data-id="'+a.id+'"]'); if(!el) return null;
+    const r=el.getBoundingClientRect(); return { cx:r.left+r.width/2, cy:r.top+r.height/2 };
+  }, {id:id, from:from||'#hand'});
   if(!g) return null;
   await page.mouse.move(g.cx, g.cy);
   await page.mouse.down();
   await page.mouse.move(g.cx, g.cy-24, {steps:4});
-  await page.mouse.move(g.tx, g.ty, {steps:14});
+  await wait(60);
+  const t = await page.evaluate((w)=>{
+    if(w==='hand'){ const h=document.getElementById('hand').getBoundingClientRect(); return { x:h.left+12, y:h.top+h.height/2 }; }
+    const el=document.getElementById(w==='column'?'castZone':'pile'); if(!el) return null;
+    const r=el.getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height/2 };
+  }, where);
+  if(!t){ await page.mouse.up(); return null; }
+  await page.mouse.move(t.x, t.y, {steps:14});
   await wait(80);
   const zone = await page.evaluate(()=>{
-    const dh=document.getElementById('dropHint'), tb=document.getElementById('table');
-    const r=dh?dh.getBoundingClientRect():null, t=tb.getBoundingClientRect(), de=document.documentElement;
+    const dh=document.getElementById('dropHint'), tb=document.getElementById('table'), cz=document.getElementById('castZone');
+    const r=dh?dh.getBoundingClientRect():null, tr=tb.getBoundingClientRect(), de=document.documentElement;
     return {
       hint:((dh||{}).textContent||'').trim(),
-      ok:tb.classList.contains('pz-ok'),
-      no:tb.classList.contains('pz-no'),
-      /* GEOMETRY, captured for every leg even though only leg 5 asserts it — the pill's overflow was
-         invisible to a text assertion, which is why it shipped. */
-      spill: r ? Math.round(Math.max(0, t.left - r.left) + Math.max(0, r.right - t.right)) : 0,
+      midOk:tb.classList.contains('pz-ok'), midNo:tb.classList.contains('pz-no'),
+      colOk:!!(cz && cz.classList.contains('cz-ok')), colNo:!!(cz && cz.classList.contains('cz-no')),
+      spill: r ? Math.round(Math.max(0, tr.left - r.left) + Math.max(0, r.right - tr.right)) : 0,
       overflow: de.scrollWidth - de.clientWidth };
   });
   await page.mouse.up();
   return zone;
 }
 
-/* Drag card A onto card B — the merge gesture, as opposed to dragging into `#table`. */
+/* Drag card A onto card B — the merge gesture, which forms a multi-card group. */
 async function dragOnto(page, idA, idB){
   const g = await page.evaluate((a)=>{
     const x=document.querySelector('#hand .card[data-id="'+a.idA+'"]'), y=document.querySelector('#hand .card[data-id="'+a.idB+'"]');
@@ -102,197 +91,249 @@ async function dragOnto(page, idA, idB){
   await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1200);
 
   const snap=()=>p.evaluate(()=>{ const st=window.__solo.st(); return {
-    hand:st.players[0].hand.length, energy:st.players[0].energy.length,
+    hand:st.players[0].hand.length, energy:st.players[0].energy.length, boost:st.players[0].nextPlayBoost||0,
     pile:st.pile?st.pile.combo.cards.length:0, sub:st.subPhase||'main', turn:st.turn,
+    staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
     msg:((document.getElementById('message')||{}).textContent||'').trim() }; });
 
-  /* ♦1 Pray for Guidance-style draw is not what we want — the cleanest subject is a card whose activation
-     is UNMISTAKABLE on the state: energy goes down and the card leaves hand WITHOUT reaching the pile.
-     ♣3 Brilliant Tactic (`valueBoost`, cost 3) is untargeted, always legal on your own turn in Main, and
-     banks `nextPlayBoost`, which is a field no PLAY would ever set. */
-  /* `mk` BUILDS THE COMPOSITE ID the DOM uses (`tag+rank+suit`), the way the netplay suites' `D()` does.
-     Taking the id literally is what the first cut did, so every `[data-id="act3C"]` selector missed and
-     four legs reported the product broken when the staging had simply named the cards something else. */
-  const stage=()=>p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:t+r+s});
+  /* THE SUBJECT IS A CARD WHOSE CAST IS UNMISTAKABLE ON THE STATE: ♣3 Brilliant Tactic (`valueBoost`, cost 3)
+     is untargeted, always legal on your own turn in Main, and banks `nextPlayBoost` — a field no PLAY sets, while
+     a PLAY banks the card into energy. Cast: energy DOWN and a boost; play: energy UP and no boost.
+     `mk` builds the composite id the DOM uses (`tag+rank+suit`). */
+  /* EVERY CAST HOLDS THE BOARD FOR ITS ART FLASH (drag-and-stack ruling 20), so a leg that follows a cast waits the
+     hold out before staging, or it stages into a board that refuses everything for the next 2.5s. */
+  const waitHold=async()=>{ for(let i=0;i<60;i++){ if(!(await p.evaluate(()=>window.__solo.castHold()))){ if(i) await wait(80); return; } await wait(100); } };   // …plus one beat for the re-render that ends it
+  const stage=async(sub)=>{ await waitHold(); return stageNow(sub); };
+  const stageNow=(sub)=>p.evaluate((sub)=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:t+r+s});
     const you=st.players[0];
-    you.hand=[mk(3,'C','act'), mk(6,'H','plain1'), mk(6,'D','plain2'), mk(2,'C','dead')];   // ♣2: the apex has NO activated effect by design, and ♣ keeps affordability out of it
+    you.hand=[mk(3,'C','act'), mk(6,'H','plain1'), mk(6,'D','plain2'), mk(2,'C','dead')];   // ♣2: the apex has NO activated effect by design
     you.energy=[3,4,5,6,7,8].map(n=>mk(n,'C','e'+n));
     you.nextPlayBoost=0;
-    st.round=3; st.turn=0; st.subPhase=null; st.pile=null; st.lastPlayer=null; st.passes=0;
+    st.round=3; st.turn=0; st.subPhase=sub||'main'; st.pile=null; st.lastPlayer=null; st.passes=0; st.respondFor=null; st.pending=null;
+    st.resolution=null; st.resolutionResult=null; st.cleanup=null; st.endCleanup=null; st.upkeep=null; st.toPlay=null; st.stack=[];
     var m=document.getElementById('message'); if(m) m.textContent='';   // a stale line must not satisfy a refusal assertion
-    window.__solo.render(); });
+    window.__solo.render(); }, sub||null);
 
-  /* ⚠ STAGING DOES NOT CLEAR `busy`, AND `busy` SWALLOWS A DRAG IN SILENCE. `forceAll`-style staging
-     rewrites state and re-renders, but the previous leg's rival animation is still running, so the drop
-     handler never sees the gesture and the board simply does not move — which reads exactly like "the
-     feature is broken". Measured: two legs failing with an empty `#message` and the hint reading
-     *"Hold on — the board is still resolving."*, and the same two legs passing when reordered, which is
-     the tell that it is contamination and not the product. This is CLAUDE.md's `busy` rule (a UI helper
-     must retry, because a swallowed click is indistinguishable from a dead control) applied between legs
-     rather than within one. */
+  /* STAGING DOES NOT CLEAR `busy`, AND `busy` SWALLOWS A DRAG IN SILENCE — wait out the previous leg's
+     animations (and the Rival's turn) before the next drag, or the board does not move and it reads as broken. */
   const settle=()=>until(async()=>await p.evaluate(()=>{
     const h=((document.getElementById('hint')||{}).textContent||'');
-    return !/still resolving|is fighting/i.test(h) && window.__solo.st().turn===0;
-  }), 60, 200);
+    return !/still resolving|is fighting/i.test(h) && window.__solo.st().turn===0 && !window.__solo.castHold();   // …and no cast's art flash still holding the board (ruling 20)
+  }), 80, 200);
 
-  // ═══ LEG 1 — IN MAIN, A DRAG ACTIVATES ═══
+  // ═══ LEG 1 — MAIN, DROPPED ON THE COLUMN: STAGED, NOT CAST ═══
   await stage(); await wait(350); await settle();
-  const before1 = await snap();
-  ok(before1.sub!=='play' && before1.hand===4 && before1.pile===0,
-     'staged in the MAIN sub-phase, 4 cards, empty pile  ['+JSON.stringify(before1)+']');
-  const z1 = await dragToTable(p,'act3C');
-  ok(z1 && z1.ok && /release to use/i.test(z1.hint), 'the zone offered USE while the card was in the air  ['+(z1?z1.hint:'no drag')+']');
-  const activated = await until(async()=>{ const s=await p.evaluate(()=>window.__solo.st().players[0].nextPlayBoost||0); return s>0; }, 40);
-  const after1 = await snap();
-  ok(activated, 'IN MAIN, A DRAG ACTIVATES — the boost is banked' +
-     (activated ? '' : '  ← nothing was activated; '+JSON.stringify(after1)));
-  /* THE OTHER HALF OF "ACTIVATED", and the one that separates it from a PLAY: the card must not be on the
-     table. A build that played it would also empty the hand slot. */
-  ok(after1.pile===0, '  …and the card did NOT reach the pile — an activation is not a play');
-  ok(after1.energy < before1.energy, '  …and it cost energy  ['+before1.energy+' → '+after1.energy+']');
+  const b1=await snap();
+  ok(b1.sub==='main' && b1.hand===4 && b1.pile===0 && b1.staged.length===0, 'staged in the MAIN sub-phase, 4 cards, empty pile, nothing staged  ['+JSON.stringify(b1)+']');
+  const z1=await dragTo(p,'act3C','column');
+  ok(z1 && z1.colOk && /stage/i.test(z1.hint), 'over the COLUMN the zone offers to STAGE the card  ['+(z1?z1.hint:'no drag')+']');
+  await wait(250);
+  const a1=await snap();
+  ok(a1.staged.indexOf('act3C')>=0, 'IN MAIN, A DROP ON THE COLUMN STAGES — the card sits in the column  ['+a1.staged.join(',')+']');
+  ok(a1.energy===b1.energy && a1.boost===0 && a1.pile===0, '  …and NOTHING IS SPENT: no energy, no boost, no play  ['+b1.energy+' → '+a1.energy+']');
+  ok(await p.evaluate(()=>document.getElementById('fightBtn').disabled), '  …and Fight is OFF while a card is staged — it cannot be fought by accident');
+  /* ⚡ ACTIVATE SENDS IT. The ctx button is the confirm, exactly as a ⚡ tap on a selected card. */
+  const sent=await p.evaluate(()=>{ const a=document.getElementById('cardActivate'); if(a && a.offsetParent!==null && !a.disabled && !/off/.test(a.className)){ a.click(); return 'cardActivate'; }
+    const cb=document.getElementById('ctxBtn'); if(cb && !cb.disabled && !/off/.test(cb.className) && cb.offsetParent!==null){ cb.click(); return 'ctxBtn'; } return null; });
+  ok(!!sent, '  …and ⚡ Activate is there to send it ('+sent+')');
+  const cast1=await until(async()=>(await snap()).boost>0, 40);
+  const c1=await snap();
+  ok(cast1 && c1.energy<b1.energy, '⚡ ACTIVATE CASTS THE STAGED CARD — the boost is banked and it cost energy  ['+b1.energy+' → '+c1.energy+']');
+  ok(c1.staged.length===0 && c1.pile===0, '  …and the column is empty again, and the card did NOT reach the pile');
 
-  // ═══ LEG 2 — THE SAME CARD, THE SAME DRAG, IN THE FIGHT SUB-PHASE: IT PLAYS ═══
-  /* IDENTICAL STAGING, ONE VARIABLE. Without this leg, leg 1 passes on a build that has lost the branch
-     and activates in BOTH sub-phases — the outcome would look right and the feature would be gone. */
+  // ═══ LEG 2 — MAIN, THE SAME CARD DROPPED IN THE MIDDLE: IT FIGHTS ═══
   await stage(); await wait(350); await settle();
-  await clickFight(p);                                    // empty selection → the doorway, Main → Fight
-  ok(await until(async()=>(await snap()).sub==='play', 40), 'stepped into the FIGHT sub-phase with the same hand');
-  const before2 = await snap();
-  const z2 = await dragToTable(p,'act3C');
-  ok(z2 && z2.ok && /release to fight/i.test(z2.hint), '  …and there the zone offers FIGHT, not USE  ['+(z2?z2.hint:'no drag')+']');
-  const played = await until(async()=>(await snap()).pile>0, 40);
-  const after2 = await snap();
-  ok(played, 'IN THE FIGHT SUB-PHASE, THE SAME DRAG PLAYS — the card is on the table' +
-     (played ? '' : '  ← '+JSON.stringify(after2)));
-  ok(await p.evaluate(()=>(window.__solo.st().players[0].nextPlayBoost||0))===0,
-     '  …and it did NOT activate — no boost was banked, so the branch really is the sub-phase');
-  /* ⚠ A PLAY **BANKS** ENERGY — it does not leave it alone, and it certainly does not spend it. *"Every
-     card you play banks into your ⚡ energy — win or lose."* The first cut asserted `===` here, encoding a
-     rule the game does not have, and went red against a correct build. That is the shape CLAUDE.md warns
-     about from the other side: a suite can pin a defect, and it can equally pin a belief. The banked card
-     is also a SHARPER separator than "no energy spent" — activate goes DOWN, play goes UP. */
-  ok(after2.energy > before2.energy, '  …and the played card BANKED into energy, the opposite of a cast  ['+before2.energy+' → '+after2.energy+']');
+  const b2=await snap();
+  const z2=await dragTo(p,'act3C','middle');
+  ok(z2 && z2.midOk && /release to fight/i.test(z2.hint), 'over the MIDDLE the same card is offered as a FIGHT  ['+(z2?z2.hint:'no drag')+']');
+  const played2=await until(async()=>(await snap()).pile>0, 40);
+  const a2=await snap();
+  ok(played2, 'IN MAIN, A DROP IN THE MIDDLE PLAYS — one drop crossed into the Fight Sub-Phase and fought'+(played2?'':'  ← '+JSON.stringify(a2)));
+  ok(a2.boost===0 && a2.energy>b2.energy && a2.staged.length===0, '  …and it did NOT cast: no boost, the card BANKED into energy, nothing staged  ['+b2.energy+' → '+a2.energy+']');
 
-  // ═══ LEG 3 — A CARD WITH NOTHING TO ACTIVATE IS REFUSED, OUT LOUD ═══
-  await stage(); await wait(350); await settle();
-  /* ⚠ NOT VACUOUS, AND THE FIRST SUBJECT WAS THE WRONG ONE. The refusal has to be *"nothing to
-     activate"*, never *"you cannot afford it"* — from the outside those read identically, and a ♠4 against
-     ♣ energy produces the second while looking like the first (measured: `impl:true, afford:false`).
-     The apex 2 is the clean subject: `effectOf` returns null for rank 2 BY DESIGN, and ♣2 shares the suit
-     of the staged energy so affordability cannot be the reason. */
-  const dead = await p.evaluate(()=>{ const st=window.__solo.st();
-    const c=st.players[0].hand.filter(function(x){ return x.id==='dead2C'; })[0];
-    const e=c?window.CardmenEngine.effectOf(c):null;
-    return { has:!!c, noEffect:!e||!e.impl }; });
-  ok(dead.has && dead.noEffect, 'staged the apex 2 — a card with no activated effect at all  ['+JSON.stringify(dead)+']');
-  const b4 = await snap();
-  ok(b4.msg==='', '  …on a board with no stale message, so the refusal below cannot be someone else\'s line');
-  const z4 = await dragToTable(p,'dead2C');
-  await wait(300);
-  const a4 = await snap();
-  /* THE COPY IS NOW EXACT, AND THE TOLERANT REGEX IS GONE (fixed 2026-09-30). This accepted either
-     wording while `[id: apex-drag-hint-says-select]` was open: the hint read *"Select a card, then
-     activate its effect."* at a player whose gesture had already selected one, on the apex 2 — the card
-     with no activated effect BY DESIGN and the most important card in the game. `ctxActionFor` now
-     distinguishes an EMPTY selection (where "select a card" is the right advice, and which the button
-     still reaches) from ONE card that has nothing to activate, so the same fix repaired the ⚡ button's
-     title too.
-     ⚠ ASSERT THE NEW WORDING AND REFUSE THE OLD. A tolerant regex is right while a defect is filed and
-     wrong the moment it is fixed — left as-is it would accept a regression silently, which is the whole
-     point of having closed the entry. */
-  ok(z4 && z4.no && !z4.ok && /nothing to activate/i.test(z4.hint),
-     'A CARD WITH NOTHING TO ACTIVATE IS REFUSED WHILE IT IS STILL IN THE AIR  ["'+(z4?z4.hint:'no drag')+'"]');
-  ok(z4 && !/activate its effect/i.test(z4.hint||''),
-     '  …and it does NOT tell a player who is holding a card to select one'+(z4&&/activate its effect/i.test(z4.hint)?'  ← REGRESSED':''));
-  ok(a4.pile===0 && a4.hand===b4.hand && a4.energy===b4.energy,
-     '  …and releasing it does nothing at all — no play, no activation, no energy');
+  // ═══ LEG 3 — THE FIGHT SUB-PHASE, THE COLUMN: REFUSED, BECAUSE EFFECTS ARE A MAIN-HALF MOVE ═══
+  await settle(); await stage('play'); await wait(350);
+  const b3=await snap();
+  const z3=await dragTo(p,'act3C','column');
+  await wait(250);
+  const a3=await snap();
+  ok(z3 && z3.colNo && !z3.colOk && /fight has begun|Main-half/i.test(z3.hint), 'IN THE FIGHT SUB-PHASE THE COLUMN REFUSES, while the card is in the air  ["'+(z3?z3.hint:'no drag')+'"]');
+  ok(a3.staged.length===0 && a3.energy===b3.energy && a3.boost===0 && a3.pile===0, '  …and releasing there does nothing at all');
 
-  // ═══ LEG 4 — A MULTI-CARD GROUP IN MAIN IS REFUSED, OUT LOUD ═══
-  /* A drag has no tooltip, so a silent refusal is indistinguishable from a broken control — the v1.31.74
-     lesson about an enabled-but-inert button, in the one gesture that cannot explain itself. */
+  // ═══ LEG 4 — THE FIGHT SUB-PHASE, THE MIDDLE: THE SAME CARD STILL FIGHTS ═══
+  await stage('play'); await wait(350);
+  const b4=await snap();
+  const z4=await dragTo(p,'act3C','middle');
+  ok(z4 && z4.midOk && /release to fight/i.test(z4.hint), 'in the Fight Sub-Phase the middle still offers FIGHT  ['+(z4?z4.hint:'no drag')+']');
+  const played4=await until(async()=>(await snap()).pile>0, 40);
+  const a4=await snap();
+  ok(played4 && a4.energy>b4.energy && a4.boost===0, '  …and the drop plays it, banked, not cast'+(played4?'':'  ← '+JSON.stringify(a4)));
+
+  // ═══ LEG 5 — A CARD WITH NOTHING TO ACTIVATE IS REFUSED BY THE COLUMN, OUT LOUD ═══
+  await settle(); await stage(); await wait(350);
+  const b5=await snap();
+  ok(b5.msg==='', '  (a board with no stale message, so the refusal below cannot be someone else\'s line)');
+  const z5=await dragTo(p,'dead2C','column');
+  await wait(250);
+  const a5=await snap();
+  ok(z5 && z5.colNo && !z5.colOk && /nothing to activate/i.test(z5.hint), 'THE APEX 2 IS REFUSED BY THE COLUMN — it has nothing to activate  ["'+(z5?z5.hint:'no drag')+'"]');
+  ok(z5 && !/activate its effect/i.test(z5.hint||''), '  …and it does NOT tell a player who is holding a card to select one');
+  ok(a5.staged.length===0 && a5.pile===0 && a5.energy===b5.energy, '  …and releasing it does nothing at all');
+
+  // ═══ LEG 6 — A PAIR: THE COLUMN REFUSES IT, THE MIDDLE FIGHTS WITH IT ═══
   await stage(); await wait(350); await settle();
-  /* CLICKING TWO CARDS SELECTS THEM; IT DOES NOT GROUP THEM. A group is formed by dragging one card ONTO
-     another (`canMergeKF` + `mergeGroups`), which is the gesture a player uses — so the staging for this
-     leg is itself a second drag path, and getting it wrong reported "staging problem" rather than a
-     product one. Two 6s merge because they are the same rank. */
-  await dragOnto(p,'plain16H','plain26D');
-  await wait(300);
-  const merged = await p.evaluate(()=>{
-    var gs=[].slice.call(document.querySelectorAll('#hand .group'));
+  await dragOnto(p,'plain16H','plain26D'); await wait(300);
+  const merged=await p.evaluate(()=>{ var gs=[].slice.call(document.querySelectorAll('#hand .group'));
     for(var i=0;i<gs.length;i++) if(gs[i].querySelectorAll('.card').length>1) return gs[i].querySelector('.card').getAttribute('data-id');
     return null; });
+  ok(!!merged, 'formed a two-card group (the merge drag) to drop');
   if(merged){
-    const b3 = await snap();
-    const z3 = await dragToTable(p, merged);
-    await wait(300);
-    const a3 = await snap();
-    ok(z3 && z3.no && !z3.ok && /one card at a time/i.test(z3.hint),
-       'A MULTI-CARD GROUP IN MAIN IS REFUSED WHILE IT IS STILL IN THE AIR  ["'+(z3?z3.hint:'no drag')+'"]');
-    ok(a3.hand===b3.hand && a3.pile===0 && a3.energy===b3.energy,
-       '  …and nothing happened — no play, no activation, no energy spent');
-  } else {
-    const groups = await p.evaluate(()=>[].slice.call(document.querySelectorAll('#hand .group')).map(g=>
-      [].slice.call(g.querySelectorAll('.card')).map(c=>c.getAttribute('data-id')).join('+')));
-    ok(false, 'could not form a multi-card group to drag — groups are ['+groups.join(' , ')+']');
-    ok(false, '  (the refusal assertion could not run)');
+    const b6=await snap();
+    const z6=await dragTo(p, merged, 'column');
+    await wait(250);
+    const a6=await snap();
+    ok(z6 && z6.colNo && /one card at a time/i.test(z6.hint), 'A PAIR DROPPED ON THE COLUMN IS REFUSED — one card at a time  ["'+(z6?z6.hint:'no drag')+'"]');
+    ok(a6.staged.length===0 && a6.pile===0 && a6.energy===b6.energy, '  …and nothing happened');
+    const z6b=await dragTo(p, merged, 'middle');
+    const played6=await until(async()=>(await snap()).pile===2, 40);
+    ok(z6b && z6b.midOk && played6, 'THE SAME PAIR DROPPED IN THE MIDDLE FIGHTS — the zone decided, not the sub-phase  ["'+(z6b?z6b.hint:'no drag')+'"]');
   }
 
-  /* ---------- LEG 5: A LONG REFUSAL MUST NOT COST YOU THE BOARD (2026-09-30).
-     The live refusal is the feature — `highlightTarget` feeds `ctxActionFor(...).reason` into the pill so
-     you learn WHY while the card is still in the air — and the pill was built for four fixed short
-     strings: `white-space:nowrap`, no `max-width`. A full engine sentence therefore hung off both edges
-     of the play area, and, because the pill is hidden by OPACITY rather than `display`, `clearZone()`
-     stripping only the class left that text in the layout at full nowrap width FOR THE REST OF THE GAME.
-     One drag over an unaffordable card widened the document permanently and every later frame was
-     scrolled sideways, with no drag in progress and nothing on screen to explain it.
-     ⚠ MEASURE, DO NOT LOOK — and that is the whole reason this went unnoticed: after the drag the element
-     is INVISIBLE, so the only evidence it is still there is `scrollWidth` against `clientWidth`. A text
-     assertion reads '' on the broken build too... no: it reads the stale text, which is exactly what the
-     second assertion pins. The first pins the cap; they fail independently and are fixed independently. */
-  /* ⚠ AND IT IS MEASURED AT A NARROW VIEWPORT, WHICH IS THE ONLY PLACE THE BUG EXISTS. The first cut ran
-     this at the suite's own 1100px and **passed 22/0 with `white-space:nowrap` and the cap both put back**
-     — at that width the sentence fits on one line and nothing overflows, so two geometry assertions were
-     measuring nothing. That is the green-and-blind shape this repo keeps paying for: the reported
-     screenshots were of a NARROW play area, and a viewport nobody measures is a viewport nobody fixes.
-     760px stays above the 720px phone gate on purpose — the desktop layout is where it was reported, and
-     it keeps this leg from silently becoming a phone-layout test. */
+  // ═══ LEG 7 — A STAGED CARD IS TAKEN BACK BY ITS ✕, WITH NOTHING SPENT ═══
+  await settle(); await stage(); await wait(350);
+  const b7=await snap();
+  await dragTo(p,'act3C','column'); await wait(250);
+  ok((await snap()).staged.indexOf('act3C')>=0, 'staged ♣3 in the column again');
+  /* AJ, 2026-10-14: *"i'd like another [lightning bolt] beside the take back. we can reduce the take back to an X
+     button"*. Read BEFORE the ✕ is pressed: both visible, on one row (their vertical centres within a few px), the
+     ✕ carrying no words. */
+  const r7=await p.evaluate(()=>{ const go=document.getElementById('stagedCastBtn'), x=document.getElementById('unstageBtn');
+    if(!go || !x || go.offsetParent===null || x.offsetParent===null) return { ok:false, go:!!go, x:!!x };
+    const a=go.getBoundingClientRect(), c=x.getBoundingClientRect(), dy=Math.abs((a.top+a.height/2)-(c.top+c.height/2));
+    const out={ go:go.textContent.trim(), x:x.textContent.trim(), dy:Math.round(dy), leftOf:a.right<=c.left+1 };
+    out.ok = out.go==='⚡' && out.x==='✕' && dy<4 && out.leftOf; return out; });
+  const x7=await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(!x || x.offsetParent===null) return false; x.click(); return true; });
+  await wait(250);
+  const a7=await snap();
+  ok(x7, 'the staged card carries its ✕');
+  ok(r7.ok, 'THE ⚡ SITS BESIDE THE ✕, UNDER THE CARD, and the ✕ is an icon  ['+JSON.stringify(r7)+']');
+  ok(a7.staged.length===0 && a7.hand===b7.hand && a7.energy===b7.energy && a7.boost===0, 'THE ✕ TAKES IT BACK — the column is empty, the card is in hand, nothing was spent');
+
+  // ═══ LEG 8 — …AND SO DOES DRAGGING IT BACK OUT OF THE COLUMN ═══
+  await dragTo(p,'act3C','column'); await wait(250);
+  ok((await snap()).staged.indexOf('act3C')>=0, 'staged ♣3 once more');
+  await dragTo(p,'act3C','hand','#stagedSlot'); await wait(250);
+  const a8=await snap();
+  ok(a8.staged.length===0 && a8.energy===b7.energy && a8.boost===0 && a8.pile===0, 'DRAGGING THE STAGED CARD OUT OF THE COLUMN TAKES IT BACK — nothing spent, nothing played  ['+JSON.stringify(a8)+']');
+
+  // ═══ LEG 8b — THE COLUMN'S OWN ⚡ CASTS THE STAGED CARD ═══
+  /* It must CAST, not just exist: a ⚡ wired to nothing would pass r7 above. Same card, same staging as leg 1, and
+     the same proof — the boost is banked and it cost energy, and the card never reached the pile. */
+  await settle(); await stage(); await wait(350);
+  const b8b=await snap();
+  await dragTo(p,'act3C','column'); await wait(250);
+  ok((await snap()).staged.indexOf('act3C')>=0, 'staged ♣3 for the column\'s ⚡');
+  const go8b=await p.evaluate(()=>{ const go=document.getElementById('stagedCastBtn'); if(!go || go.offsetParent===null || go.disabled) return false; go.click(); return true; });
+  const cast8b=await until(async()=>(await snap()).boost>0, 40);
+  const a8b=await snap();
+  ok(go8b && cast8b && a8b.energy<b8b.energy && a8b.pile===0 && a8b.staged.length===0,
+     'THE COLUMN\'S ⚡ CASTS IT — the boost is banked, it cost energy, the column is empty and nothing was played  ['+b8b.energy+' → '+a8b.energy+', boost '+a8b.boost+']');
+
+  // ═══ LEG 9 — A CARD WITH A CHOICE STAGES INTO ITS PICKER, AND ✕ BACKS OUT OF BOTH ═══
+  /* Ultima Attack (10♣) with TWO Broadway cards beside it, so its pitch has something to choose: dropped on the
+     column it is staged AND today's pitch picker opens (Fight reads Confirm, Pass reads Cancel), and nothing is
+     spent until that is confirmed. */
+  await settle();
+  await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+    const you=st.players[0];
+    you.hand=[mk(10,'C','ult'), mk(11,'H','jA'), mk(12,'S','qB'), mk(4,'D','lowC')];
+    you.energy=[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'C','pe'+n));
+    st.subPhase='main'; st.turn=0; st.pile=null; st.round=4; st.stack=[]; st.respondFor=null;
+    window.__solo.render(); });
+  await wait(300);
+  const b9=await snap();
+  const z9=await dragTo(p,'ult','column');
+  await wait(300);
+  /* ITS FIRST CHOICE IS THE TARGET, then the pitch — `activate`'s own order (a hostile single-target card picks the
+     rival before anything else). So the leg asserts "a picker opened", read off the staged card's note, rather than
+     naming one: the column's job is to hand the card to whichever stager it already had. */
+  const a9=await p.evaluate(()=>({ staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
+    note:((document.querySelector('#stagedSlot .stgNote')||{}).textContent||'').trim(),
+    ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(),
+    ctxIcon:((document.getElementById('ctxBtn')||{getAttribute:()=>''}).getAttribute('data-icon')||''),
+    go:((document.getElementById('stagedCastBtn')||{}).textContent||'').trim(),
+    energy:window.__solo.st().players[0].energy.length }));
+  ok(z9 && z9.colOk, 'Ultima Attack is offered to the column  ['+(z9?z9.hint:'no drag')+']');
+  ok(a9.staged.indexOf('ult')>=0 && /^Choose/.test(a9.note), 'A CARD WITH A CHOICE STAGES INTO ITS PICKER — in the column, its first choice open  [note "'+a9.note+'", ⚡ "'+a9.ctx+'"]');
+  ok(a9.energy===b9.energy, '  …and nothing is spent while the choice is open');
+  /* THE COLUMN'S ⚡ IS THE ACTION ROW'S BUTTON, NOT A SECOND ONE: while a choice is open it reads what that button
+     reads (🎯), never a ⚡ that would not cast. */
+  ok(!!a9.go && a9.go===a9.ctxIcon && a9.go!=='⚡', '  …and the column\'s button MIRRORS the action row\'s — "'+a9.go+'" beside "'+a9.ctx+'"');
+  await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(x) x.click(); });
+  await wait(250);
+  const c9=await p.evaluate(()=>({ staged:document.querySelectorAll('#stagedSlot .card').length,
+    ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(), energy:window.__solo.st().players[0].energy.length }));
+  ok(c9.staged===0 && !/Pick a target|Choose target/.test(c9.ctx) && c9.energy===b9.energy, '  …and ✕ backs out of the picker AND the column, nothing spent  [⚡ "'+c9.ctx+'"]');
+
+  // ═══ LEG 9b — A ⚡ TAP ON A CARD WITH A CHOICE SHOWS IT IN THE COLUMN TOO ═══
+  /* Aj, 2026-10-14, asked whether a tapped card that needs a target should also sit in the column while you pick:
+     *"Yes, show it in the column"*. The SAME Ultima board, opened by selecting it and pressing the action row's ⚡
+     rather than by a drop. The card a picker holds is the staged card whichever gesture opened it. */
+  await settle();
+  await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="ult"]'))[0]; if(g) g.click(); });
+  await wait(250);
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && !c.disabled) c.click(); });
+  await wait(350);
+  const a9b=await p.evaluate(()=>({ staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
+    note:((document.querySelector('#stagedSlot .stgNote')||{}).textContent||'').trim(),
+    shown:document.getElementById('castZone').classList.contains('show'), energy:window.__solo.st().players[0].energy.length }));
+  ok(a9b.shown && a9b.staged.indexOf('ult')>=0 && /^Choose/.test(a9b.note) && a9b.energy===b9.energy,
+     'A ⚡ TAP ON A CARD WITH A CHOICE SHOWS IT IN THE COLUMN while its picker is open, nothing spent  ['+JSON.stringify(a9b)+']');
+  await p.evaluate(()=>{ const x=document.getElementById('unstageBtn'); if(x) x.click(); });
+  await wait(250);
+  const c9b=await p.evaluate(()=>({ staged:document.querySelectorAll('#stagedSlot .card').length,
+    ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(), energy:window.__solo.st().players[0].energy.length }));
+  ok(c9b.staged===0 && !/Pick a target|Choose target/.test(c9b.ctx) && c9b.energy===b9.energy, '  …and its ✕ backs out of the tap\'s picker too, nothing spent  [⚡ "'+c9b.ctx+'"]');
+  // a red run must not leave the picker open for the legs below — back out with Clear if the ✕ was not there
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && /Pick a target|Choose target/.test(c.textContent||'')){ const k=document.getElementById('clearBtn'); if(k && !k.disabled) k.click(); } });
+  await wait(200);
+  /* THE CONTROL — ruling 11's other half: a card with NOTHING to choose still casts on the tap and never reaches the
+     column. Without it, a build that staged every tap would pass the leg above. */
+  await settle(); await stage(); await wait(350);
+  const b9c=await snap();
+  await p.evaluate(()=>{ window.__colSeen=false; const cz=document.getElementById('stagedSlot');
+    window.__colObs=new MutationObserver(()=>{ if(cz.querySelector('.card[data-id="act3C"]')) window.__colSeen=true; }); window.__colObs.observe(cz,{childList:true,subtree:true});
+    const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="act3C"]'))[0]; if(g) g.click(); });
+  await wait(250);
+  await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && !c.disabled) c.click(); });
+  const cast9c=await until(async()=>(await snap()).boost>0, 40);
+  const seen9c=await p.evaluate(()=>{ window.__colObs.disconnect(); return window.__colSeen; });
+  ok(cast9c && (await snap()).energy<b9c.energy && !seen9c, '  CONTROL: a ⚡ tap on a card with nothing to choose still CASTS AT ONCE and never enters the column (ruling 11)  [column seen: '+seen9c+']');
+
+  /* ---------- LEG 10: A LONG REFUSAL MUST NOT COST YOU THE BOARD (2026-09-30).
+     The live refusal feeds `ctxActionFor(...).reason` into the pill, and the pill was built for short strings:
+     a full engine sentence once hung off both edges of the play area, and because the pill is hidden by
+     OPACITY, stale text left in it widened the document for the rest of the game. MEASURE, DO NOT LOOK, and
+     at a NARROW viewport, which is the only place the bug exists (at 1100px the sentence fits on one line and
+     the assertions measured nothing). 760px stays above the 720px phone gate on purpose. */
   const LONG = /Broadway card/i;                       // `pitchHigh` — the longest reason the engine gives
+  await settle();   // the previous leg's cast may still be holding the board (ruling 20)
   await p.setViewportSize({width:760,height:900}); await wait(250);
   await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
     const you=st.players[0];
-    /* Ultima Attack (10♣) with NO 10/J/Q/K/A beside it, so the Broadway pitch has nothing to spend and
-       `ctxActionFor` returns the long sentence rather than a short one. Energy is ample on purpose: the
-       refusal under test must be the PITCH, not affordability, which has its own much shorter copy. */
+    /* Ultima Attack with NO 10/J/Q/K/A beside it, so the pitch has nothing to spend and `ctxActionFor` returns
+       the long sentence. Energy is ample: the refusal under test must be the PITCH, not affordability. */
     you.hand=[mk(10,'C','ulti'), mk(3,'D','lowA'), mk(4,'D','lowB')];
     you.energy=[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'C','pe'+n));
     st.subPhase='main'; st.turn=0; st.pile=null; st.round=4;
     window.__solo.render(); });
   await wait(250);
-  const z5 = await dragToTable(p,'ulti');
-  ok(!!z5 && LONG.test(z5.hint||''),
-     'the long Broadway refusal really is what the pill shows  ["'+(z5?z5.hint:'no drag')+'"]');
-  ok(!!z5 && z5.spill===0,
-     '  …and it stays INSIDE the play area — '+(z5?z5.spill:'?')+'px hanging off the edges (cap + wrap)');
+  const z10=await dragTo(p,'ulti','column');
+  ok(!!z10 && LONG.test(z10.hint||''), 'the long Broadway refusal really is what the pill shows  ["'+(z10?z10.hint:'no drag')+'"]');
+  ok(!!z10 && z10.spill===0, '  …and it stays INSIDE the play area — '+(z10?z10.spill:'?')+'px hanging off the edges (cap + wrap)');
   await wait(200);
-  /* ⚠ THE DOCUMENT-LEVEL SCROLLBAR IS NOT ASSERTED, AND THAT IS A MEASUREMENT RATHER THAN AN OVERSIGHT.
-     The filed entry called it "the second half and the worse one" and said to verify with
-     `scrollWidth` against `clientWidth`. Measured 2026-09-30 on a build with BOTH halves broken, at
-     eleven widths (1100/900/820/760/730/700/600/500/430/390/360): the spill off the play area is real
-     and grows as the viewport narrows — 19px at 820 up to 229px at 360 — and the document overflow is
-     **0 everywhere, during the drag and after it**. So an assertion on it would be green on the broken
-     build too, which is the vacuous shape this repo keeps catching. The MECHANISM is pinned instead
-     (stale text left in a layout that is hidden by opacity), because that is what would produce the
-     scrollbar wherever it does.
-     The entry's screenshot is from 2026-09-11 and nineteen versions of layout work ago; a filed
-     measurement ages exactly as fast as the thing it measured. Re-open it with a repro, not from the
-     screenshot. And note the non-monotonic row: 700 and 600 spill ZERO because the phone layout gives
-     `#table` most of the width and the sentence is ~490px wide — it is the TABLE's width that decides
-     this, never the viewport's. */
-  const after = await p.evaluate(()=>{ const de=document.documentElement;
-    return { text:((document.getElementById('dropHint')||{}).textContent||''),
-             overflow: de.scrollWidth - de.clientWidth }; });
-  ok(after.text==='',
-     'the hidden pill holds NO text after the drag — it is hidden by opacity, so stale text still occupies the layout  ["'+after.text.slice(0,52)+'"]');
+  const after=await p.evaluate(()=>({ text:((document.getElementById('dropHint')||{}).textContent||'') }));
+  ok(after.text==='', 'the hidden pill holds NO text after the drag — hidden by opacity, stale text would still occupy the layout  ["'+after.text.slice(0,52)+'"]');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

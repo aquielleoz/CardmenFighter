@@ -49,7 +49,7 @@ const why=p=>p.evaluate(()=>({
   rival:((document.getElementById('rivalStatus')||{}).textContent||'').trim().slice(0,42),
   hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,46),
   pending:(window.__cmf?window.__cmf.pending():null),
-  modal:[].some.call(document.querySelectorAll('.respQuick,#respDecline'),b=>b.offsetParent!==null)
+  modal:[].some.call(document.querySelectorAll('#respYes,#respDecline'),b=>b.offsetParent!==null)
 }));
 
 (async()=>{

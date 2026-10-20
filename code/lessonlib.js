@@ -14,8 +14,30 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 
 async function openLesson(id, viewport){
   const b=await chromium.launch(LAUNCH);
-  const p=await (await b.newContext({viewport:viewport||{width:1200,height:900}})).newPage();
+  /* `LESSON_VIEWPORT=390x844` runs a suite that names no viewport at that size — a phone pass of any lesson suite. */
+  const VP=/^(\d+)x(\d+)$/.exec(process.env.LESSON_VIEWPORT||''), vp=viewport||(VP?{width:+VP[1],height:+VP[2]}:{width:1200,height:900});
+  const p=await (await b.newContext({viewport:vp})).newPage();
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
+  /* THE COACH MUST NOT COVER WHAT A STEP POINTS AT (drag-and-stack step 6b). Every 400ms: does the coach panel sit over
+     the centre of anything the step spotlights, or of the Respond? box's buttons? Phases shipped with the coach over
+     both, and a phone audit then found it over the named card or button in five more lessons, every suite green
+     throughout, because a suite clicks through the DOM. `done()` asserts it; a state counts only once it has held for
+     two samples in a row, so a sample taken while the coach is mid-move cannot flake a run. `LESSON_AUDIT=<file>`
+     also appends the per-step record as one JSON line, for a cross-lesson audit. */
+  const AUDIT=process.env.LESSON_AUDIT||'', audit={}, streak={}; let auditT=null;
+  auditT=setInterval(async()=>{ try{
+    const r=await p.evaluate(()=>{ const m=/(\d+)\s*\/\s*(\d+)/.exec((document.querySelector('.tutStep')||{}).textContent||''); if(!m) return null;
+      const t=document.getElementById('tutPanel'), out=[], els=[].slice.call(document.querySelectorAll('.tut-spot'));
+      const ov=document.getElementById('overlay'); if(ov && ov.classList.contains('show')) [].forEach.call(document.querySelectorAll('#modal button'), b=>{ if(b.offsetParent) els.push(b); });
+      els.forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width<2 || r.height<2) return; const cx=r.left+r.width/2, cy=r.top+r.height/2;
+        const name=el.id ? '#'+el.id : (el.dataset && el.dataset.id ? 'card '+el.dataset.id : String(el.className).split(' ')[0]);
+        if(cx<0 || cy<0 || cx>innerWidth || cy>innerHeight){ out.push(name+' OFFSCREEN'); return; }
+        const hit=document.elementFromPoint(cx, cy); if(t && hit && t.contains(hit)) out.push(name+' UNDER COACH'); });
+      return { step:+m[1], bad:out }; });
+    if(r){ const k='step '+r.step, now={};
+      r.bad.forEach(x=>{ const key=k+' · '+x; now[key]=1; streak[key]=(streak[key]||0)+1; if(streak[key]>=2){ audit[k]=audit[k]||{}; audit[k][x]=(audit[k][x]||0)+1; } });
+      Object.keys(streak).forEach(key=>{ if(!now[key]) delete streak[key]; }); }
+  }catch(e){} }, 400);
   /* LOAD ON DEMAND (2026-10-13). Every lesson flake on file was seen under a `-j 4` sweep and never solo, so
    * "wait for a loaded sweep to go red" was the only way to see one again. `LESSON_THROTTLE=n` slows this page's
    * own CPU n-fold through Chromium's DevTools protocol (`Emulation.setCPUThrottlingRate`): a loaded lane without a
@@ -90,8 +112,11 @@ async function openLesson(id, viewport){
         return 'clean-up pick — could not confirm '+need+' of '+order.length;
       }
       const ov=document.getElementById('overlay');
-      if(!ov || !ov.classList.contains('show')) return null;
-      const PASS=[['respDecline','Respond? window'],['pfDecline','pre-fight window'],['sgNo','shield guard window']];   // each label carries its own noun: a pick is not a window
+      if(!ov || !ov.classList.contains('show')){
+        const ans=window.__solo && window.__solo.answering, pb=document.getElementById('passBtn');   // after Yes the board is the answer (step 4)
+        if(ans && ans() && pb && !pb.disabled){ pb.click(); return 'Respond? window (answered on the board)'; }
+        return null; }
+      const PASS=[['respDecline','Respond? window']];   // the pre-fight (`pfDecline`) and shield-guard (`sgNo`) windows were folded into the go-round at epic steps 19-20   // each label carries its own noun: a pick is not a window
       for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
       return null; });
     /* A FLOOD OF THESE IS A PRODUCT CHANGE, NOT A HARNESS PROBLEM — read it that way before touching the
@@ -163,7 +188,7 @@ async function openLesson(id, viewport){
         seen.add(g); if(!g.classList.contains('gsel')) g.click(); }
       return null; }, ids);
     if(selErr) return selErr;
-    if(await clickFight(p) === 'played') return null;
+    { const r=await clickFight(p); if(r === 'played' || r === 'waiting') return null; }   // 'waiting': it took effect; another seat answers the crossing
     return p.evaluate(list=>{
       const lay=[].map.call(document.querySelectorAll('#hand .group'),g=>
         (g.classList.contains('gsel')?'[SEL]':'')+[].map.call(g.querySelectorAll('.card'),c=>c.dataset.id).join('+')).join(' ');
@@ -203,9 +228,16 @@ async function openLesson(id, viewport){
           const g=el.closest('.group'); if(!g) return 'card '+id+' has no group';
           if(!g.classList.contains('gsel')) g.click(); }
         return null; }, ids);
-      if(last===null && await clickFight(p) !== 'played')            // epic step 20: only `played` means cards really went down
-        last=await p.evaluate(()=>'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||''));
+      if(last===null && !/^(played|waiting)$/.test(await clickFight(p)))   // only these mean the press took effect — see fightclick.js
+        /* AND SAY WHAT THE BOARD WAS DOING, because "did not land" alone cannot tell a refused play from one the
+           crossing lost: the sub-phase, whose turn, the pile, what is still selected and the ledger's last line. */
+        last=await p.evaluate(()=>{ const s=(window.__solo&&window.__solo.st())||{}, led=(window.__solo&&window.__solo.prioLog?window.__solo.prioLog():[])||[];
+          return 'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||'')+
+            ' | sub='+s.subPhase+' turn='+s.turn+' pile='+(s.pile?s.pile.combo.type+' by '+s.pile.byPlayer:'none')+
+            ' sel='+document.querySelectorAll('#hand .group.gsel .card, #hand .card.sel').length+
+            ' | ledger: '+String(led[led.length-1]||'').slice(0,110); });
       if(last===null) return null;
+      if(process.env.LESSONDBG) console.log('   playIds attempt @'+(Date.now()-t0)+'ms: '+last);
       if(/has no group/.test(last)) last=(await pickMode())||last;   // name the board state, not the symptom
       await answerWindow();
       await p.waitForTimeout(200);
@@ -225,11 +257,18 @@ async function openLesson(id, viewport){
      * beat happened to land between the snapshot and the check — a false positive that then surfaced as an
      * unrelated assertion failing further down. A pass either bumps `passes` or ends the round. */
     const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, passes:s.passes||0}; });
+    const movedNow=()=>p.evaluate(b=>{ const s=window.__solo.st();
+      return s.round!==b.round || (s.passes||0)>b.passes; }, before);
     while(Date.now()-t0<ms){
-      await clickPass(p);   // Pass only exists in the Fight Sub-Phase now — the helper moves there first
-      const moved=await p.evaluate(b=>{ const s=window.__solo.st();
-        return s.round!==b.round || (s.passes||0)>b.passes; }, before);
-      if(moved) return Date.now()-t0;
+      const r=await clickPass(p);
+      /* A PRESSED PASS LANDS AFTER THE CROSSING BEAT, SO WAIT FOR IT BEFORE PRESSING AGAIN (drag-and-stack ruling
+         10). From Main a Pass crosses into the Fight Sub-Phase and shows it for ~700ms before the pass goes
+         through, so checking straight after the press read "not yet" and the retry pressed AGAIN — and that
+         second press waited on the button until the NEXT turn of yours and passed THAT one. Measured: it skipped
+         the twos lesson's full-house step, so the lesson stalled on a board it had already moved past. Only a
+         press that did not register is retried. */
+      const landBy=Date.now()+(r==='passed'?4000:0);
+      for(;;){ if(await movedNow()) return Date.now()-t0; if(Date.now()>=landBy) break; await p.waitForTimeout(80); }
       await answerWindow();
       await p.waitForTimeout(150);
     }
@@ -268,6 +307,10 @@ async function openLesson(id, viewport){
       ok(await p.evaluate(i=>localStorage.getItem('cmf_lesson_'+i+'_v1')==='1', lessonId),'…and the lesson is marked done');
     },
     async done(){ ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
+      clearInterval(auditT);
+      const covered=Object.keys(audit).map(k=>k+': '+Object.keys(audit[k]).join(', '));
+      ok(covered.length===0, 'the coach never covered what a step points at ('+vp.width+'x'+vp.height+')'+(covered.length?'  ← '+covered.join(' | '):''));
+      if(AUDIT) require('fs').appendFileSync(AUDIT, JSON.stringify({ lesson:id, vp:vp.width+'x'+vp.height, audit:audit })+'\n');
       console.log('\nPASS: '+pass+'  FAIL: '+fail); await b.close(); process.exit(fail?1:0); } };
 }
 module.exports = { openLesson, URL };

@@ -31,7 +31,7 @@
  * Run: node resolutiontest_ui.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
-const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline } = require('./fightclick');
+const { selectAndFight, clickFight, clickPass, respQuicks, clickQuick, windowUp, clickDecline, waitHold } = require('./fightclick');
 const path = require('path');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -540,7 +540,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       c.click();
       const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
       if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
-      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      if (cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
       return 'not offerable';
     });
     let how = null;
@@ -578,7 +578,7 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       c.click();
       const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
       if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
-      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      if (cx && cx.offsetParent!==null && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
       return 'not offerable';
     });
     await until(async () => { how2 = await cast2(); return how2 === 'icon' || how2 === 'ctx'; }, 40);
@@ -593,11 +593,13 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        nothing — so the DOM really holds the stale buttons, and `respQuicks`, `windowUp` and `clickQuick` all
        refuse them. Without the first half, "the helpers see nothing" is also true of a page with no buttons. */
     const closed = await until(() => p.evaluate(() => !document.getElementById('overlay').classList.contains('show')), 40);
-    const left = await p.evaluate(() => ({ quick: document.querySelectorAll('.respQuick').length, decline: !!document.getElementById('respDecline') }));
+    /* RE-POINTED AT YES AND NO (step 4, piece 8): the box lists no Quicks any more, and `hideOverlay` leaves ITS two
+       buttons in the page just as it left the old ones, so they are the stale markup to refuse now. */
+    const left = await p.evaluate(() => ({ yes: !!document.getElementById('respYes'), decline: !!document.getElementById('respDecline') }));
     const seen = await respQuicks(p), upNow = await windowUp(p), pressed = await clickQuick(p);
-    ok(closed && left.quick > 0 && left.decline && seen.length === 0 && !upNow && pressed === null,
-       `C8b · the closed window's buttons are still in the page (${left.quick} Quick, decline ${left.decline}) and the shared reads see none of them` +
-       (closed && left.quick > 0 && left.decline ? '' : '  ← the board has no stale buttons to refuse; this check is vacuous') +
+    ok(closed && left.yes && left.decline && seen.length === 0 && !upNow && pressed === null,
+       `C8b · the closed window's Yes and No are still in the page (Yes ${left.yes}, No ${left.decline}) and the shared reads see none of them` +
+       (closed && left.yes && left.decline ? '' : '  ← the board has no stale buttons to refuse; this check is vacuous') +
        (seen.length || upNow || pressed !== null ? `  ← REPRODUCED: respQuicks [${seen.join(' | ').slice(0, 60)}] windowUp ${upNow} clicked "${pressed}"` : ''));
     await p.close(); }
 
@@ -707,11 +709,18 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        "Sanctuary" was in the text because it was on offer, not because it was on the stack. The same
        mistake `nettest_priosig` records one file over — it matched /Rival/ against the whole modal and a
        mutant survived inside `tableContextHTML`. Scope the read to the element under test. */
-    const stackRow = await p.evaluate(() => { const r = document.querySelector('#modal .ctxStack');
-      return r ? (r.textContent || '').replace(/\s+/g, ' ').trim() : null; });
-    ok(stackRow !== null,
-       'F · THE WINDOW SHOWS THE STACK — the board\'s #stackView is behind the overlay, so this is the only copy the player can read' +
-       (stackRow !== null ? '' : '  ← REPRODUCED: no stack row in the window; only the top object is named, via respIncoming'));
+    /* THE BOARD'S STACK, READABLE WHILE THE BOX ASKS (ruling 23; drag-and-stack step 4, piece 8). The box used to cover
+       the board and carry a copy of these rows; now it sits clear of the cast column on an overlay that does not dim,
+       so the stack the player reads is the board's own. Asserted as GEOMETRY AND PAINT, not presence: the box clear of
+       `#stackView`, and the overlay behind it transparent — present-but-covered is what this scenario exists to catch. */
+    const view = await p.evaluate(() => { const v = document.getElementById('stackView'), m = document.getElementById('modal'), ov = document.getElementById('overlay');
+      if (!v || v.offsetParent === null) return null; const a = v.getBoundingClientRect(), b = m.getBoundingClientRect();
+      const overlap = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      return { up: ov.classList.contains('show'), overlap: Math.round(overlap), bg: getComputedStyle(ov).backgroundColor,
+               row: [...v.querySelectorAll('.stkCap')].map(c => (c.textContent || '').replace(/\s+/g, ' ').trim()).join(' / ') }; });
+    const stackRow = view ? view.row : null;
+    ok(!!view && view.up && view.overlap === 0 && /rgba\(0, 0, 0, 0\)|transparent/.test(view.bg),
+       'F · THE BOARD\'S STACK IS READABLE WHILE THE BOX ASKS — the box clear of it, nothing dimming it  ' + JSON.stringify(view));
     ok(!!stackRow && /Leyline/i.test(stackRow) && /Counter Spell/i.test(stackRow),
        'F · …and the ROW itself names BOTH objects, top and bottom: "' + (stackRow || '(absent)') + '"');
     /* AND IT READS AS ENGLISH TO THE PERSON IT NAMES. Putting the stack in the modal is what exposed this:
@@ -719,9 +728,16 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
        **"You loses a shield"** — the agreement bug this repo has shipped four times, in a RENDERER rather
        than a `say()` template, which is why `nettest_narrate`'s static scan cannot see it (that scan reads
        `say(` call sites). Asserted here because this is the suite that put the line on screen. */
-    ok(!!stackRow && !/You (loses|is|has|moves)\b/.test(stackRow),
-       'F · …and the pending-loss line agrees with the reader it names — no "You loses a shield"' +
-       (/You loses/.test(stackRow || '') ? '  ← REPRODUCED: ' + stackRow : ''));
+    /* …AND THE SHIELD LOSS IS NOT ON IT (drag-and-stack ruling 18, 2026-10-14). Aj: *"pending shield loss? those
+       aren't part of the stack!"*, which is PHASES-AND-PRIORITY §1 and §4. The loss used to be a row under the
+       objects; it is now a sentence in the box (`.respStake`), so the stack row must not mention a shield, and the
+       box must still say what is at stake, grammatically, to the person it names. */
+    const stake = await p.evaluate(() => { const r = document.querySelector('#modal .respStake');
+      return r ? (r.textContent || '').replace(/\s+/g, ' ').trim() : null; });
+    ok(!!stackRow && !/shield/i.test(stackRow),
+       'F · …and the stack row carries NO shield loss — a shield loss is not on the stack: "' + (stackRow || '(absent)') + '"');
+    ok(!!stake && /shield/i.test(stake) && !/\b[Yy]ou (loses|is|has|moves)\b/.test(stake),
+       'F · …while the box still says the stake, and agrees with the reader it names — no "You loses a shield": "' + (stake || '(absent)') + '"');
     /* AND IT IS ABSENT WHEN THE STACK IS EMPTY, or the row is decoration rather than information — the
        Main → Fight and end-of-round go-rounds both run on an empty stack, and an empty labelled box there
        reads as something lost. The first window in this very scenario was one: depth 0. */
@@ -838,14 +854,19 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
       if (cb && !cb.disabled && !/off/.test(cb.className)) { cb.click(); return true; }
       return false; });
     ok(cast, 'H · you cast your own Technique — the go-round starts at the controller, which is you');
+    await waitHold(p);   // the go-round reaches you once your cast's art flash has run (ruling 20)
     await wait(900);
     /* NOW CROSS MAIN -> FIGHT THROUGH THE REAL BUTTON, which is what the discriminator needs: a boundary
        window with no cast of yours on the stack. It has to be the BUTTON — `clearTransition` calls
        `E.moveToPlay` directly and so never reaches the UI path that writes the ledger, which would leave
-       the assertion below failing for a staging reason and reading as a product one. */
+       the assertion below failing for a staging reason and reading as a product one.
+       AND IT CROSSES WITH A PLAY: until drag-and-stack step 1 this pressed Fight with nothing selected,
+       which was `Next`; the cast cleared the selection, so it now picks the plain 6♣ and fights with it. You
+       lead, so any single card is legal, and the crossing still opens the same window. */
     await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && d.offsetParent !== null) d.click(); });
     await wait(400);
-    await p.evaluate(() => { const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
+    await p.evaluate(() => { const c = document.querySelector('#hand .card[data-id="x6C"]'); const g = c && c.closest('.group'); if (g) g.click();
+      const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
     await wait(1200);
     const ledH = await p.evaluate(() => window.__solo.prioLog());
     const own = ledH.filter(l => /\[respond\]/.test(l) && /YOUR OWN CAST/.test(l));

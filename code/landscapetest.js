@@ -11,7 +11,6 @@
  * Every case is the WORST case for its size: battle log OPEN, hand stuffed to MAX_HAND, 5-card pile staged.
  * Run: node landscapetest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
-const { enterFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // [w, h, players, label]
@@ -403,11 +402,9 @@ const CASES=[
       return { max:Math.round(l.scrollHeight-l.clientHeight), lines:l.children.length }; });
     ok(set.max>4 && set.max<80,
        `log staged with a small overflow: ${set.max}px over ${set.lines} lines (must be under the old 80px slack to discriminate)`);
-    /* THE ACTION HAS TO BE A REAL PLAY, or no log line arrives and this measures nothing (epic step 20).
-       A single Fight press in the Main Sub-Phase is the PHASE MOVE — it logs nothing — so the probe below
-       needs the board already in the Fight Sub-Phase for `!f.disabled` to mean "this play is legal" again.
-       See fightclick.js. */
-    await enterFight(p);
+    /* THE ACTION HAS TO BE A REAL PLAY, or no log line arrives and this measures nothing. Fight is enabled
+       only for a legal selection in either sub-phase (drag-and-stack step 1), so the probe below reads
+       `!f.disabled` as "this play is legal" straight from Main. */
     /* ⚠ IF THIS GOES RED, THE GEOMETRY BELOW IS THE DIAGNOSIS (landscapetest-newlog-flaky, 2026-10-13). The only
        recorded red was `shown=false`, `scrollTop 24`: one new line, and the log FOLLOWED it, which `logMsg` does
        only when the log had no overflow left at that instant. Forced three ways on v1.33.15, it never reproduced:
@@ -496,7 +493,7 @@ const CASES=[
                            [568,320,'SE-1st landscape'],[640,360,'budget Android landscape'],
                            [667,375,'iPhone SE landscape'],[800,360,'Android landscape'],
                            [844,390,'iPhone 13/14 landscape'],[932,430,'14 Pro Max landscape'],
-                           [1280,800,'desktop']]){
+                           [768,1024,'tablet portrait'],[1280,800,'desktop']]){
     const p=await open(w,h,2); const tag=`${what} ${w}x${h}`;
     await p.evaluate(()=>{
       const st=window.__solo.st();
@@ -573,6 +570,54 @@ const CASES=[
        **176% covered** at 800x360, in a band the suite named and never measured for this. */
     ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%${m.worst?' — '+m.who:''})`);
     ok(m.zz<5, `${tag}: no two zones overlap each other (worst ${m.zz}%${m.zzPair?' — '+m.zzPair:''})`);
+    /* EQUIPMENT SITS BESIDE ITS FORMS & RIDES, ON THE LEFT (drag-and-stack ruling 15), wherever the zones are on the
+       table. Read off the GEOMETRY, not the class: each seat's Equipment starts at or past its own Forms zone's right
+       edge, in the table's left half. THE LANDSCAPE BAND STACKS IT ON THE FORMS (ruling 30, step 5): in the left half,
+       collapsed to its counter (a chip no wider than 60px), the pile and zone checks above covering the rest. */
+    const band=(h<=520 && w>h);
+    const eqp=await p.evaluate(()=>{ const tb=document.getElementById('table'), tr=tb.getBoundingClientRect(), out=[];
+      [['rivalFormZone','rivalEquipZone'],['youFormZone','youEquipZone']].forEach(pr=>{ const f=document.getElementById(pr[0]), e=document.getElementById(pr[1]);
+        if(!e || e.parentNode!==tb || !e.offsetParent || !e.childElementCount) return;
+        const er=e.getBoundingClientRect(), fr=(f && f.parentNode===tb && f.offsetParent)?f.getBoundingClientRect():null;
+        out.push({ id:pr[1], left:Math.round(er.left-tr.left), right:Math.round(er.right-tr.left), formsRight:fr?Math.round(fr.right-tr.left):null, mid:Math.round(tr.width/2) }); });
+      return out; });
+    if(eqp.length){
+      if(band) ok(eqp.every(e=>e.left<e.mid && e.right-e.left<=60), `${tag}: in the landscape band the Equipment sits in the LEFT column with its Forms, collapsed to its counter (ruling 30) — the right edge is the stack's  [${JSON.stringify(eqp)}]`);
+      else ok(eqp.every(e=>e.left<e.mid && (e.formsRight==null || e.left>=e.formsRight)), `${tag}: the Equipment sits on the LEFT, beside its Forms & Rides (ruling 15)  [${JSON.stringify(eqp)}]`);
+    }
+    /* THE STACK COLUMN, MEASURED (drag-and-stack step 5). Step 1 gave every layout "a basic place" for it and no suite
+       ever put a stack in it: in the landscape band three casts showed ONE card, cropped, wedged between the two corner
+       Equipment chips, the rest scrolled out of sight. Three objects, the most a usual go-round holds: all three must be
+       IN VIEW inside the column, none scrolled away, and the column must cover no pile card and no zone. The band's cards
+       are uncaptioned on both phone layouts (rulings 31 and 35), captioned elsewhere. Portrait phones joined at step 5's
+       piece 2, once their pile lapped (ruling 33): before it, the column sat on the pile's last card at every one of them. */
+    const phoneLayout=band || w<=720;
+    {
+      await p.evaluate(()=>{ const st=window.__solo.st(), E=window.CardmenEngine, mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+        const o=(oid,q,c)=>({oid:oid,kind:'effect',p:q,card:c,eff:E.effectOf(c),opts:{target:0}});
+        st.stack=[o('lt1',1,mk(5,'S','lt')), o('lt2',0,mk(5,'H','lt')), o('lt3',1,mk(4,'D','lt'))]; window.__solo.render(); });
+      await settledBoard(p);
+      const sc=await p.evaluate(()=>{
+        const cz=document.getElementById('castZone'), zr=cz.getBoundingClientRect();
+        const cards=[...document.querySelectorAll('#stackView .stkCard .card')].map(c=>c.getBoundingClientRect());
+        const inside=cards.filter(r=>r.top>=zr.top-1 && r.bottom<=zr.bottom+1 && r.left>=zr.left-1 && r.right<=zr.right+1).length;
+        const ov=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+        const RR=r=>[r.left,r.top,r.right,r.bottom].map(Math.round).join(',');
+        /* THE PILE AGAINST WHAT THE COLUMN DRAWS (its cards), not its box: the box is invisible outside a drag, and at
+           768x1024 its empty left padding sits 14px over the pile's last card while every stack card is 27px clear. */
+        const drawn=[...document.querySelectorAll('#stackView .stkCard .card, #stackView .stkTrig, #stagedSlot .card')].filter(e=>e.offsetParent!==null).map(e=>e.getBoundingClientRect());
+        let pileCov=0, pileWho=''; [...document.querySelectorAll('#pile .card')].forEach(c=>{ const r=c.getBoundingClientRect(); drawn.forEach(d=>{ const f=ov(r,d)/(r.width*r.height); if(f>pileCov){ pileCov=f; pileWho=RR(r); } }); });
+        let zoneCov=0, zoneWho=''; [...document.querySelectorAll('#table .formZone,#table .equipZone')].filter(e=>e.offsetParent && e.getBoundingClientRect().width>2).forEach(z=>{ const r=z.getBoundingClientRect(), f=ov(r,zr)/(r.width*r.height); if(f>zoneCov){ zoneCov=f; zoneWho=z.id+'@'+RR(r); } });
+        const caps=[...document.querySelectorAll('#stackView .stkCap')].filter(e=>e.offsetParent!==null).length;
+        return { n:cards.length, inside, scroll:cz.scrollHeight-cz.clientHeight, pileCov:Math.round(pileCov*100), pileWho, col:RR(zr), zoneCov:Math.round(zoneCov*100), zoneWho, caps, card:cards[0]?Math.round(cards[0].width)+'x'+Math.round(cards[0].height):'-' };
+      });
+      ok(sc.n===3 && sc.inside===3 && sc.scroll<=1, `${tag}: all three stack cards are IN VIEW in the cast column, none scrolled away (${sc.inside}/${sc.n} inside, ${sc.scroll}px of scroll, cards ${sc.card})`);
+      ok(sc.pileCov<5 && sc.zoneCov<5, `${tag}: …and no stack card covers a pile card, and the column covers no zone (pile ${sc.pileCov}%${sc.pileCov?' — card '+sc.pileWho:''}, zone ${sc.zoneCov}%${sc.zoneWho?' — '+sc.zoneWho:''}; column ${sc.col})`);
+      if(phoneLayout) ok(sc.caps===0, `${tag}: …uncaptioned on a phone (rulings 31 and 35) — ${sc.caps} captions showing`);
+      else ok(sc.caps===3, `${tag}: …and captioned outside the band (${sc.caps} of 3)`);
+      await p.evaluate(()=>{ window.__solo.st().stack=[]; window.__solo.render(); });
+      await settledBoard(p);
+    }
     /* THE ROUND MESSAGE STAYS OUT OF YOUR PANEL (expanding-zone-pushes-board, 2026-10-05). The real collision
        on a portrait phone was never the expand: the three-line round-1 message ("You have the initiative — lead
        the fight. Only Jabs are allowed in Round 1.") drew ON TOP of your panel, because `#message`'s box is one
@@ -627,6 +672,14 @@ const CASES=[
        happens INSIDE the evaluate above, in the branch that returns null — which is the only case that
        needs it. A fallback that also runs on the path under test is not a fallback, it is a second way to
        pass. */
+    /* CLOSE THE FULL READER FIRST: where the band hides the reader panel (568-667 wide), the chip tap above opened
+       `#cardFull` over the whole screen, and a click sent under it measures the overlay, not the chip. */
+    await p.evaluate(()=>{ const cf=document.getElementById('cardFull'); if(cf && cf.classList.contains('show')) document.getElementById('cardFullClose').click(); });
+    /* …AND LET A ROUND BANNER CLEAR: this loop's staging is laid on a live game, and a round card is often up by now
+       (measured: at every band size, with or without the stack leg above). The geometry checks never minded; the
+       on-top check below would measure the banner. Wait it out, then tap it away as a player would. */
+    for(let i=0;i<40 && await p.evaluate(()=>{ const r=document.getElementById('roundfx'); return !!(r && r.classList.contains('show')); });i++) await new Promise(r=>setTimeout(r,150));
+    await p.evaluate(()=>{ const r=document.getElementById('roundfx'); if(r && r.classList.contains('show')) r.click(); });
     await p.evaluate(()=>{ const e=document.querySelector('.eq'); if(e) e.click(); });
     await settledBoard(p);
     const x=await p.evaluate(()=>{
@@ -644,9 +697,18 @@ const CASES=[
         const f=ov(a,b)/area;
         if(f>zz){ zz=f; zzPair=(ids[i]||'?')+' × '+(ids[j]||'?'); }
       }
+      /* …AND WITHOUT THE OPEN EQUIPMENT BOX, which in the landscape band is a popover over the left column (ruling 30): it
+         is asserted ON TOP below, and covering a neighbour while it is open is what a popover does. */
+      let zzShut=0;
+      for(let i=0;i<zr.length;i++) for(let j=i+1;j<zr.length;j++){
+        if(zEls[i].querySelector('.eqOpen') || zEls[j].querySelector('.eqOpen')) continue;
+        const a=zr[i], b=zr[j], area=Math.min(a.width*a.height, b.width*b.height); if(!area) continue;
+        zzShut=Math.max(zzShut, ov(a,b)/area); }
+      const eo=document.querySelector('.equipZone .eq.eqOpen'), er=eo?eo.getBoundingClientRect():null, hit=er?document.elementFromPoint(er.left+er.width/2, er.top+er.height/2):null;
       const mn=document.querySelector('main');
       const bd=document.getElementById('board');
-      return { worst:Math.round(worst*100), who:who, zz:Math.round(zz*100), zzPair:zzPair,
+      return { worst:Math.round(worst*100), who:who, zz:Math.round(zz*100), zzPair:zzPair, zzShut:Math.round(zzShut*100),
+               eqOpen:!!eo, eqOnTop:!!(eo && hit && eo.contains(hit)), eqHit:hit?((hit.id||hit.className||hit.tagName)+' in '+((hit.parentElement&&(hit.parentElement.id||hit.parentElement.className))||'?')):null, rfx:(function(){ const r=document.getElementById('roundfx'); if(!r) return null; const cs=getComputedStyle(r); return r.className+' op='+cs.opacity+' vis='+cs.visibility+' pe='+cs.pointerEvents+' disp='+cs.display; })(), eqInView:!!(er && er.left>=0 && er.top>=0 && er.right<=innerWidth && er.bottom<=innerHeight),
                minis:document.querySelectorAll('.formMini').length, over:Math.max(0,bd.scrollHeight-bd.clientHeight),
                scrollW:mn.scrollWidth, clientW:mn.clientWidth };
     });
@@ -656,12 +718,17 @@ const CASES=[
          a card in the reader, and require the reader to have been empty first so the click is what filled it. */
       const read=await p.evaluate(()=>{
         const cv=document.getElementById('cardView'); const before=(cv&&cv.textContent||'').trim();
-        const c=document.querySelector('.formChip'); if(!c) return {none:true};
+        /* THE LAST chip, whose card the reader is not already showing: the first one read J♦ a moment ago, when
+           `expandedByChip` clicked it, and the Equipment tap no longer replaces it (ruling 30 expands instead). */
+        const cs=[...document.querySelectorAll('.formChip')], c=cs[cs.length-1]; if(!c) return {none:true};
         c.click();
         return { before:before, after:((cv&&cv.textContent)||'').trim() };
       });
       ok(!read.none && read.after && read.after!==read.before,
          `${tag}: …and a chip READS its card instead (reader went "${(read.before||'').slice(0,22)}" → "${(read.after||'').slice(0,28)}")`);
+      ok(x.eqOpen && x.eqOnTop && x.eqInView, `${tag}: a tap EXPANDS the Equipment chip (ruling 30: "a collapsible") — drawn on top, fully on screen  ${JSON.stringify({open:x.eqOpen, onTop:x.eqOnTop, inView:x.eqInView, hit:x.eqHit, rfx:x.rfx})}`);
+      await p.evaluate(()=>document.getElementById('message').click());
+      ok(await p.evaluate(()=>!document.querySelector('.equipZone .eq.eqOpen')), `${tag}: …and a tap elsewhere closes it again`);
     } else {
       ok(x.minis>0, `${tag}: STAGED EXPANDED — the Forms zone really opened into ${x.minis} cards`);
       ok(expandedByChip===null || x.minis>0,
@@ -675,7 +742,7 @@ const CASES=[
       ok(x.over===0, `${tag}: expanding a zone does not push the board past its height (${x.over}px)`);
       ok(x.worst<5, `${tag}: expanding a zone still covers no pile card (${m.worst}% → ${x.worst}%${x.worst?' — '+x.who:''})`);
     }
-    ok(x.zz<5, `${tag}: no two zones overlap each other in that state (worst ${x.zz}%${x.zzPair?' — '+x.zzPair:''})`);
+    ok((landBand ? x.zzShut : x.zz)<5, `${tag}: no two zones overlap each other in that state${landBand?', the open Equipment popover aside':''} (worst ${landBand?x.zzShut:x.zz}%${!landBand&&x.zzPair?' — '+x.zzPair:''})`);
     ok(x.scrollW<=x.clientW+1, `${tag}: …and does not start a sideways scroll (${x.scrollW} vs ${x.clientW})`);
     await p.context().close();
   }

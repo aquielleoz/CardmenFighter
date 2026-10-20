@@ -1834,11 +1834,11 @@
     if (st.subPhase === 'play') return { ok: true, state: st, subPhase: 'play' };
     if (st.finished) return { ok: false, reason: 'The game is over.' };
     /* THE SEAT IS OPTIONAL AND THE GATE IS HERE (epic step 20). `play`/`pass` have already checked the turn
-       by the time they call this, so they pass nothing; the netplay `toFight` intent — a remote seat
-       pressing Fight in its Main Sub-Phase — arrives with no other gate in front of it, and a transition
-       started by the wrong seat would open a go-round whose origin is somebody else's turn. One definition
-       rather than a copy in each of the two host handlers: that split is what let the duel and the N-player
-       paths drift apart over `guard`/`netGuard` and over `discard`/`netDiscard`. */
+       by the time they call this, so they pass nothing. Its one seat-passing caller was the netplay `toFight`
+       intent — a remote seat's `Next` — removed in drag-and-stack step 1; the gate stays for the next caller
+       that crosses on a seat's behalf, because a transition started by the wrong seat would open a go-round
+       whose origin is somebody else's turn. One definition rather than a copy per host handler: that split
+       is what let the duel and the N-player paths drift apart over `guard`/`netGuard`. */
     if (p != null && p !== st.turn) return { ok: false, reason: 'Not your turn.' };
     /* NOT WHILE THE ROUND IS ENDING (the round-end freeze, v1.32.21). During Resolution,
        Clean-up, the Beginning's upkeep or a strike choice, `st.turn` still names the last seat to pass and
@@ -2002,6 +2002,12 @@
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
     res.respondedWith = qeff.id; res.respondKind = qeff.kind; res.respondName = qeff.name;
+    /* AND WHETHER THE ANSWER IS A COUNTER, which nothing set until 2026-10-19: `ai.js` logs `countered: !!rr.countered`,
+       so every AI Counter Spell was narrated "answered at instant speed" and the board's replay of an AI exchange
+       resolved the countered Technique anyway. It names the ATTEMPT — the counter is on the stack, not resolved,
+       and can itself be countered. */
+    res.countered = qeff.kind === 'counter';
+    res.respondCard = { rank: qcard.rank, suit: qcard.suit, id: qcard.id };   // the answer's public face, so the board can show it (drag-and-stack step 3)
     if (qPitch) res.pitched = { rank: qPitch.rank, suit: qPitch.suit, id: qPitch.id };
     return res;
   }
@@ -2065,6 +2071,9 @@
       }
       return null;
     }
+    /* EVERY RIVAL, WHEN IT HITS EVERY RIVAL (drag-and-stack step 4, piece 10): Back Stab under Hermes' Super carries
+       `all`, and resolution locks every living rival — naming ONE seat here told the others it was not aimed at them. */
+    if ((HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) && eff.all) return { allRivals: true };
     if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
     return null;
   }
