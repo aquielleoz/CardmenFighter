@@ -173,8 +173,11 @@ async function lane(i) { while (next < suites.length) { const f = suites[next++]
      * the line that says whether the Rival's cast happened at all — and this filter dropped it, so three
      * sweeps reported the failure with the one fact needed to diagnose it removed. Several suites append
      * their evidence after a `←` for the same reason. Cropping a suite's OWN diagnosis is how a failure
-     * arrives unexplained; the suite had already done the work. */
-    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR|WHY:|←|⚠|⏱/.test(l)).slice(0, 20).join('\n')); });
+     * arrives unexplained; the suite had already done the work.
+     * AND `^FAIL: ` (2026-10-19): `test.js` and `netview.test.js` print each failed assertion as `FAIL: <message>`,
+     * which none of the patterns above matched, so a red `test.js` arrived here as a heading over NOTHING. The
+     * epic's sweep that day needed 100 reruns to name an assertion `test.js` had already printed. */
+    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|^FAIL: |FAILED|TIMED OUT|ERROR|WHY:|←|⚠|⏱/.test(l)).slice(0, 20).join('\n')); });
   }
   if (countReport) console.log('\n──── declared counts (CLAUDE.md vs this sweep — a report, not a gate) ────\n' + countReport);
   console.log(`\n${bad.length ? 'FAILED — ' : ''}${suites.length - bad.length}/${suites.length} suites green in ${wall}s`);
