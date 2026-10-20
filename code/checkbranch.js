@@ -126,8 +126,14 @@ function nearestIntegration(lsha) {
   return best;
 }
 function baseFor(lsha, rsha) {
-  if (rsha && !/^0+$/.test(rsha)) return rsha;    // updating an existing branch: only the new commits
-  /* A BRAND-NEW BRANCH HAS NO REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
+  /* UPDATING AN EXISTING BRANCH: only the new commits — when the push is a fast-forward. A REBASED branch's old tip is
+   * not an ancestor of its new one, and `rsha..lsha` then holds everything merged into `main` in between: rebasing
+   * #435 onto v1.34.0 re-checked the whole epic and was refused for a `Backlog: updates` claim on an entry the release
+   * had since closed (2026-10-20). So a force-push is checked from where it forks, exactly like a new branch. */
+  if (rsha && !/^0+$/.test(rsha)) {
+    try { execSync('git merge-base --is-ancestor ' + rsha + ' ' + lsha, { stdio: 'ignore' }); return rsha; } catch (e) {}
+  }
+  /* A BRAND-NEW (or rebased) BRANCH HAS NO USABLE REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
    * (`main` and whichever epic is live), and picking the wrong one would drag in an epic's whole history. */
   var n = nearestIntegration(lsha);
   return n && n.mb;
