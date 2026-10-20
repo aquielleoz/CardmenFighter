@@ -258,17 +258,18 @@ const coachClear = (p, sels)=>p.evaluate((sels)=>{ const t=document.getElementBy
   /* ⚠ AND PROVE THE SHIELD COULD HAVE BEEN LOST. "Shields unchanged" is equally true of a board where
      nothing was ever at risk — which is exactly how this assertion passed for three runs while Leyline sat
      unplayed in hand and the round had not even resolved. The losing fight is the other half of the claim. */
-  /* THE GAME'S OWN SENTENCE CARRIES BOTH HALVES — *"Rival 2 won with a Pair - but the loss was prevented."*
-     The win establishes a shield really was on the line; "prevented" establishes Leyline is what stopped it.
+  /* THE GAME'S OWN SENTENCE CARRIES BOTH HALVES — *"Rival 2 won with a Pair - but Leyline Ascension saved You."*
+     The win establishes a shield really was on the line; the card it names establishes Leyline is what stopped it
+     (since v1.34.4 the line names the saver; it read "the loss was prevented" before, which named nothing).
      Asserting the shield COUNT alone is what let this pass for three runs with Leyline unplayed in hand and
      the round not even resolved, so the count below is kept as the outcome and this is kept as the stake. */
   /* THE ROUND RESOLVES ONCE LEYLINE'S ART FLASH HAS RUN (drag-and-stack ruling 20: every cast holds the game for it),
      so the "prevented" line lands about 2.5s after the step advances. Poll for it rather than read once. */
   let tail = [];
   for (let i = 0; i < 60; i++) { tail = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).slice(-8));
-    if (tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t))) break; await new Promise(r=>setTimeout(r,100)); }
-  ok(tail.some(t=>/Rival 2 won/i.test(t) && /prevented/i.test(t)),
-     '…on a round you actually LOST, and the log says the loss was PREVENTED  [' + (tail.filter(t=>/prevented/i.test(t))[0]||'no such line') + ']');
+    if (tail.some(t=>/Rival 2 won/i.test(t) && /but Leyline Ascension saved You\./.test(t))) break; await new Promise(r=>setTimeout(r,100)); }
+  ok(tail.some(t=>/Rival 2 won/i.test(t) && /but Leyline Ascension saved You\./.test(t)),
+     '…on a round you actually LOST, and the log says LEYLINE SAVED YOU  [' + (tail.filter(t=>/saved|prevented/i.test(t))[0]||'no such line') + ']');
   ok((await st()).players[0].shields===shBefore,
      'LEYLINE SAVED THE SHIELD — '+shBefore+' before, '+(await st()).players[0].shields+' after');
   await note();
