@@ -62,7 +62,7 @@ let mock=null;
 (async()=>{
   mock=await startMock(MOCK);   // waits for the mock's listen line and fails loudly if its port is taken
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
-  const b=await chromium.launch(Object.assign({}, LAUNCH, { args:['--disable-features=WebRtcHideLocalIpsWithMdns'] }));
+  const b=await chromium.launch(Object.assign({}, LAUNCH, { args:LAUNCH.args.concat(['--disable-features=WebRtcHideLocalIpsWithMdns']) }));
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));

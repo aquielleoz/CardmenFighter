@@ -45,7 +45,10 @@ node test.js                                    # engine + AI suite — 714 asse
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
-node browsertest.js                             # headless duel smoke
+node browsertest.js                             # headless duel smoke. A duel whose BOARD stops changing for BT_STALL_MS
+                                                # (60s) is failed, its battle log saved to code/.bt-stall-sim<N>-*.log
+                                                # and a ⚠ STALLED line printed. It used to spin 20000 `wait` steps until
+                                                # the sweep killed it with no output, which hid a real freeze for a day
 node decktest.js                                # custom deck builder, full UI (42 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (26)
 node dragtest.js                                # WHERE YOU DROP DECIDES WHAT A DRAG MEANS, NOT THE SUB-PHASE
@@ -2363,6 +2366,12 @@ reader strip; `phonetest` asserts the gate at three phone sizes).
 Browser resolution lives in **`code/pwchrome.js`**: `$PW_CHROMIUM` if set, else `/opt/pw-browsers/chromium` if it
 exists (the old sandbox layout), else Playwright's own download. Launch through it — `chromium.launch(LAUNCH)` —
 rather than hardcoding a path, which is what these files used to do and why they were unrunnable off that sandbox.
+**IT ALSO TURNS AUDIO OUTPUT OFF (`--disable-audio-output`, 2026-10-20), SO A SUITE THAT ADDS FLAGS MUST CONCAT, NEVER
+REPLACE:** `Object.assign({}, LAUNCH, { args: LAUNCH.args.concat([...]) })`. The game opens a WebAudio context, and with
+Aj's Bluetooth headphones as the output `coreaudiod` held 294 test-page outputs at ~350% CPU, which turned three sweeps
+red in unrelated suites. `--mute-audio` does NOT help: measured, it silences the page and still opens the output.
+**Before reading a red sweep as a product bug, check the machine:** `uptime`, and
+`pmset -g assertions | grep -c output.context` for held audio outputs.
 
 `nettest.js` is a **BroadcastChannel-isolation probe**, not a pass/fail suite: it prints "cross delivery: FAILS ✗
 (expected — contexts are isolated)" and exits 0. That line is the expected result.
