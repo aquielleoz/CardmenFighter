@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.34.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.34.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 714 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 720 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 714 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 720 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -172,6 +172,13 @@ node nettest_heldplay.js                        # A HELD FIGHT, BOTH SEATS (26).
                                                 # shrunk — `resolveIds` dropped the cast card and the pair landed
                                                 # as a jab. `nettest_heldplay3` (14) is `hostApplyMoveN`'s copy,
                                                 # which a duel never reaches, and LEADS so the shrunk jab is legal
+node nettest_windowguard3.js                    # A WINDOW IS JUDGED BY THE GRANT IT IS ON, AT 3 PLAYERS (13).
+                                                # An answer stamped for an EARLIER grant is DROPPED; one that
+                                                # beats the host's park is HELD and applied at it (`heldAnswerN`,
+                                                # the duel's `heldAnswer` per seat); and a turn op sent while
+                                                # someone holds priority is REFUSED out loud, with no fresh grant.
+                                                # `__cmf.parkDelay(ms)` (one-shot, ?dbg=1) opens the park gap,
+                                                # which only a ceremony boundary opens in a real game
 node nettest_clientride.js                      # A CLIENT CALLS A RIDE AND THE HOST GETS THE WINDOW (35) — the
                                                 # direction `nettest_ridewedge` does not drive. Declined,
                                                 # answered, and answered with the client asked AGAIN (the
@@ -2688,7 +2695,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.34.2 — last FULL sweep 2026-10-20, `npm run sweep`, 136/136 in 546s** (this line was
+Status as of **v1.34.3 — last FULL sweep 2026-10-20, `npm run sweep`, 137/137 in 539s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2702,18 +2709,18 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 714, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 720, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 82 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 25, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+The 83 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 25, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7.
+`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
