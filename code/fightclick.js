@@ -45,6 +45,10 @@ async function clickFight(page, budgetMs) {
   return page.evaluate(async (budget) => {
     const hold = () => { const h = (window.__cmf && window.__cmf.castHold) || (window.__solo && window.__solo.castHold); return h ? h() : 0; };
     if (hold() > 0) { for (let i = 0; i < 120 && hold() > 0; i++) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // a cast's art flash still holds the board — then one beat for its re-render
+    /* AND THE ROUND CEREMONY HOLDS IT TOO (2026-10-20, `ceremonyBlocks` in the template): Fight and Pass are disabled until
+       the round card ends, where they used to be wrongly live. A press made straight after a round boundary waits it out. */
+    const cer = () => { const c = (window.__cmf && window.__cmf.ceremonyBlocks) || (window.__solo && window.__solo.ceremonyBlocks); return c ? c() : false; };
+    if (cer()) { for (let i = 0; i < 200 && cer(); i++) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }
     const btn = () => document.getElementById('fightBtn');
     const first = btn();
     if (!first || first.disabled) return 'no-button';
@@ -127,6 +131,10 @@ async function clickPass(page, budgetMs) {
   return page.evaluate(async (budget) => {
     const hold = () => { const h = (window.__cmf && window.__cmf.castHold) || (window.__solo && window.__solo.castHold); return h ? h() : 0; };
     if (hold() > 0) { for (let i = 0; i < 120 && hold() > 0; i++) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // a cast's art flash still holds the board — then one beat for its re-render
+    /* AND THE ROUND CEREMONY HOLDS IT TOO (2026-10-20, `ceremonyBlocks` in the template): Fight and Pass are disabled until
+       the round card ends, where they used to be wrongly live. A press made straight after a round boundary waits it out. */
+    const cer = () => { const c = (window.__cmf && window.__cmf.ceremonyBlocks) || (window.__solo && window.__solo.ceremonyBlocks); return c ? c() : false; };
+    if (cer()) { for (let i = 0; i < 200 && cer(); i++) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }
     const pass = () => document.getElementById('passBtn');
     const shown = () => { const b = pass(); return b && b.offsetParent !== null ? b : null; };
     const until = Date.now() + budget;

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.34.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.34.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -146,6 +146,11 @@ node roartest.js                                # THE ROAR BANNER ON THE HOST/SO
                                                 # must SHOW, show INSIDE the ceremony (before the next round's
                                                 # banner), never overlap the round banner, and fire ONCE.
                                                 # `nettest_ceremony` owns the netplay CLIENT's flush
+node ceremonylocktest.js                        # YOUR BOARD IS LOCKED THROUGH THE ROUND CEREMONY (6). A duel round
+                                                # ended by the Rival's pass, with a Quick in your hand so its windows
+                                                # park on you and AUTO passes them: a Fight pressed every 25ms must
+                                                # land AFTER "Round 2 begins". Red 3/3 before `ceremonyBlocks`; the
+                                                # cause of `round-ceremony-reruns-with-stale-res` (closed)
 node fightbeattest.js                           # EVERY CROSSING SHOWS THE FIGHT SUB-PHASE BEFORE THE PLAY LANDS
                                                 # (21). Drag-and-stack ruling 10, as ruling 17 SHOWS it: a quiet
                                                 # crossing auto-advances inside one engine call, so with Next gone
@@ -1054,6 +1059,16 @@ resumed even when a newer loop had started while it waited — `⚠ TWO OPPONENT
 games on v1.33.15, 0 of 36 fixed. It now yields if superseded and re-locks before stepping. **A pause that releases
 the board and the resume that follows are one contract: whoever resumes re-takes what the pause released.** It was
 found by the v1.33.14 detector, in rounds no suite had reached — `mptest` stopped at round 3.
+**AND THE CEREMONY BETWEEN THEM IS LOCKED TOO, BY `inCeremony`, NOT BY `busy` (v1.34.2).** `drainResolution` clears `busy`
+before every round ceremony, and the ceremony never re-took it, so your Fight and Pass were live through it. A
+ceremony with a window parked inside it (a Quick in your hand opens Resolution, Clean-up and Upkeep on you, and AUTO
+passes each) hands the event loop several turns, and a play there landed in the next round before its cards were dealt:
+the cause of `round-ceremony-reruns-with-stale-res`, which five hypotheses and two detectors had not found, and a
+freeze where a Clean-up window ended parked on you with nothing to prompt it. `ceremonyBlocks()` refuses play, pass,
+cast and Illusion while `inCeremony` is set, exempting your own `pick` and an `answering` window by name, which is
+why it is not `busy`: the ceremony hosts both. **A suite that presses straight after a round boundary must wait the
+ceremony out** — `fightclick`'s `clickFight` and `clickPass` do (`__cmf`/`__solo.ceremonyBlocks()`); a hand-rolled
+press that reads a disabled Fight as "no play" is the trap `nettest_ceremony` fell into.
 
 **TWENTY GREEN NETPLAY SUITES COULD NOT SEE A FORKED DUEL, AND THE REASON IS STRUCTURAL.** Aj, 2026-08-28:
 *"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*. Two
@@ -2673,7 +2688,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.34.0 — last FULL sweep 2026-10-19, `npm run sweep`, 135/135 in 563s** (this line was
+Status as of **v1.34.2 — last FULL sweep 2026-10-20, `npm run sweep`, SWEEP_PENDING** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2689,7 +2704,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 714, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

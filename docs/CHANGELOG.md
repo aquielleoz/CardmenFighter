@@ -15,6 +15,43 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.34.2 — the round ceremony holds your board, so a fast play can't freeze the game
+
+**What you'll see:** while a round ends (the Resolution and Clean-up tints, the deal and the Round card), Fight, Pass
+and ⚡ stay greyed with "The round is over — the next one is about to begin." They come back once the Round card
+finishes. Your end-of-round discard pick, and answering a window the ceremony stops you for, work as before.
+- **What it fixes:** a play made during that ceremony landed in the next round before its cards were dealt. The
+  ceremony then dealt and announced over it ("Round 8 begins" after round 8's first jab), every later round ran one
+  ceremony out of step, and a few rounds on, a Clean-up window ended up parked on you with nothing to show it. From
+  there every move was refused with "The round is over — the next one is about to begin." The board looked live and
+  nothing worked.
+- **When it happened:** in a duel, a round the Rival ended by passing, while you held a Quick you could cast (Leyline
+  is the usual one). That Quick opens the Resolution, Clean-up and Upkeep windows on you, AUTO passes each, and each
+  of those waits left room for a click. It needed a quick click, so the test harness hit it far more often than a
+  person: about 1 run in 10 of `browsertest`'s 12 duels.
+
+**Why:** `drainResolution` unlocks the board before every round ceremony, and its comment said "the ceremony manages
+`busy` itself", which it never did. The netplay host already refused a guest's move mid-ceremony (`CEREMONY_REFUSE`);
+nothing refused your own. `ceremonyBlocks()` now refuses play, pass, cast and Illusion while `inCeremony` is set,
+exempting your own pick and an answer window by name. That is why it isn't `busy`, since the ceremony hosts both. The
+buttons render disabled with the reason, so the control never looks live while doing nothing.
+- **This is the cause of `round-ceremony-reruns-with-stale-res`,** open since 2026-09-24 with five hypotheses killed.
+  Its ledger detectors (`⚠ CEREMONY REACHED THE DRAW WITH THE ROUND BOUNDARY STILL PARKED`, `⚠ ROUND BANNER FIRED WITH A
+  PILE STILL ON THE TABLE`) fired in every freeze log saved this time, and the ceremony never ran twice (`RE-ENTERED`
+  never fired): a play landed inside it. That entry was filed from a 3-player game, and this was reproduced in a duel.
+  The gate covers every seat count, and both detectors stay in place to name any recurrence.
+- **Found by** the stall watchdog added to `browsertest` (#445), which saved the battle log of a frozen duel. The
+  ledger showed round 7's ceremony still running when "MAIN → FIGHT … origin=You" opened round 8.
+
+**Tests:**
+- **`ceremonylocktest` (new, 6):** you lead the 2, and the Rival can only pass, which ends the round on its pass. You
+  hold Leyline with the energy to cast it. A second jab pressed every 25ms must land after "Round 2 begins", must land
+  at all (the control), and neither detector may fire. Red 3 of 3 on v1.34.0, green 3 of 3 with the fix.
+- **`fightclick`'s `clickFight` and `clickPass` wait the ceremony out**, the way they already waited out a cast's art
+  flash (`__cmf` / `__solo` `.ceremonyBlocks()`). `nettest_ceremony` pressed Fight 400ms after its round boundary,
+  inside the host's own ceremony, which only ever worked because of this bug: 9/5 with the gate alone, 14/0 with the
+  wait.
+
 ### v1.34.0 — play from the board: two drop zones, a stack you can see, and answering from your hand
 
 The drag-and-stack epic (`epic/drag-and-stack`, 2026-10-13 to 2026-10-19), designed and ruled in
