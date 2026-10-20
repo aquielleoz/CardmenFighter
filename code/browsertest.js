@@ -8,8 +8,46 @@ const path = require('path');
   const errors = [];
   let games = 0, youWins = 0, rivalWins = 0, maxRound = 0, responded = 0, declined = 0, fought = 0, passedN = 0;
 
+  /* A DUEL THAT STOPS MOVING IS SAVED, REPORTED AND ABANDONED — NOT SPUN UNTIL THE SWEEP KILLS IT (2026-10-20). With the
+     board stuck off your turn, the driver below returns `wait`, which resets `blocked`, so it pressed on through all
+     20000 steps (~300s) and the sweep killed it with no output at all: three sweeps on 2026-10-19 lost a real freeze
+     that way (a round-boundary window left open, every move refused). So a watchdog compares what the board SHOWS every
+     5s, and when nothing has changed for BT_STALL_MS (60s default) it saves the page's own battle log — whose priority
+     ledger names the window and its seat — prints a ⚠ line the sweep keeps, and fails that duel. Judged by the board,
+     never by elapsed time: a slow duel under load keeps changing, a stuck one does not. A page that stops answering is
+     closed, which unblocks the driver's pending evaluate. */
+  const STALL_MS = +(process.env.BT_STALL_MS || 60000);
+  const W = { sim: -1, page: null, sig: null, sigAt: 0, abort: false };
+  const look = page => page.evaluate(() => {
+    const t = id => ((document.getElementById(id) || {}).textContent || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+    return { round: t('roundTag'), tag: t('turnTag'), msg: t('message'), hint: t('hint'), hand: document.querySelectorAll('#hand .card').length,
+      overlay: document.getElementById('overlay').classList.contains('show'), modal: t('modal'),
+      col: [].map.call(document.querySelectorAll('#stackView .stkCard .card'), c => c.dataset.id || c.getAttribute('data-card')).join(','),
+      fight: !!(document.getElementById('fightBtn') || {}).disabled, pass: !!(document.getElementById('passBtn') || {}).disabled };
+  });
+  const watch = setInterval(async () => {
+    const page = W.page; if (!page || W.abort) return;
+    const seen = await Promise.race([look(page).catch(e => 'evaluate threw: ' + e.message), new Promise(r => setTimeout(() => r('PAGE FROZEN — it did not answer in 8s'), 8000))]);
+    if (page !== W.page || W.abort) return;
+    const sig = JSON.stringify(seen);
+    if (sig !== W.sig) { W.sig = sig; W.sigAt = Date.now(); return; }
+    const stillFor = Date.now() - W.sigAt; if (stillFor < STALL_MS) return;
+    W.sigAt = Infinity;   // report once, while the log is saved
+    let saved = 'not saved';
+    if (typeof seen === 'object') {
+      try { const f = path.resolve(__dirname, '.bt-stall-sim' + W.sim + '-' + Date.now() + '.log');
+        const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 8000 }), page.evaluate(() => { const b = document.getElementById('saveLogBtn'); if (b) b.click(); })]);
+        await dl.saveAs(f); saved = 'battle log saved to ' + f; } catch (e) { saved = 'battle log NOT saved: ' + e.message; }
+    }
+    console.log('⚠ STALLED: sim' + W.sim + ' — the board has not changed for ' + Math.round(stillFor / 1000) + 's; ' + saved + '\n⚠   it shows: ' + sig);
+    W.abort = true;   // only now, so this explanation prints before the driver's "NOT done" line
+    if (typeof seen !== 'object') page.close().catch(() => {});   // frozen: closing rejects the driver's pending evaluate
+  }, 5000);
+
   for (let sim = 0; sim < 12; sim++) {
     const page = await browser.newPage();
+    W.sim = sim; W.page = page; W.sig = null; W.sigAt = Date.now(); W.abort = false;
+    const simT0 = Date.now();
     await installPageHelpers(page);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
     // clamp UI animation delays so a full duel runs in seconds (shipped file unchanged)
     await page.addInitScript(() => {
@@ -102,7 +140,8 @@ const path = require('path');
         document.getElementById('clearBtn').click();
         if (await window.__pressPass()) return { passed: true };
         return { blocked: true };
-      }, sim % 2 === 0);
+      }, sim % 2 === 0).catch(e => { if (W.abort) return { aborted: true }; throw e; });
+      if (act.aborted || W.abort) { errors.push('sim'+sim+' STALLED — see the ⚠ STALLED line above'); break; }
       if (act.responded || act.declined) { if(act.responded) responded++; else declined++; blocked = 0; await page.waitForTimeout(10); continue; }
       if (act.picked) { blocked = 0; await page.waitForTimeout(8); continue; }
       if (act.unknown) { errors.push('sim'+sim+' hit an overlay the harness cannot answer: "'+act.unknown+'" — teach browsertest this window (see the overlay branch at the top of the driver)'); break; }
@@ -113,6 +152,7 @@ const path = require('path');
       blocked = 0;
       await page.waitForTimeout(act.wait ? 12 : 6);
     }
+    console.log('  duel '+(sim+1)+'/12: '+(done?'done':'NOT done')+' in '+((Date.now()-simT0)/1000).toFixed(1)+'s');   // so a killed run still shows how far it got
     if (!done && !errors.some(e=>e.includes('sim'+sim))) errors.push('sim'+sim+' did NOT reach an end state');
     if (done) {
       const res = await page.evaluate(() => ({
@@ -124,8 +164,10 @@ const path = require('path');
       if (/YOU WIN/.test(res.head)) youWins++; else if (/\S Wins$/.test(res.head)) rivalWins++;   // "<the opponent's name> Wins" (v1.33.3)
       else errors.push('sim'+sim+' ambiguous end: ' + res.modal.slice(0,80));
     }
-    await page.close();
+    W.page = null;
+    await page.close().catch(() => {});
   }
+  clearInterval(watch);
   await browser.close();
   console.log('games:', games, '| you:', youWins, '| rival:', rivalWins, '| deepest round:', maxRound, '| interrupt responses:', responded, '| declines:', declined, '| fights:', fought, '| passes:', passedN);
   /* AND IT IS AN ASSERTION, NOT A PRINTOUT. A driver that never fights still reaches a valid win overlay in
