@@ -368,15 +368,18 @@ function driveStep(page) {
   });
 }
 
-/* WAIT OUT A CAST'S HOLD (ruling 20). For a suite that casts and then acts in its own code rather than through
-   `clickFight` / `clickPass`: the next play, cast or pass is refused until the flash ends. True when it ended. */
+/* WAIT OUT A CAST'S HOLD (ruling 20) — AND A ROUND CEREMONY (2026-10-20). For a suite that casts and then acts in its
+   own code rather than through `clickFight` / `clickPass`: the next play, cast or pass is refused until the flash ends,
+   and, since `ceremonyBlocks`, until the round card does too. `nettest_activate` handed the turn back with a Pass that
+   ended the round, then clicked ⚡ inside the host's ceremony: nothing cast, "NOTHING flashed". True when both ended. */
 async function waitHold(page, budgetMs) {
   return page.evaluate(async (budget) => {
     const hold = () => { const h = (window.__cmf && window.__cmf.castHold) || (window.__solo && window.__solo.castHold); return h ? h() : 0; };
+    const cer = () => { const c = (window.__cmf && window.__cmf.ceremonyBlocks) || (window.__solo && window.__solo.ceremonyBlocks); return c ? c() : false; };
     const until = Date.now() + budget;
-    if (hold() > 0) { while (hold() > 0 && Date.now() < until) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // …and one beat for the board's re-render
-    return hold() === 0;
-  }, budgetMs || 6000);
+    if (hold() > 0 || cer()) { while ((hold() > 0 || cer()) && Date.now() < until) await new Promise(r => setTimeout(r, 50)); await new Promise(r => setTimeout(r, 80)); }   // …and one beat for the board's re-render
+    return hold() === 0 && !cer();
+  }, budgetMs || 12000);
 }
 
 module.exports = { clickFight, selectAndFight, clickPass, installPageHelpers, FIGHT_BUDGET, waitHold,
