@@ -130,14 +130,14 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   ok(/— aimed at Victim\.$/.test(atOther), `…aimed at another seat names THAT seat  ["${atOther}"]`);
   ok(/— aimed at Holy Bow \(owned by You\)\.$/.test(atCard) && !/You’s|You's/.test(atCard), `…and a card target names the card and its owner, with no "You’s"  ["${atCard}"]`);
 
-  /* THE AI's PHANTASMAL ILLUSION NAMES A SHAPE (phantasm-beat-reads-wrong-field). Bibong's export read
-     "a Special undefined overtakes the pile": `ai.js` logs `{ phantasm: rp.made }` and the renderer read
-     `e.made`. Fed the exact entry ai.js produces, like the forced-discard leg above. */
+  /* THE AI's PHANTASMAL ILLUSION IS AN ORDINARY CAST LINE (2026-10-21). It had a beat of its own, which once read
+     "a Special undefined overtakes the pile" (phantasm-beat-reads-wrong-field). The card is an ordinary activation
+     now, so `act` logs `{ play:'ILLUSION', card }` and the shared cast beat names it. Fed that exact entry. */
   const beforeP = await p.evaluate(()=>document.querySelectorAll('#log .le').length);
-  await p.evaluate(()=>window.__solo.oppBeats([{ phantasm:'fullhouse', value:9 }], 1));
-  await wait(1600);
+  await p.evaluate(()=>window.__solo.oppBeats([{ play:'ILLUSION', card:{ rank:10, suit:'D', id:'il10D' } }], 1));
+  await wait(3000);
   const pline = await p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(e=>e.textContent.trim()).filter(t=>/Phantasmal/.test(t))[0]||'', beforeP);
-  ok(/Full House/i.test(pline) && !/undefined/.test(pline), `the AI's illusion names the shape it made  ["${pline}"]` + (/undefined/.test(pline)?'  ← REPRODUCED':''));
+  ok(/Phantasmal Illusion/.test(pline) && !/undefined/.test(pline), `the AI's Illusion reads as an ordinary cast line  ["${pline}"]` + (/undefined/.test(pline)?'  ← REPRODUCED':''));
 
   /* AN AI's INCARNATION IS ANNOUNCED (opponent-incarnation-unannounced). In Bibong's 2026-10-08 games the Demon
      completed J + Q + K three times and the log showed only the Form card that did it, while your own transform

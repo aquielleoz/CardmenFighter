@@ -1810,61 +1810,192 @@ function cards(ids) { return ids.map(card); }
      'fight end: the shared walk skips an eliminated seat (A out → after C passes it is B, not A)');
 })();
 
-// ===== PHANTASMAL ILLUSION — the copy, restored (v1.31.6) =====
-// Aj's design: the copy takes the BASE card values, is then subject to boosts and debuffs, and you MAY swap
-// one card in. A bare copy ties, and ties never win — so you always need one of the three.
+// ===== PHANTASMAL ILLUSION — A COUNTERFEIT OF THE WHOLE PLAY (2026-10-21) =====
+// Aj's rulings, walked through as one duel: the Rival leads a full house 8-8-8-9-9 and you hold the Illusion and a
+// 9♦. The card is an ordinary cast now: it goes on the STACK in Main, and resolving it conjures the copies into your
+// HAND (*"let's do a counterfeit"*). You fight with them later through an ordinary crossing, alone or with your own
+// cards, and any you keep fade at the round's end. It replaced `phantasm`, a verb that put the copy straight on the
+// pile with an optional one-card swap and opened no window at all.
 (function () {
   function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var e = []; for (var i = 0; i < n; i++) e.push(mk(4, su, 'e' + su + i)); return e; }
   function table(pileCards, myHand) {
     var g = E.newGame(null, { numPlayers: 2 });
-    g.round = 3; g.turn = 0; g.passes = 0;
-    g.players[0].hand = myHand.concat([mk(10, 'D')]);                 // Phantasmal Illusion
-    g.players[0].energy = []; for (var i = 0; i < 12; i++) g.players[0].energy.push(mk(4, 'D', 'e' + i));
+    g.round = 3; g.turn = 0; g.passes = 0; g.subPhase = 'main'; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+    g.players[0].hand = myHand.concat([mk(10, 'D', 'il')]);                   // Phantasmal Illusion
+    g.players[0].energy = nrg(12, 'D');
+    g.players[1].hand = [mk(3, 'H', 'r'), mk(6, 'C', 'r')]; g.players[1].energy = [];
     var combo = E.detectCombo(pileCards);
     g.pile = { combo: combo, byPlayer: 1, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 };
     g.lastPlayer = 1;
     return g;
   }
-  var pair9 = [mk(9, 'H', 'a'), mk(9, 'C', 'b')];
+  var fh = function () { return [mk(8, 'H', 'a'), mk(8, 'C', 'b'), mk(8, 'S', 'c'), mk(9, 'H', 'd'), mk(9, 'C', 'e')]; };
+  function copies(g, q) { return g.players[q].hand.filter(function (c) { return c.temp && c.illusion != null; }); }
 
-  // 1. a bare copy TIES — refused, and the reason says why
-  var g1 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
-  var r1 = E.phantasm(g1, 0, { cardId: '10D' });
-  ok(r1.ok === false && /ties/i.test(r1.reason), 'Phantasm: a bare copy only ties, so it is refused ("' + r1.reason + '")');
+  // 1. nobody can answer: the cast resolves at once, the five copies are in your HAND, and the pile is untouched
+  var g1 = table(fh(), [mk(9, 'D', 'mine')]);
+  var r1 = E.activate(g1, 0, 'il10D');
+  var c1 = copies(g1, 0);
+  ok(r1.ok && c1.length === 5 && g1.pile.byPlayer === 1,
+     'Illusion: the cast conjures the whole play into your hand (5 copies) and leaves the pile alone  ' + (r1.ok ? 'copies ' + c1.length + ', pile by ' + g1.pile.byPlayer : r1.reason));
+  ok(g1.subPhase === 'main' && g1.turn === 0,
+     'Illusion: …and you are still in Main on your own turn — no fight happened and the turn did not move (subPhase ' + g1.subPhase + ', turn ' + g1.turn + ')');
+  ok(g1.players[0].removed.some(function (c) { return c.id === 'il10D'; }) && g1.players[0].energy.length === 2,
+     'Illusion: the card is spent to the Exile and its 10 energy is gone (energy ' + g1.players[0].energy.length + ')');
+  ok(c1.every(function (c) { return E.effectOf(c) === null; }),
+     'Illusion: the copies\' effects cannot be activated (effectOf is null for every copy)');
 
-  // 2. the OPTIONAL swap makes it beat — and this is what used to be mandatory
-  var g2 = table([mk(8, 'H', 'a'), mk(8, 'C', 'b'), mk(8, 'S', 'c'), mk(9, 'H', 'd'), mk(9, 'C', 'e')], [mk(9, 'D')]);
-  var r2 = E.phantasm(g2, 0, { cardId: '10D', removeIdx: 0, addId: '9D' });   // copy 88899, drop an 8, add your 9 -> 99988
-  ok(r2.ok === true && r2.swapped === true, 'Phantasm: swapping one card flips their full house into yours');
-  ok(g2.lastPlayer === 0 && g2.pile.byPlayer === 0, 'Phantasm: …and you take the initiative');
-  ok(g2.players[0].hand.filter(function (c) { return c.id === '9D'; }).length === 0,
-     'Phantasm: only the ONE swapped card is really spent — the copies are illusions');
+  // 2. …then you fight with them, mixed with your own cards: 9-9-9 (two copies + your 9♦) over 8-8 beats 888-99
+  var pick = [c1.filter(function (c) { return c.rank === 9; })[0], c1.filter(function (c) { return c.rank === 9; })[1], mk(9, 'D', 'mine')]
+    .concat(c1.filter(function (c) { return c.rank === 8; }).slice(0, 2));
+  var p1 = E.play(g1, 0, pick);
+  ok(p1.ok === true && g1.pile.byPlayer === 0 && g1.pile.combo.type === 'fullhouse',
+     'Illusion: you fight with the copies AND your own 9♦ — 999-88 beats their 888-99  ' + (p1.ok ? '' : p1.reason));
+  ok(g1.turn === 1 && g1.subPhase === 'main',
+     'Illusion: …and that ordinary play hands the turn on, the next seat in Main (subPhase ' + g1.subPhase + ')');
+  // a copy never becomes energy (Aj: "No, copies vanish") — fought, or discarded to the hand limit
+  ok(g1.players[0].energy.length === 3 && !g1.players[0].energy.some(function (c) { return c.temp; }),
+     'Illusion: of the five fought cards only your own 9♦ banks to energy — the copies vanish  (energy ' + g1.players[0].energy.length + ')');
+  var gL = table(fh(), []); E.activate(gL, 0, 'il10D');
+  var eL = gL.players[0].energy.length, cL = copies(gL, 0)[0];
+  for (var fi = 0; fi < E.MAX_HAND; fi++) gL.players[0].hand.push(mk(3 + (fi % 8), 'S', 'f' + fi));
+  E.discardToLimit(gL, 0, [cL.id]);
+  // 5 copies + 10 real cards is 5 over: the named copy and the four lowest real cards (3♠ 3♠ 4♠ 4♠) go, and only the four bank
+  ok(!gL.players[0].hand.some(function (c) { return c.id === cL.id; }) && gL.players[0].energy.length === eL + 4 && !gL.players[0].energy.some(function (c) { return c.temp; }),
+     'Illusion: a copy discarded to the hand limit goes nowhere — 5 cards left the hand, 4 banked  (energy ' + eL + ' → ' + gL.players[0].energy.length + ')');
 
-  // 3. no swap, but YOUR equipment lifts the illusion over the play it copied
-  var g3 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
-  g3.players[0].equipment = [{ id: 'eq1', name: "Hero's Sword", delta: 2, oppDelta: 0, counters: 3, decay: true }];
-  var r3 = E.phantasm(g3, 0, { cardId: '10D' });
-  ok(r3.ok === true && r3.swapped === false, 'Phantasm: your Equipment lifts a bare copy over the original');
+  // 3. castable even when the copies cannot win (Aj: "allowed as feelbad as that might go"); the copies just sit there
+  var g3 = table([mk(9, 'H', 'a'), mk(9, 'C', 'b')], [mk(3, 'D'), mk(4, 'H')]);
+  var r3 = E.activate(g3, 0, 'il10D');
+  ok(r3.ok && copies(g3, 0).length === 2 && E.legalFightPlays(g3, 0).length === 0,
+     'Illusion: castable even when the copies only tie — the cast is allowed, and no winning play results  ' + (r3.ok ? '' : r3.reason));
 
-  // 4. no swap, but a DEBUFF on their play left the pile low enough for a base-value copy to pass it
-  var g4 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
-  g4.players[0].equipment = [{ id: 'eq2', name: 'Caltrops', delta: 0, oppDelta: -2, counters: 3, decay: true }];
-  E.refreshPile(g4);                                              // the debuff is live on the pile
-  var r4 = E.phantasm(g4, 0, { cardId: '10D' });
-  ok(r4.ok === true, 'Phantasm: debuffing THEIR play works too — the copy keeps its base values');
+  // 4. Specials only, a Rival's play only, and the Fight Sub-Phase refuses it like any Technique
+  var g4 = table([mk(9, 'H', 'a')], [mk(3, 'D')]);
+  var r4 = E.activate(g4, 0, 'il10D');
+  ok(r4.ok === false && /Special/.test(r4.reason) && g4.players[0].hand.length === 2, 'Illusion: a jab is refused — Specials only, and nothing is spent  (' + r4.reason + ')');
+  var g5 = table(fh(), [mk(3, 'D')]); g5.pile.byPlayer = 0; g5.lastPlayer = 0;
+  var r5 = E.activate(g5, 0, 'il10D');
+  ok(r5.ok === false && /Rival/.test(r5.reason), 'Illusion: your own play is not a Rival\'s to copy  (' + r5.reason + ')');
+  var g6 = table(fh(), [mk(3, 'D')]); g6.subPhase = 'play';
+  var r6 = E.activate(g6, 0, 'il10D');
+  ok(r6.ok === false && /Fight Sub-Phase/.test(r6.reason), 'Illusion: a Main move — refused once the fight has begun  (' + r6.reason + ')');
 
-  // 5. no swap, no equipment — Odysseus alone conjures it at +1
-  var g5 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
-  g5.players[0].forms = [{ rank: 13, suit: 'D', tier: 'king', id: 'zKD' }];
-  var r5 = E.phantasm(g5, 0, { cardId: '10D' });
-  ok(r5.ok === true, 'Phantasm: Odysseus alone (+1 on the copy) is enough');
+  // 5. Odysseus: +1 for the PLAY, not +1 per copy (`copyBonus` sums Counterfeit bonuses but counts an Illusion once)
+  var g7 = table(fh(), [mk(3, 'D')]);
+  g7.players[0].forms = [{ rank: 13, suit: 'D', tier: 'king', name: 'Odysseus', id: 'zKD' }];
+  E.activate(g7, 0, 'il10D');
+  var all7 = copies(g7, 0);
+  var p7 = E.play(g7, 0, all7);
+  ok(p7.ok && g7.pile.lockedDelta === 1,
+     'Illusion: under Odysseus a bare copy of their full house beats it at +1 for the play, not +5  ' + (p7.ok ? '(lockedDelta ' + g7.pile.lockedDelta + ')' : p7.reason));
 
-  // 6. it answers a PAIR — the exact case the mandatory swap could never handle
-  ok(r3.ok && g3.pile.combo.type === 'pair', 'Phantasm: it can now answer a plain PAIR (one swap never could)');
+  // 6. a copy cannot pay the Broadway pitch, and every copy fades at the round's end (`fadeTemps` is that event)
+  var g8 = table([mk(13, 'H', 'a'), mk(13, 'C', 'b')], [mk(3, 'D')]);
+  E.activate(g8, 0, 'il10D');
+  ok(copies(g8, 0).length === 2 && E.pitchCands(g8.players[0], 'none').length === 0,
+     'Illusion: a copied King cannot pay a Broadway pitch (pitch candidates ' + E.pitchCands(g8.players[0], 'none').length + ')');
+  E.fadeTemps(g8);
+  ok(copies(g8, 0).length === 0 && g8.players[0].hand.length === 1, 'Illusion: every copy fades at the round\'s end — only your own card is left');
+})();
 
-  // 7. leading means there is nothing to copy
-  var g7 = table(pair9, [mk(3, 'D')]); g7.pile = null;
-  ok(E.phantasm(g7, 0, { cardId: '10D' }).ok === false, 'Phantasm: nothing to copy when you hold the lead');
+// ===== THE ILLUSION ON THE STACK: COUNTER SPELL AND BACK STAB ANSWER IT (Aj, 2026-10-14 and 2026-10-21) =====
+// *"fully activating the phastasmal illusion puts the effect on the stack … an opponent can still try to backstab you
+// at that point."* Countered, it never resolves and you are still in Main; Back Stabbed, it still resolves and is
+// spent, and you are locked, so you never fight with the copies.
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su, t) { var e = []; for (var i = 0; i < n; i++) e.push(mk(4, su, (t || 'e') + su + i)); return e; }
+  function duel(rivalHand, rivalEnergy, rivalForms) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 0; g.passes = 0; g.subPhase = 'main'; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+    g.players[0].hand = [mk(10, 'D', 'il'), mk(9, 'D', 'mine'), mk(5, 'C', 'x')]; g.players[0].energy = nrg(12, 'D');
+    g.players[1].hand = rivalHand; g.players[1].energy = rivalEnergy; g.players[1].forms = rivalForms || [];
+    var combo = E.detectCombo([mk(8, 'H', 'a'), mk(8, 'C', 'b'), mk(8, 'S', 'c'), mk(9, 'H', 'd'), mk(9, 'C', 'e')]);
+    g.pile = { combo: combo, byPlayer: 1, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 }; g.lastPlayer = 1;
+    return g;
+  }
+  function copies(g, q) { return g.players[q].hand.filter(function (c) { return c.temp && c.illusion != null; }); }
+
+  // Counter Spell: the cast waits on the stack for the Rival, who counters it
+  var gc = duel([mk(4, 'D', 'cs'), mk(3, 'H', 'r')], nrg(6, 'D', 'r'));
+  var rc = E.activate(gc, 0, 'il10D');
+  ok(rc.ok && gc.respondFor === 1 && gc.stack.length === 1 && copies(gc, 0).length === 0,
+     'Illusion on the stack: the cast waits for the Rival holding Counter Spell — nothing conjured yet (respondFor ' + gc.respondFor + ', stack ' + gc.stack.length + ')');
+  var rr = E.respond(gc, 1, 'cs4D');
+  for (var k = 0; gc.respondFor != null && k < 6; k++) E.declineResponse(gc, gc.respondFor);
+  ok(rr.ok && copies(gc, 0).length === 0 && gc.players[0].shuffle.some(function (c) { return c.id === 'il10D'; }),
+     'Illusion countered: no copies, and the card goes to your Shuffle Pile (Counter Spell\'s text)  ' + (rr.ok ? '' : rr.reason));
+  ok(gc.subPhase === 'main' && gc.turn === 0 && gc.pile.byPlayer === 1,
+     'Illusion countered: it never resolved, so you never crossed — still in Main, your turn, their play standing (subPhase ' + gc.subPhase + ')');
+
+  // Back Stab (a Quick under the Rival's King): the Illusion still resolves and is spent, and you are locked out
+  var gb = duel([mk(10, 'S', 'bs'), mk(3, 'H', 'r')], nrg(12, 'S', 'r'), [{ rank: 13, suit: 'S', tier: 'king', name: 'Perseus', id: 'zKS' }]);
+  var rb = E.activate(gb, 0, 'il10D');
+  ok(rb.ok && gb.respondFor === 1, 'Back Stab staging: the Rival holds priority over your Illusion with a Quick Back Stab (respondFor ' + gb.respondFor + ')');
+  var rbs = E.respond(gb, 1, 'bs10S');
+  for (var j = 0; gb.respondFor != null && j < 6; j++) E.declineResponse(gb, gb.respondFor);
+  ok(rbs.ok && E.isLocked(gb, 0) && copies(gb, 0).length === 5,
+     'Illusion Back Stabbed: it still resolved (5 copies in hand), and you are locked out  ' + (rbs.ok ? '' : rbs.reason));
+  ok(gb.players[0].removed.some(function (c) { return c.id === 'il10D'; }) && gb.players[0].hand.some(function (c) { return c.id === 'mine9D'; }),
+     'Illusion Back Stabbed: the card is spent to the Exile, and your own 9♦ never left your hand');
+  var pb = E.pass(gb, 0);
+  ok(pb.ok && E.legalFightPlays(gb, 0).length > 0,
+     'Illusion Back Stabbed: locked, you pass with a winning play in hand — the copies are never fought with  ' + (pb.ok ? '' : pb.reason));
+})();
+
+// ===== THE AI AND THE ILLUSION (2026-10-21) =====
+// It casts its own as today: only when it has no winning play and the copies give it one (*"they should try to beat
+// your play when they cast it"*), now in its own Main. It counters a rival's only when that Illusion copies the AI's
+// own play (*"only counter when you're trying to beat their play"*).
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su, t) { var e = []; for (var i = 0; i < n; i++) e.push(mk(4, su, (t || 'e') + su + i)); return e; }
+  function aiTable(myHand) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 1; g.passes = 0; g.subPhase = 'main'; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+    g.players[1].hand = myHand.concat([mk(10, 'D', 'il')]); g.players[1].energy = nrg(12, 'D');
+    g.players[0].hand = [mk(3, 'H', 'h')]; g.players[0].energy = [];
+    var combo = E.detectCombo([mk(8, 'H', 'a'), mk(8, 'C', 'b'), mk(8, 'S', 'c'), mk(9, 'H', 'd'), mk(9, 'C', 'e')]);
+    g.pile = { combo: combo, byPlayer: 0, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 }; g.lastPlayer = 0;
+    return g;
+  }
+  // with a 9 in hand and no winning play, the copies make 999-88: the AI casts in Main, then fights with them
+  var ga = aiTable([mk(9, 'D', 'ai'), mk(3, 'S', 'z')]);
+  var la = AI.takeTurn(ga, 1, 'knight');
+  var castA = la.some(function (e) { return e.play === 'ILLUSION'; }), playedA = ga.pile.byPlayer === 1;
+  ok(castA && playedA && ga.pile.combo.type === 'fullhouse',
+     'AI Illusion: with no winning play, it casts in Main and then fights with the copies  (cast ' + castA + ', pile by ' + ga.pile.byPlayer + ' ' + ga.pile.combo.type + ')');
+  // already holding a winning full house, it keeps the Illusion
+  var gw = aiTable([mk(10, 'H', 'w'), mk(10, 'C', 'w'), mk(10, 'S', 'w'), mk(5, 'H', 'w'), mk(5, 'C', 'w')]);
+  var lw = AI.takeTurn(gw, 1, 'knight');
+  ok(!lw.some(function (e) { return e.play === 'ILLUSION'; }) && gw.pile.byPlayer === 1,
+     'AI Illusion: holding a winning play already, it fights without casting — the copies would add nothing (the 10♦ may be one of its 10s)');
+  // a hand the copies cannot help (copies alone tie): no cast
+  var gn = aiTable([mk(3, 'S', 'n'), mk(4, 'H', 'n')]);
+  var ln = AI.takeTurn(gn, 1, 'knight');
+  ok(!ln.some(function (e) { return e.play === 'ILLUSION'; }), 'AI Illusion: when the copies cannot win, it does not cast');
+
+  // countering: an AI counters an Illusion that copies ITS play, and lets one copying another seat's play resolve
+  function three(pileBy) {
+    var g = E.newGame(null, { numPlayers: 3 });
+    g.round = 3; g.turn = 0; g.passes = 0; g.subPhase = 'main'; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+    g.players[0].hand = [mk(10, 'D', 'il'), mk(5, 'C', 'x')]; g.players[0].energy = nrg(12, 'D');
+    g.players[1].hand = [mk(4, 'D', 'cs'), mk(6, 'H', 'y')]; g.players[1].energy = nrg(6, 'D', 'q');
+    g.players[2].hand = [mk(3, 'S', 'z')]; g.players[2].energy = [];
+    var combo = E.detectCombo([mk(8, 'H', 'a'), mk(8, 'C', 'b')]);
+    g.pile = { combo: combo, byPlayer: pileBy, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 }; g.lastPlayer = pileBy;
+    return g;
+  }
+  var gm = three(1); E.activate(gm, 0, 'il10D');
+  var dm = gm.respondFor === 1 ? AI.respondDecision(gm, 1) : null;
+  ok(dm && dm.ok && gm.players[1].hand.every(function (c) { return c.id !== 'cs4D'; }),
+     'AI counter: an Illusion copying the AI\'s OWN pair is countered  ' + (gm.respondFor === 1 || dm ? '' : '(staging: respondFor ' + gm.respondFor + ')'));
+  var go = three(2); E.activate(go, 0, 'il10D');
+  var dn = go.respondFor === 1 ? AI.respondDecision(go, 1) : null;
+  ok(dn && go.players[1].hand.some(function (c) { return c.id === 'cs4D'; }),
+     'AI counter: an Illusion copying ANOTHER seat\'s play is let through — Counter Spell kept  ' + (dn ? '' : '(staging: respondFor ' + go.respondFor + ')'));
 })();
 
 
@@ -3668,12 +3799,11 @@ function cards(ids) { return ids.map(card); }
   var rQ = gQ.respondFor === 1 ? E.respond(gQ, 1, '9D') : { ok: false, reason: 'staging: priority never reached seat 1 (' + gQ.respondFor + ')' };
   ok(rQ.ok && castsOf(gQ, 1).D9 === 1, 'casts: a Quick answer counts for the seat that answered  ' + (rQ.ok ? JSON.stringify(castsOf(gQ, 1)) : rQ.reason));
   ok(castsOf(gQ, 0).D1 === 1 && !castsOf(gQ, 0).D9, 'casts: …and the cast it answered keeps its own count, once  ' + JSON.stringify(castsOf(gQ, 0)));
-  // phantasm: the illusion is a Technique cast, on a path `activate` refuses
+  // the Illusion: an ordinary `activate` cast since 2026-10-21 (it had its own verb, `phantasm`, before), counted like one
   var gP = fresh(); var fh = E.detectCombo([mk(8, 'S', 'p'), mk(8, 'H', 'p'), mk(8, 'C', 'p'), mk(9, 'S', 'p'), mk(9, 'H', 'p')]);
   gP.pile = { combo: fh, byPlayer: 1, raw: fh.value, rawKey0: fh.key[0], lockedDelta: 0, mod: 0 }; gP.lastPlayer = 1;
   gP.players[0].hand = [mk(10, 'D'), mk(9, 'D'), mk(4, 'C')]; gP.players[0].energy = nrg(10, 'D');
-  var eightAt = fh.cards.map(function (c) { return c.rank; }).indexOf(8);
-  var rP = E.phantasm(gP, 0, { cardId: '10D', removeIdx: eightAt, addId: '9D' });             // 88899 → 99988, the swap phantasmtest stages
+  var rP = E.activate(gP, 0, '10D');
   ok(rP.ok && castsOf(gP, 0).D10 === 1, 'casts: a Phantasmal Illusion counts  ' + (rP.ok ? JSON.stringify(castsOf(gP, 0)) : rP.reason));
   // the count is host-side bookkeeping: an object, so netview's clonePlayer never puts it on a mirror
   var NVc = require('./netview.js'), mir = JSON.stringify(NVc.mirrorFor(gQ, 1));
@@ -3808,7 +3938,8 @@ function cards(ids) { return ids.map(card); }
    epic. `moveToPlay` opened a fresh go-round over any open window: `prioPassed` reset, `prioGen` bumped, so the seat
    already holding priority was granted AGAIN, and `toPlay` was grafted onto a stack nobody had finished answering.
    `play` and `pass` both cross through it. `phantasm` was the one fight action with no window check at all, while
-   `activate` has refused since 2026-09-14. Each claim below is a pair off one staging: refused with the window open,
+   `activate` has refused since 2026-09-14. (Since 2026-10-21 the Illusion IS an `activate` cast, so the legs below
+   pin that it inherited the guard.) Each claim below is a pair off one staging: refused with the window open,
    and the control with it closed. */
 (function () {
   function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
@@ -3839,21 +3970,21 @@ function cards(ids) { return ids.map(card); }
 
   function rigIllusion() {
     var g = E.newGame(null, { numPlayers: 2 });
-    g.round = 3; g.turn = 0; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'play';
+    g.round = 3; g.turn = 0; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'main';
     var run = [3, 4, 5, 6, 7].map(function (r, i) { return sc(r, i % 2 ? 'S' : 'H', 'p'); }), combo = E.detectCombo(run);
     g.pile = { combo: combo, byPlayer: 1, raw: combo.value, lockedDelta: 0, mod: 0 }; g.lastPlayer = 1;
-    g.players[0].hand = [sc(10, 'D', 'il'), sc(8, 'C', 'sw'), sc(9, 'D', 'ly')];     // drop the 3, swap the 8 in: 4-5-6-7-8 beats it
+    g.players[0].hand = [sc(10, 'D', 'il'), sc(8, 'C', 'sw'), sc(3, 'S', 'x')];     // no Quick in hand, so a lone cast resolves at once
     g.players[0].energy = []; for (var i = 0; i < 12; i++) g.players[0].energy.push(sc(4, 'D', 'd' + i));
     return g;
   }
-  var ctl = rigIllusion(), rc = E.phantasm(ctl, 0, { cardId: 'il10D', addId: 'sw8C', removeIdx: 0 });
-  ok(rc.ok && ctl.pile.phantom === true,
-     'window guard: CONTROL — with no window open, the Illusion is legal on this board' + (rc.ok ? '' : '  ← ' + rc.reason + ': the guard below would prove nothing'));
+  var ctl = rigIllusion(), rc = E.activate(ctl, 0, 'il10D');
+  ok(rc.ok && ctl.players[0].hand.some(function (c) { return c.temp; }),
+     'window guard: CONTROL — with no window open, the Illusion casts on this board' + (rc.ok ? '' : '  ← ' + rc.reason + ': the guard below would prove nothing'));
   var w = rigIllusion(); w.respondFor = 1;
-  var rw = E.phantasm(w, 0, { cardId: 'il10D', addId: 'sw8C', removeIdx: 0 });
-  ok(rw.ok === false && !w.pile.phantom && w.players[0].hand.length === 3 && w.players[0].energy.length === 12,
-     'window guard: `phantasm` REFUSES while somebody holds priority, and the refusal costs nothing' +
-     (rw.ok === false ? '' : '  ← the Illusion replaced the pile under an open window'));
+  var rw = E.activate(w, 0, 'il10D');
+  ok(rw.ok === false && !w.players[0].hand.some(function (c) { return c.temp; }) && w.players[0].hand.length === 3 && w.players[0].energy.length === 12,
+     'window guard: the Illusion REFUSES while somebody holds priority, and the refusal costs nothing' +
+     (rw.ok === false ? '' : '  ← the Illusion was cast under an open window'));
 })();
 
 /* ===== THE SEAT AFTER AN ILLUSION STARTS ITS TURN IN MAIN (2026-10-21) =====
@@ -3861,20 +3992,24 @@ function cards(ids) { return ids.map(card); }
    reset all write. The AI always crosses into the fight before it casts an Illusion (`takeTurn` calls `moveToPlay`
    first), so the next seat inherited `subPhase:'play'` and lost its whole Main: every effect refused with "The Fight
    Sub-Phase has begun", the strip painting Fight with no beat. A human's Illusion cast from Main never crossed, which
-   is why only an AI's showed it. Staged the AI's way: seat 1 has crossed, then casts. */
+   is why only an AI's showed it. SINCE THE SAME DAY'S REWORK the Illusion never hands the turn on at all: it is a Main
+   cast that puts copies in hand, and the hand-off is `play`'s, made with them. The subject stands — the seat after an
+   Illusion must start in Main — so the staging is the new route: seat 1 casts in Main, then fights with the copies. */
 (function () {
   function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   var g = E.newGame(null, { numPlayers: 2 });
-  g.round = 3; g.turn = 1; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'play'; g.toPlay = null;
+  g.round = 3; g.turn = 1; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'main'; g.toPlay = null;
   var run = [3, 4, 5, 6, 7].map(function (r, i) { return sc(r, i % 2 ? 'S' : 'H', 'p'); }), combo = E.detectCombo(run);
   g.pile = { combo: combo, byPlayer: 0, raw: combo.value, lockedDelta: 0, mod: 0 }; g.lastPlayer = 0;
-  g.players[1].hand = [sc(10, 'D', 'il'), sc(8, 'C', 'sw'), sc(5, 'H', 'k')];     // drop the 3, swap the 8 in: 4-5-6-7-8 beats it
+  g.players[1].hand = [sc(10, 'D', 'il'), sc(8, 'C', 'sw'), sc(5, 'H', 'k')];     // four copies and the real 8: 4-5-6-7-8 beats it
   g.players[1].energy = []; for (var i = 0; i < 12; i++) g.players[1].energy.push(sc(4, 'D', 'd' + i));
   g.players[0].hand = [sc(3, 'C', 'bt'), sc(9, 'H', 'x'), sc(6, 'S', 'y')];        // Brilliant Tactic, a Main effect
   g.players[0].energy = []; for (var j = 0; j < 6; j++) g.players[0].energy.push(sc(4, 'C', 'c' + j));
-  var r = E.phantasm(g, 1, { cardId: 'il10D', addId: 'sw8C', removeIdx: 0 });
+  var rc = E.activate(g, 1, 'il10D');
+  var cp = g.players[1].hand.filter(function (c) { return (c.temp && c.rank >= 4) || c.id === 'sw8C'; });
+  var r = rc.ok ? E.play(g, 1, cp) : rc;
   ok(r.ok && g.turn === 0 && g.pile.byPlayer === 1,
-     'Illusion hand-off: staged — seat 1 crossed into the fight, cast the swapped Illusion, and the turn passed to seat 0' + (r.ok ? '' : '  ← ' + r.reason));
+     'Illusion hand-off: staged — seat 1 cast the Illusion in Main, fought with four copies and its own 8, and the turn passed to seat 0' + (r.ok ? '' : '  ← ' + r.reason));
   ok(g.subPhase === 'main' && g.toPlay == null,
      'Illusion hand-off: the next seat starts its turn in MAIN, like every other hand-off (subPhase ' + g.subPhase + ', toPlay ' + JSON.stringify(g.toPlay) + ')' +
      (g.subPhase === 'main' ? '' : '  ← REPRODUCED: the caster\'s Fight Sub-Phase leaked into the next turn'));

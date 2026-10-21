@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.34.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.35.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 730 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 748 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 730 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 748 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -308,8 +308,10 @@ node sorttest.js                                # THE STRAIGHTS SORT (6): the HI
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
 node exporttest.js                              # the playtest export at 3 players — per-seat stats (19)
-node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
-                                                # refusal, in the real page, and that the record counts it (13)
+node phantasmtest.js                            # Phantasmal Illusion, in the real page (14): an ordinary ⚡ cast
+                                                # that conjures the play into your hand, the copies fought with
+                                                # your own cards, the reader calling a copy a copy, a jab refused,
+                                                # the Rival countering one of its own play, and the record count
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
 node nettest_prefightduel.js                    # THE PRE-FIGHT WINDOW IN A **DUEL** (8). `nettest_prefight`
                                                 # is 3-PLAYER ONLY and says so in its first line, so the duel
@@ -1283,10 +1285,11 @@ was ever exercised.
 **Phantasmal Illusion's picker**, v1.31.71 — it called the engine locally on a client, so the illusion happened
 on that screen and nowhere else). Enumerate every player-initiated action and assert each one either sends an
 intent or is refused on a client.
-**A MULTI-STEP CHOICE SENDS ITS CHOICES, NEVER ITS SOLUTION.** The phantasm picker computes a pile index; that
-index is derived from a **rotated mirror** and is meaningless on the host. `phantasmSolveFor(st, seat, addCard,
-phantId)` is the single definition, and the host re-solves from its OWN state — sending the index would be a
-fabricated-card bug wearing a different hat. Same rule as `resolveIds`: ids in, host resolves.
+**A MULTI-STEP CHOICE SENDS ITS CHOICES, NEVER ITS SOLUTION.** The phantasm picker computed a pile index; that
+index was derived from a **rotated mirror** and meaningless on the host, so the host re-solved it from its OWN
+state (`phantasmSolveFor`, deleted with the swap in v1.35.0) — sending the index would be a fabricated-card bug
+wearing a different hat. Same rule as `resolveIds`, and as Counter Spell's target, which travels as an oid: ids in,
+host resolves.
 
 **BACK TO THE LOBBY (v1.31.95) — the table returns to the lobby after a game, and five things about it are
 invariants, not choices.**
@@ -2700,7 +2703,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.34.6 — last FULL sweep 2026-10-21, `npm run sweep`, 137/137 in 589s** (this line was
+Status as of **v1.35.0 — last FULL sweep 2026-10-21, `npm run sweep`, 137/137 in 563s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2714,8 +2717,8 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 730, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
-`piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
+`test` 748, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 128, `qrref` 26 (darwin only, corroborates rather than
@@ -3516,8 +3519,8 @@ nowhere else.
 opponents' fights were always 0; and no player count was recorded at all. Opponents' fights are counted in
 **`buildOppBeats`**, the one place both drivers funnel through — the same reason readability features belong
 there. Any multiplayer export older than v1.31.5 is merged and fight-blank, and cannot be repaired.
-**AND CASTS ARE COUNTED BY THE ENGINE, NEVER BY A UI PATH (v1.33.5).** `noteCast` in `activate`, `respond` and
-`phantasm` is the record's only cast count, and `castsOf` reads it. It replaced nine `bumpEffect` calls, one per
+**AND CASTS ARE COUNTED BY THE ENGINE, NEVER BY A UI PATH (v1.33.5).** `noteCast` in `activate` and `respond`
+(and in `phantasm`, until the Illusion became an ordinary cast in v1.35.0) is the record's only cast count, and `castsOf` reads it. It replaced nine `bumpEffect` calls, one per
 presentation path, and four paths had never had one: your own Ride or Form, a netplay client's Quick answer, an
 AI's answer inside another AI's turn, and every Phantasmal Illusion. **Do not add a cast counter to a driver**; a
 cast that looks uncounted is a cast that did not go through the engine. Fights are still counted per path
@@ -3614,6 +3617,14 @@ thing before believing a feature exists** — markup, handler and engine hook al
 reported "0 STOPPER uses in 14 games" as an engagement problem when the mechanic simply wasn't in the game.
 When deleting one, note that `cardName()` reads the EFFECTS entry independently of `effectOf()`, so the apex
 2's flavour names had to stay as name-only entries.
+
+**A CONJURED COPY IS A FIGHT BODY AND NOTHING ELSE (v1.35.0).** Counterfeit's and Phantasmal Illusion's copies are
+`temp` cards, and four rules keep them that way, each in ONE place: `effectOf` returns null for them (no ⚡), the
+Broadway pitch refuses them (`pitchCands`), they never reach an Energy pile (`bankEnergy`, used by every hand or
+deck route into energy), and the UI fades them before its round-end trim (`E.fadeTemps`). **A new cost paid from
+the hand, or a new path that moves a card into energy, must go through those two**, or a copy becomes a free card.
+The energy rule was Aj's (*"No, copies vanish"*): fought cards bank, so five fought Illusion copies were five energy.
+See [`DECISIONS.md#phantasmal-illusion`](docs/DECISIONS.md#phantasmal-illusion).
 
 **Effect KINDS can be orphaned and stay orphaned.** That rework left `E.phantasm()`, `tryPhantasm()` in ai.js,
 a whole UI picker flow, and the `phantasmPlus` boost hook all keyed to `kind:'phantasm'` — which no card had,
