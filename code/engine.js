@@ -2636,7 +2636,7 @@
                 chopped: phChopped };
     refreshPile(st);
     pl.nextPlayBoost = 0;                              // a pre-fight boost is spent by the illusion it powered
-    st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st._effUsed = false;
+    st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st.subPhase = 'main'; st.toPlay = null; st._effUsed = false;   // the next seat starts in Main, as after `play` — an AI casts this after crossing, and without the reset its Fight Sub-Phase leaked into the next turn
     return { ok: true, state: st, made: stored.type, value: stored.value, swapped: swapping };
   }
 

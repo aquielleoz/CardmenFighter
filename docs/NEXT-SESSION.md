@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**727**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**730**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.34.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.34.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.34.4**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.34.5**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -137,20 +137,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
 
-- `root cause found`    · **AFTER A PHANTASMAL ILLUSION, THE NEXT SEAT'S TURN HAS NO MAIN.** `E.phantasm` hands the
-  turn on (`st.turn = nextPlayer(st, p)`) without the `st.subPhase = 'main'; st.toPlay = null;` that every other
-  hand-off writes (`play`, `pass`, the round reset). The AI always casts its Illusion after crossing into the
-  fight (`takeTurn` calls `E.moveToPlay` before `tryPhantasm`), so the next seat inherits `subPhase:'play'`:
-  every Main effect is refused with *"The Fight Sub-Phase has begun — play a card or pass."*, and the strip
-  paints Fight with no beat. **Measured in the engine, 4 of 4** (2026-10-13): seat 1 crosses and casts a swapped
-  Illusion over a 3-7 straight, seat 0's fresh turn reads `subPhase play`, and `E.activate` refuses its draw
-  card. A human's Illusion cast from Main does not leak, because it never crossed.
-  **Rare, but it costs a whole Main** (Illusions are cast a few times per 100 games). Found by the drag-and-stack
-  design recheck, whose step 1 will meet it, so it is filed here rather than fixed on the epic.
-  **The fix:** the missing reset beside the hand-off, and a `test.js` assertion that the seat after an Illusion
-  starts its turn in Main. Placed third by the session that filed it, below Aj's two ranked items; re-rank freely.
-  `[id: illusion-leaks-fight-subphase]`
-
 - `needs a decision`    · **PHANTASMAL ILLUSION SHOULD GO ON THE STACK, AND ITS RESOLUTION SHOULD CROSS INTO THE FIGHT.**
   Ruled by Aj on 2026-10-14, while the drag-and-stack design was asking which drop zone takes the card:
   *"fully activating the phastasmal illusion puts the effect on the stack. it's a copy+fight as you mentioned.
@@ -166,8 +152,8 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   **WHAT IS LEFT TO DECIDE before building:** what a Back Stab that "cancels the fight part" leaves behind (is
   the Illusion card still spent, and its energy?); whether the crossing's priority round happens with the
   Illusion still on the stack or after it leaves; and what the AI should do with the new window. Settle those
-  with Aj, then build it with a `test.js` leg for the Back Stab answer, keeping the leak fix above (the turn
-  hand-off still has to reset the sub-phase).
+  with Aj, then build it with a `test.js` leg for the Back Stab answer, keeping v1.34.5's hand-off fix (the turn
+  hand-off still has to reset the sub-phase; `test.js`'s "Illusion hand-off" legs pin it).
   `[id: illusion-on-the-stack]`
 
 - `ready to build`      · **SIX FUNCTIONS IN THE TEMPLATE THAT NOTHING CALLS: `activateSelected`, `cancelTargetPick`,

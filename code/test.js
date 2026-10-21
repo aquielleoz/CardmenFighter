@@ -3856,5 +3856,32 @@ function cards(ids) { return ids.map(card); }
      (rw.ok === false ? '' : '  ← the Illusion replaced the pile under an open window'));
 })();
 
+/* ===== THE SEAT AFTER AN ILLUSION STARTS ITS TURN IN MAIN (2026-10-21) =====
+   `phantasm` handed the turn on without the `subPhase = 'main'; toPlay = null` that `play`, `pass` and the round
+   reset all write. The AI always crosses into the fight before it casts an Illusion (`takeTurn` calls `moveToPlay`
+   first), so the next seat inherited `subPhase:'play'` and lost its whole Main: every effect refused with "The Fight
+   Sub-Phase has begun", the strip painting Fight with no beat. A human's Illusion cast from Main never crossed, which
+   is why only an AI's showed it. Staged the AI's way: seat 1 has crossed, then casts. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var g = E.newGame(null, { numPlayers: 2 });
+  g.round = 3; g.turn = 1; g.passes = 0; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null; g.subPhase = 'play'; g.toPlay = null;
+  var run = [3, 4, 5, 6, 7].map(function (r, i) { return sc(r, i % 2 ? 'S' : 'H', 'p'); }), combo = E.detectCombo(run);
+  g.pile = { combo: combo, byPlayer: 0, raw: combo.value, lockedDelta: 0, mod: 0 }; g.lastPlayer = 0;
+  g.players[1].hand = [sc(10, 'D', 'il'), sc(8, 'C', 'sw'), sc(5, 'H', 'k')];     // drop the 3, swap the 8 in: 4-5-6-7-8 beats it
+  g.players[1].energy = []; for (var i = 0; i < 12; i++) g.players[1].energy.push(sc(4, 'D', 'd' + i));
+  g.players[0].hand = [sc(3, 'C', 'bt'), sc(9, 'H', 'x'), sc(6, 'S', 'y')];        // Brilliant Tactic, a Main effect
+  g.players[0].energy = []; for (var j = 0; j < 6; j++) g.players[0].energy.push(sc(4, 'C', 'c' + j));
+  var r = E.phantasm(g, 1, { cardId: 'il10D', addId: 'sw8C', removeIdx: 0 });
+  ok(r.ok && g.turn === 0 && g.pile.byPlayer === 1,
+     'Illusion hand-off: staged — seat 1 crossed into the fight, cast the swapped Illusion, and the turn passed to seat 0' + (r.ok ? '' : '  ← ' + r.reason));
+  ok(g.subPhase === 'main' && g.toPlay == null,
+     'Illusion hand-off: the next seat starts its turn in MAIN, like every other hand-off (subPhase ' + g.subPhase + ', toPlay ' + JSON.stringify(g.toPlay) + ')' +
+     (g.subPhase === 'main' ? '' : '  ← REPRODUCED: the caster\'s Fight Sub-Phase leaked into the next turn'));
+  var ra = E.activate(g, 0, 'bt3C');
+  ok(ra.ok === true,
+     'Illusion hand-off: …so that seat can still cast a Main effect (Brilliant Tactic)' + (ra.ok ? '' : '  ← refused: "' + ra.reason + '"'));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
