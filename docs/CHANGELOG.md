@@ -15,6 +15,22 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.34.5 — after a Rival's Phantasmal Illusion, your turn starts in Main
+
+**What you'll see:** when an AI casts Phantasmal Illusion, the next turn now starts in the Main Sub-Phase like any
+other. It used to start in Fight: every effect was refused with *"The Fight Sub-Phase has begun — play a card or
+pass."*, and the phase strip jumped to Fight with no beat. So you lost your whole Main, though only on the turn after
+an Illusion, which is cast a few times per 100 games.
+
+**Why:** `E.phantasm` handed the turn on without the `subPhase = 'main'; toPlay = null` that `play`, `pass` and the
+round reset all write. The AI always crosses into the fight before casting an Illusion (`takeTurn` calls `moveToPlay`
+first), so the next seat inherited the caster's Fight Sub-Phase. A human's Illusion is cast from Main and never
+crossed, so it never leaked. `test.js` stages the AI's order (seat 1 crosses, then casts a swapped Illusion) and
+requires the next seat to start in Main and to be able to cast Brilliant Tactic; both legs went red before the fix.
+
+Putting the Illusion on the stack (`illusion-on-the-stack` in the BACKLOG) is still open and needs Aj's rulings; this
+fix is the hand-off half that version will need too.
+
 ### v1.34.4 — the battle log says what happened: who was saved, what you banked, and only this game
 
 Four fixes from Aj's saved log of 2026-10-19, plus one bug found on the way.

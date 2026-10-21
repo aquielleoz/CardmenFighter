@@ -4772,7 +4772,7 @@
                 chopped: phChopped };
     refreshPile(st);
     pl.nextPlayBoost = 0;                              // a pre-fight boost is spent by the illusion it powered
-    st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st._effUsed = false;
+    st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st.subPhase = 'main'; st.toPlay = null; st._effUsed = false;   // the next seat starts in Main, as after `play` — an AI casts this after crossing, and without the reset its Fight Sub-Phase leaked into the next turn
     return { ok: true, state: st, made: stored.type, value: stored.value, swapped: swapping };
   }
 
@@ -7559,7 +7559,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.34.4';
+  var GAME_VERSION='v1.34.5';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
