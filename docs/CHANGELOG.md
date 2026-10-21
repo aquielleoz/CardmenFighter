@@ -15,6 +15,18 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.35.1 — the AI counts a banked boost once when judging Counterfeit
+
+**What you'll see:** nothing measurable. Over 400 seeded AI games each at 2 and 6 players (Pure Rogue at every seat),
+the AI cast Counterfeit exactly as often before and after (0.0 and 33.8 per 100 games).
+
+**Why:** `counterfeitHelps` in `ai.js` added a banked boost (`nextPlayBoost`) on top of `applyEquip`, which already
+includes it, so a +1 read as +2 when deciding whether a copy wins the fight. It would have cast Counterfeit for a
+straight that only tied the pile. It never bit in practice because the AI banks a boost only when the boost already
+wins, and then `counterfeitHelps` returns early ("already winning") before the sum matters; a later caller would not
+have known. Found by reading during the v1.35.0 Illusion build. `test.js` 748 → 750: the +1 board says no, and a +2
+control on the same board says yes.
+
 ### v1.35.0 — Phantasmal Illusion conjures the play into your hand
 
 A rules change to one card, so the minor number moves: a v1.35 build and a v1.34 build refuse each other online

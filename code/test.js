@@ -2035,6 +2035,22 @@ function cards(ids) { return ids.map(card); }
   var g3 = table([mk(8, 'D', 'a'), mk(8, 'C', 'b')], [cf, mk(3, 'H')], CALTROPS);
   ok(AI.counterfeitHelps(g3, 0, g3.pile.combo.cards, cf) === false,
      'Counterfeit AI: it does NOT count a play built on the ♠8 the cast spends');
+
+  /* A BANKED BOOST COUNTS ONCE (2026-10-21). `beatsCur` added `nextPlayBoost` on top of `applyEquip`, which already
+   * includes it (`playBoost`), so a +1 read as +2. A straight is the shape where that matters, because the copy does
+   * not tie the pile by construction the way a copied pair does: their 4-to-8 straight, your 3-4-5-6, and a copied 7
+   * make a 3-to-7 straight, which ties at +1 and wins at +2. The +2 board is the control that the staging can say yes.
+   * NO 8 IN YOUR STRAIGHT: the Counterfeit card is the ♠8, so a run through 8 is already in hand and the function
+   * returns early ("already winning") — the first staging of this leg did exactly that and passed for that reason. */
+  var run = [mk(4, 'H', 'a'), mk(5, 'C', 'b'), mk(6, 'H', 'c'), mk(7, 'C', 'd'), mk(8, 'D', 'e')];
+  var mine = function () { return [cf, mk(3, 'C', 'm'), mk(4, 'C', 'm'), mk(5, 'H', 'm'), mk(6, 'C', 'm')]; };
+  var g4 = table(run, mine(), null); g4.players[0].nextPlayBoost = 1;
+  ok(AI.counterfeitHelps(g4, 0, g4.pile.combo.cards, cf) === false,
+     'Counterfeit AI: a banked +1 counts ONCE — copying their 7 makes 3-to-7, which only ties their 4-to-8' +
+     (AI.counterfeitHelps(g4, 0, g4.pile.combo.cards, cf) ? '  ← REPRODUCED: the boost was counted twice (+2)' : ''));
+  var g5 = table(run, mine(), null); g5.players[0].nextPlayBoost = 2;
+  ok(AI.counterfeitHelps(g5, 0, g5.pile.combo.cards, cf) === true,
+     'Counterfeit AI: CONTROL — at +2 the same copy wins, so the staging can say yes');
 })();
 
 
