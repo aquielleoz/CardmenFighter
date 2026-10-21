@@ -26,12 +26,12 @@
      * with it still in hand let the AI approve a winning play that leaned on the very card it was about to
      * spend — e.g. "I'll have a pair of 8s" built on the ♠8 that IS the Counterfeit. */
     var rest = cfCard ? pl.hand.filter(function (c) { return c.id !== cfCard.id; }) : pl.hand;
-    var boost = pl.nextPlayBoost || 0;
+    /* A BANKED BOOST IS ALREADY IN `applyEquip` (its `playBoost` term), so it is not added again here. It was, and a
+     * +1 read as +2: the AI cast Counterfeit for a straight that only tied the pile (2026-10-21, `test.js` pins it). */
     function beatsCur(hand) {
       return E.enumerateCombos(hand).some(function (x) {
         if (st.round < 2 && x.combo.size > 1) return false;
         var base = E.applyEquip(x.combo, p, st);
-        if (boost) { base = { type: base.type, size: base.size, value: base.value + boost, key: base.key.slice(), cards: base.cards }; base.key[0] += boost; }
         return E.beats(base, cur);
       });
     }
