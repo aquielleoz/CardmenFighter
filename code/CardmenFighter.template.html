@@ -9107,7 +9107,12 @@ __QR__
       holdCb = cb; return true;
     }
     function releaseHold(){ var cb=holdCb; holdCb=null; if(cb) try{ cb(); }catch(e){} }
-    function next(){ releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
+    /* A READ STEP'S PREP RUNS BEFORE ITS NEXT ADVANCES (2026-10-21). `tryPrep` runs it ~40ms after the step shows, and a
+       Next pressed inside that gap used to skip it for good: nothing re-runs a prep, so Forms and Rides kept no card id and
+       step 2 lit the whole hand (`lessontest_forms`' sweep red; `instantNext` in lessonlib forces it). A gated step is left
+       alone, because its prep is a rig that waits for your turn, and running it after the action would rig the next step. */
+    function next(){ var cur=steps[i]; if(cur && cur.prep && !cur.gate && !prepped){ prepped=true; try{ cur.prep(); }catch(e){} }
+      releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
     function note(type, data){ if(!active) return; var st=steps[i]; if(!st||!st.gate) return; try{ if(st.gate(type, data)) next(); }catch(e){} }
     function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; p._dragged=false; } show(); }   // a new lesson starts from the coach's own spot, not the last lesson's drag
     function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); tutLockBuilderCancel(false); }   // an abandoned lesson must not leave the builder's Cancel dead

@@ -4,10 +4,16 @@
  * The 2026-08-31 rig audit found this rig safe BECAUSE `tutPull(pool,12,'C') || tutPull(pool,12)` falls back
  * to ANY Q when the club one is behind a shield. This turns that measurement into a test.
  * Run: node lessontest_forms.js */
-const { openLesson } = require('./lessonlib');
+const { openLesson, instantNext } = require('./lessonlib');
 (async()=>{
+  const fast=await instantNext('forms');   // see lessonlib: Next pressed before step 1's prep timer can fire
   const L=await openLesson('forms');
   const { p, ok, until, step, at, next, activateSpot } = L;
+
+  /* THE SWEEP RED, FORCED (2026-10-21). Pressed that early, the old `next()` skipped `tutPrepForm`, so `tutFormId`
+   * stayed null and step 2 lit `#hand` (`spots=cardActivate,hand,ctxBtn`). The pair below is that press, every run. */
+  ok(fast.on===1 && fast.reached===2, 'instant Next: staged — Next was pressed on step 1 before its prep timer, and the lesson reached step 2 (pressed on '+fast.on+', reached '+fast.reached+')');
+  ok(fast.rank===12, 'instant Next: step 2 still spotlights the Q (spots='+fast.spots+')'+(fast.rank===12?'':'  ← REPRODUCED: the press skipped step 1\'s prep, so step 2 lit its fallback'));
 
   ok((await at()||{}).n===4,'4 steps');
   /* THE AUDIT'S CONCLUSION AS A TEST: the rig's fallback must deliver a Q whichever one is shielded. */

@@ -4,10 +4,16 @@
  * The 2026-08-31 rig audit found this rig safe BECAUSE `tutPull(pool,11,'C') || tutPull(pool,11)` falls back
  * to ANY J when the club one is behind a shield. This turns that measurement into a test.
  * Run: node lessontest_rides.js */
-const { openLesson } = require('./lessonlib');
+const { openLesson, instantNext } = require('./lessonlib');
 (async()=>{
+  const fast=await instantNext('rides');   // see lessonlib: Next pressed before step 1's prep timer can fire
   const L=await openLesson('rides');
   const { p, ok, until, step, at, next, activateSpot } = L;
+
+  /* THE FORMS LESSON'S SWEEP RED, IN THIS ONE (2026-10-21): same first step, same prep-on-a-timer, so the same early
+   * press skipped `tutPrepRide` and step 2 lit `#hand`. Likely the "the J is spotlit" red v1.31.84 raised the poll for. */
+  ok(fast.on===1 && fast.reached===2, 'instant Next: staged — Next was pressed on step 1 before its prep timer, and the lesson reached step 2 (pressed on '+fast.on+', reached '+fast.reached+')');
+  ok(fast.rank===11, 'instant Next: step 2 still spotlights the J (spots='+fast.spots+')'+(fast.rank===11?'':'  ← REPRODUCED: the press skipped step 1\'s prep, so step 2 lit its fallback'));
 
   ok((await at()||{}).n===4,'4 steps');
   /* THE AUDIT'S CONCLUSION AS A TEST: the rig's fallback must deliver a J whichever one is shielded. */

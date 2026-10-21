@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.34.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.34.6.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.34.5**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.34.6**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -518,62 +518,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   were starved (34s against 24s): the pick never opened. So the page's CPU is not the trigger. **Revives when it
   fails in a sweep**: the red prints `[11/10]` and names the pick, which bounds it to one round boundary.
   `[id: lessontest-twos-poll-under-load]`
-
-- `parked`              · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
-  (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
-  and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
-  change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
-  live in the setup dialog's roll).
-  **Why 30s matters.** v1.31.84 raised all six lesson polls 9s → 30s precisely to end this class, and the note
-  there says a poll budget is a HANG GUARD, not a race — it returns the instant the condition holds. Blowing the
-  whole 30s therefore means the condition never became true, not that the machine was slow. The rig is not the
-  suspect either: CLAUDE.md measured `tutRigForms` placing a Q **8/8**, with a fallback whose failure needs all
-  four jacks behind shields (1 in 270,725).
-  **THE ONE THING THAT WOULD SETTLE IT COSTS NOTHING, and should be added before hunting:** on timeout, print
-  `step()` — it already returns the step number, its text and `spots`. That separates the two live hypotheses,
-  which need completely different fixes: **the lesson never reached that step** (an earlier gate silently failed
-  to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
-  spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
-  exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
-  **IT RECURRED 2026-09-17, AND A HUMAN SIGHTING IN A DIFFERENT LESSON IS NOW THE BETTER LEAD.** One full
-  sweep went 92/93 on this suite — both spotlight assertions, *"the Q is spotlit"* and *"…and the spotlit
-  card really is the Q"*. The SAME MORNING, Aj hit the same symptom by hand in **How to Play step 8**:
-  *"lots of un greyed cards here and no cards are glowing"* — a step that GATES on activating, telling the
-  player to select a glowing card that is not there. Two different lessons, one mechanism (`tut-spot` never
-  applied), and one of them reproducible by a person rather than 1-in-many in a sweep.
-  **CHASE THE HUMAN ONE.** `lessontest_howto` asserts a card is spotlit at step 8 and is GREEN, so the suite
-  and the real game disagree — which is worth more than another rate measurement. Start at `tutPickEffect`
-  → `tutEnsureEffect` → `tutEffId`: it returns null when nothing passes `tutEffOK`, and `render()` wipes
-  `.tut-spot` every paint (`reapply` re-adds it), so either half failing looks identical on screen.
-  **A/B'd AND IT PROVED NOTHING, which is worth recording so nobody repeats it.** `clickFight` gained a
-  verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
-  concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
-  only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
-  **✅ THE HUMAN HALF IS EXPLAINED AND FIXED (v1.33.15, 2026-10-12), AND IT WAS NOT THIS SUITE'S MECHANISM.**
-  Aj's How to Play card HAD `.tut-spot`; it simply did not glow. The class lost the cascade on a hand card:
-  `.card`'s shadow (same specificity, later) beat the static ring, and a card dealt this round keeps `.enter`,
-  whose fly-in replaced the pulse. Measured on a lit card carrying `.enter`: `animation: dealIn`, the plain shadow,
-  no ring; the six lit cards without it all glowed. `lessontest_howto` now stages `.enter` and reads the
-  computed glow. **So "one mechanism" above was wrong**: this suite's red had the class MISSING, which a cascade
-  bug cannot cause. What is left is that half alone, and a `lessonlib` poll timeout now prints the step the
-  lesson was on, which separates "never reached the step" from "on the step, lit nothing" in one red run.
-  **FORCED 2026-10-13 AND NOT REPRODUCED, SO PARKED.** 16 runs at 4x and 8 at 20x page-CPU throttle (the 20x runs
-  took 7s against 4s): the Q was spotlit every time. **Revives when it fails in a sweep**; the step print then says
-  which half it is.
-  **IT FAILED IN A SWEEP 2026-10-19 (epic step 6b, 134/135) AND THE STEP PRINT SAYS WHICH HALF: ON THE STEP, LIT THE
-  FALLBACK.** `Tutorial · 2 / 4 … WHY: spots=cardActivate,hand,ctxBtn` — step 2's `hi` returns `'#hand'` only when
-  `tutFormId` is null, so `tutPrepForm` (step 1's `prep`) found NO Form in the hand or deck of the `state` it read. The
-  rig places a Q 8/8, so the live suspect is the prep READING THE WRONG STATE: it runs from `tryPrep`, a timer that
-  fires once the step shows, and if that can land before the lesson's own game replaces `state` it searches the
-  previous game and caches null for good (nothing re-runs the prep). Check the order of `TUT.start` against the
-  lesson's `startGame`, and whether `tutFormId` (never reset) should be re-derived at step 2 instead of cached at
-  step 1. 6/6 green solo straight after.
-  **AND TWICE MORE ON 2026-10-20, BOTH INSIDE `lessontest_phonepass` (the lesson at 390x844), in 2 of #447's 3 sweeps,
-  while the 4 sweeps of other branches that day were green.** 12 runs of the lesson at 390x844, four at a time, were
-  12/12, so it still needs a full sweep's load. Neither red could say which half: the wrapper kept only `✗` and
-  timeouts and indented them, so the step print never reached the sweep log. **It passes every evidence line through
-  now (behind `←`)**, so the next sweep failure prints the `WHY:` line this entry has been waiting for.
-  `[id: lessontest-forms-poll]`
 
 - `parked`              · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
