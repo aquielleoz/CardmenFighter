@@ -3083,9 +3083,7 @@ __QR__
   // untouched. Default: seat 0 is the local human, every opponent is 'ai' → the shipped game is byte-identical.
   var seatCtrl=['local','ai'];
   function controllerOf(i){ return seatCtrl[i] || (i===YOU ? 'local' : 'ai'); }
-  function isAISeat(i){ return controllerOf(i)==='ai'; }
   function isHumanSeat(i){ var c=controllerOf(i); return c==='local' || c==='remote'; }
-  function isLocalSeat(i){ return controllerOf(i)==='local'; }        // driven by the human at THIS screen (today: only seat 0)
   function resetControllers(n){ seatCtrl=[]; for(var i=0;i<n;i++) seatCtrl.push(i===YOU?'local':'ai'); }
   function MP(){ return !!(state && state.numPlayers>2); }
   function oppSeats(){ var a=[]; for(var i=1;i<state.numPlayers;i++) a.push(i); return a; }   // opponents left→right = seats after you in turn order
@@ -5164,15 +5162,6 @@ __QR__
     var sel=selectedCards();
     return (sel.length===1 && activatableCard(sel[0])) ? sel[0] : null;
   }
-  // The single selected card whose effect can be activated RIGHT NOW, or null.
-  function activatableSelected(){
-    var c=activatableCardSelected();
-    return (c && !activateBlock(c)) ? c : null;
-  }
-  function activateSelected(){
-    var c=activatableSelected();
-    if(c) activate(c.id);
-  }
   // Click the ⚡: usable → activate; greyed → pop the reason instantly (no waiting for the hover tooltip).
   function onActivateClick(e){
     if(peeking) return;
@@ -6344,7 +6333,6 @@ __QR__
   function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||eff.kind==='destroyShield'||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
   // Effects that pick a target before firing — the button reads "Choose target" and no energy is spent until a target is locked in.
   function effNeedsTarget(eff){ return eff && (eff.kind==='removeEquip' || eff.kind==='counterfeit' || isHostileSingular(eff)); }
-  function livingOpps(){ var a=[]; for(var i=0;i<state.numPlayers;i++) if(i!==YOU && !state.players[i].eliminated) a.push(i); return a; }
   /* TARGETING IS NOW TWO STEPS (Aj: "always err on the side of confirming first"). Tapping a target used to
    * fire the effect instantly; it now only STAGES the target, and the context button turns into ⚡ Activate to
    * confirm. Clear still cancels with nothing spent. */
@@ -6362,7 +6350,6 @@ __QR__
     var cid=targetPick.cardId, seat=targetPick.chosen; targetPick=null;
     activate(cid, { target: seat });
   }
-  function cancelTargetPick(){ if(targetPick){ targetPick=null; setMessage('Target cancelled.'); render(); return true; } return false; }
   // The round winner (chosen mode, 3–6p) picks whose shield to strip. `done(finalRes)` continues with the resolved result.
   function promptLossTarget(res, g, done){
     lossPick={ cands:res.cands.slice(), g:g, done:done, chosen:null };
@@ -11112,7 +11099,6 @@ __QR__
       if(/[?&]net=/.test(location.search)) location.search=''; else location.reload();
     }
     function isHost(){ return role==='host'; }
-    function seatLabel(i){ return i===mySeat ? 'You' : ('Player '+(i+1)); }
 
     // ---- transports (pluggable): both expose { send(obj), setOnMessage(cb), close() } ----
     function bcTransport(ch){ var cb=null; ch.onmessage=function(e){ if(cb) cb(e.data); }; return { send:function(o){ try{ ch.postMessage(o); }catch(e){} }, setOnMessage:function(c){ cb=c; }, close:function(){ try{ ch.close(); }catch(e){} } }; }
