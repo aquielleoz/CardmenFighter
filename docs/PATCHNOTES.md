@@ -80,6 +80,10 @@ rounds more often, so you need **fewer** shields to die in the same number of ro
 that run has not been done.** This is the candidate for a re-land, one flag at a time, with a deck-spread run
 per step.
 
+**BALANCE-TESTED 2026-10-21 (v1.35.2):** it fixes length (11 / 11 / 11–12 / 20 rounds) and widens the 4- and
+6-player spread (17.4 → 21.9, 12.5 → 16.0, paired). See
+[`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured).
+
 
 ### 0g. Aj's package: scaling shields with the table is the middle ground. NOT SHIPPED. (2026-08-24)
 Three flags, all defaulting **OFF** — `setShieldsPerPlayer` (START_SHIELDS = 2 + numPlayers),
@@ -340,6 +344,8 @@ closing the spread, and why scaling the OFFENCE never touched the problem at all
 So `all` cannot be repaired by patching cards one at a time. The options are: give Fighter and Rogue mitigation
 of their own, change `all` so it does not multiply mitigation, or leave it as the homebrew toggle it is now.
 **Do not re-open this with another offence-side idea** — that avenue is measured and closed.
+*(2026-10-21, v1.35.2: offence on its own is still closed, but `damageall` ON TOP OF the shared ward is what lifts
+Fighter and Rogue. See [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured).)*
 
 **SHARE HOLY SHROUD TOO (Aj) AND `all` BECOMES ARGUABLY PLAYABLE.** Leyline alone left the crown with Cleric,
 whose Holy Shroud and Sanctuary were untouched — so share the Shroud as well. It is counter-limited *equipment*,

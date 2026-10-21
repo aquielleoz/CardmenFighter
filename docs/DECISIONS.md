@@ -257,6 +257,10 @@ answer to "should we be more faithful here" — so they are worth keeping even t
 
 - **`loss=all` IS REPAIRABLE, and the whole avenue is now measured (PATCHNOTES 0n).** Everything below is done;
   do not re-derive it.
+  - **RE-MEASURED 2026-10-21 on v1.35.2 — read [`#loss-all-remeasured`](#loss-all-remeasured) first.** The law
+    below holds. Three things moved: under `all` the Cleric decks lead now, not Pure Wizard; the shared ward
+    brings six players close to the shipped spread but no longer improves duels; and offence scaling, closed
+    below, does work once the ward is in place. The bullets below are left as written in August.
   - **The law:** under `all`, any shield-loss mitigation multiplies in value by (N-1), and only **two of four
     classes have any** (♦ Leyline; ♥ Holy Shroud). That is the entire reordering — Wizard/Sage/Cleric to the top,
     Fighter/Rogue/Berserker (the decks with none) to the bottom.
@@ -328,6 +332,170 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
   wrong and the thing to reach for is the desync banner (v1.31.88)**, which now says so out loud rather than
   letting a client keep playing a board the host never confirmed; the old candidates (the stale-mirror guard,
   the ceremony teardown) were never demonstrated either and should not be re-chased first.
+
+## `loss=all` re-measured on v1.35.2, and the options (2026-10-21) <a id="loss-all-remeasured"></a>
+
+**Asked:** Aj wants `loss=all` back for 3-6 player games. Before he decides, every August number for it was
+re-taken on v1.35.2 and each option he named was measured. Nothing here changes a rule or a default.
+
+**What it means for play.** `loss=all` on its own is still a balance disaster at a full table: Pure Fighter
+wins about 4% of six-player games, and the Cleric and Wizard decks take over. The shared ward (`wardall`) still
+fixes most of that, and now fixes more than in August. Six-player balance under `all`+ward is close to the
+shipped game, but Fighter stays crushed and 3-4 player games are wider. **The new finding is that, with the
+ward in place, letting Critical Hit and Ultima Attack hit every rival (`damageall`) closes the rest.** With
+shields 2+N on top, that is the first `loss=all` measured to be tighter than the shipped game at every table
+size from 3 to 6 (by about 2 points at six, 4-7 at three to five), at median lengths of **11 / 12 / 14 / 15** rounds against the shipped **14 / 20 / 26 / 31**.
+All of this is knight-AI self-play, and the costs are listed below.
+
+### How it was measured
+
+- **`mpsim.js 1500 knight`, 22 runs per arm.** This is the August method, so its numbers sit beside August's.
+  It is unpaired, and it deals the same lineups on every run, so its ± is run-to-run AI noise, not sampling
+  error. Its spreads also read high: the top-minus-bottom of noisy numbers is inflated by the noise. Compare an
+  `mpsim` spread only with another `mpsim` spread.
+- **`flagpair.js games=4000`, seeds 11 and 22 (8,000 paired games per cell).** Both arms play identical deals,
+  with `Math.random` pinned per game. #455 extended it to take rule arms (`a=lossall b=lossall+wardall`).
+  Every arm at one player count and seed plays the same deals, so arms from different runs compare directly.
+  A deck's change is net / √flips over the games whose winner flipped. The package was picked after looking at
+  seeds 11 and 22, so it was **replicated on fresh seeds 33 and 44**, directly against the shipped game, and at
+  5 players.
+- **Controls.** Identical arms flipped 0 games, at 300 games (eight configs, 3p and 6p) and at 4,000 games
+  (`lossall+wardall+shp`, 3/4/6p, both seeds). Arms that should do nothing also flipped 0: `damagehalf` at
+  3 players is ceil(2/2) = 1, as 0n says, and at 2 players `lossall+damageall+shp` and `shdown` both flip
+  0 of 2,000 games.
+- **`rulesim.js` ×3 for the August length rows** (Full Set at every seat). It reads 1-2 rounds shorter than
+  `flagpair`, whose decks are random, so the options table uses `flagpair`'s lengths.
+- **The noise in a paired spread:** at 8,000 games a deck's six-player share has an s.e. of about 0.5 points,
+  and the shipped six-player spread read 11.6, 13.4, 13.4 and 13.6 on the four seeds. Read a spread difference
+  under about 2 points as a tie.
+- **An instrument note, because it nearly cost the baseline.** The first `mpsim` batch fed its jobs through
+  `xargs -L 1`, which treats a line ending in a blank as continued onto the next. The shipped arm's line was
+  `base 1 ` (no flags), so every "base" run swallowed the next job's `loss=all` and measured that instead. The
+  CONFIG line `mpsim` prints caught it before anything was read. **Read the printed config, every arm, every
+  run.**
+
+### August against today
+
+`mpsim`, six players unless a row says otherwise. August used 6 runs per arm (PATCHNOTES 0j/0n/0d); today used
+22. Spreads are in points, shares are win %, and fair at six players is 16.7%.
+
+| study | what | August | today | |
+| --- | --- | --- | --- | --- |
+| 0j | the reverted v1.31.0 package (`all`+universal mill+shields 2+N, draw N), spread | 40.7 | 31.4 ±0.5 | moved, still the worst arm measured |
+| 0j | ... its Pure Wizard / Pure Rogue | 44.3 / 1.7 | 22.1 / 4.1, and Pure Cleric is #1 at 34.6 | moved |
+| 0j, 0n | shipped rules, spread | 12.3–13.4 | 14.0 ±0.4 | holds |
+| 0n | `all`, spread at 3p / 4p / 6p | 23.5 / 29.9 / 32.1 | 25.5 / 30.1 / 28.6 | holds |
+| 0n | `all`, the top deck | Pure Wizard 34.8 | **Pure Cleric 32.7**, then Sage 30.5 and Pure Wizard 24.1 | moved: Cleric leads now |
+| 0n | `all`, Pure Fighter / Pure Rogue / Berserker | 4.1 / 4.6 / 3.8 | 4.6 / 8.7 / 5.5 | holds |
+| 0n | `all`+`damagehalf`, spread at 3p / 4p / 6p | 24.1 / 27.3 / 26.2 | 25.1 / 23.3 / 22.9 | holds |
+| 0n | `all`+`damageall`, spread at 3p / 4p / 6p | 16.0 / 24.1 / 26.8 | 17.7 / 22.6 / 22.7 | holds |
+| 0n | `all`+`wardall`, spread at 4p / 6p | 18.3 / 18.3 | 20.0 / **14.7** | 6p moved: about the shipped 14.0 |
+| 0n | `all`+`wardall`, Pure Wizard / Pure Fighter / Pure Rogue | 24.3 / 9.7 / 8.2 | 16.2 / 9.5 / 16.4 | Wizard and Rogue moved, Fighter holds |
+| 0n | `all`+`wardall`+shields 2+N, spread at 4p / 6p | 22.3 / 23.3 | 22.4 / **15.7** | 6p moved |
+| 0n | Spearman rho against shipped: `all` / +ward / +ward+2+N | 0.34 / 0.55 / 0.62 | 0.39 / 0.21 / 0.67 | the ward now reorders more |
+| 0n | `wardall` on the shipped rules, spread (shipped) | 11.6 (12.3), rho 0.94 | 12.4 (14.0), rho 0.90 | holds |
+| 0n | duel spread, `all`+`wardall` (shipped) | 8.4 (13.2) | 9.2 (9.5) | **moved: no longer improves duels** (paired below) |
+| 0d | universal mill on `chosen`, spread at 3p / 4p / 6p (targeted) | 12.6 / 15.1 / 12.9 (17.1 / 13.8 / 17.3), 3 runs, read as tighter | 18.3 / 20.3 / 16.2 (14.5 / 20.0 / 14.0) | moved: universal now widens 3p and 6p a little |
+| 0d, 0f | mill scope under `all` | not measured | `all` 28.6, `all`+universal 28.5, every deck within noise | new: **mill scope does nothing under `all`** |
+| 0f, 0g | median rounds at 2 / 3 / 4 / 6p, shipped (`rulesim`) | 11 / 15 / 22 / 33 | 11 / 14 / 19–20 / 29–30 | holds ([deck cycling](#deck-cycling) has the same) |
+| 0f | ... `all` | 11 / 10 / 10 / 9 | 11 / 9 / 9 / 9–10 | holds |
+| 0g | ... `all`+shields 2+N | 11 / 12 / 13 / 16 | 11 / 11 / 12–13 / 15 | holds |
+| 0n | 6p rounds, `all`+`wardall` / +shields 2+N | 11 / 17 | 11–12 / 16–17 | holds |
+| 0k | shields max(2, 6 − N), rounds at 2 / 3 / 4 / 6p | predicted 11 / 11 / 11 / 17; balance never run | 11 / 11 / 11–12 / 20 (`flagpair`) | 6p moved; first balance run is below |
+
+The mill rows have a reason. Under `all`, a Special win strikes every rival, so the "struck losers" that
+targeted mill pays are every loser, which is what universal mill pays. The incoherent corner 0d found
+(everybody mills, one loses a shield) cannot happen under `all`.
+
+**What moved, and what did not.** The law in [the `loss=all` entry](#balance) holds: under `all`, the decks
+with shield protection (♦, ♥) rise and the decks with none (♣, ♠) sink. What changed is who leads: the Cleric
+decks, not Pure Wizard. This entry does not say why. The candidates are everything since August (the stack and
+Resolution windows, the AI's answer policies, the Broadway pitch banking to energy), and nothing here isolates
+one. The ward's six-player result improved for the same unattributed reasons.
+
+### The options
+
+`flagpair`, 8,000 paired games per cell, seeds 11+22, so every column plays the same deals. The **5p** column
+and the parenthesised values are from seeds 33+44, where the shipped rules read 14.1 / 17.7 / 15.0 / 12.2. Pure
+Fighter / Pure Rogue / Berserker at six players are shipped 17.2 / 11.1 / 14.9 on these deals. Fair shares are
+33.3 / 25 / 20 / 16.7%.
+
+| option | spread 3p / 4p / 5p / 6p | median rounds 3 / 4 / 5 / 6p | Fighter / Rogue / Berserker at 6p | top · bottom at 6p |
+| --- | --- | --- | --- | --- |
+| **shipped** (`chosen`) | 15.1 / 17.4 / 15.0 / 12.5 | 14 / 20 / 26 / 30–31 | 17.2 / 11.1 / 14.9 | Paladin 23.5 · Pure Rogue 11.1 |
+| `lossall` (today's toggle) | 23.4 / 30.6 / 28.1 / 27.6 | 9 / 9 / 10 / 11 | **4.1** / 7.0 / 6.4 | Pure Cleric 31.7 · Pure Fighter 4.1 |
+| `lossall`+`damagehalf` | 23.4 / 23.9 / – / 23.5 | 9 / 9 / – / 9 | 5.8 / 10.0 / 8.0 | Sage 27.9 · Pure Fighter 5.8 |
+| `lossall`+`damageall` | 16.3 / 18.6 / – / 26.5 | 9 / 8 / – / 8 | 5.8 / 8.2 / 7.5 | Pure Wizard 32.3 · Pure Fighter 5.8 |
+| `lossall`+`wardall` | 18.4 / 21.3 / 16.4 / 14.5 | 10 / 10 / 12 / 13 | 10.0 / 15.7 / 13.4 | Bard 24.5 · Pure Fighter 10.0 |
+| `lossall`+`wardall`+`shp` | 16.1 / 21.7 / 16.9 / 15.0 | 12 / 14 / 16 / 18–19 | 9.8 / 11.3 / 12.3 | Pure Cleric 24.8 · Pure Fighter 9.8 |
+| `lossall`+`wardall`+`damagehalf` | 18.4 / 14.6 / – / 11.8 | 10 / 10 / – / 11 | 11.4 / 21.2 / 17.6 | Bard 23.2 · Pure Fighter 11.4 |
+| `lossall`+`wardall`+`damageall` | 11.8 (9.1) / 10.6 (10.7) / 13.4 / 11.5 (11.6) | 9 / 9 / 9–10 / 10 | 14.0 / 21.2 / 18.5 | Bard 23.3 · Pure Wizard 11.8 |
+| **`lossall`+`wardall`+`shp`+`damageall`** | **8.3 (8.4) / 9.9 (10.4) / 10.8 / 9.9 (10.3)** | **11 / 12 / 14 / 15** | 13.5 / 16.6 / 17.4 | Bard 22.7 · Pure Wizard 12.8 |
+| `shdown` (0k: `chosen`, shields 4/3/2/2) | 13.0 / 21.9 / – / 16.0 | 11 / 11–12 / – / 20 | 13.9 / 9.5 / 11.9 | Pure Cleric 25.5 · Pure Rogue 9.5 |
+| `wardall` on the shipped rules | 11.9 / 12.6 / – / 11.1 | 15 / 21 / – / 32–33 | 20.6 / 12.3 / 16.3 | Paladin 22.3 · Pure Wizard 11.1 |
+
+**What each option costs.**
+
+- **`lossall` alone** is the toggle as it is today. Paired against the shipped game at six players: Pure
+  Fighter −13.1 (z −19), Berserker −8.5, Paladin −8.0, Pure Rogue −4.1; Pure Wizard +13.9, Sage +11.8, Pure
+  Cleric +8.8. At five players it is the same picture: Pure Wizard 16.8 → 30.3, Pure Fighter 17.9 → 8.1.
+- **Offence alone (`damageall` / `damagehalf`) is still closed, as 0n says.** On `all`, `damageall` tightens
+  3 and 4 players but leaves six at 26.5, and its six-player gains go to the Wizard hybrids that carry the
+  cards: Warlock +6.7, Pure Wizard +6.9, Mage Knight +5.2, against Pure Fighter +1.7 and Pure Rogue +1.2.
+  `damagehalf` does nothing at three players by construction.
+- **The shared ward does what 0n said, and more of it.** Paired on `all` at six players: Pure Wizard −10.0,
+  Pure Cleric −9.8, Sage −9.7 (z −11 to −13); Pure Rogue +8.8, Berserker +7.0, Pure Fighter +5.8. It leaves
+  Fighter about 7 points under the shipped game (z −9.7) and Paladin −7.5. At 3-4 players it is wider than
+  shipped (18.4 against 15.1, 21.3 against 17.4).
+- **Offence ON TOP OF the ward is what lands on the attackers, and that part of 0n's "closed" does not
+  hold.** Paired against `all`+ward at six players: Pure Rogue +5.4, Berserker +5.1, Pure Fighter +4.0
+  (z +5.9 to +7.3); Sage −7.3, Pure Cleric −5.4, Pure Wizard −3.7. Without the ward, protection outweighed the
+  extra reach; with protection shared, the reach is what is left.
+- **The package (`lossall`+`wardall`+`shp`+`damageall`), against the shipped game on fresh seeds:**
+  - **6p:** Paladin −7.2 (z −8.5), Pure Cleric −3.8, **Pure Fighter −3.1 (z −4.0)**, Sage −3.0, Full Set −2.4;
+    Pure Rogue +5.9 (z +7.9), Warlock +5.6, Bard +5.1, Berserker +2.7.
+  - **5p:** Pure Cleric −3.9; Pure Rogue +6.3, Berserker +5.0, Pure Fighter −0.1.
+  - **4p:** Pure Cleric −5.1, Pure Wizard −4.2; Pure Rogue +4.5, Berserker +4.3, Pure Fighter +3.4.
+  - **3p:** Pure Cleric −3.9; Pure Rogue +2.9, Berserker +2.7.
+
+  So Pure Fighter is behind the shipped game only at six players, and Paladin drops from the six-player lead
+  to just under fair. Dropping `shp` gives a slightly wider spread (9.1 / 10.7 / 13.4 / 11.6 on seeds 33+44) in
+  games of 9-10 rounds everywhere, about the length [game length](#game-length) worried was too short at six.
+- **Shields scaling down (0k)** fixes length and was never balance-tested. Measured now, it **widens 4 and 6
+  players** (21.9 against 17.4, 16.0 against 12.5) and costs Pure Fighter −3.4 and Berserker −3.0 at six
+  (z about −4). It tightens 3 players (13.0 against 15.1). Pure Wizard +6.8 at 3 players is the biggest single
+  move. It also lands at 20 rounds at six players, not the predicted 17.
+- **`wardall` on the shipped rules** is a balance improvement in its own right at 3-4 players (11.9 against
+  15.1, 12.6 against 17.4), costs 1-2 rounds, and lifts Pure Fighter at six (+3.4, z +5.1).
+
+**Duel effect.** `lossall`, `damageall`, `damagehalf`, `shp` and `shdown` change nothing in a duel: each flips
+0 of 2,000 two-player games, because a duel has one rival and starts at 4 shields either way. **Anything with
+`wardall` does change duels**, since Leyline then protects the opponent too. On 8,000 paired two-player games
+per seed pair (11+22 / 33+44), 445 / 421 flip: Pure Wizard −3.1 / −3.0, Sage −3.3 / −1.8, Pure Fighter
++2.5 / +2.3, Berserker +2.2 / +1.8, Pure Rogue +1.9 / +1.2 (the attackers at z +3 to +6). The spread moves 4.8 → 4.9 on one pair and 9.1 → 6.4 on the
+other. Keeping duels exactly as shipped would need the ward to apply only at 3+ players, which no switch does
+today.
+
+**Colour pie.** Neither half of the package moves a mechanic between classes. The ward changes whom ♦/♥
+protection covers (Aj's idea, 2026-08-26), and `damageall` changes the reach of ♣/♠'s own attack cards. What
+the ward does not remove is ♦'s ramp feeding those cards: Warlock still gains at six players under the
+package (+5.6).
+
+**To ship as a rule,** two of the four parts are already Custom rules rows (`lossAll`, `shieldScale`). `wardall`
+and `damageall` exist only as engine switches (`setWardAll`, `setDamageAll`), so they would need rows, a
+preset, or a 3-6 player default. That is Aj's call, and so is whether the AI should be tuned first (below).
+
+### What this does not settle
+
+- **0n's option (b), protection usable less often:** not measured. It needs a new engine switch, and Aj said
+  to leave it for now (2026-10-21).
+- **The AI was tuned on `chosen`.** Its answer policies (`aimed`, `ownCast`, Leyline at Resolution) and its
+  targeting were measured there. Under `all` everyone is struck every Special round, so a stake for one player
+  is a stake for every player. The parked `ai-answers-others-casts` entry waits on this decision.
+- **Deck cycling at these lengths:** `recyclesim` has no rule switches, so how often a deck reshuffles in a
+  15-round six-player game is not measured.
+- **Human play.** Every number is knight self-play. A table of people may value protection, or coordinate
+  against a leader, in ways this AI does not.
 
 <a id="host-client-fork"></a>
 ## Giving the controller priority on their own object <a id="controller-priority"></a>
