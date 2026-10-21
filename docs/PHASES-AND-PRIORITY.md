@@ -546,12 +546,16 @@ still draw, still take the end-of-round trim, and the lock ends when the card sa
 The card is the authority, and it reads:
 
 > **Target Rival skips the whole round — no fights, no Techniques.**
-> *(the Quick form, under Perseus or Hermes: "Target Rival skips their next turn — no fights, no Techniques
-> (an effect already in progress still resolves)".)*
+> *(the Quick form, under Perseus or Hermes, keeps that text: the King's patch reads "Back Stab becomes a
+> Quick.", and Hermes' Super "Back Stab becomes a Quick AND ALL rivals skip the whole round.")*
 
 **`skips` is the verb; the clause after the dash elaborates it.** It is not a list of two exceptions carved
-out of an otherwise normal turn. An object already on the stack when the lock lands still resolves — that is
-what the Quick form's parenthesis says — but the locked player adds nothing further.
+out of an otherwise normal turn. An object already on the stack when the lock lands still resolves, but the
+locked player adds nothing further. *(Corrected 2026-10-21: this used to quote a Quick-form text ending "(an
+effect already in progress still resolves)" and credit the rule to that parenthesis. That text is the
+original `EFFECTS` entry, replaced by `BASE_OVERRIDES` when Back Stab lost its base Quick, so no live card
+says it. The rule stands on the engine, whose resolve path never checks a lock, and on Aj's 2026-10-21
+Phantasmal Illusion ruling, where a Back Stab'd Illusion still resolves and is spent.)*
 
 ### ⚠ This section said the opposite until 2026-09-17, and the reversal is the point
 
