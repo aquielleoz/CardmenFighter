@@ -27,3 +27,5 @@ credentials.json
 code/.sweep-times.json
 # …and the PASS count each green suite printed, which `docsweep.js` checks CLAUDE.md's declared counts against
 code/.sweep-counts.json
+# …and a FAILING suite's whole output, written by `sweep.js` when it fails and cleared at the start of the next sweep
+code/.sweep-fail-*.log

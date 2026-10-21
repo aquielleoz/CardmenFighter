@@ -94,6 +94,14 @@ function writeCounts(runs) {
 }
 
 const here = __dirname;
+/* A FAILING SUITE'S WHOLE OUTPUT GOES TO A FILE (2026-10-21), and the failure section below points at it. Choosing which
+ * lines to KEEP has lost a suite's own diagnosis four times now: the summary line, green suites' warnings, `WHY:`, and
+ * then `nettest_parity`, whose ceremony dump is indented, so a 3-player drift arrived as one `✗` line nobody could read.
+ * A fifth filter pattern would only wait for a sixth. So the filtered lines stay as the summary and nothing is thrown
+ * away: `code/.sweep-fail-<suite>.log`, gitignored, written when the suite fails, and cleared at the start of the next
+ * sweep so a log on disk always belongs to the latest run. `browsertest`'s `.bt-stall-*.log` is the precedent. */
+const failLog = f => path.join(here, '.sweep-fail-' + path.basename(f, '.js') + '.log');
+fs.readdirSync(here).filter(f => /^\.sweep-fail-.*\.log$/.test(f)).forEach(f => { try { fs.unlinkSync(path.join(here, f)); } catch (e) {} });
 const all = fs.readdirSync(here)
   .filter(f => /\.js$/.test(f))
   .filter(f => /^(nettest_|lessontest)/.test(f) || ['test.js','netview.test.js','mptest.js','rulestest.js','landscapetest.js','decktest.js','viewtest.js','dragtest.js','piletest.js','revealtest.js','phantasmtest.js','exporttest.js','versiontest.js','sharetest.js','qrtest.js','peektest.js','logtest.js','motiontest.js','phonetest.js','oppbeatstest.js','ceremonylocktest.js','counterfeittest.js','roartest.js','fightbeattest.js','stackrowtest.js','castholdtest.js','upkeepstrandtest.js','answertest.js','respmintest.js','answercasttest.js','answerglowtest.js','sorttest.js','quicktest.js','shadowtest.js','prompttest.js','resolutiontest.js','resolutiontest_ui.js','browsertest.js','kicktest.js','deckouttest.js'].includes(f))
@@ -130,6 +138,7 @@ function runOne(file, lane) {
       const line = (out.match(/^.*PASS: \d+\s+FAIL: \d+.*$/m) || [null])[0];
       const m = out.match(/PASS: (\d+)\s+FAIL: (\d+)/);
       const failed = timedOut || code !== 0 || /^FAILED/m.test(out) || (m && +m[2] > 0);
+      if (failed) { try { fs.writeFileSync(failLog(file), `${file} — exit ${code}, ${secs}s, ${new Date().toISOString()}\n\n` + out); } catch (e) {} }
       results.push({ file, code, secs, out, failed, counts: m ? m[0] : '(no PASS line)' });
       console.log(`${failed ? '✗' : '✓'} ${file.padEnd(30)} ${String(secs).padStart(3)}s  ${timedOut ? 'TIMED OUT — killed' : (line ? line.trim() : '')}`);
       res();
@@ -177,7 +186,7 @@ async function lane(i) { while (next < suites.length) { const f = suites[next++]
      * AND `^FAIL: ` (2026-10-19): `test.js` and `netview.test.js` print each failed assertion as `FAIL: <message>`,
      * which none of the patterns above matched, so a red `test.js` arrived here as a heading over NOTHING. The
      * epic's sweep that day needed 100 reruns to name an assertion `test.js` had already printed. */
-    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|^FAIL: |FAILED|TIMED OUT|ERROR|WHY:|←|⚠|⏱/.test(l)).slice(0, 20).join('\n')); });
+    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})  — full output: code/${path.basename(failLog(r.file))}`); console.log(r.out.split('\n').filter(l => /^✗|^FAIL: |FAILED|TIMED OUT|ERROR|WHY:|←|⚠|⏱/.test(l)).slice(0, 20).join('\n')); });
   }
   if (countReport) console.log('\n──── declared counts (CLAUDE.md vs this sweep — a report, not a gate) ────\n' + countReport);
   console.log(`\n${bad.length ? 'FAILED — ' : ''}${suites.length - bad.length}/${suites.length} suites green in ${wall}s`);

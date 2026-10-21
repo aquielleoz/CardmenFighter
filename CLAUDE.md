@@ -2513,6 +2513,12 @@ holds Counter Spell, whether it had the energy — and `sweep.js`'s failure filt
 diagnosis stripped out. `WHY:` and `←` are in the filter now. **When a suite already does the work, the
 runner's job is not to crop it** — this is the third instance of that one mistake (the summary line, the
 green suites' warnings, and now this).
+**THE FOURTH, AND THE END OF IT: A FAILING SUITE'S WHOLE OUTPUT IS IN `code/.sweep-fail-<suite>.log` (2026-10-21).**
+`nettest_parity` drifted once in a sweep and printed both seats' ceremonies on that exact failure; the dump is
+indented, the filter kept `^✗`, and the red could not be read. Adding a pattern per crop only waits for the next one,
+so the runner stopped choosing: it writes the suite's full output when the suite fails, names the file in the
+failure section, and clears old logs when the next sweep starts. **Read the log before re-running a red suite** — the
+rerun usually passes, and then the log is the only evidence there is.
 
 **BEFORE BLAMING CONTENTION FOR A SUITE'S BUDGET, MEASURE WHETHER CONTENTION SLOWS THAT SUITE AT ALL
 (2026-10-01).** `nettest_passoduel`'s hang was filed against a `-j 4` sweep and the theory was unscripted
