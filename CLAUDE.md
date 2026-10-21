@@ -3488,8 +3488,10 @@ winning a round forces you to strike someone. The faithful analogue is TIT FOR T
 Isolated to `loss='all'` alone, because **`all` multiplies the value of landing a Special by (N-1)** — at six
 players the best Special-lander gains against five people at once. `setShieldsPerPlayer` defaults **off**; `setDrawPerPlayer` defaults **ON** (draw = numPlayers shipped in v1.31.3 — this file used to claim both were off). Both are now player-facing through the custom rules menu. **Read `startShieldsFor(n)` /
 `drawCountFor(st)`, never the bare constants** — reading `E.DRAW_PER_ROUND` in the UI is what once made the
-round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**; the promising
-re-land direction (shields scaling **down**) is **0k**.
+round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**. The re-land direction
+this line used to call promising, shields scaling **down** (**0k**), was balance-tested on 2026-10-21 and widens
+the 4- and 6-player spread. That run, and every `loss=all` option, is in
+[`DECISIONS.md#loss-all-remeasured`](docs/DECISIONS.md#loss-all-remeasured).
 
 The 2-apex + Forms **"rework" is simply the game.** The `REWORK` flag, `setRework()`, `E.isRework()` and the
 whole classic ruleset were deleted in v1.23.0 — if a doc or comment implies a toggle, the doc is stale. Many

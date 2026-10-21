@@ -122,8 +122,14 @@ re-read its tag.
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
-- `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
-  corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
+- `needs a decision` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
+  corners.**
+  **MEASURED 2026-10-21, SO WHAT IS LEFT IS AJ'S CHOICE.** Every candidate below now has a balance run beside its
+  length, in [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured). Shields scaling down hits
+  the length (20 rounds at six) and widens the 4- and 6-player spread. `loss=all` with the shared ward,
+  Critical Hit and Ultima Attack on every rival, and shields 2+N lands at 11 / 12 / 14 / 15 rounds (3 to 6
+  players) with a tighter spread than the shipped game. Its costs are in that entry: Pure Fighter and Paladin
+  at six, the ward changing duels, and two engine switches that have no Custom rules row. Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
   measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
   [`DECISIONS.md`](DECISIONS.md#game-length).
   **What is actually open:** design something that lands at **~15–18 rounds** at six players — e.g. a Special
