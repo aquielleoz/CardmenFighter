@@ -15,6 +15,16 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.35.2 — seven template functions nothing called are deleted
+
+**What you'll see:** nothing; the page is about 800 bytes smaller.
+
+**What went:** `activateSelected`, `cancelTargetPick`, `isAISeat`, `isLocalSeat`, `livingOpps` and `seatLabel`, found by
+drag-and-stack step 7's dead-code check (a name that appears only at its own definition, so it is not exported
+either). Deleting `activateSelected` left a seventh, `activatableSelected`, whose only caller it was. Re-running the same
+check over the whole template afterwards finds none. Per `CLAUDE.md`'s deletion rules, no export literal named any of
+them, and `mptest` ran before the sweep (133/0).
+
 ### v1.35.1 — the AI counts a banked boost once when judging Counterfeit
 
 **What you'll see:** nothing measurable. Over 400 seeded AI games each at 2 and 6 players (Pure Rogue at every seat),
