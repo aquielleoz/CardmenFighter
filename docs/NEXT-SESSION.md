@@ -122,18 +122,6 @@ re-read its tag.
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
-- `ready to build`      · **THE SWEEP DROPS A FAILING SUITE'S OWN DIAGNOSIS, FOURTH TIME (2026-10-21).** `nettest_parity` went
-  red in the v1.35.2 sweep (below) and, on that exact failure, prints every filmed ceremony on both seats and each
-  seat's last beat texts. `sweep.js`'s failure section keeps only lines matching `^✗|^FAIL: |FAILED|TIMED OUT|ERROR|
-  WHY:|←|⚠|⏱`, and the dump is indented, so all of it was thrown away and the red cannot be read. CLAUDE.md already
-  records three crops of this kind (the summary line, green suites' warnings, `WHY:`); a fourth pattern added to
-  the filter would leave a fifth waiting. **The fix that ends the class:** write each failing suite's FULL output
-  to `code/.sweep-fail-<suite>.log` (gitignored beside `.sweep-times.json`), print the path in the failure
-  section, and keep the filtered lines as the summary. `browsertest`'s `.bt-stall-sim<N>-*.log` is the precedent.
-  Placed first by the session that filed it, because the parity entry below cannot be read until it lands;
-  re-rank freely.
-  `[id: sweep-keeps-failing-output]`
-
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
   measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
@@ -156,10 +144,11 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
 - `parked`              · **`nettest_parity` DRIFTED ONCE AT A 3-PLAYER CEREMONY (2026-10-21).** In the v1.35.2 sweep, 136/137:
   `✗ [3p] every filmed ceremony is the SAME SEQUENCE on the host and c2 (7 compared) ← DRIFT at ceremony 5`. The
   suite printed its diagnosis (both seats' ceremonies and beat texts) and `sweep.js` dropped it
-  (see `sweep-keeps-failing-output` in Open), so nothing says which beat differed. **Not that build's change:** v1.35.2
+  (fixed the same day: the sweep now keeps a failing suite's whole output), so nothing says which beat differed. **Not that build's change:** v1.35.2
   deleted seven functions nothing referenced. It passed in the four earlier sweeps that day and **4/4 alone straight
-  after** (each with `PARITY_DUMP=1`), so it needs a sweep's load. **Revives when it fails in a sweep with the full
-  output kept**: read which ceremony beat differed between the host and c2 before guessing. Duel parity was green.
+  after** (each with `PARITY_DUMP=1`), so it needs a sweep's load. **Revives when it fails in a sweep**: the sweep
+  then leaves `code/.sweep-fail-nettest_parity.log`, so read which ceremony beat differed between the host and c2
+  before guessing. Duel parity was green.
   `[id: nettest-parity-3p-ceremony-drift]`
 
 - `parked`              · **⚠ PARKED 2026-10-01 — IT REVIVES WHEN A SWEEP GOES RED, AND NOTHING ELSE WILL DO IT**
