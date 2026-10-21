@@ -12,10 +12,43 @@ const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome')
 const { clickFight, clickPass } = require('./fightclick');   // epic step 20: Fight is a two-state button and Pass only exists in the Fight Sub-Phase
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 
+/* `LESSON_VIEWPORT=390x844` runs a suite that names no viewport at that size — a phone pass of any lesson suite. */
+function viewportFor(viewport){ const VP=/^(\d+)x(\d+)$/.exec(process.env.LESSON_VIEWPORT||''); return viewport||(VP?{width:+VP[1],height:+VP[2]}:{width:1200,height:900}); }
+/* Load the page and open the Tutorials hub, with no lesson started yet. */
+async function openHub(p){
+  await p.goto(URL); await p.waitForTimeout(700);
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await p.waitForTimeout(350);
+  await p.evaluate(()=>{ const x=[].find.call(document.querySelectorAll('button'),y=>/Tutorials/.test(y.textContent)); if(x)x.click(); }); await p.waitForTimeout(450);
+}
+/* THE INSTANT NEXT (2026-10-21). A read step's `prep` runs from `tryPrep`, a timer ~40ms after the step shows, and Next
+   used to advance without checking it had run, so a press that beat the timer skipped the prep for good and the next
+   step lit its fallback. That was `lessontest_forms`' sweep red (`spots=cardActivate,hand,ctxBtn` with the Q in hand):
+   only a loaded sweep made the suite's press that fast. This makes it that fast on every run. A MutationObserver presses
+   Next in the microtask after step 1's panel renders, which the event loop runs before any timer, so the press always
+   lands first. Returns the step it pressed on, the step it reached, and the rank of the hand card step 2 spotlit (null
+   for none). Its own browser, opened and closed before the suite's page, so the two never share a lesson. */
+async function instantNext(id, viewport){
+  const b=await chromium.launch(LAUNCH);
+  const p=await (await b.newContext({viewport:viewportFor(viewport)})).newPage();
+  await openHub(p);
+  await p.evaluate(()=>{ window.__inst={};
+    const mo=new MutationObserver(()=>{ const btn=document.getElementById('tutNextBtn'); if(!btn) return; mo.disconnect();
+      window.__inst.on=+(/(\d+)\s*\//.exec((document.querySelector('.tutStep')||{}).textContent||'')||[])[1]; btn.click(); window.__inst.pressed=true; });
+    mo.observe(document.body,{childList:true,subtree:true}); });
+  await p.evaluate(i=>document.querySelector('.lessonRow[data-lesson="'+i+'"]').click(), id);
+  const r={ on:null, reached:null, rank:null, spots:'' }, t0=Date.now();
+  /* 10s is a hang guard: with the prep run, the card lights at step 2's own 40ms timer; without it, it never does */
+  while(Date.now()-t0<10000){
+    Object.assign(r, await p.evaluate(()=>{ const s=document.querySelector('#hand .card.tut-spot'), st=window.__solo.st();
+      return { on:window.__inst.pressed?window.__inst.on:null, reached:+(/(\d+)\s*\//.exec((document.querySelector('.tutStep')||{}).textContent||'')||[])[1]||null,
+        rank:s?((st.players[0].hand.filter(x=>x.id===s.dataset.id)[0]||{}).rank||null):null,
+        spots:[].map.call(document.querySelectorAll('.tut-spot'),e=>e.id?'#'+e.id:(e.dataset&&e.dataset.id?'card '+e.dataset.id:String(e.className).split(' ')[0])).join(',') }; }));
+    if(r.rank) break; await p.waitForTimeout(80); }
+  await b.close(); return r;
+}
 async function openLesson(id, viewport){
   const b=await chromium.launch(LAUNCH);
-  /* `LESSON_VIEWPORT=390x844` runs a suite that names no viewport at that size — a phone pass of any lesson suite. */
-  const VP=/^(\d+)x(\d+)$/.exec(process.env.LESSON_VIEWPORT||''), vp=viewport||(VP?{width:+VP[1],height:+VP[2]}:{width:1200,height:900});
+  const vp=viewportFor(viewport);
   const p=await (await b.newContext({viewport:vp})).newPage();
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   /* THE COACH MUST NOT COVER WHAT A STEP POINTS AT (drag-and-stack step 6b). Every 400ms: does the coach panel sit over
@@ -54,7 +87,9 @@ async function openLesson(id, viewport){
    * on "the J is spotlit" — and a tutorial paces its own beats (`revealDwell` alone is 2650ms), so the
    * margin was thinner than it looked. CLAUDE.md's standing rule: a slow machine must make a suite SLOWER,
    * never red. NOTE that failure was seen ONCE and not reproduced (5 solo runs, 3 under artificial load),
-   * so this is the budget being wrong for the new normal, not a diagnosed cause. */
+   * so this is the budget being wrong for the new normal, not a diagnosed cause. *(Diagnosed 2026-10-21, and it was
+   * not slowness: a Next pressed before step 1's prep timer skipped the prep, so the J was never lit at all and no
+   * budget could have saved it. `instantNext` above forces that press; the fix is in the template's `next()`.)* */
   /* REPORT THE MARGIN, NOT JUST THE VERDICT (v1.31.99). A poll that returns at 13.4s of a 14s budget is a
    * green run one slow machine away from red, and nothing said so — the budgets here were raised 9s → 30s in
    * v1.31.84 for exactly that reason. `LESSONPOLL=1` prints how long every wait actually took, so the margin
@@ -290,9 +325,7 @@ async function openLesson(id, viewport){
       const a=document.getElementById('cardActivate'); if(!a || a.style.display==='none' || a.disabled) return 'activate control not offered';
       a.click(); return null; }); };
 
-  await p.goto(URL); await p.waitForTimeout(700);
-  await p.evaluate(()=>document.getElementById('newBtn').click()); await p.waitForTimeout(350);
-  await p.evaluate(()=>{ const x=[].find.call(document.querySelectorAll('button'),y=>/Tutorials/.test(y.textContent)); if(x)x.click(); }); await p.waitForTimeout(450);
+  await openHub(p);
   const listed=await p.evaluate(i=>!!document.querySelector('.lessonRow[data-lesson="'+i+'"]'), id);
   ok(listed,'the hub lists the "'+id+'" lesson');
   if(listed) await p.evaluate(i=>document.querySelector('.lessonRow[data-lesson="'+i+'"]').click(), id);
@@ -313,4 +346,4 @@ async function openLesson(id, viewport){
       if(AUDIT) require('fs').appendFileSync(AUDIT, JSON.stringify({ lesson:id, vp:vp.width+'x'+vp.height, audit:audit })+'\n');
       console.log('\nPASS: '+pass+'  FAIL: '+fail); await b.close(); process.exit(fail?1:0); } };
 }
-module.exports = { openLesson, URL };
+module.exports = { openLesson, instantNext, URL };

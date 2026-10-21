@@ -15,6 +15,28 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.34.6 — a lesson's Next no longer skips the step's setup
+
+**What you'll see:** almost nothing in normal play. In the Form Changes and Rides lessons, pressing "Show me ▸" on
+step 1 within about 40ms of it appearing used to skip that step's setup. Step 2 then glowed your whole hand instead
+of the Q or J it tells you to transform. A person almost never presses that fast, but a loaded test sweep did, and
+that was `lessontest_forms`' intermittent red for six weeks (three sweeps on 2026-10-19 and 2026-10-20). Energy Order
+and Custom Decks had read steps of the same shape (opening the energy pile, opening the deck builder) and get the
+same fix.
+
+**Why:** a read step's `prep` runs from `tryPrep`, a timer that fires about 40ms after the step shows. The coach's
+`next()` advanced without checking whether that timer had run, and nothing re-runs a prep later. So the Forms lesson
+never recorded `tutFormId`, and step 2's spotlight fell back to `#hand`. The sweep's own failure line said exactly
+that (`spots=cardActivate,hand,ctxBtn`, with the Q in hand). The v1.31.84 poll raise for the Rides lesson's "the J
+is spotlit" red was aimed at the same press: the condition could never come true, so no budget could help.
+`next()` now runs a read step's prep before advancing if the timer has not reached it. Gated steps are left alone,
+because their prep is a rig that waits for your turn.
+
+**Tests:** `lessonlib` gains `instantNext`, which presses Next from a MutationObserver in the microtask after step
+1's panel renders, so the press beats every timer on every run. `lessontest_forms` and `lessontest_rides` each assert
+the press landed on step 1 and that step 2 still lit the Q or J (16 → 18 each, `lessontest_phonepass` 126 → 128).
+Both legs went red on the unfixed build, reading `#hand`, and green with the fix.
+
 ### v1.34.5 — after a Rival's Phantasmal Illusion, your turn starts in Main
 
 **What you'll see:** when an AI casts Phantasmal Illusion, the next turn now starts in the Main Sub-Phase like any

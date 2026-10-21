@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.34.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.34.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -87,8 +87,8 @@ node lessontest_zones.js                # the "Zones of Play" spotlight tour —
 node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (23)
 node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (22)
 node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (19)
-node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (16)
-node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (16)
+node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone, and Next pressed before step 1's prep still lights it (18)
+node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone, and the same instant Next (18)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
                                         # DERIVED from the live rules, not a hardcoded string (36)
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
@@ -98,7 +98,7 @@ node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's es
 #                                       # `renderHand` appends bare cards with no `.group`. Forces the
 #                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
 #                                       # `answerWindow()`'s pick escape are not untested code
-node lessontest_phonepass.js            # THE LESSONS ON A PORTRAIT PHONE (126): reruns How to Play,
+node lessontest_phonepass.js            # THE LESSONS ON A PORTRAIT PHONE (128): reruns How to Play,
 #                                       # Initiative, Specials, Form Changes and The 2 at 390x844
 #                                       # (`LESSON_VIEWPORT`) and adds up their counts. On a phone the coach
 #                                       # covered the card or button a step named in all five, every suite green
@@ -2567,6 +2567,11 @@ polled with **9s**; under `-j 4` `lessontest_rides` blew it once on "the J is sp
 its own beats (`revealDwell` is 2650ms) so the margin was thin. All six in `lessonlib.js` are 30s now.
 **A poll budget is a HANG GUARD, not a race** — it returns the instant the condition holds, so a generous
 ceiling costs a passing run nothing. Size it for the SLOWEST plausible machine, never the one you are on.
+**⚠ AND THAT RIDES RED WAS NEVER SLOWNESS (diagnosed 2026-10-21).** A Next pressed before step 1's 40ms prep timer
+skipped the prep for good, so the J was never lit and the condition could not come true; the same press was
+`lessontest_forms`' sweep red for six weeks. Load only made the suite's press that fast. **A setup deferred to a
+timer needs the action that leaves its step to run it first**, and the way to test one is to press as early as the
+event loop allows (`lessonlib`'s `instantNext`), not to wait for a loaded sweep.
 
 **A WALL-CLOCK-BOUNDED SUITE TESTS LESS WHEN THE SWEEP IS PARALLEL, AND STAYS GREEN WHILE DOING IT.**
 `nettest_sync` runs until 60 actions **or** 120s. Alone it hits the ACTION cap in ~20s; at `-j 4` it took 125s
@@ -2695,7 +2700,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.34.5 — last FULL sweep 2026-10-21, `npm run sweep`, 137/137 in 556s** (this line was
+Status as of **v1.34.6 — last FULL sweep 2026-10-21, `npm run sweep`, 137/137 in 589s** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2713,7 +2718,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `piletest` 51, `revealtest` 12, `phantasmtest` 13, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
-`lessontest_rides` 16, `lessontest_forms` 16, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 126, `qrref` 26 (darwin only, corroborates rather than
+`lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 128, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 83 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 25, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
