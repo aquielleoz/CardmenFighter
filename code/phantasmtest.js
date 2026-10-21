@@ -1,11 +1,11 @@
-/* PHANTASMAL ILLUSION, in the real built page (v1.31.6). The card copies the current play at its BASE values;
- * your boosts and Equipment then apply, Odysseus conjures it at +1, and you MAY swap one card in. A bare copy
- * ties, and ties never win — so at least one of the three has to be there.
- * The swap used to be MANDATORY in all three layers, which is why the card needed a straight or full house on
- * the pile to do anything (one swap cannot raise a matched set) and was replaced outright in v1.13. Every
- * assertion below is a case that version could not reach. Run: node phantasmtest.js */
+/* PHANTASMAL ILLUSION, in the real built page (2026-10-21). Aj ruled the card a Counterfeit of the whole play: it is
+ * an ordinary ⚡ cast in Main that goes on the stack, and resolving it conjures the current play into your HAND. You
+ * then fight with the copies, alone or with your own cards, through an ordinary Fight; any you keep fade with the
+ * round, and their effects can't be activated.
+ * It replaced a card with its own "Phantasm" button, an optional one-card swap and no window at all (v1.31.6 → v1.34.6).
+ * Every leg here drives the page a player drives: the ⚡, the hand, Fight. Run: node phantasmtest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
-const { selectAndFight, clickFight } = require('./fightclick');
+const { selectAndFight, waitHold } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -14,112 +14,85 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
-  await p.goto(URL); await wait(700);
-  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
-  await p.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); }); await wait(1100);
-  ok(await p.evaluate(()=>!!(window.__solo&&window.__solo.st())), 'duel started');
-
-  /* A conjure hands the turn to the Rival, whose turn runs asynchronously — re-staging on top of that leaves
-   * the board `busy` and the next case silently does nothing. Each case gets a fresh duel instead. */
+  /* Each case gets a fresh duel: a fight hands the turn to the Rival, whose turn runs asynchronously. */
   const fresh=async()=>{
-    await p.goto(URL); await wait(600);          // reload: a leftover overlay would swallow the New-game click
+    await p.goto(URL); await wait(600);
     await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
     await p.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); }); await wait(1000);
+    await p.waitForFunction(()=>{ const r=document.getElementById('roundfx'); return !r || !r.classList.contains('show'); }, null, {timeout:8000}).catch(()=>{});
   };
-
-  /* Stage: the Rival's pair of 9s is on the pile and it is your turn. You hold Phantasmal Illusion (♦10).
-   * `equip` decides which of the three routes is available. */
-  const stage=(equip, odysseus)=>p.evaluate(a=>{
+  /* The Rival's full house 8-8-8-9-9 is on the pile, it is your turn in Main, and you hold the Illusion (♦10), a 9♦ and
+   * a 3♥. `rivalHand` lets a case give the Rival a Counter Spell. */
+  const stage=(pile, rivalHand)=>p.evaluate(a=>{
     const st=window.__solo.st(), E=window.CardmenEngine;
     const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
-    st.round=3; st.turn=0; st.passes=0; st.finished=false;
-    st.players[0].hand=[mk(10,'D'), mk(3,'H'), mk(9,'D')];
+    st.round=3; st.turn=0; st.passes=0; st.finished=false; st.subPhase='main'; st.toPlay=null;
+    st.stack=[]; st.prioPassed={}; st.pending=null; st.respondFor=null;
+    st.players[0].hand=[mk(10,'D'), mk(9,'D'), mk(3,'H')];
     st.players[0].energy=[]; for(let i=0;i<12;i++) st.players[0].energy.push(mk(4,'D','e'+i));
-    st.players[0].equipment = a.equip ? [{id:'eqT', name:a.equip.name, delta:a.equip.delta||0, oppDelta:a.equip.oppDelta||0, counters:3, decay:true}] : [];
-    st.players[0].forms = a.odysseus ? [{rank:13,suit:'D',tier:'king',name:'Odysseus',id:'zKD'}] : [];
-    const combo=E.detectCombo([mk(9,'H','x'), mk(9,'C','y')]);
+    st.players[0].equipment=[]; st.players[0].forms=[];
+    st.players[1].hand=(a.rivalHand||[[3,'S'],[6,'H']]).map(x=>mk(x[0],x[1],'r'));
+    st.players[1].energy=[]; for(let i=0;i<8;i++) st.players[1].energy.push(mk(4,'D','f'+i));
+    const combo=E.detectCombo(a.pile.map((x,i)=>mk(x[0],x[1],'p'+i)));
     st.pile={ combo:combo, byPlayer:1, raw:combo.value, rawKey0:combo.key[0], lockedDelta:0, mod:0 };
     st.lastPlayer=1;
-    if(E.refreshPile) E.refreshPile(st);
     window.__solo.render();
     return true;
-  }, {equip, odysseus});
-
-  // the hand keeps its selection between cases, so clicking the same card twice would DESELECT it
-  const sel=async id=>{ await p.evaluate(i=>{ const clr=document.getElementById('clearBtn'); if(clr)clr.click();
+  }, {pile, rivalHand});
+  const FH=[[8,'H'],[8,'C'],[8,'S'],[9,'H'],[9,'C']];
+  const sel=async id=>{ await p.evaluate(i=>{ const clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
+    [].slice.call(document.querySelectorAll('#hand .card.sel')).forEach(c=>c.click());
     const c=document.querySelector('#hand .card[data-id="'+i+'"]'); if(c)c.click(); }, id); await wait(250); };
   const ctx=()=>p.evaluate(()=>{ const b=document.getElementById('ctxBtn');
-    return { shown:!!(b&&b.style.display!=='none'), label:(b&&b.textContent||'').trim(), off:!!(b&&b.classList.contains('off')) }; });
-  const hint=()=>p.evaluate(()=>((document.getElementById('hint')||{}).textContent||'').trim());
-  const pileNow=()=>p.evaluate(()=>{ const st=window.__solo.st();
-    return st.pile?{by:st.pile.byPlayer, type:st.pile.combo.type, value:st.pile.combo.value, phantom:!!st.pile.phantom}:null; });
-  /* Read the pile the moment the illusion lands, not later: conjuring hands the turn to the Rival, whose turn
-   * runs asynchronously and can re-take the pile within a few hundred ms. Poll for OUR ownership instead of
-   * sampling once and hoping. `spent` is the durable half — the Illusion card cannot come back to hand. */
-  const conjured=async()=>{
-    let seen=null;
-    for(let i=0;i<40;i++){ const q=await pileNow(); if(q && q.by===0){ seen=q; break; } await wait(50); }
-    const spent=await p.evaluate(()=>!window.__solo.st().players[0].hand.some(c=>c.id==='10D'));
-    return { pile:seen, spent:spent };
-  };
+    return { shown:!!(b && b.offsetParent), label:(b&&b.textContent||'').trim(), off:!!(b&&b.classList.contains('off')), title:(b&&b.title)||'' }; });
+  const board=()=>p.evaluate(()=>{ const st=window.__solo.st();
+    return { copies:st.players[0].hand.filter(c=>c.temp).map(c=>c.id), shown:[...document.querySelectorAll('#hand .card')].filter(c=>/^PH/.test(c.dataset.id)).length,
+             spent:!st.players[0].hand.some(c=>c.id==='10D'), pileBy:st.pile?st.pile.byPlayer:null, pileType:st.pile?st.pile.combo.type:null,
+             sub:st.subPhase, turn:st.turn, shuffle:st.players[0].shuffle.some(c=>c.id==='10D'), stack:(st.stack||[]).length }; });
+  const press=()=>p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b && b.offsetParent && !b.classList.contains('off')) { b.click(); return true; } return false; });
 
-  // ---- 1. no equipment, no Odysseus: a bare copy only ties, and nothing in hand completes a higher pair
-  await stage(null,false); await wait(300);
+  // ---- 1. facing their full house: the Illusion is an ordinary ⚡ Activate, and one tap conjures the copies
+  await fresh(); await stage(FH); await wait(300);
   await sel('10D');
-  let c1=await ctx();
-  ok(c1.shown && /phantasm/i.test(c1.label), 'the Phantasm action appears when you hold ♦10 facing a Special');
-  await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(300);
-  const untouched=await p.evaluate(()=>({ by:window.__solo.st().pile.byPlayer, hand:window.__solo.st().players[0].hand.length,
-                                          picking:/Phantasmal Illusion —/.test((document.getElementById('hint')||{}).textContent||'') }));
-  ok(untouched.by===1 && untouched.hand===3 && !untouched.picking,
-     'with no edge at all it refuses outright — a bare copy ties, and ties never win (nothing spent, no picker)');
-
-  await fresh();
-  // ---- 2. Equipment lifts the bare copy over the play it copied: NO card spent
-  await stage({name:"Hero's Sword", delta:2}, false); await wait(300);
-  await sel('10D');
-  await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(350);
-  ok(/Confirm to conjure|Confirm to copy/i.test(await hint()), 'with a buff up it offers to conjure WITHOUT a swap ("'+(await hint()).slice(0,60)+'…")');
-  const handBefore=await p.evaluate(()=>window.__solo.st().players[0].hand.length);
+  const c1=await ctx();
+  ok(c1.shown && /Activate/.test(c1.label) && !c1.off, 'holding the Illusion facing a Special shows an ordinary live ⚡ Activate  (label "'+c1.label+'")');
   const castBefore=await p.evaluate(()=>window.__solo.stats().seats[0].eff.D10||0);
-  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
-  const c2r=await conjured();
-  ok(c2r.pile && c2r.pile.phantom===true, 'Confirm with NO card selected conjures the illusion and takes the initiative');
-  ok(c2r.spent, 'the Illusion card is spent');
-  /* …AND THE RECORD COUNTS IT (record-skips-own-transforms): an illusion is cast through `phantasm`, not
-     `activate`, and no path counted it. The engine counts it now; read through the hook the record uses. */
+  ok(await press(), '…and the ⚡ can be pressed');
+  await waitHold(p);
+  let b1=null; for(let i=0;i<40;i++){ b1=await board(); if(b1.copies.length) break; await wait(100); }
+  ok(b1.copies.length===5 && b1.shown===5, 'the tap conjures the whole play into your HAND — five copies, all on screen  ('+b1.copies.length+' in state, '+b1.shown+' drawn)');
+  ok(b1.spent && b1.pileBy===1, 'the Illusion card is spent and the pile is still the Rival\'s — nothing was fought yet');
+  ok(b1.sub==='main' && b1.turn===0, 'you are still in Main on your own turn (sub-phase '+b1.sub+')');
   const castAfter=await p.evaluate(()=>window.__solo.stats().seats[0].eff.D10||0);
-  ok(castAfter-castBefore===1, 'and the record counts your illusion as a cast  ('+castBefore+' → '+castAfter+')');
-  const handAfter=await p.evaluate(()=>window.__solo.st().players[0].hand.length);
-  ok(handAfter===handBefore-1, 'and it is the ONLY card that left your hand — the copies are illusions ('+handBefore+'→'+handAfter+')');
-  ok(c2r.pile && c2r.pile.type==='pair', 'it answered a plain PAIR — the case a mandatory swap could never reach');
+  ok(castAfter-castBefore===1, 'the record counts the cast  ('+castBefore+' → '+castAfter+')');
 
-  await fresh();
-  // ---- 3. Odysseus alone (+1 on the copy), no equipment
-  await stage(null,true); await wait(300);
-  await sel('10D');
-  await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(300);
-  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
-  const c3r=await conjured();
-  ok(c3r.pile && c3r.spent, 'Odysseus alone conjures the illusion at +1 — enough on its own');
+  // ---- 2. a copy carries no effect: selecting one offers no ⚡
+  await sel(b1.copies[0]);
+  const c2=await ctx();
+  ok(!(c2.shown && /Activate/.test(c2.label) && !c2.off), 'a copy\'s effect can\'t be activated — no live ⚡ for it  (label "'+c2.label+'", off '+c2.off+')');
+  const rd=await p.evaluate(()=>((document.getElementById('cardView')||{}).innerText||'').replace(/\s+/g,' ').trim());
+  ok(/Conjured copy/i.test(rd) && /can.t be activated/.test(rd) && /fades/.test(rd), '…and the card reader says so: a conjured copy, no activation, fades  ["'+rd.slice(0,70)+'…"]');
 
-  await fresh();
-  // ---- 4. the swap still works, and still costs exactly the one card
-  await stage(null,false); await wait(300);
-  await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
-    const E=window.CardmenEngine;
-    st.players[0].hand=[mk(10,'D'), mk(9,'D'), mk(3,'H')];
-    const combo=E.detectCombo([mk(8,'H','a'),mk(8,'C','b'),mk(8,'S','c'),mk(9,'H','d'),mk(9,'C','e')]);   // their full house
-    st.pile={ combo:combo, byPlayer:1, raw:combo.value, rawKey0:combo.key[0], lockedDelta:0, mod:0 };
-    st.lastPlayer=1; window.__solo.render();
-  }); await wait(300);
+  // ---- 3. fight with two copied 9s, your own 9♦ and two copied 8s: 999-88 beats their 888-99
+  const nines=await p.evaluate(()=>window.__solo.st().players[0].hand.filter(c=>c.temp && c.rank===9).map(c=>c.id));
+  const eights=await p.evaluate(()=>window.__solo.st().players[0].hand.filter(c=>c.temp && c.rank===8).map(c=>c.id));
+  await selectAndFight(p, nines.concat(['9D'], eights.slice(0,2)));
+  let b3=null; for(let i=0;i<40;i++){ b3=await board(); if(b3.pileBy===0) break; await wait(50); }
+  ok(b3.pileBy===0 && b3.pileType==='fullhouse', 'Fight with the copies and your own 9♦ takes the pile with 999-88  (pile by '+b3.pileBy+', '+b3.pileType+')');
+
+  // ---- 4. facing a jab, the ⚡ greys with the engine's reason (Specials only)
+  await fresh(); await stage([[9,'H']]); await wait(300);
   await sel('10D');
-  await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(300);
-  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="9D"]'); if(c)c.click(); }); await wait(250);
-  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
-  const sw=(await conjured()).pile;
-  ok(sw && sw.type==='fullhouse', 'swapping one card still flips their full house into yours (88899 → 99988)');
-  ok(await p.evaluate(()=>!window.__solo.st().players[0].hand.some(c=>c.id==='9D')), '…and the swapped card is the only real card spent');
+  const c4=await ctx();
+  ok(c4.off && /Special/.test(c4.title), 'facing a jab the ⚡ is greyed: "'+c4.title+'"');
+  ok(!(await press()) && (await board()).copies.length===0, '…and nothing is cast');
+
+  // ---- 5. the Rival counters it: the Illusion copies THEIR play, so the AI's Counter Spell answers it
+  await fresh(); await stage(FH, [[4,'D'],[3,'S']]); await wait(300);
+  await sel('10D'); await press();
+  let b5=null; for(let i=0;i<80;i++){ await waitHold(p); b5=await board(); if(b5.shuffle && !b5.stack) break; await wait(100); }
+  ok(b5.shuffle && b5.copies.length===0, 'the Rival counters an Illusion of its own play: no copies, and the card is in your Shuffle Pile');
+  ok(b5.sub==='main' && b5.turn===0 && b5.pileBy===1, '…and it never resolved, so you never crossed: still Main, still your turn  (sub-phase '+b5.sub+', turn '+b5.turn+')');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

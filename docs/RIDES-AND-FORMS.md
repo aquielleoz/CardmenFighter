@@ -114,7 +114,7 @@ benders, and the **Super keystone**. They landed as two clean mirror pairs:
 | 7 | Forceful Strip | return an Equipment to hand |
 | 8 | Cursed Pendant | Equipment — Rival highest −2 |
 | 9 | Leyline Ascension | **Quick** — can't-lose-round  ⤵ *(recycle moved to Athena)* |
-| 10 | Phantasmal Illusion | copy the Special on the pile at base values; boosts/debuffs apply; MAY swap 1 card |
+| 10 | Phantasmal Illusion | conjure the Special on the pile into your hand at base values, then fight with the copies (v1.35.0; before, a one-card swap into a copy played straight onto the pile) |
 
 - **Ride — J♦ · Giant Owl:** your first effect each turn costs 1 less to activate.
 - **Queen Form — Q♦ · Penelope:**
@@ -124,7 +124,7 @@ benders, and the **Super keystone**. They landed as two clean mirror pairs:
 - **King Form — K♦ · Odysseus:**
   - Infuse with Magic → **+5**
   - Back to the Books → draw **4**
-  - Phantasmal Illusion → the copy is conjured at **+1 value**
+  - Phantasmal Illusion → the copies are conjured at **+1 value** (once per play, however many copies it uses)
 - **Super — Athena** *(supersedes; tune post-build — reads thinner than the other Supers):*
   - Forceful Strip → return an Equipment **or Ride or Form**
   - Leyline Ascension → **Quick** — **recycle + can't-lose-round**

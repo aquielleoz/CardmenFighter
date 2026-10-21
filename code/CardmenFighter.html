@@ -1046,7 +1046,7 @@
   #hint{flex:1; font-size:12.5px; min-height:16px; opacity:.9;}
   #hint.good{color:var(--good);} #hint.bad{color:var(--bad);} #hint.pick{color:var(--pick);}
   #actions button{font:inherit; font-weight:800; font-size:15px; padding:11px 16px; border-radius:11px; border:1px solid var(--line); cursor:pointer; color:var(--txt); background:var(--panel);}
-  #actions button:disabled,#actions button.off{opacity:.38; color:var(--txt); cursor:not-allowed;}   /* clearly grey out unusable actions (Phantasm/Fight when you can't) */
+  #actions button:disabled,#actions button.off{opacity:.38; color:var(--txt); cursor:not-allowed;}   /* clearly grey out unusable actions (Activate/Fight when you can't) */
   #sortBtn{font-size:13px; padding:11px 13px;}
   /* THE PRIMARY ACTION WAS NEVER ACTUALLY GOLD — A SPECIFICITY BUG, NOT A DESIGN CHOICE (v1.31.104).
      `#fightBtn{background:var(--gold)}` sat in this file for a long time and never applied: `#actions button`
@@ -2731,7 +2731,7 @@
     chosen = chosen.slice(0, over);
     var dset = {}; chosen.forEach(function (c) { dset[c.id] = true; });
     pl.hand = pl.hand.filter(function (c) { return !dset[c.id]; });
-    chosen.forEach(function (c) { pl.energy.push(c); });   // discards -> Energy pile (not shuffle)
+    chosen.forEach(function (c) { bankEnergy(pl, c); });   // discards -> Energy pile (not shuffle); a copy vanishes
     return { ok: true, discarded: chosen, over: over };
   }
 
@@ -3049,7 +3049,7 @@
       7: { kind: 'removeEquip', mode: 'hand', name: 'Forceful Strip', type: 'Technique', impl: true, text: "Return Target Equipment to its owner's hand." },
       8: { kind: 'equip', oppDelta: -2, counters: 5, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "At the beginning of each round, remove 1 counter from Cursed Pendant. Your Rivals' highest card each fight has its value reduced by 2." },
       9: { kind: 'reclaim', half: true, immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "Shuffle your Shuffle Pile into your Deck and then put half of your deck into your Energy Pile. You can't lose this round (no shield loss — and at 0 shields, no Fighter Kick either)." },
-      10: { kind: 'phantasm', name: 'Phantasmal Illusion', type: 'Technique', impl: true, text: 'Conjure a copy of the current play at its base values. You MAY swap one copied card for one from your hand. Your boosts and Equipment apply to the illusion; the copied cards vanish after the round.' }
+      10: { kind: 'phantasm', name: 'Phantasmal Illusion', type: 'Technique', impl: true, text: "Conjure a copy of the current play into your hand, at its base values. Fight with the copies this round, alone or with your own cards. Their effects can't be activated, and any left at the round's end fade away." }
     },
     H: { // Cleric — Mid / value
       2: { name: 'Divine Intervention' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
@@ -3149,7 +3149,7 @@
   var BOOSTS = {
     D: {
       queen: { 1: { n: 4, desc: 'Gather 1 more — put the top 4 of your deck into Energy.' }, 4: { counterEquip: true, desc: 'Counter Spell can also counter an Equipment as it is played.' }, 7: { eqMode: 'deckTop', desc: "Forceful Strip puts the target Equipment on TOP of its owner's deck (they must redraw it) instead of into their hand." } },
-      king:  { 5: { boost: 5, desc: 'Boost your next play by 1 more (to +5).' }, 6: { draw: 4, desc: 'Look 1 deeper — top 4, keep 3 (draw 2→3).' }, 10: { phantasmPlus: 1, desc: 'The illusion swells — the copy is conjured at +1 value.' } },
+      king:  { 5: { boost: 5, desc: 'Boost your next play by 1 more (to +5).' }, 6: { draw: 4, desc: 'Look 1 deeper — top 4, keep 3 (draw 2→3).' }, 10: { phantasmPlus: 1, desc: 'The copies are conjured at +1 value.' } },
       super: { 7: { ride: true, form: true, eqMode: 'deckTop', desc: "Forceful Strip puts a stripped Equipment on TOP of its owner's deck, and can also return a Ride OR a Form to its owner's hand." }, 9: { kind: 'reclaim', half: true, immune: true, cantLose: true, desc: 'Also recycle — shuffle your Shuffle Pile into your deck and ramp half of it into Energy.' } }
     },
     H: {
@@ -3275,8 +3275,17 @@
   /* A boosted Counterfeit copy's +value, summed over the copies actually IN this play (v1.31.107). It sits
    * here because this is where every value modifier lives — equipment, the pre-fight boost, Giant Boar — and
    * a play-level delta cannot disturb the shape the cards make. Summed, not maxed: two copies each add. */
+  /* A COUNTERFEIT COPY'S BONUS IS PER CARD, AN ILLUSION'S IS PER PLAY. One Counterfeit makes one copy, so summing is
+     right; one Phantasmal Illusion makes the whole play's worth, and Odysseus's +1 on each of five copies must not make
+     a play at +5. So an `illusion` group counts once, at its largest bonus. */
   function copyBonus(cards) {
-    var d = 0; (cards || []).forEach(function (c) { d += (c.valueBonus || 0); }); return d;
+    var d = 0, ill = {};
+    (cards || []).forEach(function (c) {
+      if (c.illusion != null) { ill[c.illusion] = Math.max(ill[c.illusion] || 0, c.valueBonus || 0); return; }
+      d += (c.valueBonus || 0);
+    });
+    for (var g in ill) d += ill[g];
+    return d;
   }
   function applyEquip(combo, p, st) {
     var d = equipDelta(st, p) + playBoost(st, p) + rideValue(st, p) + copyBonus(combo && combo.cards);
@@ -3318,7 +3327,7 @@
   // (offensive) is deliberately excluded (it only helps you attack, never holds a pile). refreshPile recomputes
   // the live equipment contribution from scratch, so it's correct whether an equipment was just added or removed.
   function refreshPile(st) {
-    if (!st.pile || !st.pile.combo || st.pile.raw == null) return;   // (an Illusion pile carries raw/lockedDelta too, so it tracks the board like any play)
+    if (!st.pile || !st.pile.combo || st.pile.raw == null) return;   // (a play of Illusion or Counterfeit copies is an ordinary play: raw + lockedDelta, so it tracks the board too)
     var totalDelta = (st.pile.lockedDelta || 0) + equipDelta(st, st.pile.byPlayer);
     var c = st.pile.combo;
     c.value = st.pile.raw + totalDelta;
@@ -3358,8 +3367,8 @@
   /* EVERY CAST IS COUNTED HERE, ONCE, AT THE LINE WHERE IT COMMITS (record-skips-own-transforms). The playtest
      record used to count casts in the UI, one call per presentation path, and four paths never did: your own Ride
      or Form, a netplay client's Quick answer, an AI's answer inside another AI's turn, and every Phantasmal
-     Illusion. `activate`, `respond` and `phantasm` are the only ways a card is cast, so the count lives in them
-     and the record reads it. Keyed by the card's BASE effect id, the record's `eff` key. It is an OBJECT, so
+     Illusion. `activate` and `respond` are the only ways a card is cast (the Illusion had a third, `phantasm`, until
+     2026-10-21), so the count lives in them and the record reads it. Keyed by the card's BASE effect id, the record's `eff` key. It is an OBJECT, so
      `netview`'s clonePlayer (scalars plus named fields) keeps it off the mirror. */
   function noteCast(pl, card) { var e = card && effectOf(card); if (!e || !e.id) return; var m = pl.casts || (pl.casts = {}); m[e.id] = (m[e.id] || 0) + 1; }
 
@@ -3437,7 +3446,14 @@
     if (!eff) return { ok: false, reason: 'That card has no effect.' };
     if (!eff.impl) return { ok: false, reason: 'That effect is not available yet.' };
     // Quicks are castable proactively too (they fizzle if there's no valid target — never illegal, §0.4).
-    if (eff.kind === 'phantasm') return { ok: false, reason: 'Phantasmal Illusion is cast during a fight (see phantasm()), not activated.' };
+    /* PHANTASMAL ILLUSION IS AN ORDINARY CAST (Aj, 2026-10-21). It had its own verb, `phantasm`, which put the copy
+       straight on the pile and handed the turn on, with no stack and no window. Now it goes on the stack like any
+       Technique and resolves into copies in your HAND (see its case in `resolveEffectBody`), so it is a Main
+       Sub-Phase move like the rest and is refused in the Fight Sub-Phase above. It is castable whether or not the
+       copies can win (*"allowed as feelbad as that might go, it's just something for the player to learn"*), and
+       it still copies a Special only (*"specials only to reduce the feel bad"*): copying one card is Counterfeit's. */
+    if (eff.kind === 'phantasm' && (!st.pile || st.pile.byPlayer === p)) return { ok: false, reason: "Phantasmal Illusion needs a Rival's current play to copy — cast it while facing an attack." };
+    if (eff.kind === 'phantasm' && st.pile.combo.size < 2) return { ok: false, reason: 'Phantasmal Illusion copies a Special, not a jab.' };
     if (eff.kind === 'counterfeit' && (!st.pile || st.pile.byPlayer === p)) return { ok: false, reason: "Counterfeit needs the Rival's current play to copy — cast it while facing an attack." };
     if (eff.kind === 'removeEquip' && removeTargets(st, p, eff).length === 0) return { ok: false, reason: 'No Equipment or zone card on the board to target.' };
     if (eff.kind === 'transform' && !transformGateOK(st, p, eff.tier)) return { ok: false, reason: 'Transformation requirements not met yet (shield threshold).' };
@@ -3615,7 +3631,11 @@
      `pitchId` is the caster's CHOICE (the UI asks now — Aj: *"it did not let me pick which broadway card"*);
      an absent or illegal one falls back to the lowest, which is what an older peer or the AI still sends. */
   var PITCH_REFUSAL = 'Also requires a Broadway card (10, J, Q, K, or A) in hand to discard.';
-  function pitchCands(pl, cardId) { return pl.hand.filter(function (c) { return c.id !== cardId && BROADWAY[c.rank]; }); }
+  /* A COPY CANNOT PAY THE PITCH (2026-10-21). A `temp` card (a Counterfeit or Phantasmal Illusion copy) is a fight body
+     and nothing else: its effect is null, and as a cost it would let a copied 10/J/Q/K/A stand in for a real card you
+     must give up. It could do that for Counterfeit already; Illusion copies of a straight or a face-card full house
+     would have made it common. */
+  function pitchCands(pl, cardId) { return pl.hand.filter(function (c) { return c.id !== cardId && !c.temp && BROADWAY[c.rank]; }); }
   function pitchFor(pl, cardId, pitchId) {
     var cands = pitchCands(pl, cardId);
     if (!cands.length) return null;
@@ -4225,7 +4245,7 @@
     if (st.players[oppIdx] && (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp'))) st.players[oppIdx].lastAttacker = p;   // grudge signal
     switch (eff.kind) {
       case 'ramp':
-        for (var i = 0; i < eff.n; i++) { var c = drawOne(pl); if (c) pl.energy.push(c); }
+        for (var i = 0; i < eff.n; i++) { var c = drawOne(pl); if (c) bankEnergy(pl, c); }
         spendCard(pl, card); break;
       case 'draw':
         var beforeDraw = {}; pl.hand.forEach(function (c) { beforeDraw[c.id] = true; });
@@ -4354,7 +4374,7 @@
           pl.deck = pl.deck.concat(shuffle(pl.shuffle)); pl.shuffle = [];   // Shuffle Pile back into the deck
           if (eff.reclaimDiscard) { pl.deck = pl.deck.concat(shuffle(pl.removed)); pl.removed = []; }   // Hippolyta: also pull your Exile (used Techniques, destroyed Equipment) back
         }
-        if (eff.half) { var half = Math.floor(pl.deck.length / 2); for (var iH = 0; iH < half; iH++) { var hc = pl.deck.shift(); if (hc) pl.energy.push(hc); } }
+        if (eff.half) { var half = Math.floor(pl.deck.length / 2); for (var iH = 0; iH < half; iH++) { var hc = pl.deck.shift(); if (hc) bankEnergy(pl, hc); } }
         if (eff.draw) drawCards(pl, eff.draw);
         /* WARD_ALL (Aj, 2026-08-26): Leyline protects EVERYONE's shields, not just the caster's. Aimed at the
          * reason loss=all breaks deck balance — Leyline (♦9) is the only shield-protection card in the game, so
@@ -4378,6 +4398,23 @@
           pl.hand = sortHand(pl.hand);
         }
         spendCard(pl, card); break;
+      /* PHANTASMAL ILLUSION: THE WHOLE CURRENT PLAY, CONJURED INTO YOUR HAND (Aj, 2026-10-21: *"the cards are conjured
+         into your hand. the one swap limit seems iffy. let's do a counterfeit"*). Nothing reaches the pile here and the
+         sub-phase does not move: you fight with the copies later, through an ordinary crossing, mixed with your own
+         cards or not at all (*"it just gives you more options"*). They are Counterfeit's kind of card: `temp`, so they
+         carry no effect and fade with the round. One `illusion` group per cast, so `copyBonus` adds Odysseus's +1 once
+         per play however many of the copies it uses. Copied at BASE values: a copy of a copy carries no bonus. */
+      case 'phantasm':
+        var poolPH = (st.pile && st.pile.byPlayer !== p && st.pile.combo.size >= 2) ? st.pile.combo.cards : null;
+        if (poolPH) {
+          st.copySeq = (st.copySeq || 0) + 1; var grpPH = st.copySeq;
+          poolPH.forEach(function (c) {
+            st.copySeq += 1;
+            pl.hand.push({ rank: c.rank, suit: c.suit, id: 'PH' + c.rank + c.suit + '#' + st.copySeq, temp: true, illusion: grpPH, valueBonus: eff.phantasmPlus || 0 });
+          });
+          pl.hand = sortHand(pl.hand);
+        }
+        spendCard(pl, card); break;
       case 'destroyShield':                               // Ultima Attack / Critical Hit: the target already got a response window vs this technique (spring Leyline there); the loss itself no longer opens a second guard window
         hostileTargets(st, p, oppIdx, 'damage', eff).forEach(function (t) {
           (st.losses = st.losses || []).push({ oid: newOid(st), target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true });
@@ -4392,7 +4429,7 @@
          that looks alive in the layer you would read first is the trap CLAUDE.md keeps recording. */
       case 'befuddle':
         var opp2 = st.players[oppIdx];
-        for (var i3 = 0; i3 < (eff.n || 6); i3++) { var bc = drawOne(opp2); if (bc) opp2.energy.push(bc); }
+        for (var i3 = 0; i3 < (eff.n || 6); i3++) { var bc = drawOne(opp2); if (bc) bankEnergy(opp2, bc); }
         spendCard(pl, card); break;
       case 'removeEquip':
         if ((eff.ride || eff.form) && opts.target) {          // REWORK: the target may be a zone Ride/Form
@@ -4497,7 +4534,7 @@
     var chosen = choose(pl.hand, ids, n), dset = {};
     chosen.forEach(function (c) { dset[c.id] = true; });
     pl.hand = pl.hand.filter(function (c) { return !dset[c.id]; });
-    chosen.forEach(function (c) { pl.energy.push(c); });   // discards -> Energy pile (shuffle is only for spent energy)
+    chosen.forEach(function (c) { bankEnergy(pl, c); });   // discards -> Energy pile (shuffle is only for spent energy); a copy vanishes
     return chosen;
   }
   // Complete a deferred discard (st.discardPending): the affected player pitches `count`
@@ -4599,7 +4636,7 @@
     if (!beats(eff, st.pile ? st.pile.combo : null)) return { ok: false, reason: "Doesn't beat the current play." };
     var ids = {}; cards.forEach(function (c) { ids[c.id] = true; });
     pl.hand = pl.hand.filter(function (c) { return !ids[c.id]; });
-    cards.forEach(function (c) { pl.energy.push(c); });                 // fought cards -> energy pile
+    cards.forEach(function (c) { bankEnergy(pl, c); });                 // fought cards -> energy pile; a fought copy vanishes
     // The pile stores the RAW combo plus a `lockedDelta` of the timing-gated boosts frozen at play time:
     // the pre-fight boost (playBoost) + Giant Swan (defensive). Giant Boar (offensive) is excluded — it only
     // helps you BEAT a pile, never hold one. Equipment is NOT frozen here; refreshPile() layers the live
@@ -4706,75 +4743,11 @@
     return { ok: true, state: st };
   }
 
-  /* Phantasmal Illusion: conjure a copy of the current play at its BASE card values, then apply your side of
-   * the board to it. The copied cards are illusions and vanish; only a card you choose to swap in is really
-   * spent. Three things can push the copy past the play it copied, and you need at least one of them — a bare
-   * copy TIES, and ties never win:
-   *   1. your value modifiers (Equipment, pre-fight boost, Giant Boar) — applyEquip, exactly as a real play;
-   *      note a debuff on THEIR play works too, since the pile's own value already carries it;
-   *   2. Odysseus (K♦), which conjures the illusion at +1 (`phantasmPlus`);
-   *   3. an OPTIONAL swap — drop one copied card, add one from your hand.
-   * The swap used to be mandatory, which is what made this card need a straight or full house on the pile to do
-   * anything at all (one swap cannot raise a matched set) — the trigger was so narrow the card was replaced
-   * outright in v1.13. Optional + modifiers is Aj's original design and answers a pair or trio too. */
-  function phantasm(st, p, opts) {
-    opts = opts || {};
-    /* NOR AN ILLUSION, which `activate` has refused on this since 2026-09-14 and this never did: Phantasmal Illusion
-       is a fight action, and conjuring one while a window is open replaced the pile under a stack still being answered. */
-    if (st.respondFor != null) return { ok: false, reason: 'Someone holds priority \u2014 the window has to close first.' };
-    if (st.finished) return { ok: false, reason: 'Game over.' };
-    if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
-    if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
-    if (!st.pile) return { ok: false, reason: 'There is no current play to copy — you have the lead.' };
-    if (st.lastPlayer === p) return { ok: false, reason: 'You already hold the initiative.' };
-    var pl = st.players[p];
-    var pc = pl.hand.filter(function (c) { return c.id === opts.cardId; })[0];
-    if (!pc) return { ok: false, reason: "You don't hold Phantasmal Illusion." };
-    var pe = effectFor(st, p, pc);                     // effectFor: Odysseus (K♦) conjures the illusion at +value
-    if (!pe || pe.kind !== 'phantasm') return { ok: false, reason: 'That is not Phantasmal Illusion.' };
-    if (!canAfford(pl, pc)) return { ok: false, reason: 'Not enough Wizard Energy (need ' + costHint(pc) + ').' };
-    var base = st.pile.combo.cards;
-    if (!base || !base.length) return { ok: false, reason: 'There is nothing on the pile to copy.' };
-    if (st.pile.combo.size < 2) return { ok: false, reason: 'Phantasmal Illusion copies a Special, not a jab.' };   // AI and UI enforce this too
-    var add = (opts.addId != null) ? pl.hand.filter(function (c) { return c.id === opts.addId; })[0] : null;
-    var swapping = !!add;
-    if (opts.addId != null && (!add || add.id === pc.id)) return { ok: false, reason: "You don't hold that card." };
-    if (swapping) {
-      if (opts.removeIdx == null || opts.removeIdx < 0 || opts.removeIdx >= base.length) return { ok: false, reason: 'Choose which copied card to drop.' };
-      if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return { ok: false, reason: 'Keep a card to lead — not enough cards to spend on the illusion.' };
-    }
-    var phantom = [], i;
-    for (i = 0; i < base.length; i++) {
-      if (swapping && i === opts.removeIdx) continue;
-      st.copySeq = (st.copySeq || 0) + 1;
-      phantom.push({ rank: base[i].rank, suit: base[i].suit, id: 'PH' + base[i].rank + base[i].suit + '#' + st.copySeq, temp: true });
-    }
-    var candCards = swapping ? phantom.concat([{ rank: add.rank, suit: add.suit, id: add.id }]) : phantom;
-    var cand = detectCombo(candCards);
-    if (!cand) return { ok: false, reason: 'That swap does not form a legal Special.' };
-    // Your side of the board, exactly as a real play gets it, plus Odysseus's boost to the illusion itself.
-    var plus = (pe.phantasmPlus || 0);
-    var eff = applyEquip(cand, p, st);
-    if (plus) eff = { type: eff.type, size: eff.size, value: eff.value + plus, key: [eff.key[0] + plus].concat(eff.key.slice(1)), cards: eff.cards };
-    if (!beats(eff, st.pile.combo)) {
-      return { ok: false, reason: swapping ? "The illusion doesn't beat the current play."
-                                           : "A bare copy only ties — swap a card in, or add a boost." };
-    }
-    pl.hand = pl.hand.filter(function (c) { return c.id !== pc.id; }); payEnergy(pl, pc); spendCard(pl, pc);   // the Illusion card is spent
-    noteCast(pl, pc);                                         // committed: the illusion is a Technique cast (see noteCast)
-    if (swapping) { pl.hand = pl.hand.filter(function (c) { return c.id !== add.id; }); pl.energy.push(add); } // your one real card is really played
-    /* Stored like any other play so refreshPile() keeps tracking the board: raw base value, plus the deltas
-     * frozen at play time. `phantom` still marks it for the UI and the netplay mirror. */
-    var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan + plus;
-    var phChopped = isChopOf(cand, st.pile ? st.pile.combo : null);   // an Illusion copy can chop too
-    var stored = { type: cand.type, size: cand.size, value: cand.value + lockedDelta, key: [cand.key[0] + lockedDelta].concat(cand.key.slice(1)), cards: candCards };
-    st.pile = { combo: stored, byPlayer: p, raw: cand.value, rawKey0: cand.key[0], lockedDelta: lockedDelta, mod: 0, phantom: true,
-                chopped: phChopped };
-    refreshPile(st);
-    pl.nextPlayBoost = 0;                              // a pre-fight boost is spent by the illusion it powered
-    st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st.subPhase = 'main'; st.toPlay = null; st._effUsed = false;   // the next seat starts in Main, as after `play` — an AI casts this after crossing, and without the reset its Fight Sub-Phase leaked into the next turn
-    return { ok: true, state: st, made: stored.type, value: stored.value, swapped: swapping };
-  }
+  /* `phantasm` WAS HERE AND IS DELETED (2026-10-21). Phantasmal Illusion had its own verb: it conjured the copy
+     straight onto the pile as your play, with an optional one-card swap, and handed the turn on, so no window ever
+     opened on it and a human cast it without crossing into the fight. Aj ruled it a Counterfeit of the whole play: an
+     ordinary `activate` cast that resolves into copies in your hand (its case in `resolveEffectBody`). The swap, the
+     "a bare copy only ties" refusal and the pile `phantom` flag went with it. */
 
   /* THE SINGLE DEFINITION OF "this card can guard a shield loss" (v1.31.112). It was inlined in two places
    * and both had the same two faults, which is exactly why it is one function now — the house rule that
@@ -5111,7 +5084,7 @@
         var lp = st.players[lm];
         var runway = lp.deck.length + lp.shuffle.length;                       // cards it can still draw before decking out
         var mill = Math.min(winSize, Math.max(0, runway - LOSER_MILL_RESERVE));
-        for (var mi = 0; mi < mill; mi++) { var mc = drawOne(lp); if (mc) lp.energy.push(mc); }
+        for (var mi = 0; mi < mill; mi++) { var mc = drawOne(lp); if (mc) bankEnergy(lp, mc); }
         if (mill > 0) { (milledThisRound = milledThisRound || {})[lm] = mill; }
       });
     }
@@ -5267,6 +5240,12 @@
   var RECYCLE_TECH = false;
   function setRecycleTech(v) { RECYCLE_TECH = !!v; }
   function spendCard(pl, card) { (RECYCLE_TECH ? pl.shuffle : pl.removed).push(card); }
+  /* A COPY NEVER BECOMES ENERGY (Aj, 2026-10-21). Fought and discarded cards bank to the Energy pile, and a Counterfeit or
+     Phantasmal Illusion copy (`temp`) used to bank with them, so the five copies of an Illusion you fought with were five
+     extra energy for the rest of the round. Asked, Aj chose *"No, copies vanish"*: a copy that leaves your hand goes
+     nowhere, by every route into the Energy pile — the fight, a forced or hand-limit discard, and the deck paths a
+     shuffled-back copy could take. Your own cards bank exactly as before. */
+  function bankEnergy(pl, c) { if (c && !c.temp) pl.energy.push(c); }
   /* THE DOUBLE-PAIR SLOT IS A MODE, NOT TWO FLAGS (Aj, 2026-08-27). Non-consecutive "two pair" is a SUPERSET of
    * a 2-kit — 4♦4♥5♣5♠ satisfies both, at the same size — so as independent toggles they could never beat each
    * other (`beats` needs equal type) and a play would be ambiguously classified. One mode removes that outright:
@@ -5422,7 +5401,8 @@
      * completing a set. Aj, from real play, holding two 7s: *"it's a 7 and it should be able to pair up with a
      * 7"*, and the rule he states is the game's: **base printed values decide what Specials a card belongs to;
      * modifiers apply on top of the pile.** The bonus moved to `copyBonus`, alongside every other modifier.
-     * Phantasmal Illusion already copied "at base values" — Counterfeit was the lone violation. */
+     * Phantasmal Illusion already copied "at base values" — Counterfeit was the lone violation. (Since 2026-10-21 the
+     * Illusion's copies go into your hand like Counterfeit's, and Odysseus's +1 rides `copyBonus` the same way.) */
     return v;
   }
   // Energy to activate a card's effect. J/Q/K cost a flat 10 to transform into the zone; Ace keeps cost 1;
@@ -5535,7 +5515,7 @@
     /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
        immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
        is what `pushUpkeepTicks` does once the round reset is complete. */
-    temps: function (st) {                                           // Counterfeit copies are illusions: any temp card still around fades at round's end
+    temps: function (st) {                                           // Counterfeit and Phantasmal Illusion copies: any temp card still around fades at round's end (the UI calls this early, as E.fadeTemps, before its trim)
       st.players.forEach(function (pl) {
         var real = function (c) { return !c.temp; };
         pl.hand = pl.hand.filter(real); pl.energy = pl.energy.filter(real);
@@ -5718,7 +5698,7 @@
     makeDeck: makeDeck, shuffle: shuffle, sortHand: sortHand,
     detectCombo: detectCombo, beats: beats, detectStraight: detectStraight,
     enumerateCombos: enumerateCombos, legalFightPlays: legalFightPlays, combinations: combinations,
-    newGame: newGame, play: play, pass: pass, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
+    newGame: newGame, play: play, pass: pass, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     setDamageSpan: setDamageSpan, isDamageSpan: isDamageSpan,
@@ -5759,6 +5739,7 @@
     isPartsKey: isPartsKey, buildFromParts: buildFromParts, presetParts: presetParts,
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
+    fadeTemps: CLEANUP_EVENTS.temps,   // the round-end fade, callable early: the UI trims before its Clean-up drain, so it fades the copies first or they count toward the hand limit
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
@@ -5828,40 +5809,25 @@
     });
   }
 
-  /* Phantasmal Illusion: copy the current play at its base values and see whether anything we have pushes the
-   * copy past it — our Equipment/boosts (applyEquip, the same call the engine makes), Odysseus's +1, or an
-   * OPTIONAL one-card swap. Try the free options FIRST: a bare copy that already beats costs no card at all.
-   * The swap used to be mandatory here and in the engine, which is why this only ever fired against a straight
-   * or a full house — one swap cannot raise a matched set — and therefore effectively never. */
-  function phantasmValue(st, p, cards, plus) {
-    var cand = E.detectCombo(cards); if (!cand) return null;
-    var eff = E.applyEquip ? E.applyEquip(cand, p, st) : cand;
-    if (plus) eff = { type: eff.type, size: eff.size, value: eff.value + plus, key: [eff.key[0] + plus].concat(eff.key.slice(1)), cards: eff.cards };
-    return eff;
-  }
-  function tryPhantasm(st, p) {
-    if (!st.pile || st.lastPlayer === p || st.pile.combo.size < 2) return null;
+  /* PHANTASMAL ILLUSION: CAST IT WHEN THE COPIES WOULD WIN THE FIGHT YOU CANNOT WIN NOW (Aj, 2026-10-21: *"they should
+   * try to beat your play when they cast it"*). Since that day the card conjures the whole current play into your
+   * hand, so the question is the same one Counterfeit asks: with the copies added, is there a play that beats the
+   * pile? The copies are conjured HYPOTHETICALLY, exactly as the engine's resolution makes them (`temp`, one
+   * `illusion` group, Odysseus's `valueBonus`), and the hand is put back, so `legalFightPlays` judges them with the
+   * real modifiers, `copyBonus` included. The Illusion card itself is spent, so the play must stand without it.
+   * This replaces `tryPhantasm`, which searched one-card swaps for the old verb. "Cast as today" (*"the paranoia is
+   * too much for that special case"*) is the gate: it fired only when the AI had no winning play, so this does too. */
+  function illusionHelps(st, p, ilCard) {
     var pl = st.players[p];
-    var pc = pl.hand.filter(function (c) { var ef = E.effectOf(c); return ef && ef.impl && ef.kind === 'phantasm' && E.canAfford(pl, c); })[0];
-    if (!pc) return null;
-    var pp = E.effectFor ? (E.effectFor(st, p, pc).phantasmPlus || 0) : 0;                    // Odysseus: +value on the illusion
-    var base = st.pile.combo.cards, i, h, ri;
-    var plain = [];
-    for (i = 0; i < base.length; i++) plain.push({ rank: base[i].rank, suit: base[i].suit });
-    var bare = phantasmValue(st, p, plain, pp);                                               // free: no card spent
-    if (bare && E.beats(bare, st.pile.combo)) return { cardId: pc.id };
-    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return null;    // a swap needs a card to spare
-    for (ri = 0; ri < base.length; ri++) {
-      for (h = 0; h < pl.hand.length; h++) {
-        var add = pl.hand[h];
-        if (add.id === pc.id) continue;
-        var phantom = [];
-        for (i = 0; i < base.length; i++) if (i !== ri) phantom.push({ rank: base[i].rank, suit: base[i].suit });
-        var cand = phantasmValue(st, p, phantom.concat([{ rank: add.rank, suit: add.suit }]), pp);
-        if (cand && E.beats(cand, st.pile.combo)) return { cardId: pc.id, removeIdx: ri, addId: add.id };
-      }
-    }
-    return null;
+    if (!st.pile || st.pile.byPlayer === p || st.pile.combo.size < 2) return false;
+    if (E.legalFightPlays(st, p).length) return false;                 // already winning this fight — the Illusion adds nothing
+    var plus = (E.effectFor(st, p, ilCard) || {}).phantasmPlus || 0;   // Odysseus: the copies are conjured at +1
+    var copies = st.pile.combo.cards.map(function (c, i) { return { rank: c.rank, suit: c.suit, id: 'ilAI#' + i, temp: true, illusion: -1, valueBonus: plus }; });
+    var kept = pl.hand;
+    pl.hand = kept.filter(function (c) { return c.id !== ilCard.id; }).concat(copies);
+    var wins = E.legalFightPlays(st, p).length > 0;
+    pl.hand = kept;
+    return wins;
   }
 
   // Would a +boost let some play in hand beat the current pile that an unboosted one can't?
@@ -6392,7 +6358,11 @@
        * The 166-per-1200 cases this suppresses are NOT all mistakes: two thirds are a J/Q/K going into the
        * Forms zone, which is a fair price for a round. That is precisely why it is a demon-only personality
        * rather than a fix — see the entry before deciding it belongs at every tier. */
-      if (!pl.nextPlayBoost && !isTop(diff)) return true;
+      /* AN ILLUSION COMMITS THE TURN THE SAME WAY A BANKED BOOST DOES: it was cast only because its copies win this
+       * fight (`illusionHelps`), and they fade with the round, so a later activation that spends a card the winning
+       * play needs throws the cast away. */
+      var conjured = pl.hand.some(function (x) { return x.temp && x.illusion != null; });
+      if (!pl.nextPlayBoost && !conjured && !isTop(diff)) return true;
       if (!st.pile || E.legalFightPlays(st, p).length === 0) return true;  // no fight on offer, so nothing to protect — without this the demon refuses EVERY activation on a turn it cannot contest
       /* `effectFor`, NOT the `effectOf` the caller already has: `wheel` exists ONLY as Ares's SUPER override of
        * rank 8, so the base effect never carries it and the refusal below silently never fired. Same trap that
@@ -6545,6 +6515,10 @@
        * counterfeitHelps has already proved the resulting play beats the pile without the spent card. */
       var cf = pick(function (ef) { return ef.kind === 'counterfeit'; });
       if (cf && !basic && st.pile && st.pile.byPlayer !== p && st.round >= 2 && counterfeitHelps(st, p, st.pile.combo.cards, cf) && act(st, p, cf.id, log, 'COPY', humans)) continue;   // copy a card from the Rival's play to complete a winning Special
+      /* NOT gated on `basic`: the recruit cast the old Illusion too (`takeTurn` tried it at every tier but minion, which
+       * never reaches here), and the ruling was to cast it as today. */
+      var il = pick(function (ef) { return ef.kind === 'phantasm'; });
+      if (il && illusionHelps(st, p, il) && act(st, p, il.id, log, 'ILLUSION', humans)) continue;   // conjure the Rival's whole play into hand when the copies win the fight
       var dis = pick(function (ef) { return ef.kind === 'discardOpp'; }, true);
       if (dis && !basic && anyOpp(st, p, function (o) { return o.hand.length >= 5; }) && act(st, p, dis.id, log, 'DISCARD', humans)) continue;     // strip a Rival's hand
       var den = pick(function (ef) { return ef.kind === 'energyDenyOpp'; }, true);
@@ -6695,7 +6669,11 @@
       if (immuneQ) { if (ownCast) heldBack = true; else if (elsewhere) heldAimed = true; else { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; } }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
-    var threat = !!THREAT_KIND[eff.kind] && !(eff.kind === 'removeEquip' && qp.equipment.length === 0);
+    /* AN ILLUSION IS A THREAT ONLY WHEN IT COPIES OUR PLAY (Aj, 2026-10-21: *"the ai should only counter when you're
+       trying to beat their play"*). Its copies exist to beat the pile, so the seat that owns the pile is the one it
+       is aimed at. It stays in BENIGN_KIND, the table for everyone else, and this is its one conditional. */
+    var threat = (!!THREAT_KIND[eff.kind] && !(eff.kind === 'removeEquip' && qp.equipment.length === 0)) ||
+                 (eff.kind === 'phantasm' && !!st.pile && st.pile.byPlayer === q);
     if (threat) {
       var cs = bestQuick('counter');
       if (cs) { if (ownCast) heldBack = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
@@ -6941,14 +6919,8 @@
     if (mv.action === 'pass') {
       // (Brilliant Tactic is now a technique-speed pre-fight boost — handled proactively in
       // playPhase via pickValueBoost, no reactive overtake here.)
-      // Phantasmal Illusion: warp a Special we can't otherwise beat (a straight) into a higher one.
-      if (diff !== 'minion') {
-        var ph = tryPhantasm(st, p);
-        if (ph) {
-          var rp = E.phantasm(st, p, ph);
-          if (rp.ok) { log.push({ phantasm: rp.made, value: rp.value }); return log; }
-        }
-      }
+      // (Phantasmal Illusion used to be cast HERE, after crossing, through its own verb. It is an ordinary Main cast
+      // since 2026-10-21 — see `illusionHelps` and its line in `playPhase` — so by now its copies are in hand.)
       var pr = E.pass(st, p);
       if (!pr.ok) throw new Error('AI illegal pass: ' + pr.reason);
       log.push({ fight: 'pass', result: pr });
@@ -7129,7 +7101,7 @@ window.CardFace = {};
     var n = st.numPlayers;
     function rot(i) { return (typeof i === 'number' && i >= 0) ? ((i - seat + n) % n) : i; }
     var players = []; for (var i = 0; i < n; i++) players[rot(i)] = clonePlayer(st.players[i], i === seat, 'p' + i, rot);
-    function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, phantom: !!p.phantom, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
+    function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
     /* SAME TREATMENT for the stack. The blanket copy carried `eff` and `opts` by reference — `opts.target`
        is an ABSOLUTE seat (engine.js effectTarget reads it) reaching a client whose own seat is 0, and
        `passed` is a map keyed by absolute seat. `eff` is static card data so it is safe to pass through,
@@ -7559,7 +7531,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.34.6';
+  var GAME_VERSION='v1.35.0';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9087,8 +9059,8 @@ window.CardFace = {};
   function resetStats(){ stats={seats:[]}; for(var si=0; si<6; si++) stats.seats[si]=blankStat(); gameStartTs=Date.now(); lastEndType=null; }
   function statOf(pl){ return (stats && stats.seats && typeof pl==='number') ? stats.seats[pl] : null; }
   function bumpFight(pl, type){ var s=statOf(pl); if(!s) return; if(type==='single') s.jabs++; else s.specials++; }
-  /* CASTS ARE COUNTED BY THE ENGINE (record-skips-own-transforms): `noteCast` runs in `activate`, `respond` and
-   * `phantasm` as each cast commits. They used to be tallied here, by a `bumpEffect` call on each presentation
+  /* CASTS ARE COUNTED BY THE ENGINE (record-skips-own-transforms): `noteCast` runs in `activate` and `respond`
+   * as each cast commits (and in `phantasm`, the Illusion's own verb, until 2026-10-21). They used to be tallied here, by a `bumpEffect` call on each presentation
    * path, and four paths never made one (your own Ride or Form, a netplay client's Quick answer, an AI's answer
    * inside another AI's turn, every Phantasmal Illusion). So `techniques` and `eff` are READ from the game state
    * wherever the record or a debug hook needs them, and never accumulated in `stats`. */
@@ -9732,6 +9704,14 @@ window.CardFace = {};
   function cardTextHTML(card){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
     var name=cardSym(card);
+    /* A CONJURED COPY SAYS SO (2026-10-21, Aj: *"let's make it clear that you can't activate the effect of the conjured
+       cards"*). Counterfeit and Phantasmal Illusion copies are `temp`, so `effectOf` is null for them and they read as an
+       ordinary "Plain fight card": true, and silent on the two things that matter, that it is a copy and that it fades. */
+    if(card && card.temp){
+      return '<div class="cvName">'+name+'</div>'+
+        '<div class="cvType">Conjured copy</div>'+
+        '<div class="cvBody">A copy from the pile — fight with it this round, alone or with your own cards. Its effect can’t be activated, and it fades away at the round’s end. Fight value '+E.fightValue(card)+'.</div>';
+    }
     if(eff && eff.kind==='transform' && state && state.basics){          // BASICS: J/Q/K don't transform — describe them as plain high cards (keep the flavour name)
       var bnm=(E.cardName&&E.cardName(card))||eff.name;
       return '<div class="cvName">'+name+(bnm?' · '+bnm:'')+'</div>'+
@@ -10493,12 +10473,12 @@ window.CardFace = {};
 
   // An effect is activatable if it's your turn, the selected card carries a proactive effect you
   // can afford, and its target/timing conditions are met. Selecting ONE such card reveals Activate.
-  // Is this card an effect card that gets an Activate button at all? (Quick boosts and
-  // Phantasm have their own buttons and never use Activate.) This decides whether the button SHOWS.
+  // Is this card an effect card that gets an Activate button at all? This decides whether the button SHOWS.
+  // (Phantasmal Illusion had its own Phantasm button until 2026-10-21; it is an ordinary activation now.)
   function activatableCard(card){
     if(!card || state.turn!==YOU || state.finished || busy || castHolding() || pick || targeting || targetPick) return false;
     var eff=E.effectOf(card);
-    if(!eff || !eff.impl || eff.kind==='phantasm') return false;   // quicks are proactively castable now (fizzle if no target)
+    if(!eff || !eff.impl) return false;   // quicks are proactively castable now (fizzle if no target)
     if(eff.kind==='transform' && state && state.basics) return false;                       // BASICS: J/Q/K are plain high cards — no ⚡ transform
     return true;
   }
@@ -10534,6 +10514,8 @@ window.CardFace = {};
     }
     if(eff.kind==='removeEquip' && (E.removeTargets?E.removeTargets(state, YOU, eff):E.equipTargets(state, YOU)).length===0) return 'No Equipment or zone card to target.';
     if(eff.kind==='counterfeit' && (!state.pile || state.pile.byPlayer===YOU)) return 'No Rival play to copy right now.';
+    if(eff.kind==='phantasm' && (!state.pile || state.pile.byPlayer===YOU)) return 'No Rival play to copy right now.';   // the engine's two refusals, so the ⚡ greys with the same reason
+    if(eff.kind==='phantasm' && state.pile.combo.size<2) return 'Phantasmal Illusion copies a Special — not a jab.';
     /* A SHIELD-LOSS TECHNIQUE WITH NOTHING TO DESTROY (v1.31.120). Critical Hit ♠9 and Ultima Attack ♣10 both
        read "Target Rival loses 1 shield."; against a table where no rival HAS one, the ⚡ was fully lit and the
        cast burned the energy AND the Broadway pitch for nothing. Refusing is the fix; making it KILL is not —
@@ -10814,7 +10796,7 @@ window.CardFace = {};
   function castNeedsChoice(card){
     if(answerRecordLive()) return !!(card && answerChoiceFor(card));   // answering asks the box's questions, not Main's
     var eff=card?E.effectOf(card):null; if(!eff) return false;
-    if(eff.kind==='removeEquip' || eff.kind==='counterfeit' || eff.kind==='phantasm') return true;
+    if(eff.kind==='removeEquip' || eff.kind==='counterfeit') return true;   // (an Illusion has nothing to choose since 2026-10-21, so it casts on the tap)
     if(isHostileSingular(eff)) return true;
     return !!(eff.pitchHigh && E.pitchCands(state.players[YOU], card.id).length>1);
   }
@@ -10831,7 +10813,7 @@ window.CardFace = {};
     var id=staged.cardId; staged=null;
     if(targeting && targeting.cardId===id) targeting=null;
     if(targetPick && targetPick.cardId===id) targetPick=null;
-    if(pick && pick.cardId===id && (pick.kind==='pitch' || pick.kind==='phantasm')) pick=null;
+    if(pick && pick.cardId===id && pick.kind==='pitch') pick=null;
     if(selected[id]) selected={};
     setMessage('Taken back — nothing was spent.');
     render();
@@ -10845,7 +10827,7 @@ window.CardFace = {};
        picker resolves or is cancelled, because `stagedHeld` answers that on every render. Ruling 11 is unchanged:
        a card with nothing to choose still casts on the tap and never reaches this column. */
     if(!staged){ var held=(targeting && targeting.cardId) || (targetPick && targetPick.cardId)
-                      || (pick && (pick.kind==='pitch' || pick.kind==='phantasm') && pick.cardId) || null;
+                      || (pick && pick.kind==='pitch' && pick.cardId) || null;
       if(held!=null) staged={ cardId:held, answer:answerPickerOpen() }; }
     if(staged && !stagedHeld()) staged=null;
     var card=staged ? cardById(staged.cardId) : null;
@@ -10858,8 +10840,7 @@ window.CardFace = {};
         /* ONCE THE CHOICE IS MADE THE NOTE SAYS WHAT WAS CHOSEN — an instruction left standing after it is done is a
            small lie, and the key above repaints on the pick. */
         var copySrc = (targeting && targeting.copy && targeting.chosen!=null && state.pile) ? state.pile.combo.cards.filter(function(x){ return x.id===targeting.chosen; })[0] : null;
-        var choosing = copySrc ? 'Copies the '+cardSym(copySrc) : picked ? 'Target picked' : (targeting && targeting.copy) ? 'Choose the card to copy' : (targeting && targeting.counter) ? 'Choose what to counter' : (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch'
-                     : (pick && pick.kind==='phantasm') ? 'Shape the copy' : '';
+        var choosing = copySrc ? 'Copies the '+cardSym(copySrc) : picked ? 'Target picked' : (targeting && targeting.copy) ? 'Choose the card to copy' : (targeting && targeting.counter) ? 'Choose what to counter' : (targeting || targetPick) ? 'Choose its target' : (pick && pick.kind==='pitch') ? 'Choose the card to pitch' : '';
         if(choosing){ var note=document.createElement('div'); note.className='stgNote'; note.textContent=choosing; slot.appendChild(note); }
         /* ⚡ AND ✕, SIDE BY SIDE UNDER THE CARD (Aj, 2026-10-14: *"can we add a lightning bolt near the card … i'd like
            another beside the take back. we can reduce the take back to an X button probably"*). The ⚡ is NOT a second
@@ -11304,7 +11285,7 @@ window.CardFace = {};
     return E.beats(eff, state.pile?state.pile.combo:null) ? combo : null;
   }
 
-  // The single context-aware action for the current selection: Activate (default) or Phantasm.
+  // The single context-aware action for the current selection: Activate, or the confirm for a staged target.
   /* TAKES THE CARDS, so the DRAG HOVER can ask the same question the RELEASE will answer (2026-09-11).
      The drop zone used to call `canHumanPlay` — the PLAY test — while a release in the Main Sub-Phase
      ACTIVATES, so it lit green for a 9♦ Leyline the player could not afford: a legal jab shape, an
@@ -11337,11 +11318,6 @@ window.CardFace = {};
       return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:(targeting.copy ? 'Tap the card on the pile you want to copy, then press ⚡ Activate.' : 'Tap the card you want to remove, then press ⚡ Activate.'), run:null};
     if(sel.length===1){
       var eff=E.effectOf(sel[0]);
-      if(eff && eff.kind==='phantasm'){
-        var pi=phantInfo();
-        if(pi && pi.show) return {mode:'phantasm', label:'Phantasm', ok:!!pi.ok, reason:pi.reason||'', run:doPhantasm};
-        return {mode:'phantasm', label:'Phantasm', ok:false, reason:'Phantasmal warps a Special on the pile — there isn’t one.', run:null};
-      }
       if(activatableCard(sel[0])){
         var card=sel[0], block=activateBlock(card);
         var tgt=effNeedsTarget(E.effectOf(card));   // targeting effects: the button chooses a target first; energy is only spent once one is picked
@@ -11371,9 +11347,9 @@ window.CardFace = {};
   /* THE ICON IS A PROPERTY OF THE LABEL, NOT OF THE BUTTON (v1.31.104). On a narrow phone the action row
    * collapses to symbols to buy back a line of height. The obvious build — a static `::before` per button id,
    * the way the header's 💡 Hints does it — is WRONG HERE, because three of these four buttons rewrite their own
-   * label: Fight becomes **Confirm** during a pick, Pass becomes **Cancel** (phantasm) or **Skip** (nothing on
-   * the pile), and the context button carries four (⚡ Activate / 🎯 Pick a target / 🎯 Choose target /
-   * Phantasm). A fixed icon would show ⚔ on a button that says Confirm — the v1.31.74 failure exactly, a
+   * label: Fight becomes **Confirm** during a pick, Pass becomes **Cancel** (the Broadway pitch) or **Skip** (nothing on
+   * the pile), and the context button carries three (⚡ Activate / 🎯 Pick a target / 🎯 Choose target; a fourth,
+   * Phantasm, went with the Illusion's own verb on 2026-10-21). A fixed icon would show ⚔ on a button that says Confirm — the v1.31.74 failure exactly, a
    * control whose appearance and behaviour disagree.
    * So one map, one setter, and every label goes through it. `Cancel` is ↩ and NOT ✕ on purpose: Clear is ✕ and
    * sits beside it in that very state, and two identical glyphs one gap apart is worse than no icon at all. */
@@ -11384,7 +11360,7 @@ window.CardFace = {};
    * stays text presentation, where it is a clean monochrome bar that inherits `color` and greys out with the
    * button. Do not "fix" the inconsistency — look at it first. */
   var ACTION_ICONS={ 'Fight':'⚔️', 'Confirm':'✓', 'Pass':'⏭', 'Skip':'⏭', 'Cancel':'↩', 'Clear':'✕',
-                     '⚡ Activate':'⚡', '🎯 Pick a target':'🎯', '🎯 Choose target':'🎯', 'Phantasm':'🌀' };
+                     '⚡ Activate':'⚡', '🎯 Pick a target':'🎯', '🎯 Choose target':'🎯' };
   /* Sets BOTH, always. The text stays in the DOM at every width — `font-size:0` hides it, so the accessible name
    * and every suite that reads `textContent` are untouched, and the row re-expands to words on a wider screen
    * with no JS involved. An unmapped label falls back to itself rather than rendering an empty button. */
@@ -11402,8 +11378,8 @@ window.CardFace = {};
       sort.style.display=(pick.kind==='handlimit'||pick.kind==='discard')?'':'none';
       var n=Object.keys(pick.chosen).length;
       setActionLabel(fight,'Confirm'); fight.classList.add('confirm');
-      fight.disabled=(pick.kind==='phantasm' && pick.bare) ? (n>pick.need) : (n!==pick.need);   // a bare illusion needs no card
-      if(pick.kind==='phantasm' || pick.kind==='pitch'){ pass.style.display=''; pass.disabled=false; setActionLabel(pass,'Cancel'); }   // optional casts can be backed out of
+      fight.disabled=(n!==pick.need);
+      if(pick.kind==='pitch'){ pass.style.display=''; pass.disabled=false; setActionLabel(pass,'Cancel'); }   // an optional cast can be backed out of
       else pass.style.display='none';            // discards & hand-limit are mandatory — no cancel
       clear.style.display='';
       hint.className='pick';
@@ -11413,10 +11389,6 @@ window.CardFace = {};
         ? 'Choose '+pick.need+' card'+(pick.need>1?'s':'')+' to send to your Energy Pile — keep your Specials! ('+n+'/'+pick.need+' picked).'
         : pick.kind==='pitch'
         ? pick.name+' — choose 1 Broadway card to discard as its extra cost ('+n+'/1 picked).'
-        : pick.kind==='phantasm'
-        ? (pick.bare
-            ? 'Phantasmal Illusion — Confirm to copy the '+kindLabel(state.pile.combo.type)+' as it is, or add 1 card to reshape it ('+n+'/1 optional).'
-            : 'Phantasmal Illusion — choose 1 card to complete a higher Special over the '+kindLabel(state.pile.combo.type)+' ('+n+'/1 picked).')
         : 'Choose 1 card to put on top of your deck ('+n+'/1 picked).');
       return;
     }
@@ -11619,12 +11591,11 @@ window.CardFace = {};
     function apArmed(){ return +((state.players[YOU]||{}).finishingBlow) || 0; }
     var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(apArmed()?' 🛡‍💥 Armor Piercing armed (next win strips +'+apArmed()+')':'');
     var sel=selectedCards();
-    // ONE context-aware button: Activate by default, Phantasm for the Phantasmal card
+    // ONE context-aware button: Activate, or the confirm for a staged target
     var ctx=ctxAction();
     ctxBtn.style.display=''; ctxBtn.disabled=false; setActionLabel(ctxBtn, ctx.label);
     ctxBtn.classList.toggle('off', !ctx.ok);   // usable = normal button, unusable = greyed (no extra highlight)
-    ctxBtn.title = ctx.ok ? (ctx.mode==='phantasm' ? 'Copy the Special on the pile'
-                            : "Activate this card's effect") : ctx.reason;
+    ctxBtn.title = ctx.ok ? "Activate this card's effect" : ctx.reason;
     var actCard=activatableCardSelected();               // the single selected effect card (may not be usable yet)
     var actBlock=actCard?activateBlock(actCard):null;      // reason it can't fire right now, or null
     if(actCard){
@@ -11690,9 +11661,7 @@ window.CardFace = {};
   function confirmPick(){
     if(!pick) return;
     var ids=Object.keys(pick.chosen);
-    // Phantasmal Illusion's swap is OPTIONAL when a bare copy already beats — 0 cards is a legal confirm there.
-    var optional=(pick.kind==='phantasm' && pick.bare);
-    if(optional ? (ids.length>pick.need) : (ids.length!==pick.need)) return;
+    if(ids.length!==pick.need) return;
     if(pick.kind==='pitch' && pick.answer){                                // the pitch for a cast in ANSWER — back to the answer, never to Main's `activate`
       var apo=pick.opts||{}; apo.pitch=ids[0]; var apc=pick.cardId; pick=null;
       return answerCast(apc, apo);
@@ -11700,30 +11669,6 @@ window.CardFace = {};
     if(pick.kind==='pitch'){                                               // the Broadway pitch — re-enter the cast with the choice
       var po=pick.opts||{}; po.pitch=ids[0]; var pcid=pick.cardId; pick=null; selected={};
       return activate(pcid, po);
-    }
-    if(pick.kind==='phantasm'){                                            // Phantasmal Illusion — the swap is optional
-      var warped=kindLabel(state.pile.combo.type), opts={ cardId:pick.cardId };
-      if(ids.length){
-        var addCard=cardById(ids[0]);
-        var ri=phantasmSolve(addCard, pick.cardId);
-        if(ri<0){ setMessage('That card won’t complete a higher Special — choose another.'); pick.chosen={}; render(); return; }
-        opts.removeIdx=ri; opts.addId=ids[0];
-      }
-      /* A CLIENT SENDS AN INTENT. This branch called `E.phantasm(state, YOU, opts)` unguarded, so on a client
-       * the illusion ran the LOCAL engine, mutated the mirror and was wiped by the next broadcast — the host
-       * never heard about it. Fourth site of the drag-to-play class (v1.31.56). The host re-solves the swap
-       * from `addId` alone rather than trusting an index a client computed. */
-      if(isNetClient()){
-        NET.clientSend({op:'phantasm', cardId:pick.cardId, addId:(ids.length?ids[0]:null)});
-        pick=null; selected={}; busy=true; render(); return;
-      }
-      var r=E.phantasm(state, YOU, opts);
-      if(!r.ok){ setMessage(r.reason); pick.chosen={}; render(); return; }
-      pick=null; selected={};
-      setMessage('🎭 You warped the '+warped+' into a higher <b>'+kindLabel(r.made)+'</b> — you take the initiative.');
-      say(YOU, '{who} conjured a Phantasmal Illusion — a '+kindLabel(r.made)+' overtakes the pile.', 'you');
-      render();
-      return afterHumanAction();
     }
     if(pick.kind==='handlimit'){                                            // hand cap (end of round, or end of a play turn)
       var hsyms=ids.map(function(id){var c=cardById(id); return c?cardSym(c):null;}).filter(Boolean);
@@ -11765,8 +11710,7 @@ window.CardFace = {};
     render();
   }
   function cancelPick(){
-    // Phantasmal Illusion is optional — allow backing out. Discards / hand-limit / top stay mandatory.
-    if(pick && pick.kind==='phantasm'){ pick=null; selected={}; setMessage('Phantasmal cancelled.'); render(); return true; }
+    // The Broadway pitch is optional — allow backing out. Discards / hand-limit / top stay mandatory.
     if(pick && pick.kind==='pitch'){ var pn=pick.name; pick=null; selected={}; setMessage('<b>'+pn+'</b> cancelled — nothing spent.'); render(); return true; }
   }
   function cardById(id){ return state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; }
@@ -12222,61 +12166,10 @@ window.CardFace = {};
     });
   }
 
-  // PHANTASMAL ILLUSION (fight action): is it available, and can it beat the current play?
-  function phantInfo(){
-    if(state.turn!==YOU || !state.pile || state.finished || busy || castHolding()) return null;
-    var you=state.players[YOU];
-    var pc=you.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.kind==='phantasm'; })[0];
-    if(!pc) return null;                                              // no button unless you hold it
-    if(state.pile.combo.size<2) return { show:true, ok:false, reason:'Phantasmal Illusion copies a Special — not a jab.' };
-    if(!E.canAfford(you, pc)) return { show:true, ok:false, reason:'Not enough ♦ energy to cast Phantasmal Illusion.' };
-    if(you.hand.length-2<1 && (you.deck.length+you.shuffle.length)===0) return { show:true, ok:false, reason:'Keep a card to lead — not enough cards to spend on the illusion.' };
-    // v1.31.6: the swap is OPTIONAL. A bare copy takes the play's base values and then your boosts, Equipment
-    // and Odysseus's +1 apply — so it can already beat without spending a card. Only fall back to the swap search.
-    var bare=phantasmBare(pc.id);
-    var solvable=bare || you.hand.some(function(c){ return c.id!==pc.id && phantasmSolve(c, pc.id)>=0; });
-    if(!solvable) return { show:true, ok:false, reason:'A bare copy only ties, and no card in your hand completes a higher Special over this play.' };
-    return { show:true, ok:true, cardId:pc.id, bare:!!bare };
-  }
-  // Would a copy with NO swap already beat? Same math the engine runs: base values + applyEquip + Odysseus.
-  function phantasmBare(phantId){
-    var base=state.pile.combo.cards, plain=[];
-    for(var i=0;i<base.length;i++) plain.push({rank:base[i].rank, suit:base[i].suit});
-    var cand=E.detectCombo(plain); if(!cand) return false;
-    var phCard=state.players[YOU].hand.filter(function(c){return c.id===phantId;})[0];
-    var pp=(phCard && E.effectFor)?(E.effectFor(state, YOU, phCard).phantasmPlus||0):0;
-    var eff=E.applyEquip?E.applyEquip(cand, YOU, state):cand;
-    if(pp) eff={type:eff.type,size:eff.size,value:eff.value+pp,key:[eff.key[0]+pp].concat(eff.key.slice(1)),cards:eff.cards};
-    return E.beats(eff, state.pile.combo);
-  }
-  // find the remove-index that lets `addCard` form a higher Special over the current pile.
-  function phantasmSolve(addCard, phantId){ return phantasmSolveFor(state, YOU, addCard, phantId); }
-  /* SEAT-AWARE, because the host has to re-solve a CLIENT's illusion. The client sends only which card it is
-   * adding; the host works out which pile card it replaces, exactly as `resolveIds` re-resolves card ids rather
-   * than trusting them. A client is untrusted, so an index it computed is not evidence of anything. */
-  function phantasmSolveFor(st, seat, addCard, phantId){
-    var base=st.pile.combo.cards;
-    var phCard=st.players[seat].hand.filter(function(c){return c.id===phantId;})[0];
-    var pp=(phCard && E.effectFor)?(E.effectFor(st, seat, phCard).phantasmPlus||0):0;   // Odysseus: +value on the illusion
-    for(var ri=0; ri<base.length; ri++){
-      var phantom=[]; for(var i=0;i<base.length;i++){ if(i!==ri) phantom.push({rank:base[i].rank,suit:base[i].suit}); }
-      var cand=E.detectCombo(phantom.concat([{rank:addCard.rank,suit:addCard.suit}]));
-      if(cand && E.applyEquip) cand=E.applyEquip(cand, seat, st);        // that seat's Equipment/boosts reach the illusion
-      if(cand && pp) cand={type:cand.type,size:cand.size,value:cand.value+pp,key:[cand.key[0]+pp].concat(cand.key.slice(1)),cards:cand.cards};
-      if(cand && E.beats(cand, st.pile.combo)) return ri;
-    }
-    return -1;
-  }
-  function doPhantasm(e){
-    if(answerRecordLive() || busy||castHolding()||pick||targeting||targetPick||ceremonyBlocks()) return;   // nor Phantasmal Illusion
-    var info=phantInfo(); if(!info) return;
-    if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
-    pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId, bare:!!info.bare };   // the swap is OPTIONAL
-    selected={};
-    setMessage(info.bare ? 'Your illusion already beats this play — Confirm to conjure it, or add one card first.'
-                         : 'Choose one card from your hand to add to the illusion — it must complete a higher Special.');
-    render();
-  }
+  /* PHANTASMAL ILLUSION'S OWN BUTTON WAS HERE (`phantInfo`, `phantasmBare`, `phantasmSolve`, `phantasmSolveFor`, `doPhantasm`)
+     AND IS DELETED (2026-10-21). It picked an optional one-card swap and called the engine's `phantasm` verb, and the host
+     re-solved a client's swap through `phantasmSolveFor`. Aj ruled the card a Counterfeit of the whole play: an ordinary
+     activation that puts the copies in your hand, with nothing to choose, so it casts like any other card. */
   // End of your turn: if you're over the hand cap, discard down before the Rival acts.
   // Single chokepoint for "hand control to the opponent seat(s)". Netplay-host overrides this to await the
   // remote player's move from the wire instead of running the local AI; single-player behaviour is unchanged.
@@ -12724,6 +12617,12 @@ window.CardFace = {};
        and this one has already cost five dead hypotheses; the note carries the round the closure was
        QUEUED for against the round the board is on now, which is the pair that identifies the stale
        caller. Same shape as `⚠ DOUBLE RESOLUTION BLOCKED`. */
+    /* THE COPIES FADE BEFORE ANYONE IS COUNTED OVER THE LIMIT (2026-10-21). Counterfeit and Phantasmal Illusion copies
+       fade at the round's end, in the `temps` clean-up event, and this trim runs BEFORE the ceremony's boundary drain,
+       which is where that event lands whenever someone could still act at Clean-up. So an unplayed copy counted toward
+       your hand limit, and you could pitch it to energy, depending on who held a Quick. Fading here makes the order the
+       headless one (`finishUpkeep` trims after the clean-up events), and the later event finds nothing left to do. */
+    E.fadeTemps(state);
     var g=gen, queue=[], fired=false, queuedRound=(state&&state.round);
     function done(){
       if(fired){
@@ -13080,7 +12979,6 @@ window.CardFace = {};
            recorded 6 and 12). */
         else if(e.fight==='play'){ bumpFight(seat, e.combo&&e.combo.type);   // opponents' fights were never counted — see recordGame
         beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
-        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.phantasm)+' overtakes the pile.', 'rival');   /* `e.phantasm`, NOT `e.made`: ai.js logs the SHAPE in `phantasm`, so `made` printed "a Special undefined" (phantasm-beat-reads-wrong-field) */ setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
         /* ⚠ A FORCED DISCARD NAMES THE TARGET, NOT THE CASTER (Aj, 2026-09-30: *"i did not discard any
@@ -13823,7 +13721,7 @@ window.CardFace = {};
     cont = cont || function(){ resumeRival(g); };
     var rec=answering; answering=null;                           // the answer record is consumed once (piece 2) — and given back if the cast is refused
     /* THE CHOSEN TARGET TRAVELS AS AN OID, and the host re-validates it against its OWN stack — same rule as
-       `resolveIds` and `phantasmSolveFor`: a client sends its CHOICE, never its solution. An oid is the
+       `resolveIds` (and the deleted `phantasmSolveFor`): a client sends its CHOICE, never its solution. An oid is the
        host's own identifier for the object, so unlike a stack INDEX it cannot be rotated or stale-shifted. */
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lastAnswer={ g:g, cont:cont, prioGen:(state && state.prioGen)||0 }; prioNote('  → you CAST ' + quickLabelFor(quickId) + ' — sent to the host'); hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null, pitch:pitch||null, target:(target==null?null:target)}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
@@ -17226,12 +17124,12 @@ window.CardFace = {};
     // ---------- HOST authority ----------
     /* ONE DEFINITION, and it lives here. A byte-identical twin sat 190 lines down among the lobby helpers
      * until v1.31.72 — two declarations of the same name in one scope, so the later one silently won. Harmless
-     * only because they never drifted, which is exactly the bet `isChopOf` and `phantasmSolveFor` refuse to
+     * only because they never drifted, which is exactly the bet `isChopOf` refuses to
      * make. Everything the host resolves from an untrusted client's ids comes through here. */
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
     // ---------- messages ----------
-    var CEREMONY_REFUSE={ play:1, pass:1, activate:1, phantasm:1 };   // board ops refused while the host's ceremony is on screen — see the move dispatch
+    var CEREMONY_REFUSE={ play:1, pass:1, activate:1 };   // board ops refused while the host's ceremony is on screen — see the move dispatch
     function onMsg(m, srcChan){
       if(!m) return;
       if(isHost()){
@@ -17355,7 +17253,7 @@ window.CardFace = {};
              is untouched, and its re-apply runs straight into the driver once the window has closed, never through here.
              `activate` is the engine's to refuse (it does, and says why). Re-asserted, not just broadcast: the refusal
              clears the guest's send-time lock, and an unchanged board would otherwise be de-duped away, leaving it live. */
-          if(sseat!=null && hostState && !hostState.finished && hostState.respondFor!=null && m.intent && (m.intent.op==='play' || m.intent.op==='pass' || m.intent.op==='phantasm')){
+          if(sseat!=null && hostState && !hostState.finished && hostState.respondFor!=null && m.intent && (m.intent.op==='play' || m.intent.op==='pass')){
             trace('move REFUSED — a window is open', 'seat '+sseat+' op='+m.intent.op+' respondFor='+hostState.respondFor+' prioGen='+(hostState.prioGen||0));
             sendTo(sseat, {t:'refused', why:'Hold on — someone is still deciding. Nothing was played.'});
             reassertMirror(); return;
@@ -17924,30 +17822,6 @@ window.CardFace = {};
       trace('held answer DROPPED — the window was granted again', 'seat '+ha.seat+' held '+ha.pg+', now '+(hostState.prioGen||0));
       return false;
     }
-    /* ONE DEFINITION, called by both host drivers. The duel handler and the N-player one differed only in the
-     * seat and the continuation they run afterwards, and two near-identical blocks 400 lines apart drift — the
-     * same reason `isChopOf` and `phantasmSolveFor` each have exactly one definition. Returns true when the
-     * illusion was APPLIED, so a refusal does not advance the game.
-     * The client sends which card it is adding and nothing else; the host re-solves which pile card that
-     * replaces, because an index computed by an untrusted client is not evidence. */
-    function hostPhantasmIntent(seat, it){
-      var phId=(resolveIds(seat,[it.cardId])[0]||{}).id;
-      if(!phId || !hostState.pile){ sendTo(seat,{t:'err',seat:seat,reason:'Nothing to warp.'}); broadcastMirror(); return false; }
-      var phOpts={ cardId:phId };
-      if(it.addId){
-        var addC=resolveIds(seat,[it.addId])[0];
-        if(!addC){ sendTo(seat,{t:'err',seat:seat,reason:'You do not hold that card.'}); broadcastMirror(); return false; }
-        var ri=phantasmSolveFor(hostState, seat, addC, phId);
-        if(ri<0){ sendTo(seat,{t:'err',seat:seat,reason:'That card will not complete a higher Special.'}); broadcastMirror(); return false; }
-        phOpts.removeIdx=ri; phOpts.addId=addC.id;
-      }
-      var phr=E.phantasm(hostState, seat, phOpts);
-      if(!phr || phr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:(phr&&phr.reason)||'Illegal illusion.'}); broadcastMirror(); return false; }
-      say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(phr.made)+' overtakes the pile.', 'rival');
-      render(); broadcastMirror();
-      return true;
-    }
-
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
       // (no counter to bump here any more: `mirrorSeq` advances when a mirror's CONTENT changes, and
@@ -17999,8 +17873,6 @@ window.CardFace = {};
         var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
       // ---- turn actions ----
-      /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
-      if(it.op==='phantasm'){ return hostPhantasmIntent(1, it) ? (hostAfterOwnCast?hostAfterOwnCast():undefined) : undefined; }
       if(it.op==='activate'){
         var acard=resolveIds(1,[it.id])[0];
         try{ r=E.activate(hostState, 1, it.id, { target:(it.target!=null?it.target:YOU), copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch }); }
@@ -18441,8 +18313,6 @@ window.CardFace = {};
       }
       var r;
       try{
-        /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
-        if(it.op==='phantasm'){ return hostPhantasmIntent(seat, it) ? (driveN?driveN():undefined) : undefined; }
         if(it.op==='activate'){
           var ac=resolveIds(seat,[it.id])[0];
           var tgt=(it.target!=null)?((it.target+seat)%n):undefined;   // un-rotate the client's (rotated) target back to the absolute seat

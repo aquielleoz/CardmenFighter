@@ -188,6 +188,9 @@ The three earlier asks this answers:
     1, which keeps today's engine behaviour and only routes the drop to the column; it is filed with the Illusion
     sub-phase leak in `main`'s BACKLOG (`illusion-leaks-fight-subphase`), since the code it touches is unchanged
     by the epic.
+    **⚠ SUPERSEDED IN PART, 2026-10-21 (v1.35.0).** The stack half stands; the crossing half does not. Aj ruled the
+    card a Counterfeit of the whole play: it resolves in Main into copies in your hand, and you cross the ordinary
+    way. See [`DECISIONS.md#phantasmal-illusion`](DECISIONS.md#phantasmal-illusion).
 13. **A staged card carries ⚡ and ✕ side by side** (2026-10-14, after playing step 1): *"can we add a lightning
     bolt near the card. i know the description box already has a lightning bolt but i'd like another beside the
     take back. we can reduce the take back to an X button probably"*. Built in #421: the column's ⚡ runs the

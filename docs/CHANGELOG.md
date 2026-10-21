@@ -15,6 +15,47 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.35.0 — Phantasmal Illusion conjures the play into your hand
+
+A rules change to one card, so the minor number moves: a v1.35 build and a v1.34 build refuse each other online
+rather than playing two different Illusions.
+
+**What you'll see:**
+- **Phantasmal Illusion (♦10) is an ordinary ⚡ cast.** Select it facing a Rival's Special and press ⚡ Activate. It
+  goes on the stack like any Technique, so a Rival can answer it, and when it resolves the whole play on the pile
+  appears **in your hand** as copies. There is no separate "Phantasm" button and no swap picker any more.
+- **You fight with the copies like any cards**, alone or mixed with your own. The old card let you swap in exactly
+  one card; now a full house of their 8-8-8-9-9 plus your own 9♦ can become 9-9-9-8-8 the ordinary way.
+- **You can change your mind.** Copies you don't use fade at the round's end, and they no longer count toward your
+  hand limit when the round ends.
+- **A copy is a copy.** The card reader calls it a "Conjured copy". Its effect can't be activated, it can't pay a
+  Broadway pitch, and it **never becomes energy**: a copy you fight with or discard simply vanishes (this now applies
+  to Counterfeit's copy too, which used to bank).
+- **It can be answered.** Counter Spell counters it (it goes to your Shuffle Pile and you stay in Main); Back Stab
+  locks you out, so the Illusion is spent and you never fight with its copies.
+- **The AI casts it in its own Main**, under the same conditions as before: only when it has no winning play and the
+  copies give it one. It counters your Illusion only when it copies the AI's own play.
+- **Odysseus** now reads "The copies are conjured at +1 value", and the +1 counts once per play, however many copies
+  you use.
+
+**Why:** Aj ruled it on 2026-10-14 and 2026-10-21; the rulings, in his words, are in
+[`DECISIONS.md#phantasmal-illusion`](DECISIONS.md#phantasmal-illusion). The engine's own `phantasm` verb (copy straight
+onto the pile, optional one-card swap, turn handed on, no window) is deleted, and the card goes through `activate` and
+resolves in `resolveEffectBody` beside Counterfeit. The template's Phantasm button, swap picker and the host's
+re-solve of a client's swap (`phantasmSolveFor`, `op:'phantasm'`) went with it.
+
+**Found while building it, and fixed:**
+- **A Counterfeit copy of a Broadway card could pay the Broadway pitch.** `pitchCands` filtered only by rank. Found
+  by reading, not in a game; Illusion copies of a face-card play would have made it common.
+- **The UI's round-end trim ran before copies faded** whenever someone could still act at Clean-up, so an unplayed
+  copy counted toward your hand limit. `E.fadeTemps` runs first now.
+
+**Tests:** `test.js` 730 → 748: the cast and its copies, fighting with them, a dead cast still allowed, the jab /
+own-play / Fight Sub-Phase refusals, the per-play +1, no pitch, the fade, copies never banking, Counter Spell and
+Back Stab answering the cast, and the AI casting and countering; four of those were mutation-tested. `phantasmtest`
+is rewritten for the new card (13 → 14), `nettest_phantasm` checks a client's cast goes through the host, and
+`oppbeatstest` and `phonetest` each swapped one leg that leaned on the old Phantasm button.
+
 ### v1.34.6 — a lesson's Next no longer skips the step's setup
 
 **What you'll see:** almost nothing in normal play. In the Form Changes and Rides lessons, pressing "Show me ▸" on

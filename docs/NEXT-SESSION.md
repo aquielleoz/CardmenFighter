@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**730**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**748**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.34.6.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.35.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.34.6**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.35.0**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -136,62 +136,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   **11 / 14 / 20 / 31** at 2 / 3 / 4 / 6 players. Thinning does not move them, so it is not the lever, but
   any length change moves how many times a deck cycles, so re-run it alongside one.
   `[id: game-length-scales-player]`
-
-- `ready to build`      · **PHANTASMAL ILLUSION BECOMES A COUNTERFEIT OF THE WHOLE PLAY: CAST ON THE STACK IN MAIN, IT
-  CONJURES THE COPIES INTO YOUR HAND, AND YOU FIGHT WITH THEM LIKE ANY CARDS.** Ruled by Aj in two sittings.
-  **2026-10-14** (asked which drop zone takes the card): *"fully activating the phastasmal illusion puts the effect
-  on the stack. it's a copy+fight as you mentioned. an opponent can still try to backstab you at that point. and
-  since we resolve in lifo, back stab effectively cancels the fight part of the phantasmal illusion."* That ruling
-  also had the Illusion's resolution cause the crossing into Fight. **2026-10-21 overturned that half**, walked
-  through as a duel (the Rival leads 8-8-8-9-9; you hold the Illusion and a 9♦; the Rival has a King, so Back Stab
-  is a Quick):
-  - **The copy goes into your hand, and the swap goes.** *"yes the cards are conjured into your hand. the one swap
-    limit seems iffy. let's do a counterfeit"*. The Illusion resolves in **Main** and conjures nothing onto the
-    pile; you cross the ordinary way, by pressing Fight with the cards you pick, copies and your own mixed freely.
-    Aj's reason for separating them: *"so that there is no confusion between reacting to the spell being cast and
-    then reacting as subphases change"*. So the cast gets its own go-round, the crossing stays an ordinary
-    crossing (AUTO stops a Back Stab holder there, as on any turn), and a countered Illusion leaves you in Main.
-  - **You may change your mind.** *"it just gives you more options. and then the cards expire out of your hand if
-    you don't use them."* Unplayed copies fade at the round's end, like Counterfeit's.
-  - **Back Stab in answer to the cast:** the Illusion still resolves and is **spent** (card to the Exile, energy
-    gone); you are locked, so you never fight with the copies. Your own cards never leave your hand.
-  - **Castable even when the copies can't win** (*"allowed as feelbad as that might go, it's just something for the
-    player to learn"*), so the engine's "doesn't beat the current play" refusal goes. **Specials only**, as today
-    (*"to reduce the feel bad"*): copying one card is Counterfeit's job.
-  - **The copies' effects can't be activated** (*"let's make it clear that you can't activate the effect of the
-    conjured cards"*). The engine already does this for every `temp` card (`effectOf` returns null); the card text
-    must say it.
-  - **AI:** it casts its own Illusion under the same conditions as today, but in its own Main (*"just make it cast as
-    today. the paranoia is too much"*), and only when the copies plus its hand can beat your play (*"they should try
-    to beat your play when they cast it"*). It counters a rival's Illusion **only when it copies the AI's own play**
-    (*"only counter when you're trying to beat their play"*). Back Stab needs nothing new: the crossing is ordinary.
-  **Draft card text** (Aj to confirm the wording): *"Conjure a copy of the current play into your hand, at its base
-  values. Fight with the copies this round, alone or with your own cards. Their effects can't be activated, and any
-  left at the round's end fade away."* Odysseus: *"The copies are conjured at +1 value."*
-  **BUILD CHECKLIST**, from reading the code on 2026-10-21:
-  - `engine.js`: `phantasm` becomes an ordinary stack cast in Main (refused in the Fight Sub-Phase like any
-    Technique), resolving to `temp` copies in hand (Counterfeit's `pl.hand.push({… temp: true})` shape, `'PH'` ids).
-    It no longer touches the pile or the turn, so the v1.34.5 "Illusion hand-off" legs in `test.js` lose their
-    subject: the hand-off now happens in `play`. Rewrite them, don't delete them silently.
-  - **The +1 is per PLAY, not per copy.** `copyBonus` SUMS `valueBonus` over the cards played, so +1 on each of five
-    copies would be +5. Read [`DECISIONS.md#value-modifiers`](DECISIONS.md#value-modifiers) first: a modifier that
-    changes a card's value changes its identity.
-  - **A copy must not pay the Broadway pitch.** `pitchCands` filters only by rank, so today a Counterfeit copy of a
-    10/J/Q/K/A can pay Critical Hit's, Ultima Attack's or Armor Piercing's extra cost. Found by reading, not seen in
-    a game; Illusion copies of a straight or a face-card full house would make it common. Filter `temp`.
-  - **Fade the copies before the end-of-round trim**, so unplayed ones never count toward the hand limit (`temps` is
-    last in `CLEANUP_ORDER`; check where the trim runs relative to it).
-  - `ai.js`: `tryPhantasm` moves before `moveToPlay` and casts only when `legalFightPlays` on the hand-plus-copies
-    has a play that beats the pile; `chooseMove` then plays it. The counter rule needs `phantasm` treated as a threat
-    only when `st.pile.byPlayer` is the AI (today it is in neither `THREAT_KIND` nor the counter logic).
-  - Template: `doPhantasm`'s swap picker goes, so the cast has no choice to make and `phantasmSolveFor` (the
-    host re-solving a client's swap) can be deleted. **`grep -n 'phantasmSolveFor:phantasmSolveFor'`** in the export
-    literals after deleting it. A dropped Illusion already routes to the cast column.
-  - Card text in `engine.js`, then `node gen-cardlist.js`. Suites: `test.js`' Phantasm blocks (several legs invert,
-    e.g. "a bare copy only ties, so it is refused"), `phantasmtest`, `nettest_phantasm`, and new legs: cast on the
-    stack, Counter Spell answer (still in Main, card to the Shuffle Pile), Back Stab answer (copies conjured, caster
-    locked and auto-passed, card in the Exile), copies have no effect, can't pay a pitch, fade at the round's end.
-  `[id: illusion-on-the-stack]`
 
 - `ready to build`      · **SIX FUNCTIONS IN THE TEMPLATE THAT NOTHING CALLS: `activateSelected`, `cancelTargetPick`,
   `isAISeat`, `isLocalSeat`, `livingOpps`, `seatLabel`.** Found 2026-10-19 by drag-and-stack step 7's dead-code

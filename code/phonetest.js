@@ -152,21 +152,22 @@ const actionRow = p => p.evaluate(()=>{
        — Sort reports STATE, so its compact form keeps the word. The hand above is sorted to Pairs by now. */
     const sortBtn = ar.bs.filter(x=>x.id==='sortBtn')[0];
     ok(/Pairs/.test(sortBtn.icon), `  → Sort still reports its state when compact ("${sortBtn.icon}")`);
-    /* — and the context button carries four labels. 10♦ is Phantasmal Illusion, which labels it "Phantasm" on
-         BOTH branches of ctxAction, so it needs no pile staged. A static ⚡ would survive this; the map cannot. */
-    await stage(p, [[10,'D'],[4,'H'],[6,'S'],[13,'C']]); await wait(250);
+    /* — and the context button carries three labels. 8♠ is Counterfeit, a targeting effect, so it labels the button
+         "🎯 Choose target" with no pile staged (`effNeedsTarget`). A static ⚡ would survive this; the map cannot.
+         (This used 10♦ and its "Phantasm" label until that button went, 2026-10-21.) */
+    await stage(p, [[8,'S'],[4,'H'],[6,'S'],[13,'C']]); await wait(250);
     await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>
       el.querySelector('.card[data-id="g0"]'))[0]; if(g) g.click(); }); await wait(300);
     const ctxB = (await actionRow(p)).bs.filter(x=>x.id==='ctxBtn')[0];
-    ok(ctxB && ctxB.text==='Phantasm' && ctxB.icon==='🌀',
-       `  → the symbol follows the label, not the button (Phantasm → "${ctxB?ctxB.icon:'—'}")`);
+    ok(ctxB && ctxB.text==='🎯 Choose target' && ctxB.icon==='🎯',
+       `  → the symbol follows the label, not the button (🎯 Choose target → "${ctxB?ctxB.icon:'—'}")`);
 
     /* ---- ENABLED MUST NOT LOOK LIKE DISABLED ---- (v1.31.104)
        Aj: *"the fight button is all grey and the change from inactive to active is very subtle"*. The cause was
        not missing CSS — `#fightBtn{background:var(--gold)}` had been in the file all along and LOST TO
        `#actions button` ON SPECIFICITY, (0,1,0,0) against (0,1,0,1). So assert the COMPUTED background of a real
        enabled button: reading the stylesheet, or checking the rule exists, passes on the broken build.
-       A card is selected right now (the phantasm click above), so Fight is live in round 1. */
+       A card is selected right now (the Counterfeit click above), so Fight is live in round 1. */
     const paint = () => p.evaluate(()=>{
       const gold=getComputedStyle(document.documentElement).getPropertyValue('--gold').trim();
       const px=h=>{const m=h.replace('#','');return 'rgb('+[0,2,4].map(i=>parseInt(m.substr(i,2),16)).join(', ')+')';};

@@ -194,6 +194,39 @@ exception. The bonus is a play-level delta now (`copyBonus`), in both `applyEqui
 Giant Boar does exactly that, but it is a Ride, not a 1-10 effect card (Aj, 2026-09-07). If one is ever added,
 it belongs in `applyEquip` and **not** in `lockedDelta` — Boar is the worked example.
 
+## Phantasmal Illusion is a Counterfeit of the whole play (Aj, 2026-10-21) <a id="phantasmal-illusion"></a>
+
+**Settled in two sittings, shipped in v1.35.0.** Recorded here so the old design is not rebuilt and the new one is not
+re-argued. The card: *"Conjure a copy of the current play into your hand, at its base values. Fight with the copies this
+round, alone or with your own cards. Their effects can't be activated, and any left at the round's end fade away."*
+
+**What it was.** Its own verb, `phantasm`: it put the copy straight onto the pile as your play, with an optional one-card
+swap, and handed the turn on. No stack object, no window, and a human cast it from Main without crossing into the fight.
+
+**The rulings, in Aj's words, and what each one replaced:**
+
+| ruling | in Aj's words | replaced |
+| --- | --- | --- |
+| it goes on the stack | *"fully activating the phastasmal illusion puts the effect on the stack … an opponent can still try to backstab you at that point"* (2026-10-14) | a cast nobody could answer |
+| the copies go into your hand | *"the cards are conjured into your hand. the one swap limit seems iffy. let's do a counterfeit"* | the copy as your play, with a one-card swap |
+| the cast and the crossing are separate | *"so that there is no confusion between reacting to the spell being cast and then reacting as subphases change"* | the 10-14 half where resolving it caused the crossing |
+| you may change your mind | *"it just gives you more options. and then the cards expire out of your hand if you don't use them"* | — |
+| a Back Stab'd Illusion is spent | (picked: card to the Exile, energy gone, your own cards stay in hand) | — |
+| castable when the copies can't win | *"allowed as feelbad as that might go, it's just something for the player to learn"* | "a bare copy only ties" refusal |
+| Specials only | *"specials only to reduce the feel bad"* — copying one card is Counterfeit's job | — |
+| the copies have no effect | *"let's make it clear that you can't activate the effect of the conjured cards"* | — |
+| copies never become energy | *"No, copies vanish"* — asked because fought cards bank, so five fought copies were five energy for the round | Counterfeit's copy banked too; it no longer does |
+| the AI casts as today | *"just make it cast as today. the paranoia is too much for that special case"*, and *"they should try to beat your play when they cast it"* | casting after crossing |
+| the AI counters only its own | *"the ai should only counter when you're trying to beat their play"* | no AI ever countered an Illusion |
+
+**Two consequences that follow from these and are not separate rulings.** A countered Illusion never resolves, so you are
+still in Main and can fight normally. And the crossing after an Illusion is an ordinary one, so on AUTO a Back Stab holder
+is stopped there as on any turn (`stakeFor`'s `prefight` branch), which the 10-14 design would have needed special-casing
+to keep.
+
+**THE ODYSSEUS +1 IS PER PLAY.** `copyBonus` sums `valueBonus` over the cards played, which is right for Counterfeit's one
+copy and would make five Illusion copies a play at +5. An Illusion's copies share an `illusion` group, counted once.
+
 ## Shapes we deliberately did not build
 
 *Moved out of the handoff header on 2026-08-31. Both were settled by reading the source rules, and both are the

@@ -43,40 +43,25 @@
     });
   }
 
-  /* Phantasmal Illusion: copy the current play at its base values and see whether anything we have pushes the
-   * copy past it — our Equipment/boosts (applyEquip, the same call the engine makes), Odysseus's +1, or an
-   * OPTIONAL one-card swap. Try the free options FIRST: a bare copy that already beats costs no card at all.
-   * The swap used to be mandatory here and in the engine, which is why this only ever fired against a straight
-   * or a full house — one swap cannot raise a matched set — and therefore effectively never. */
-  function phantasmValue(st, p, cards, plus) {
-    var cand = E.detectCombo(cards); if (!cand) return null;
-    var eff = E.applyEquip ? E.applyEquip(cand, p, st) : cand;
-    if (plus) eff = { type: eff.type, size: eff.size, value: eff.value + plus, key: [eff.key[0] + plus].concat(eff.key.slice(1)), cards: eff.cards };
-    return eff;
-  }
-  function tryPhantasm(st, p) {
-    if (!st.pile || st.lastPlayer === p || st.pile.combo.size < 2) return null;
+  /* PHANTASMAL ILLUSION: CAST IT WHEN THE COPIES WOULD WIN THE FIGHT YOU CANNOT WIN NOW (Aj, 2026-10-21: *"they should
+   * try to beat your play when they cast it"*). Since that day the card conjures the whole current play into your
+   * hand, so the question is the same one Counterfeit asks: with the copies added, is there a play that beats the
+   * pile? The copies are conjured HYPOTHETICALLY, exactly as the engine's resolution makes them (`temp`, one
+   * `illusion` group, Odysseus's `valueBonus`), and the hand is put back, so `legalFightPlays` judges them with the
+   * real modifiers, `copyBonus` included. The Illusion card itself is spent, so the play must stand without it.
+   * This replaces `tryPhantasm`, which searched one-card swaps for the old verb. "Cast as today" (*"the paranoia is
+   * too much for that special case"*) is the gate: it fired only when the AI had no winning play, so this does too. */
+  function illusionHelps(st, p, ilCard) {
     var pl = st.players[p];
-    var pc = pl.hand.filter(function (c) { var ef = E.effectOf(c); return ef && ef.impl && ef.kind === 'phantasm' && E.canAfford(pl, c); })[0];
-    if (!pc) return null;
-    var pp = E.effectFor ? (E.effectFor(st, p, pc).phantasmPlus || 0) : 0;                    // Odysseus: +value on the illusion
-    var base = st.pile.combo.cards, i, h, ri;
-    var plain = [];
-    for (i = 0; i < base.length; i++) plain.push({ rank: base[i].rank, suit: base[i].suit });
-    var bare = phantasmValue(st, p, plain, pp);                                               // free: no card spent
-    if (bare && E.beats(bare, st.pile.combo)) return { cardId: pc.id };
-    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return null;    // a swap needs a card to spare
-    for (ri = 0; ri < base.length; ri++) {
-      for (h = 0; h < pl.hand.length; h++) {
-        var add = pl.hand[h];
-        if (add.id === pc.id) continue;
-        var phantom = [];
-        for (i = 0; i < base.length; i++) if (i !== ri) phantom.push({ rank: base[i].rank, suit: base[i].suit });
-        var cand = phantasmValue(st, p, phantom.concat([{ rank: add.rank, suit: add.suit }]), pp);
-        if (cand && E.beats(cand, st.pile.combo)) return { cardId: pc.id, removeIdx: ri, addId: add.id };
-      }
-    }
-    return null;
+    if (!st.pile || st.pile.byPlayer === p || st.pile.combo.size < 2) return false;
+    if (E.legalFightPlays(st, p).length) return false;                 // already winning this fight — the Illusion adds nothing
+    var plus = (E.effectFor(st, p, ilCard) || {}).phantasmPlus || 0;   // Odysseus: the copies are conjured at +1
+    var copies = st.pile.combo.cards.map(function (c, i) { return { rank: c.rank, suit: c.suit, id: 'ilAI#' + i, temp: true, illusion: -1, valueBonus: plus }; });
+    var kept = pl.hand;
+    pl.hand = kept.filter(function (c) { return c.id !== ilCard.id; }).concat(copies);
+    var wins = E.legalFightPlays(st, p).length > 0;
+    pl.hand = kept;
+    return wins;
   }
 
   // Would a +boost let some play in hand beat the current pile that an unboosted one can't?
@@ -607,7 +592,11 @@
        * The 166-per-1200 cases this suppresses are NOT all mistakes: two thirds are a J/Q/K going into the
        * Forms zone, which is a fair price for a round. That is precisely why it is a demon-only personality
        * rather than a fix — see the entry before deciding it belongs at every tier. */
-      if (!pl.nextPlayBoost && !isTop(diff)) return true;
+      /* AN ILLUSION COMMITS THE TURN THE SAME WAY A BANKED BOOST DOES: it was cast only because its copies win this
+       * fight (`illusionHelps`), and they fade with the round, so a later activation that spends a card the winning
+       * play needs throws the cast away. */
+      var conjured = pl.hand.some(function (x) { return x.temp && x.illusion != null; });
+      if (!pl.nextPlayBoost && !conjured && !isTop(diff)) return true;
       if (!st.pile || E.legalFightPlays(st, p).length === 0) return true;  // no fight on offer, so nothing to protect — without this the demon refuses EVERY activation on a turn it cannot contest
       /* `effectFor`, NOT the `effectOf` the caller already has: `wheel` exists ONLY as Ares's SUPER override of
        * rank 8, so the base effect never carries it and the refusal below silently never fired. Same trap that
@@ -760,6 +749,10 @@
        * counterfeitHelps has already proved the resulting play beats the pile without the spent card. */
       var cf = pick(function (ef) { return ef.kind === 'counterfeit'; });
       if (cf && !basic && st.pile && st.pile.byPlayer !== p && st.round >= 2 && counterfeitHelps(st, p, st.pile.combo.cards, cf) && act(st, p, cf.id, log, 'COPY', humans)) continue;   // copy a card from the Rival's play to complete a winning Special
+      /* NOT gated on `basic`: the recruit cast the old Illusion too (`takeTurn` tried it at every tier but minion, which
+       * never reaches here), and the ruling was to cast it as today. */
+      var il = pick(function (ef) { return ef.kind === 'phantasm'; });
+      if (il && illusionHelps(st, p, il) && act(st, p, il.id, log, 'ILLUSION', humans)) continue;   // conjure the Rival's whole play into hand when the copies win the fight
       var dis = pick(function (ef) { return ef.kind === 'discardOpp'; }, true);
       if (dis && !basic && anyOpp(st, p, function (o) { return o.hand.length >= 5; }) && act(st, p, dis.id, log, 'DISCARD', humans)) continue;     // strip a Rival's hand
       var den = pick(function (ef) { return ef.kind === 'energyDenyOpp'; }, true);
@@ -910,7 +903,11 @@
       if (immuneQ) { if (ownCast) heldBack = true; else if (elsewhere) heldAimed = true; else { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; } }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
-    var threat = !!THREAT_KIND[eff.kind] && !(eff.kind === 'removeEquip' && qp.equipment.length === 0);
+    /* AN ILLUSION IS A THREAT ONLY WHEN IT COPIES OUR PLAY (Aj, 2026-10-21: *"the ai should only counter when you're
+       trying to beat their play"*). Its copies exist to beat the pile, so the seat that owns the pile is the one it
+       is aimed at. It stays in BENIGN_KIND, the table for everyone else, and this is its one conditional. */
+    var threat = (!!THREAT_KIND[eff.kind] && !(eff.kind === 'removeEquip' && qp.equipment.length === 0)) ||
+                 (eff.kind === 'phantasm' && !!st.pile && st.pile.byPlayer === q);
     if (threat) {
       var cs = bestQuick('counter');
       if (cs) { if (ownCast) heldBack = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
@@ -1156,14 +1153,8 @@
     if (mv.action === 'pass') {
       // (Brilliant Tactic is now a technique-speed pre-fight boost — handled proactively in
       // playPhase via pickValueBoost, no reactive overtake here.)
-      // Phantasmal Illusion: warp a Special we can't otherwise beat (a straight) into a higher one.
-      if (diff !== 'minion') {
-        var ph = tryPhantasm(st, p);
-        if (ph) {
-          var rp = E.phantasm(st, p, ph);
-          if (rp.ok) { log.push({ phantasm: rp.made, value: rp.value }); return log; }
-        }
-      }
+      // (Phantasmal Illusion used to be cast HERE, after crossing, through its own verb. It is an ordinary Main cast
+      // since 2026-10-21 — see `illusionHelps` and its line in `playPhase` — so by now its copies are in hand.)
       var pr = E.pass(st, p);
       if (!pr.ok) throw new Error('AI illegal pass: ' + pr.reason);
       log.push({ fight: 'pass', result: pr });
