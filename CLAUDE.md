@@ -733,10 +733,14 @@ node rulepair.js <dirA> <dirB> 400   # IS THIS RULES CHANGE REAL? — the class 
                              # pins nothing and moves every deck by up to 0.8 run to run. The same dir twice is
                              # the CONTROL and must print 0 flipped. Results: DECISIONS.md#pitch-to-energy
 node flagpair.js games=4000 players=6   # IS THIS ENGINE SWITCH REAL, PER DECK, AT N PLAYERS? — rulepair's
-                             # in-process sibling: each random-deck deal is played twice, the switch off then
-                             # on (`flag=recycle` today), rng AND Math.random pinned per game, net and z per deck
-                             # over the flipped games. `control` must print 0 flipped. `seed=` replicates. It
-                             # self-checks that the switch moves a spent card. Results: DECISIONS.md#diamond-6p
+                             # in-process sibling: each random-deck deal is played twice, arm `a=` then arm `b=`,
+                             # rng AND Math.random pinned per game, net and z per deck over the flipped games.
+                             # An arm is `base` or rule tokens joined by `+`: recycle lossall wardall damageall
+                             # damagehalf shp shdown sh<k> (2026-10-21) — `a=lossall b=lossall+wardall`;
+                             # `flag=recycle` is still `a=base b=recycle`. `control` plays arm A twice and must
+                             # print 0 flipped. `seed=` replicates. It self-checks BOTH arms behaviourally (one
+                             # Special's strikes, Leyline's reach, Critical Hit's reach, the shield count, a spent
+                             # card's pile). Results: DECISIONS.md#diamond-6p, DECISIONS.md#balance
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
 node strengthsim.js 4000 demon knight   # IS THIS CHANGE STRONGER? — the ONLY harness here that can ask.
                              # Every other sim runs the same AI on both seats and is structurally blind to it.
