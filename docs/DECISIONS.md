@@ -891,6 +891,35 @@ higher.
 shipped;** a comment at the refusal says so. **`stakeFor` decides whether a human is interrupted, not whether a cast
 is good play** — the filed entry treated the two as one. Re-run `forcesim.js` if Sanctuary's text ever changes.
 
+### The AI does not spend a Quick protecting a rival — measured and shipped 2026-10-22 <a id="ai-no-aid"></a>
+
+**Asked:** should the AI spend a Quick protecting a RIVAL from a threat aimed at someone else? Aj, 2026-10-09: *"no, but
+i'm gonna hold off on this because it will change when we do loss=all"*. The package landed on `epic/loss-all-default`,
+so this was built (`noAid`): Counter Spell and Annoint answer only a threat aimed at the AI itself — its seat, its
+Equipment, its Ride or Form, its cast, or every rival. "Aimed at" is the engine's `stackTargetOf`, the noun the board's
+stack caption prints. Inert in a duel. Built OPT-IN first, because `policyOn` reads an unnamed policy as on and would
+have shipped it unmeasured.
+
+**Answer: no harm, a small lean in its favour; shipped (v1.35.2.3).** `strengthsim`, arm A = the shipped AI plus
+`noAid` (`knight:all,noAid`), arm B = the shipped AI, on the v1.36 rules. Controls at 3, 4 and 6 players printed exactly
+the fair share, every deal replaying identically.
+
+| players | tier | games | A's share | vs fair | σ | `noAid` held |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2 | knight | 4,000 | 50.00% | +0.00 | +0.00 | 0 |
+| 3 | knight | 9,000 | 33.87% | +0.53 | +1.07 | 936 |
+| 4 | knight | 12,000 | 25.42% | +0.42 | +1.05 | 3,444 |
+| 6 | knight | 18,000 | 16.88% | +0.22 | +0.78 | 18,125 |
+| 6 | demon | 18,000 | 17.07% | +0.40 | +1.44 | 18,732 |
+
+Each cell is under 2σ, so none alone is a finding; all four live cells lean the same way. It changes a lot of decisions
+(about one held answer per six-player game) and almost no outcomes, the same shape as `aimed` and `ownCast` below. The
+comparison: the duel knight→demon step is +7.63 points.
+
+**`aimed` can no longer fire** (0 in all 61,000 games above): with Critical Hit and Ultima Attack on every rival no strike
+is aimed elsewhere, and a shared Leyline would protect that someone anyway. It stays, pinned in `test.js` under
+`setDamageAll(false)`, because removing a policy that never runs changes nothing and the code still describes a rule.
+
 ### Leyline only against a strike aimed at you changes no win rate — measured 2026-10-09
 
 **Asked:** v1.33.8 stops the AI springing an immunity Quick (Leyline, Leyline under Athena, Sanctuary under

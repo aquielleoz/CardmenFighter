@@ -63,15 +63,22 @@ var TIERS = { minion: 1, fighter: 1, knight: 1, demon: 1 };
 /* AN ARM IS `tier` OR `tier:policies` (epic step 21). `knight` alone is the shipped game — every step-21
    policy on. `knight:none` turns them all off, `knight:hold` / `knight:push` enable exactly one. That is
    what makes two changes shipped together still ATTRIBUTABLE: measure each against `:none`, then both. */
-var POLICIES = ['push', 'pitch', 'ownCast', 'aimed'];   // `pitch`: the Demon Lord's smart Broadway pitch (2026-10-05) — demon-gated, so it is a no-op on a knight arm.
+/* TWO LISTS, BECAUSE "WHAT AN ARM MAY NAME" AND "WHAT THE SHIPPED GAME RUNS" ARE DIFFERENT QUESTIONS (CLAUDE.md). Bare
+   `knight` (or `:all`) must stay the shipped game — it is the arm every other measurement reads against — so an UNSHIPPED
+   policy is nameable but never in SHIPPED. `noAid` (ai-answers-others-casts, 2026-10-22): spend no Quick protecting a
+   rival from a threat aimed at someone else — measured opt-in and SHIPPED in v1.35.2.3 (DECISIONS.md#ai-no-aid). A new
+   unshipped policy goes in POLICIES only, and is read in ai.js so that no arm means OFF, until it ships. */
+var SHIPPED = ['push', 'pitch', 'ownCast', 'aimed', 'noAid'];
+var POLICIES = SHIPPED.slice();   // `pitch`: the Demon Lord's smart Broadway pitch (2026-10-05) — demon-gated, so it is a no-op on a knight arm.
                                                         // `ownCast`: never answer your own cast (ai-counters-own-cast, 2026-10-09) — every tier; it bites at 3-6 players
                                                         // `aimed`: spring Leyline only at a strike aimed at you (ai-answers-others-casts, 2026-10-09) — 3-6 players only
 function parseArm(spec) {
   var bits = spec.split(':'), tier = bits[0], sel = bits[1];
   if (!TIERS[tier]) { console.error('arms must be tier[:policies] — tiers: ' + Object.keys(TIERS).join(' | ')); process.exit(1); }
   var on = {};
-  if (sel === undefined || sel === 'all') POLICIES.forEach(function (k) { on[k] = 1; });
-  else if (sel !== 'none') sel.split(',').forEach(function (k) {
+  if (sel === undefined || sel === 'all') SHIPPED.forEach(function (k) { on[k] = 1; });
+  else if (sel.indexOf('all,') === 0) { SHIPPED.forEach(function (k) { on[k] = 1; }); sel = sel.slice(4); }   // `all,noAid`: the shipped game plus a named unshipped policy
+  if (sel !== undefined && sel !== 'all' && sel !== 'none' && sel !== '') sel.split(',').forEach(function (k) {
     /* MATCHED WITHOUT CASE, AND KEYED BY THE CANONICAL NAME. The whole arm is lowercased above (so `Knight`
        works), and `ownCast` is camelCase — so from v1.33.7 it could not be NAMED in an arm at all. It failed
        loudly ("unknown policy"), and v1.33.7's own runs never named it (`knight:push,pitch` turns it off by
@@ -84,12 +91,13 @@ function parseArm(spec) {
   return { tier: tier, on: on, label: spec };
 }
 var A = parseArm(ARM_A), B = parseArm(ARM_B);
+console.log('POLICIES: A=' + (Object.keys(A.on).join(',') || 'none') + '   B=' + (Object.keys(B.on).join(',') || 'none'));   // read it: an arm that silently dropped a name measures nothing
 var deckKey = (DECK === 'full') ? null : DECK;
 if (deckKey && E.DECK_ORDER.indexOf(deckKey) < 0) { console.error('unknown deck: ' + deckKey + '  (' + E.DECK_ORDER.join(', ') + ')'); process.exit(1); }
 var CONTROL = (ARM_A === ARM_B);
 
 console.log('CONFIG: ' + PAIRS + ' deals x ' + NP + ' rotations (' + (PAIRS * NP) + ' games, ' + NP + ' players)  |  A=' + ARM_A + '  B=' + ARM_B +
-            '  |  deck: ' + (deckKey || 'Full Set') + '  |  catch-up ON, loss=chosen, mill=targeted' +
+            '  |  deck: ' + (deckKey || 'Full Set') + '  |  catch-up ON, loss=all, shields 2+N, wardall, damageall (v1.36.0 rules)' +
             (CONTROL ? '  |  *** CONTROL — identical arms, must pool to exactly the fair share, ' + (100 / NP).toFixed(2) + ' ***' : ''));
 
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }

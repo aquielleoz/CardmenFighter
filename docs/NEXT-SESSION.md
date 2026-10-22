@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**761**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**767**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.35.2.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.35.2.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -120,30 +120,10 @@ re-read its tag.
 
 ### Open — in priority order
 
-*`epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default — and the three
-entries below are its follow-ups, not yet ranked by Aj. Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
+*`epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default — and the two
+entries below are its remaining follow-ups (the AI one shipped as v1.35.2.3), not yet ranked by Aj. Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
-
-- `ready to build`      · **THE AI ON THE v1.36.0 RULES: SHOULD IT SPEND A QUICK PROTECTING A RIVAL?** Aj's answer, 2026-10-09: *"no,
-  but i'm gonna hold off on this because it will change when we do loss=all"*. The loss=all package shipped as the
-  default in v1.36.0, so this is unparked, and it changed in the way Aj expected:
-  - **Leyline:** under the shared ward a Leyline protects every player, so springing it at a strike "aimed at someone
-    else" now protects that someone, and under every-rival damage no Critical Hit is aimed at someone else anyway.
-    The `aimed` policy (v1.33.8) cannot fire in the shipped game; `test.js` pins it under `setDamageAll(false)` /
-    `setWardAll(false)` so the code that exists keeps a test. Decide whether it stays.
-  - **Counter Spell** counters any `THREAT_KIND` cast that is not the AI's own, whoever it targets — and an attack card
-    now targets everyone, the AI included, so countering one is no longer protecting a rival.
-  - **Annoint** saves a rival's Equipment from another rival. Measured headless: a computer holding Annoint and its
-    own Equipment answered a Sabotage aimed at seat 0's sword, and the sword survived. The branch's own comment
-    says "save our own equipment from a removal aimed at it"; the code checks only that it HAS Equipment.
-  - **Targeting:** the AI still picks a target for Critical Hit, which the engine ignores, and its round-strike
-    targeting (`chooseShieldTarget`, the personas' `focus`) is reached only under the `strikeOne` custom rule.
-  Build "no" behind a policy and measure it with `strengthsim … players=6`, control first, naming every other
-  shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did ([`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength)).
-  The AI was tuned on the winner's pick throughout ([`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured),
-  "What this does not settle").
-  `[id: ai-answers-others-casts]`
 
 - `needs a measurement` · **RE-TAKE THE LIVE-GAME MEASUREMENTS ON v1.36.0.** Every recorded "shipped" number was taken on the
   winner's pick and flat 4 shields. Three are worth re-taking now that the sims state the package:

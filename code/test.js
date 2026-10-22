@@ -3846,11 +3846,12 @@ function cards(ids) { return ids.map(card); }
     return g;
   }
   var answers = function (log) { return log.filter(function (e) { return e.respond; }); };
-  // a response to a cast: seat 1 casts Telekinesis, seat 2 counters it inside seat 1's turn
+  // a response to a cast: seat 1 casts Telekinesis AT SEAT 2, seat 2 counters it inside seat 1's turn
+  // (aimed at the counterer since v1.35.2.3: under `noAid` the AI no longer counters a cast aimed at another seat)
   var gC = fresh();
   gC.players[1].hand = [mk(3, 'D'), mk(9, 'C', 'y')]; gC.players[1].energy = nrg(8, 'D');
   gC.players[2].hand.push(mk(4, 'D')); gC.players[2].energy = nrg(8, 'D');
-  var cast = E.activate(gC, 1, '3D', { target: 0 });
+  var cast = E.activate(gC, 1, '3D', { target: 2 });
   var aC = answers(AI.takeTurn(gC, 1, 'knight', [0]))[0];
   ok(cast.ok && !!aC && aC.respBy === 2 && aC.respName === 'Counter Spell', 'in-turn answer: staged — seat 2 counters seat 1\'s Telekinesis inside seat 1\'s turn  ' + JSON.stringify(aC || null));
   ok(!!aC && aC.transition === false && aC.round === 4, 'in-turn answer: …logged as a response to a cast (not the transition), in round 4  ' + JSON.stringify(aC || null));
@@ -4111,6 +4112,47 @@ function cards(ids) { return ids.map(card); }
   var txt = function (su, r) { return E.effectOf({ rank: r, suit: su, id: 'x' }).text; };
   ok(/Every Rival loses 1 shield/.test(txt('S', 9)) && /Every Rival loses 1 shield/.test(txt('C', 10)) && /^No player can lose a shield/.test(txt('D', 9)) && /^Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round/.test(txt('H', 9)),
      'the card text matches the package: Critical Hit and Ultima hit every Rival, Leyline and Holy Shroud\'s ability cover any player');
+})();
+
+// ===== THE AI DOES NOT SPEND A QUICK PROTECTING A RIVAL — `noAid` (ai-answers-others-casts, 2026-10-22) =====
+/* Aj's answer was "no", held until the loss=all package shipped on `epic/loss-all-default`. Counter Spell answered any threat
+ * that was not the AI's own and Annoint any removal while it owned Equipment, whoever the threat was AIMED at. Under `noAid`
+ * the AI answers only what is aimed at IT (the engine's `stackTargetOf`). Each leg is a pair off one staging: aimed
+ * elsewhere (held) against aimed at the seat itself (answered), and the policy switched OFF must answer again, so a
+ * strengthsim arm without it really is the old AI. Shipped in v1.35.2.3 after measuring (DECISIONS.md#ai-no-aid). */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  var said = function (r) { return JSON.stringify(r && r.respondedWith || null); };
+  function stage(cardR, cardS, opts, answerer) {      // seat 1 casts at `opts.target`; seat 2 holds `answerer`; priority walked to seat 2
+    var g = E.newGame(null, { numPlayers: 3 }); g.round = 4; g.turn = 1; g.passes = 0; g.pile = null; g.lastPlayer = null; g.subPhase = 'main';
+    g.players.forEach(function (p) { p.hand = [mk(9, 'C', 'x')]; p.energy = []; p.equipment = []; p.shields = 3; });
+    g.players[0].hand = [mk(6, 'C', 'p0a'), mk(7, 'C', 'p0b'), mk(8, 'C', 'p0c')];
+    g.players[0].equipment = [{ id: 'eqA', name: 'Holy Bow', delta: 2, counters: 3, decay: true, card: mk(8, 'H', 'bowA') }];
+    g.players[1].hand = [mk(cardR, cardS, 'cast'), mk(9, 'C', 'keep')]; g.players[1].energy = nrg(12, cardS);   // a spare: a cast may not empty the hand
+    g.players[2].hand = answerer.hand; g.players[2].energy = answerer.energy;
+    g.players[2].equipment = [{ id: 'eqB', name: 'Holy Bow', delta: 2, counters: 3, decay: true, card: mk(8, 'H', 'bowB') }];
+    var c = E.activate(g, 1, 'cast' + cardR + cardS, opts);
+    for (var k = 0; c.ok && g.respondFor != null && g.respondFor !== 2 && k < 6; k++) E.declineResponse(g, g.respondFor);
+    return { g: g, ok: c.ok && g.respondFor === 2, why: c.ok ? 'priority at ' + g.respondFor : c.reason };
+  }
+  var counterer = function () { return { hand: [mk(4, 'D', 'cs'), mk(9, 'C', 'y')], energy: nrg(8, 'D') }; };
+  var annointer = function () { return { hand: [mk(5, 'H', 'an'), mk(9, 'C', 'y')], energy: nrg(8, 'H') }; };
+  function decide(st, noAid) { AI.setArmPolicy(noAid ? null : function (p, name) { return name !== 'noAid'; }); var r = AI.respondDecision(st.g, 2); AI.setArmPolicy(null); return r; }   // no arm = the shipped AI, which has noAid since v1.35.2.3
+  AI.resetPolicyStats();
+  // Counter Spell vs Telekinesis (♦3)
+  var tE = stage(3, 'D', { target: 0 }, counterer()), rtE = tE.ok ? decide(tE, true) : null;
+  ok(tE.ok && !(rtE && rtE.respondedWith), 'noAid: a seat does NOT counter a Telekinesis aimed at another seat  ' + (tE.ok ? said(rtE) : tE.why));
+  ok(AI.policyStats().noAid >= 1, 'noAid: …and the tally records the answer it held back (' + AI.policyStats().noAid + ')');
+  var tM = stage(3, 'D', { target: 2 }, counterer()), rtM = tM.ok ? decide(tM, true) : null;
+  ok(tM.ok && rtM && rtM.respondedWith === 'D4', 'noAid: the same seat DOES counter a Telekinesis aimed at it — the control  ' + (tM.ok ? said(rtM) : tM.why));
+  var tS = stage(3, 'D', { target: 0 }, counterer()), rtS = tS.ok ? decide(tS, false) : null;
+  ok(tS.ok && rtS && rtS.respondedWith === 'D4', 'noAid switched OFF brings the old answer back — the arm strengthsim compares against  ' + (tS.ok ? said(rtS) : tS.why));
+  // Annoint vs Sabotage (♠5) — at another seat's Equipment, then at its own
+  var sE = stage(5, 'S', { target: 'eqA' }, annointer()), rsE = sE.ok ? decide(sE, true) : null;
+  ok(sE.ok && !(rsE && rsE.respondedWith), 'noAid: a seat does NOT Annoint against a Sabotage aimed at another seat\'s Equipment  ' + (sE.ok ? said(rsE) : sE.why));
+  var sM = stage(5, 'S', { target: 'eqB' }, annointer()), rsM = sM.ok ? decide(sM, true) : null;
+  ok(sM.ok && rsM && rsM.respondedWith === 'H5', 'noAid: …and DOES Annoint when the Sabotage is aimed at its own Equipment — the control  ' + (sM.ok ? said(rsM) : sM.why));
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
