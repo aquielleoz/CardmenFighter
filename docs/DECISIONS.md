@@ -340,7 +340,7 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
 **Asked:** Aj wants `loss=all` back for 3-6 player games. Before he decides, every August number for it was
 re-taken on v1.35.2 and each option he named was measured. Nothing here changes a rule or a default.
 
-**SHIPPED AS THE DEFAULT IN v1.36.0 (2026-10-22), DUELS INCLUDED:** the package row below (`lossall`+`wardall`+`shp`+`damageall`),
+**THE DEFAULT FROM v1.36.0, DUELS INCLUDED (built on `epic/loss-all-default`, 2026-10-22):** the package row below (`lossall`+`wardall`+`shp`+`damageall`),
 with one wording per card (the inventory and Aj's approvals are in [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md)).
 **So every "shipped" arm from v1.36.0 on is the package**, and every "shipped" number recorded before it, here and
 elsewhere in this file, is the winner's pick on flat shields: `flagpair`'s `base` arm is that game, and it has a
