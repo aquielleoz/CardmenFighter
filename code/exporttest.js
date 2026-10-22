@@ -134,7 +134,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(rec && rec.numPlayers===3, 'the record knows the PLAYER COUNT ('+(rec&&rec.numPlayers)+') — a duel and a 6-player game used to look identical');
   ok(rec && Array.isArray(rec.seats) && rec.seats.length===3, 'it carries one entry per seat ('+(rec&&rec.seats&&rec.seats.length)+')');
   ok(rec && rec.winnerSeat===2, 'it records WHICH seat won ('+(rec&&rec.winnerSeat)+'), not just "rival"');
-  ok(rec && rec.v==='2.1-mp', 'the version string is bumped so old files stay identifiable ("'+(rec&&rec.v)+'")');
+  ok(rec && rec.v==='2.2-mp', 'the version string is bumped so old files stay identifiable ("'+(rec&&rec.v)+'") — 2.2 since v1.36.0, when an empty rules key came to mean the loss=all package');
   /* THE BUILD THAT MADE IT (export-lacks-build-version). `v` is the SCHEMA; nine of Bibong's games spanned
      three builds and the profile's Ver column read `?` nine times. Compared to README's stamp — the same
      source `build.js` derives GAME_VERSION from — so a stale or hardcoded value cannot pass. */

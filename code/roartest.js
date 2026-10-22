@@ -38,7 +38,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       st.players.forEach(pl=>{ pl.energy=[]; });
       if(MODE==='duel'){ st.players[0].shields=3; st.players[1].shields=4;
         st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')]; }
-      else if(MODE==='3p-you' || MODE==='3p-you1'){ st.players[0].shields=3; st.players[1].shields=(MODE==='3p-you1'?4:3); st.players[2].shields=(MODE==='3p-you1'?3:4);   // the struck seat starts FULL, so staging itself shatters nothing there
+      /* FULL IS `startShieldsFor`, NOT 4 (v1.36.0): a three-player game starts on 2 + 3 = 5, so a seat staged on 4
+         already shows one hollow pip and the leg read 2 for the strike's 1. */
+      else if(MODE==='3p-you' || MODE==='3p-you1'){ const full=window.CardmenEngine.startShieldsFor(st.numPlayers); st.players[0].shields=3; st.players[1].shields=(MODE==='3p-you1'?full:3); st.players[2].shields=(MODE==='3p-you1'?3:full);   // the struck seat starts FULL, so staging itself shatters nothing there
         st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')]; st.players[2].hand=[mk(3,'S','s3'),mk(6,'S','s6')]; }
       else { st.players[0].shields=3; st.players[1].shields=3; st.players[2].shields=4;   // you jab low, seat 1 takes it, then leads a pair nobody answers
         st.players[0].hand=[mk(3,'C','a3'),mk(4,'D','x4')]; st.players[1].hand=[mk(10,'H','r10'),mk(7,'H','r7a'),mk(7,'S','r7b')]; st.players[2].hand=[mk(3,'S','s3'),mk(4,'S','s4')]; }

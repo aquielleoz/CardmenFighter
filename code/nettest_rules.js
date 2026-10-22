@@ -45,7 +45,7 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   await join.evaluate(()=>{ try{ localStorage.removeItem('cmf_rules_v1'); }catch(e){} });
   await host.reload(); await join.reload();
   ok(await until(()=>join.evaluate(()=>!!document.getElementById('lobbyGo'))), 'both reach the lobby');
-  ok((await flags(host)).loss==='chosen' && (await flags(join)).loss==='chosen', 'both start on the shipped rules');
+  ok((await flags(host)).loss==='all' && (await flags(join)).loss==='all', 'both start on the shipped rules (every rival struck, since v1.36.0)');
 
   ok(await join.evaluate(()=>!!document.getElementById('lobbyRules')), 'the client is offered a way to READ the rules');
   await join.evaluate(()=>document.getElementById('lobbyRules').click()); await wait(350);
@@ -58,7 +58,7 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
                           && /suggestion/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
      'the client is told the host decides and that its own picks are suggestions');
   const clientBefore=await flags(join);
-  await join.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="lossAll"]'); if(r&&r.click)r.click(); });
+  await join.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="strikeOne"]'); if(r&&r.click)r.click(); });
   await join.evaluate(()=>{ const b=document.querySelector('.segBtn[data-mode-for="dblPair"][data-mode-v="poker"]'); if(b)b.click(); });
   await join.evaluate(()=>{ const b=document.querySelector('.bulkBtn[data-preset="chikicha"]'); if(b)b.click(); });
   await wait(350);
@@ -66,8 +66,8 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
      'and nothing it does in that panel — a toggle, a mode, even a whole preset — moves the rules in play');
   /* And it must still be able to READ what it is agreeing to (v1.31.35). The notes live behind a `?` now, so on
    * the seat that did not choose the rules, that control is the only way to find out what they are. */
-  ok(await join.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="lossAll"]'); if(!q) return false;
-       q.click(); const n=document.querySelector('.settingRow[data-rule="lossAll"] .settingNote');
+  ok(await join.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="strikeOne"]'); if(!q) return false;
+       q.click(); const n=document.querySelector('.settingRow[data-rule="strikeOne"] .settingNote');
        return !!(n && n.offsetParent); }),
      'and the ? still opens a note for it — a client that cannot read the rules cannot meaningfully agree to them');
   await join.evaluate(()=>document.getElementById('ruleDone').click()); await wait(250);
@@ -82,17 +82,17 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await modalOnTop(host), 'and visible for the HOST too — this is the seat the bug was reported from');
   ok(await host.evaluate(()=>![].every.call(document.querySelectorAll('.settingRow[data-rule]'),x=>x.disabled)),
      'and for the HOST it is editable');
-  await host.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="lossAll"]'); if(r)r.click(); }); await wait(200);
+  await host.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="strikeOne"]'); if(r)r.click(); }); await wait(200);
   /* A MODE rule as well, because it is the first rule whose serialised form carries a VALUE (`dblPair=poker`).
    * The key is split on ',' and then on '=', so a mode crossing the wire exercises a parser path that no
    * boolean rule ever touches — and a client that silently fell back to 'off' would look identical to a host
    * who never changed it. */
   await host.evaluate(()=>{ const b=document.querySelector('.segBtn[data-mode-for="dblPair"][data-mode-v="poker"]'); if(b)b.click(); }); await wait(200);
   await host.evaluate(()=>document.getElementById('ruleDone').click()); await wait(400);
-  ok((await flags(host)).loss==='all' && (await flags(host)).dblPair==='poker', 'the host\'s engine takes the new rules');
+  ok((await flags(host)).loss==='chosen' && (await flags(host)).dblPair==='poker', 'the host\'s engine takes the new rules');
 
   // ---------- the decisive pair: the client adopts it, and is un-readied
-  ok(await until(async()=>(await flags(join)).loss==='all'), 'the CLIENT adopts the host\'s rules over the wire');
+  ok(await until(async()=>(await flags(join)).loss==='chosen'), 'the CLIENT adopts the host\'s rules over the wire');
   ok((await flags(join)).dblPair==='poker',
      'including the MODE rule\'s value, not just a boolean — `dblPair=poker` survives the round trip');
   ok(await until(async()=>await readyBtn(join)),
@@ -108,7 +108,7 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await until(async()=>await startEnabled(host)), 're-readying re-enables Start');
   await host.evaluate(()=>{ const g=document.getElementById('lobbyGo'); if(g && !g.disabled)g.click(); });
   ok(await until(async()=>(await host.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'the duel starts');
-  ok((await flags(host)).loss==='all',
+  ok((await flags(host)).loss==='chosen',
      'and it is played under the custom rules — hostStartRealN used to hardcode the defaults here and would have silently ignored the menu');
 
   /* ---------- THE GAME MODE TRAVELS NOW (v1.31.32). It used to be `sel.mode` in the setup dialog and

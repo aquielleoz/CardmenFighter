@@ -24,7 +24,7 @@
  */
 var E=require('./engine.js'), AI=require('./ai.js');
 function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
+E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('all'); E.setMillScope('targeted'); E.setShieldsPerPlayer(true); E.setWardAll(true); E.setDamageAll(true);   // the live game since v1.36.0 (it was 'chosen', flat shields before)
 [['minion',2],['knight',2],['demon',2],['knight',3],['knight',4],['knight',6],['demon',6]].forEach(function(cfg){
   var diff=cfg[0], P=cfg[1], jab=0, spc=0, jab1=0, spc1=0;
   for(var s=1;s<=200;s++){
