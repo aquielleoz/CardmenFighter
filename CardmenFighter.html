@@ -2152,11 +2152,13 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
- *   - Shields are flat at every player count. The per-round DRAW scales: = numPlayers (v1.31.3), so 2 in a duel
- *     and 6 at a six-player table. The rest of the v1.31.0 package (shields 2+numPlayers, loss 'all', mill
- *     'universal') was REVERTED in v1.31.2 — it broke deck balance badly (PATCHNOTES 0j); only the draw came back. The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
- *     A/B only. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI must never read the
- *     bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
+ *   - THE TABLE RULES SCALE WITH THE TABLE (v1.36.0): shields = 2 + numPlayers (4 in a duel, 8 at six), the
+ *     per-round DRAW = numPlayers (v1.31.3), a Special win strikes EVERY rival (loss 'all'), shield wards cover
+ *     the whole table (WARD_ALL) and Critical Hit / Ultima Attack hit every rival (DAMAGE_ALL). The v1.31.0
+ *     version of this (loss 'all' + universal mill + shields 2+N, no ward) was REVERTED in v1.31.2 for breaking
+ *     deck balance (PATCHNOTES 0j); the shared ward and the every-rival damage are what fixed it, measured in
+ *     DECISIONS.md#loss-all-remeasured. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI
+ *     must never read the bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
  *     A round is draw → one player leads → the fight is a trick; the last
  *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
  *     only banks energy. Specials are locked in round 1. At 0 shields the next
@@ -2668,11 +2670,12 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
-  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — flag, A/B only.
-   * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
-   * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
-   * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
-  var SHIELDS_PER_PLAYER = false;     // OFF: shipping this broke deck balance and was reverted in v1.31.2 (PATCHNOTES 0j).
+  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — the SHIPPED rule since v1.36.0.
+   * Companion to loss 'all': that makes damage scale with the table, which holds game length flat at ~10 rounds,
+   * too SHORT for six players. Scaling the shield pool with the table gives the middle ground: 2p keeps exactly
+   * the old 4, 6p gets 8, and the package lands at 11 / 12 / 14 / 15 rounds at 3 / 4 / 5 / 6 players
+   * (DECISIONS.md#loss-all-remeasured). The `flatShields` custom rule turns it off. */
+  var SHIELDS_PER_PLAYER = true;
   function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
   function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
   function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
@@ -2821,7 +2824,7 @@
     if (!hit) return false;
     var owner = st.players[hit.owner], shroud = hit.e;
     shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
-    return shroud.name || true;                                                  // TRUTHY either way; the name feeds the round's "saved" line
+    return { name: shroud.name || 'Holy Shroud', owner: hit.owner };            // TRUTHY; the name AND whose Shroud it was feed the round's "saved" line — under WARD_ALL it can be someone else's
   }
   // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
   // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
@@ -3117,11 +3120,11 @@
     D: {  // Wizard: Back to the Books draw 3 → a dig (look 3, 1→Energy, keep 2); Cursed Pendant 5→4 counters; Leyline Ascension loses its recycle/ramp (moved to Athena)
       6: { kind: 'draw', draw: 3, discard: 1, name: 'Back to the Books', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 1 into your Energy Pile and draw the other 2.' },
       8: { kind: 'equip', oppDelta: -2, counters: 4, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your Rivals' highest card each fight has its value reduced by 2." },
-      9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either." }
+      9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "No player can lose a shield this round — and no one at 0 shields can take the Fighter Kick." }   // the ward covers the table (WARD_ALL, v1.36.0): one wording at every table size
     },
     H: {  // Cleric: rename Holy Sword→Holy Bow; swap 9/10 so Holy Shroud=9, Sanctuary=10
       8:  { kind: 'equip', delta: 2, counters: 4, name: 'Holy Bow', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2." },
-      9:  { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: 'If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead.' },
+      9:  { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: "If any player would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. A player's own Holy Shroud is used before anyone else's." },   // `findAbsorber`: the struck seat's own first (WARD_ALL, v1.36.0)
       10: { kind: 'shield', shield: 1, shieldAll: true, name: 'Sanctuary', type: 'Technique', impl: true, text: 'Every player gains 1 Shield.' }
     },
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
@@ -3130,13 +3133,13 @@
       7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
       9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
-      10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
+      10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.' }   // DAMAGE_ALL (v1.36.0)
     },
     S: {  // Rogue: Hand-to-Hand and Back Stab lose Quick (moved to Perseus / Hermes); Never Out of Options dig 4→3; Caltrops 5→3 counters
       3:  { kind: 'draw', draw: 2, name: 'Hand-to-Hand Mastery', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
       7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
-      9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
+      9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.' },   // DAMAGE_ALL (v1.36.0)
       10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
   };
@@ -3155,12 +3158,12 @@
     H: {
       queen: { 3: { n: 6, desc: 'Dig 1 deeper — put the top 6 of your deck into Energy.' }, 5: { addCounter: 1, desc: 'Also add 1 counter to that Equipment.' }, 8: { delta: 3, desc: 'Your highest card each fight gains an additional +1 (to +3).' } },
       king:  { 1: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 4: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 10: { quick: true, desc: 'Sanctuary becomes a Quick — cast it in response.' } },
-      super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and you can't lose a shield until end of round." } }
+      super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and no player can lose a shield until end of round." } }
     },
     C: {
       queen: { 1: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 7: { quick: true, desc: 'Armor Piercing becomes a Quick.' }, 8: { reclaimDiscard: true, desc: 'Also shuffle your Exile (used Techniques, destroyed Equipment) back into your deck before drawing.' } },
       king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "The Rival's highest card each fight drops 1 further (to −3)." } },
-      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
+      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'Every Rival loses 1 additional shield (2 total).' } }
     },
     S: {
       queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
@@ -4236,6 +4239,10 @@
     /* EVERY RIVAL, WHEN IT HITS EVERY RIVAL (drag-and-stack step 4, piece 10): Back Stab under Hermes' Super carries
        `all`, and resolution locks every living rival — naming ONE seat here told the others it was not aimed at them. */
     if ((HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) && eff.all) return { allRivals: true };
+    /* AND SO DOES CRITICAL HIT / ULTIMA ATTACK SINCE v1.36.0 (DAMAGE_ALL ships on). Read off `hostileTargets`, the
+       lookup resolution uses, so the label cannot disagree with what lands. In a duel there is one rival, and it
+       is still named by seat. */
+    if (eff.kind === 'destroyShield' && DAMAGE_ALL && hostileTargets(st, o.p, effectTarget(st, o.p, opts), 'damage', eff).length > 1) return { allRivals: true };
     if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
     return null;
   }
@@ -4381,7 +4388,7 @@
          * under `all`, where every Special win hits every rival, its value multiplies by (N-1) in the caster's
          * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
          * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
-         * buys a private edge. Flag, default off. */
+         * buys a private edge. Shipped ON since v1.36.0, duels included (see the note at WARD_ALL). */
         if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
@@ -4908,10 +4915,14 @@
   function newOid(st) { st.oidSeq = (st.oidSeq || 0) + 1; return 'o' + st.oidSeq; }
   /* WHO WAS SAVED, AND BY WHAT (2026-10-20). `prevented` said only that SOME loss was stopped, so the round line read
      "won with a Full House - but the loss was prevented" when it was Aj's own Holy Shroud saving Aj. Narration only:
-     one entry per seat, and the name is null where no card can be named. */
+     one entry per seat, and the name is null where no card can be named.
+     AND WHOSE IT WAS (v1.36.0). Under the shared ward a Holy Shroud saves ANY player, so yours can eat the shield you just
+     broke on your Rival; `owner` is that Shroud's seat, set only for an absorber (a Leyline's ward is cast, and the
+     cast line already names its caster). */
   function noteSaved(result, q, by) {
-    var nm = (typeof by === 'string') ? by : null, list = result.saved = result.saved || [];
-    if (!list.some(function (x) { return x.seat === q; })) list.push({ seat: q, by: nm });
+    var nm = (typeof by === 'string') ? by : (by && typeof by.name === 'string') ? by.name : null, list = result.saved = result.saved || [];
+    var own = (by && typeof by === 'object' && typeof by.owner === 'number' && by.owner !== q) ? by.owner : null;   // only when it is SOMEONE ELSE's — your own Shroud saving you needs no owner
+    if (!list.some(function (x) { return x.seat === q; })) list.push(own == null ? { seat: q, by: nm } : { seat: q, by: nm, owner: own });
   }
   // Apply one shield-loss object's strips to its target (parity with the old doStrips inner loop).
   function resolveShieldLossObj(st, obj, result) {
@@ -5131,7 +5142,7 @@
   var LOSER_MILL = false, LOSER_MILL_RESERVE = 4;
   function setLoserMill(v) { LOSER_MILL = !!v; }
   // ---- N-PLAYER round-resolution toggles (both are no-ops at numPlayers===2) ----
-  // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield; 'chosen' = winner strips one rival.
+  // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield (shipped); 'chosen' = winner strips one rival.
   // MILL_SCOPE: 'universal' = all non-winners mill each round; 'targeted' = only the struck rival(s) mill.
   /* HOSTILE_ALL (Aj, 2026-08-25): the targeted offensive techniques hit EVERY living rival instead of one —
    * Critical Hit and Back Stab (Rogue), Ultima Attack (Fighter). The idea pairs with SPECIAL_LOSS_MODE='all':
@@ -5144,8 +5155,13 @@
    * (Ultima Attack only) gained +0.8 while Rogue (Critical Hit AND Back Stab) gained +11.1 — and Critical Hit
    * and Ultima Attack are mechanically identical, so Back Stab was doing nearly all the work. Scaling a shield
    * strip to (N-1) matches what a Special win already costs; scaling a TURN SKIP to every rival is worth closer
-   * to a free round, a much bigger multiplier. */
-  var DAMAGE_ALL = false, LOCKOUT_ALL = false;
+   * to a free round, a much bigger multiplier.
+   * DAMAGE_ALL SHIPS ON SINCE v1.36.0 (Aj, 2026-10-22), as part of the loss 'all' package: with the ward shared,
+   * the every-rival reach is what lifts the attack decks back (DECISIONS.md#loss-all-remeasured). The card text
+   * says so at every table size ("Every Rival loses 1 shield"), so there is no Custom rules row to turn it off —
+   * a row that made the printed text false is what the one-wording ruling exists to prevent. LOCKOUT_ALL stays
+   * off: the package does not include it, and Back Stab still reads "Target Rival". */
+  var DAMAGE_ALL = true, LOCKOUT_ALL = false;
   function setDamageAll(v) { DAMAGE_ALL = !!v; }        // Critical Hit / Ultima Attack -> every rival
   function setLockoutAll(v) { LOCKOUT_ALL = !!v; }      // Back Stab -> every rival
   function setHostileAll(v) { DAMAGE_ALL = !!v; LOCKOUT_ALL = !!v; }
@@ -5186,7 +5202,11 @@
   var DAMAGE_SPAN = 1;
   function setDamageSpan(v) { DAMAGE_SPAN = (v === 'all' || v === 'half') ? v : Math.max(1, v | 0); }
   function isDamageSpan() { return DAMAGE_ALL ? 'all' : DAMAGE_SPAN; }
-  var WARD_ALL = false;
+  /* WARD_ALL SHIPS ON SINCE v1.36.0 (Aj, 2026-10-22), in duels too: Leyline, Holy Shroud and Apollo's
+     Sanctuary protect every player, and their printed text says so. It is the half of the package that changes
+     a duel — your own Shroud can eat the shield you just broke on your Rival — and Aj accepted that rather than
+     print two wordings of one card. No Custom rules row, for the same reason as DAMAGE_ALL. */
+  var WARD_ALL = true;
   function setWardAll(v) { WARD_ALL = !!v; }
   function isWardAll() { return WARD_ALL; }
   function wardTable(st, field, by) {                    // share a shield ward with every living player (`by`: the card, for the round's "saved" line)
@@ -5211,12 +5231,16 @@
          .forEach(function (x) { if (out.length < want) out.push(x); });
     return out;
   }
-  /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
-   * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
-   * explicitly ever since, so the engine's own defaults disagreed with the only game anyone plays: any probe,
-   * sim or test that did not set them got non-shipped rules and silently measured a different game. That is
-   * exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields when it strips one. */
-  var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
+  /* DEFAULTS MATCH THE SHIPPED GAME. They were 'all' / 'universal' for the v1.31.0 multiplayer package, which
+   * was REVERTED in v1.31.2, and the template then set 'chosen' / 'targeted' explicitly — so the engine's own
+   * defaults disagreed with the only game anyone played, and any probe, sim or test that did not set them
+   * silently measured a different game (a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields
+   * when it strips one).
+   * SINCE v1.36.0 THE SHIPPED GAME IS 'all' AGAIN (Aj, 2026-10-22), with the shared ward, the every-rival
+   * damage and shields 2+N beside it (DECISIONS.md#loss-all-remeasured). 'chosen' survives behind the
+   * `strikeOne` custom rule. MILL_SCOPE stays 'targeted' and does nothing under 'all': every loser is struck,
+   * and every struck loser mills. */
+  var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
   /* Getters, for symmetry with the other rule flags (isShieldsPerPlayer / isDrawPerPlayer / isApexInfinity) —
@@ -7525,13 +7549,14 @@ window.CardFace = {};
   E.setDeferRoundDraw(true);   // the UI draws the new round's cards AFTER the end-of-round hand-limit trim (see resolveRoundCeremony)
   E.setShieldCards(true);      // CATCH-UP M1: shields are cards — a broken shield returns to its owner's hand (the trailing player refuels)
   E.setLoserMill(true);        // CATCH-UP M2: the round's loser mills (winning-play size) cards into their Energy Pile (energy parity; deck-out guarded)
-  E.setSpecialLossMode('chosen'); // MP: on a Special win the victor strips ONE chosen rival's shield (not the whole table). No-op at 2p.
-  E.setMillScope('targeted');     // MP: only the struck rival(s) mill catch-up cards, not every non-winner. No-op at 2p. (Cutthroat combo — flattens 3–6p balance; see CARD-STATS.md.)
+  /* THE TABLE RULES (loss 'all', shields 2+N, the shared ward, every-rival damage — the shipped game since v1.36.0)
+     are the engine's own defaults and are set again by `applyRules()` at every game start, from the Custom rules
+     rows. Nothing is set here, so there is one place that decides them. (Until v1.36.0 this line set 'chosen'.) */
   /* The build stamp. Substituted by build.js from README.md's `**Status:**` line — see the note there. It
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.35.2';
+  var GAME_VERSION='v1.36.0';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8126,10 +8151,15 @@ window.CardFace = {};
    * comparison against a defaults map, and it is why `flatDraw` is phrased as the NEGATIVE of the shipped rule
    * (draw-scales-with-table ships ON, so the toggle turns it off).
    *
-   * All four are MULTIPLAYER-ONLY in effect, which the panel says out loud: the engine's own comment marks the
-   * first two as no-ops at 2 players, `startShieldsFor(2)` is 2+2=4 (the flat default), and `drawCountFor` at 2
-   * players is max(2,2)=2 (also the default). A duel plays identically with all four ticked. Kits and the apex
-   * pair would be the first duel-relevant rules. */
+   * The Table rules are MULTIPLAYER-ONLY in effect, which the panel says out loud: the loss and mill modes are
+   * no-ops at 2 players, `startShieldsFor(2)` is 4 either way, and `drawCountFor` at 2 players is 2 either way.
+   * A duel plays identically with all four ticked.
+   *
+   * SINCE v1.36.0 TWO OF THEM ARE THE OLD RULES, PHRASED AS NEGATIVES (Aj, 2026-10-22). The `loss=all` package
+   * became the shipped game, so `lossAll` and `shieldScale` became `strikeOne` and `flatShields` — the `flatDraw`
+   * inversion again, because every row must still default off. The package's other two halves (the shared ward,
+   * the every-rival attack cards) have NO row: they change what a card does, and a row that made a printed card
+   * text false is exactly what the one-wording ruling exists to prevent. `rulesFromKey` migrates the old keys. */
   var RULES_KEY='cmf_rules_v1';
   var RULE_DEFS=[
     /* GAME MODE, moved out of the setup dialog in v1.31.32 (Aj: "move this choice to the custom rules. full
@@ -8142,12 +8172,15 @@ window.CardFace = {};
     { key:'basics',      duel:true, label:'Game mode',
       mode:[{v:'full',label:'Full game'},{v:'basics',label:'Basics'}],
       note:'“Full game” is the whole thing, J/Q/K Rides &amp; Form Changes included. “Basics” drops the transform layer for a clean 3–10 + A + 2 game — the way to learn the ladder, effects and energy first.' },
-    { key:'lossAll',     mp:true,  label:'Special fights destroy a shield for each rival',
-      note:'Normally the winner picks one rival to strike.' },
-    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile',
-      note:'Normally only the rival whose shield you strike does.' },
-    { key:'shieldScale', mp:true,  label:'Shields scale with the table (2 + players)',
-      note:'Normally 4 shields at every player count.' },
+    { key:'strikeOne',   mp:true,  label:'A Special win strikes only one rival',
+      note:'Normally a Special win costs every rival a shield. With this on, the winner picks one rival to strike — the rule before v1.36. Leyline, Holy Shroud and the attack cards still cover every rival.' },
+    /* INERT UNLESS `strikeOne` IS ON (v1.36.0): with every loser struck, every struck loser already mills, so
+     * "all losers" and "struck losers" are the same seats. `needsAny` makes it dead and self-clearing, the
+     * `chopStrips` precedent, so it can never mark a game as customised while doing nothing. */
+    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile', needsAny:['strikeOne'],
+      note:'Only matters with “strikes only one rival” on: by default every loser is struck, and every struck loser already does.' },
+    { key:'flatShields', mp:true,  label:'Shields do not scale with the table',
+      note:'Normally everyone starts with 2 + players shields (4 in a duel, 8 at six). With this on, 4 at every player count.' },
     { key:'flatDraw',    mp:true,  label:'Draw does not scale with the table',
       note:'Every round draws a flat 2 cards instead of one per player.' },
     /* The first two toggles that change a DUEL. Measured 2026-08-26 (PATCHNOTES 0m) and each carries a real
@@ -8265,7 +8298,7 @@ window.CardFace = {};
     /* "The game", not "Game mode" — the single rule inside it is already called Game mode, and a heading that
      * repeats its only row is just noise. */
     { key:'mode',   title:'The game',       keys:['basics'] },
-    { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
+    { key:'table',  title:'Table rules',    keys:['strikeOne','millAll','flatShields','flatDraw'] },
     /* THE PRESET LINE LEADS FROM HERE (2026-08-30), not from Shapes. It moved because the presets now set a
      * rule in THIS section: with the 2 playing in chains by default, Tiến lên and Dou Dizhu have to switch
      * `noSeqTwos` ON to bar it. A preset line must precede every group it governs — below one of them it reads
@@ -8358,6 +8391,14 @@ window.CardFace = {};
      * because the DEFAULT moved. An old peer and a new one will therefore play the 2 differently unless one of
      * them says so explicitly, which is what the build-version handshake (v1.31.21) exists to warn about. */
     if(want.seqTwos){ want.highTwos=1; }
+    /* MIGRATION (v1.36.0): `lossAll` and `shieldScale` turned ON what is now the default, so a key carrying them
+     * means nothing extra and they are dropped. `millAll` only acts beside `strikeOne`, so without it it is
+     * dropped too — a stale key must not carry an inert rule that marks the game customised. The other half
+     * cannot be migrated and is not: a key that OMITS `lossAll` meant the winner's pick and now means every
+     * rival, because the DEFAULT moved (the `seqTwos` note above). Migrating it would keep every existing player
+     * on the old rule for good. Over the wire none of this arises: v1.36 refuses a v1.35 peer. */
+    delete want.lossAll; delete want.shieldScale;
+    if(!want.strikeOne) delete want.millAll;
     RULE_DEFS.forEach(function(d){
       if(d.mode){
         var v=modes[d.key], ok=d.mode.some(function(m){ return m.v===v; });
@@ -8375,9 +8416,14 @@ window.CardFace = {};
     applyRules();
   }
   function applyRules(){
-    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.lossAll ? 'all' : 'chosen');
+    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.strikeOne ? 'chosen' : 'all');   // NOTE the inversion (v1.36.0)
     if(E.setMillScope)       E.setMillScope(RULES.millAll ? 'universal' : 'targeted');
-    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!!RULES.shieldScale);
+    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!RULES.flatShields);   // NOTE the inversion (v1.36.0)
+    /* No row turns these off: they change what Leyline, Holy Shroud, Sanctuary-under-Apollo, Critical Hit and
+     * Ultima Attack DO, and the cards print it. Set every game start anyway, so the page never depends on
+     * whatever a debug hook or an earlier game left in the engine. */
+    if(E.setWardAll)   E.setWardAll(true);
+    if(E.setDamageAll) E.setDamageAll(true);
     if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
       if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
@@ -9102,8 +9148,11 @@ window.CardFace = {};
     var net=(typeof NET!=='undefined' && NET.active && NET.active());
     /* v2.1-mp: the RULE SET is recorded. Without it a homebrew game silently poisons PLAYER-PROFILE.md's
      * ingestion log — a weird statistic becomes indistinguishable from a weird ruleset — and that is exactly the
-     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down. */
-    var rec={ v:'2.1-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
+     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down.
+     * v2.2-mp (v1.36.0): no new field, a moved MEANING — an empty `rules` key is now the loss=all package (every
+     * rival struck, shields 2+N, the shared ward), where before it was the winner's pick. Bumped so a reader of
+     * an old file and a new one cannot read the same '' as the same game. */
+    var rec={ v:'2.2-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
       numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
       winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
@@ -11704,7 +11753,10 @@ window.CardFace = {};
   }
   function cardById(id){ return state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; }
 
-  function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||eff.kind==='destroyShield'||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
+  /* CRITICAL HIT AND ULTIMA ATTACK PICK NO TARGET SINCE v1.36.0: "Every Rival loses 1 shield" (DAMAGE_ALL ships on),
+     so a tap on a rival would choose nothing — `hostileTargets` ignores it. They cast on the tap like any untargeted
+     card, a duel included, and still open the Broadway pitch pick when there is more than one card to pitch. */
+  function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||(eff.kind==='destroyShield'&&!E.isDamageAll())||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
   // Effects that pick a target before firing — the button reads "Choose target" and no energy is spent until a target is locked in.
   function effNeedsTarget(eff){ return eff && (eff.kind==='removeEquip' || eff.kind==='counterfeit' || isHostileSingular(eff)); }
   /* TARGETING IS NOW TWO STEPS (Aj: "always err on the side of confirming first"). Tapping a target used to
@@ -12267,9 +12319,14 @@ window.CardFace = {};
          copula rule. One card for every saved seat names it; otherwise the seats alone. */
       var sv=res.saved||[], svSeats=sv.map(function(x){ return x.seat; }),
           svBy=(sv.length && sv.every(function(x){ return x.by && x.by===sv[0].by; })) ? sv[0].by : null;
+      /* AND WHOSE HOLY SHROUD (v1.36.0, Aj approved "Your Holy Shroud saved Rival 2"). Under the shared ward a Shroud
+         saves ANY player, so yours can eat the shield you just broke. The banner is local, so a possessive is safe
+         here; the broadcast line cannot carry a third seat, so the owner gets its own line below (`sayShroudSpent`). */
+      var svOwn=(svBy && sv.every(function(x){ return x.owner!=null && x.owner===sv[0].owner && x.owner!==x.seat; })) ? sv[0].owner : null;
       if(svSeats.length && svBy){
-        setMessage('🛡 <b>'+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
+        setMessage('🛡 <b>'+(svOwn!=null ? (svOwn===YOU ? 'Your ' : esc(logName(svOwn))+'’s ') : '')+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
         sayOnce(w, '{who} won with a '+spec+' - but '+esc(svBy)+' saved {foe}.', cls, svSeats);
+        sayShroudSpent(sv, cls);
       } else if(svSeats.length){
         setMessage('🛡 <b>'+svSeats.map(logName).join(' & ')+'</b> lost no shield!');
         sayOnce(w, '{who} won with a '+spec+' - but {foe} lost no shield.', cls, svSeats);
@@ -12281,6 +12338,11 @@ window.CardFace = {};
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
       sayOnce(w, '{who} won with a <b>'+spec+'</b> - {foe} lost a shield.', cls, struck);
+      /* EVERY RIVAL IS STRUCK SINCE v1.36.0, so a round where a ward saved SOME of them and not others is ordinary
+         now — a Holy Shroud absorbs one hit of several. This branch used to drop the save on the floor. */
+      var svM=res.saved||[];
+      svM.filter(function(x){ return x.by; }).forEach(function(x){ sayOnce(w, esc(x.by)+' saved {foe}.', cls, [x.seat]); });
+      sayShroudSpent(svM, cls);
       /* A LESSON MAY GATE ON THE SHIELD ACTUALLY BREAKING (2026-09-17). The Specials lesson gated its
          payoff on `play` — the instant the pair leaves your hand — and then announced "Shield broken! 🛡"
          before the Rival had even answered. If the pair LOST, it said so anyway. The note fires where the
@@ -12309,6 +12371,15 @@ window.CardFace = {};
   function sayOnce(actor, tpl, cls, foes){
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()) return;
     return say(actor, tpl, cls, foes);
+  }
+  /* WHOSE SHROUD PAID FOR A SAVE (v1.36.0). Under the shared ward a Holy Shroud saves ANY player, so the player whose
+     counter went is often not the one saved — your Shroud can eat the shield you just broke on your Rival. A broadcast
+     line carries two seats, and a possessive on {who} is the "You’s" trap, so the OWNER is the actor of a line of its
+     own, in the past tense, which agrees with "You" and with a name alike. Only when the owner is someone else. */
+  function sayShroudSpent(saved, cls){
+    (saved||[]).forEach(function(x){
+      if(x && x.by && x.owner!=null && x.owner!==x.seat) sayOnce(x.owner, '{who} spent a '+esc(x.by)+' counter to save {foe}.', cls, [x.seat]);
+    });
   }
   function logCatchUp(res, w, struck){
     if(res.kick) return;
@@ -15126,7 +15197,7 @@ window.CardFace = {};
          beats a pair of 8s in this hand, and an enabled button that cannot advance the step is a dead end. */
       { text:"Nothing in your hand beats a pair of <b>8s</b> — so <b>pass</b>. Passing is how a round <i>ends</i>: once nobody wants the lead, the fight resolves.",
         only:function(){ return []; }, hi:'#passBtn', gate:function(t){ return t==='pass'; }, wait:"Pass the round…" },
-      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Press <b>Yes</b>, tap your glowing <b>Leyline Ascension</b>, and press <b>⚡ Activate</b>: <i>you can’t lose this round.</i>",
+      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Press <b>Yes</b>, tap your glowing <b>Leyline Ascension</b>, and press <b>⚡ Activate</b>: <i>no player can lose a shield this round.</i>",
         answers:function(){ return tutPhLey ? [tutPhLey] : null; }, answersHint:'This step wants Leyline Ascension.', coach:'answer',
         hi:function(){ return tutPhLey ? ['#hand .card[data-id="'+tutPhLey+'"]','#ctxBtn'] : ['#hand']; },
         gate:function(t){ return t==='respond'; }, wait:"Spring Leyline Ascension…" },
@@ -15773,6 +15844,9 @@ window.CardFace = {};
       '<li><b>Archetype effects:</b> each suit is a class — <b>♦ Wizard</b>, <b>♥ Cleric</b>, <b>♣ Fighter</b>, <b>♠ Rogue</b> — and every card carries that class’s effect. Tap a card’s chip to <b>Activate</b> it (cost = the card’s number; some pips must be its own suit). Hover/tap any card to read it in the side panel. A <b>⏩</b> badge marks a <b>Quick</b> — playable in response, even on the Rival’s turn.</li>'+
       '<li><b>Equipment</b> stays on the table and keeps working while equipped — it shifts your (or the Rival’s) fight <b>value</b> up or down every fight, <i>including the one already on the table</i>. The chips above your hand show what’s modifying your plays right now, and from where.</li>'+
       '<li>Each round both fighters <b>draw 2</b>. Ending a round with an empty hand is fine — you only <b>deck out</b> (and lose) if you ever have to <b>draw when both your deck and shuffle pile are empty</b>.</li>'+
+      /* THE ONE LINE FOR A FULL TABLE (v1.36.0, Aj approved the wording). This page states duel rules, and they stay
+         as they are: true in a duel. */
+      '<li><b>At 3–6 players:</b> everyone starts with <b>2 + players</b> shields, a Special win strikes <b>every</b> rival, and every player draws one card per player each round.</li>'+
       '<li><b>Play hints (💡, top bar):</b> off by default. Turn them on and cards you <b>can’t</b> play right now dim out; a <b>dashed</b> group means "break me — a card inside can beat the pile." The <b>Sort</b> button also cycles Singles → Pairs → Straights to line up your combos.</li>'+
       '</ul>'+
 
@@ -18074,7 +18148,7 @@ window.CardFace = {};
          this is the v1.29.6 lesson — never infer the loser, read `result.struck` — as a redaction gap. */
       if(res.struck) o.struck=res.struck.map(rot);
       if(res.spared) o.spared=res.spared.map(rot);
-      if(res.saved) o.saved=res.saved.map(function(x){ return { seat:rot(x.seat), by:x.by }; });   // who a prevented loss saved, and by what
+      if(res.saved) o.saved=res.saved.map(function(x){ var r={ seat:rot(x.seat), by:x.by }; if(x.owner!=null) r.owner=rot(x.owner); return r; });   // who a prevented loss saved, by what, and (a Shroud) whose — rotated, so the guest's banner says "Your" for its own
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }

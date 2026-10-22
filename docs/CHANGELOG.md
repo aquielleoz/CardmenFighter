@@ -15,6 +15,46 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.36.0 — the loss=all package is the default, duels included
+
+**What you'll see at 3–6 players:** a Special win strikes **every** rival instead of one the winner picks; everyone
+starts with **2 + players** shields (5 / 6 / 7 / 8); Critical Hit and Ultima Attack hit every rival and no longer ask
+for a target. Games run about **11 / 12 / 14 / 15** rounds at 3 / 4 / 5 / 6 players, against 14 / 20 / 26 / 31.
+
+**What you'll see in a duel:** the three cards that protect shields now protect **everyone**. Leyline Ascension means
+nobody loses a shield that round, your own Special wins included; Holy Shroud eats the next shield loss either player
+would take, the struck player's own Shroud first, so yours can save your Rival from your pair (or delay your Fighter
+Kick by a round); Sanctuary under Apollo locks every player's shields. Critical Hit and Ultima Attack cast on the
+tap, without the target tap.
+
+**Why:** Aj chose the package on 2026-10-22 after `DECISIONS.md#loss-all-remeasured`: it is the first `loss=all`
+measured tighter than the shipped game at every table size from 3 to 6 (spread 8.3 / 9.9 / 10.8 / 9.9 against
+15.1 / 17.4 / 15.0 / 12.5, knight self-play). It applies to duels too because Aj would not print two wordings of one
+card: *"i do not want to print different wordings for the same card when the game changes from duel to multi"*.
+The duel cost was measured with it (about 1 duel in 18 flips; Pure Wizard about −3, the attack decks about +2).
+
+**The card text, one wording at every table size:** Leyline Ascension *"No player can lose a shield this round — and no
+one at 0 shields can take the Fighter Kick."* · Holy Shroud *"If any player would lose a shield (or take the Kick at
+0), remove 1 counter from Holy Shroud instead. A player's own Holy Shroud is used before anyone else's."* · Critical
+Hit and Ultima Attack *"… Every Rival loses 1 shield."* · Ares Mode on Ultima *"Every Rival loses 1 additional shield
+(2 total)."* · Apollo Mode on Sanctuary *"…and no player can lose a shield until end of round."*
+
+**Custom rules:** the old rules stay as rows phrased as negatives, so every row still defaults off — *"A Special win
+strikes only one rival"* (`strikeOne`, which keeps the winner's pick) and *"Shields do not scale with the table"*
+(`flatShields`). *"All round losers send cards to their Energy Pile"* does nothing unless `strikeOne` is on. The
+shared ward and the every-rival attack cards have no row, because the cards print what they do. A saved rule set
+from before drops `lossAll`, `shieldScale` and a lone `millAll`.
+
+**Also:** the round line says whose Holy Shroud paid for a save (*"You spent a Holy Shroud counter to save Tank."*),
+and names a save in a round where other rivals still lost a shield. How to play gains a line for 3–6 players. The
+playtest export moves to schema `2.2-mp`, because an empty rules key now means the package. A v1.36 build refuses a
+v1.35 peer online. Every sim that called `'chosen'` the live game now states the package (`rulesim` keeps its old
+rows, relabelled v1.35; `flagpair`'s `base` arm is v1.35, with a new `shipped` alias). The inventory behind all of
+this is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md).
+
+**Not in it:** no AI tuning (Aj's ruling; the AI was tuned on the winner's pick, and its `aimed` Leyline policy can no
+longer fire in the shipped game). That is the `ai-answers-others-casts` entry, now `ready to build`.
+
 ### v1.35.2 — seven template functions nothing called are deleted
 
 **What you'll see:** nothing; the page is about 800 bytes smaller.

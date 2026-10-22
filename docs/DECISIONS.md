@@ -257,6 +257,8 @@ answer to "should we be more faithful here" — so they are worth keeping even t
 
 - **`loss=all` IS REPAIRABLE, and the whole avenue is now measured (PATCHNOTES 0n).** Everything below is done;
   do not re-derive it.
+  - **SHIPPED AS THE DEFAULT IN v1.36.0 WITH THE SHARED WARD, EVERY-RIVAL DAMAGE AND SHIELDS 2+N** — see
+    [`#loss-all-remeasured`](#loss-all-remeasured).
   - **RE-MEASURED 2026-10-21 on v1.35.2 — read [`#loss-all-remeasured`](#loss-all-remeasured) first.** The law
     below holds. Three things moved: under `all` the Cleric decks lead now, not Pure Wizard; the shared ward
     brings six players close to the shipped spread but no longer improves duels; and offence scaling, closed
@@ -337,6 +339,12 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
 
 **Asked:** Aj wants `loss=all` back for 3-6 player games. Before he decides, every August number for it was
 re-taken on v1.35.2 and each option he named was measured. Nothing here changes a rule or a default.
+
+**SHIPPED AS THE DEFAULT IN v1.36.0 (2026-10-22), DUELS INCLUDED:** the package row below (`lossall`+`wardall`+`shp`+`damageall`),
+with one wording per card (the inventory and Aj's approvals are in [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md)).
+**So every "shipped" arm from v1.36.0 on is the package**, and every "shipped" number recorded before it, here and
+elsewhere in this file, is the winner's pick on flat shields: `flagpair`'s `base` arm is that game, and it has a
+`shipped` alias for this one. The numbers below are unchanged history.
 
 **What it means for play.** `loss=all` on its own is still a balance disaster at a full table: Pure Fighter
 wins about 4% of six-player games, and the Cleric and Wizard decks take over. The shared ward (`wardall`) still

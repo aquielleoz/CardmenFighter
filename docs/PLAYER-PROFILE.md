@@ -55,6 +55,11 @@ Still small (20 games as of 2026-09-24, 13 of them substantive, all vs the AI ex
 
 Games already folded into this profile (so future uploads aren't double-counted):
 
+**From v1.36.0 (export schema `2.2-mp`) an empty `rules` key means the `loss=all` package** — every rival struck,
+shields 2 + players, the shared ward — where before it meant the winner's pick on flat shields. Read a 3–6 player
+game's damage and length against its `build`, and never pool the two eras as one ruleset. Duels changed only through
+the shared ward.
+
 | Date | Ver | Diff | Your deck | Result | Rounds | Notes |
 |------|-----|------|-----------|--------|--------|-------|
 | 2026-08-13 | 0.40 | fighter | Bard (Cle+Rog) | Loss (kick) | 11 | pre-rework ruleset; double STOPPER, straight flushes |

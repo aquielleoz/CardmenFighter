@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.35.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.36.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 750 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 757 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 750 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 757 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -432,7 +432,7 @@ node nettest_actloop.js                         # play must keep moving AFTER a 
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm,
                                                 # plus the EPIC LINE: a `vX.Y.Z.a` build refuses a
                                                 # `vX.Y.Z` one, two epic builds only warn (37)
-node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (152)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (155)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (28)
 node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
                                                 # to multiplayer, but `passoStep` only knew driveN's parks —
@@ -2713,7 +2713,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.35.2 — last FULL sweep 2026-10-21, `npm run sweep`, 136/137 in 558s — `nettest_parity` drifted once at a 3-player ceremony and passed 4/4 alone after (`nettest-parity-3p-ceremony-drift`)** (this line was
+Status as of **v1.36.0 — last FULL sweep 2026-10-21, `npm run sweep`, 136/137 in 558s — `nettest_parity` drifted once at a 3-player ceremony and passed 4/4 alone after (`nettest-parity-3p-ceremony-drift`)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2727,9 +2727,9 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 750, `netview` 74, `mptest` 133, `rulestest` 152, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 757, `netview` 74, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 38, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 128, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2738,7 +2738,7 @@ The 83 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, 
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 13, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7.
+`target3` 17, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -3486,11 +3486,19 @@ winning a round forces you to strike someone. The faithful analogue is TIT FOR T
 
 ## Rules facts worth knowing before touching the engine
 
+**SINCE v1.36.0 THE `loss=all` PACKAGE IS THE GAME, DUELS INCLUDED (Aj, 2026-10-22)** — every rival struck,
+shields 2 + players, the shared ward (Leyline, Holy Shroud and Apollo's Sanctuary protect every player) and Critical
+Hit / Ultima Attack on every rival. It re-lands the reverted scaling below with the two halves that fix its balance;
+the evidence is [`DECISIONS.md#loss-all-remeasured`](docs/DECISIONS.md#loss-all-remeasured) and the build was
+inventoried in [`docs/LOSS-ALL-DEFAULT-PLAN.md`](docs/LOSS-ALL-DEFAULT-PLAN.md). **The ward and the damage have no
+Custom rules row on purpose:** they change what a card does, the card prints it, and Aj will not print two wordings of
+one card — so a rule that would make a printed text false is the thing not to add. The winner's pick and flat shields
+survive as `strikeOne` / `flatShields`, negatives like `flatDraw`.
 **3-6 player scaling was tried and REVERTED (v1.31.0 → v1.31.2).** Shields = 2+numPlayers, draw = numPlayers,
 `SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='universal'`. It fixed pacing (6p length 33 → 15 rounds, jab share
 24% → 10%) and **broke deck balance**: 6p spread 15.5 → 40.7 points, Pure Wizard 44% vs Pure Rogue 1.7%.
 Isolated to `loss='all'` alone, because **`all` multiplies the value of landing a Special by (N-1)** — at six
-players the best Special-lander gains against five people at once. `setShieldsPerPlayer` defaults **off**; `setDrawPerPlayer` defaults **ON** (draw = numPlayers shipped in v1.31.3 — this file used to claim both were off). Both are now player-facing through the custom rules menu. **Read `startShieldsFor(n)` /
+players the best Special-lander gains against five people at once. `setShieldsPerPlayer` defaults **ON** since v1.36.0 (off before); `setDrawPerPlayer` defaults **ON** (draw = numPlayers shipped in v1.31.3 — this file used to claim both were off). Both are now player-facing through the custom rules menu. **Read `startShieldsFor(n)` /
 `drawCountFor(st)`, never the bare constants** — reading `E.DRAW_PER_ROUND` in the UI is what once made the
 round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**. The re-land direction
 this line used to call promising, shields scaling **down** (**0k**), was balance-tested on 2026-10-21 and widens
@@ -3514,7 +3522,7 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
   `TRANSFORM_COST` into the Forms & Rides zone, and the apex 2 has no activated effect.
 - Defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
 - **The per-round DRAW scales with the table (v1.31.3): `= numPlayers`** — 2 in a duel, 6 at six players.
-  Shields stay flat 4 at every count. Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
+  Shields are 2 + players since v1.36.0 (4 in a duel, 8 at six; `E.startShieldsFor(n)`). Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
   (the duel value) — reading the constant in the UI is what made the round banner announce "draws 2" at a table
   drawing 6, twice.
 
@@ -3728,9 +3736,11 @@ runs. An 8-run mean therefore carries ~1.2 s.e., so a 2-point shift in one deck'
 resolving it at 3σ needs roughly **22 runs per arm**. The standard 8-run A/B is powered for the SPREAD, not
 for one low-share deck. Low-share decks are the worst case: the same absolute wobble is a bigger relative one.
 
-**The engine's defaults are the SHIPPED rules** (`SPECIAL_LOSS_MODE='chosen'`, `MILL_SCOPE='targeted'`) as of
-v1.31.8a. They used to default to the reverted v1.31.0 values, so a probe that forgot to configure them
-silently measured a game nobody plays.
+**The engine's defaults are the SHIPPED rules** — since v1.36.0 `SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='targeted'`,
+`SHIELDS_PER_PLAYER`, `WARD_ALL` and `DAMAGE_ALL` on (`'chosen'` and flat shields from v1.31.8a to v1.35.2). They once
+defaulted to the reverted v1.31.0 values, so a probe that forgot to configure them silently measured a game nobody
+plays. **And a sim that hardcodes "the live game" goes stale the day the default moves** — eight did at v1.36.0, each
+saying `'chosen'` "matches the live game"; `mpsim` reads its defaults from the engine for exactly this reason.
 
 **Under Hermes the target model is MOOT.** `eff.all` locks every rival for the round, so any special wins it
 outright (a pair of 3s strips a shield). `lockoutReason` takes an `all` flag and returns `super-sweep` before

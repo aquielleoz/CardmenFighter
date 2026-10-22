@@ -7,6 +7,10 @@ measurement of `main` at `3db7701` (v1.35.2); re-check anything here before buil
 The evidence for the package is [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured) and is not
 repeated here.
 
+**BUILT AS v1.36.0 on `feat/loss-all-default`** (2026-10-22), following the build order below. Where the build went
+beyond this inventory, `CHANGELOG.md`'s v1.36.0 entry says so (a save in a mixed round is now narrated; the export
+schema moved to `2.2-mp`).
+
 **Aj's rulings (2026-10-22).**
 - The package: `lossall` + `wardall` + shields 2 + players (`shp`) + `damageall`.
 - The default for every game, duels included: *"it must apply even to duels. i do not want to print different
