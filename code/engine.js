@@ -2785,7 +2785,7 @@
      cast line already names its caster). */
   function noteSaved(result, q, by) {
     var nm = (typeof by === 'string') ? by : (by && typeof by.name === 'string') ? by.name : null, list = result.saved = result.saved || [];
-    var own = (by && typeof by === 'object' && typeof by.owner === 'number') ? by.owner : null;
+    var own = (by && typeof by === 'object' && typeof by.owner === 'number' && by.owner !== q) ? by.owner : null;   // only when it is SOMEONE ELSE's — your own Shroud saving you needs no owner
     if (!list.some(function (x) { return x.seat === q; })) list.push(own == null ? { seat: q, by: nm } : { seat: q, by: nm, owner: own });
   }
   // Apply one shield-loss object's strips to its target (parity with the old doStrips inner loop).
