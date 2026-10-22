@@ -27,6 +27,7 @@ async function until(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retur
 const flags=p=>p.evaluate(()=>({
   loss: CardmenEngine.isSpecialLossMode(), mill: CardmenEngine.isMillScope(),
   shieldScale: CardmenEngine.isShieldsPerPlayer(), drawScales: CardmenEngine.isDrawPerPlayer(),
+  ward: CardmenEngine.isWardAll(), damage: CardmenEngine.isDamageAll(),
   apexInf: CardmenEngine.isApexInfinity(), apexNoStrip: CardmenEngine.isApexNoStrip(),
   dblPair: CardmenEngine.isDoublePair(), kits3: CardmenEngine.isKits3(), quadro: CardmenEngine.isQuadro(),
   chopQuadro: CardmenEngine.isChopQuadro(), chopKits: CardmenEngine.isChopKits(), chopSflush: CardmenEngine.isChopSflush(),
@@ -48,11 +49,11 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   await p.goto(HTML); await wait(500);
 
   // ---------- defaults: the shipped game, and EVERY toggle off
-  ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
+  ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'all',mill:'targeted',shieldScale:true,drawScales:true,ward:true,damage:true,
        apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false, quadro:false,
        chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false, noFullHouse:false, seqTwos:'low',
        trioOne:false, fourOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
-     'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
+     'the shipped defaults (v1.36.0) are every-rival strikes / targeted mill / shields 2+N / scaling draw / the shared ward / every-rival damage / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await painted(p);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
@@ -60,7 +61,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   /* THE SECTION'S `keys` LIST IS THE RENDER ORDER (v1.31.45) — it used to only decide membership, so this
    * assertion tracks RULE_SECTIONS now, not RULE_DEFS. Within Shapes the run rules lead: the pair-run slot and
    * its length, the straight's length, the trio-run, then the 2-in-a-run rule, then the standalone shapes. */
-  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','noSeqTwos','highTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','strikeOne','millAll','flatShields','flatDraw','apexInf','apexNoStrip','noSeqTwos','highTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
      `twenty-two rules — the game mode first, then the 2, then the shapes, then the chops (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * The pair shapes were first inserted between them, which silently pointed that sentence at the wrong rule. */
@@ -117,9 +118,14 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
      'and warns that the Rival does not adapt');
 
+  /* ---------- `millAll` IS INERT UNTIL `strikeOne` IS ON (v1.36.0): with every loser struck, every struck loser
+   * already mills. A click on the dead row must change nothing, or a stale tick could travel in rulesKey(). */
+  await toggle(p,'millAll');
+  ok((await flags(p)).mill==='targeted' && await p.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="millAll"]'); return !!r && !r.classList.contains('on'); }),
+     'the mill row is dead while every loser is struck — clicking it changes nothing');
   // ---------- each toggle must actually reach the engine
-  for(const [key, field, want] of [['lossAll','loss','all'],['millAll','mill','universal'],
-                                   ['shieldScale','shieldScale',true],['flatDraw','drawScales',false],
+  for(const [key, field, want] of [['strikeOne','loss','chosen'],['millAll','mill','universal'],
+                                   ['flatShields','shieldScale',false],['flatDraw','drawScales',false],
                                    ['apexInf','apexInf',true],['apexNoStrip','apexNoStrip',true],
                                    ['kits3','kits3',true],['quadro','quadro',true],['noFullHouse','noFullHouse',true],
                                    /* Two panel booleans drive ONE engine mode: noSeqTwos wins and gives 'off',
@@ -136,6 +142,10 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
     const f=await flags(p);
     ok(f[field]===want, `  → the engine now reports ${field}=${JSON.stringify(f[field])}`);
   }
+  /* THE OLD STRIKE RULE IS NOT THE OLD GAME: the ward and the every-rival attack cards have no row, because their
+   * printed text says what they do (Aj, 2026-10-22). So they stay on whatever the Table rules say. */
+  { const f=await flags(p); ok(f.loss==='chosen' && f.ward===true && f.damage===true,
+      `with "strikes only one rival" on, the ward and the attack cards still cover the table (ward=${f.ward}, damage=${f.damage})`); }
   /* THE MODE ROW IS DRIVEN BY ITS SEGMENTS, not by clicking the row — a mode row is a <div> wrapping three
    * <button>s, because nesting buttons is invalid HTML. So the panel has two interaction shapes and both need
    * covering; a suite that only clicked rows would silently never exercise the segments. */
@@ -165,7 +175,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
   }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
   const savedKey = await p.evaluate(()=>localStorage.getItem('cmf_rules_v1'));
-  ok(savedKey==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,noFullHouse,noSeqTwos,trioOne,fourOne,fourTwo,airplane=wings,straightLen=3,chopQuadro,chopKits,chopSflush,chopStrips',
+  ok(savedKey==='strikeOne,millAll,flatShields,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,noFullHouse,noSeqTwos,trioOne,fourOne,fourTwo,airplane=wings,straightLen=3,chopQuadro,chopKits,chopSflush,chopStrips',
      `the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE [got ${savedKey}]`);
   /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
    * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
@@ -193,7 +203,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
      })), '  → and its tick was cleared, so a stale one cannot travel in rulesKey()');
   await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await painted(p);
 
-  await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chop'));
+  await p.evaluate(()=>window.__solo.setRulesFromKey('strikeOne,millAll,flatShields,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chop'));
 
   /* ---------- THE CHOP DEPENDENCY (v1.31.33). The engine treats a chopper's shape as enabled either way
    * (`quadroOn()` is `QUADRO || CHOP_Q`), so an unticked Quadro box next to a ticked "Quadro chops" box told the
@@ -243,14 +253,14 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   sr = await stripRow();
   ok(!sr.checked && sr.engine === false && sr.inert,
      'turning the last chop off clears it and returns it to inert — a live setting for a rule nobody is playing');
-  await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips'));
+  await p.evaluate(()=>window.__solo.setRulesFromKey('strikeOne,millAll,flatShields,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips'));
   await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
 
   ok(await p.evaluate(()=>/Straight Flush beats the 2/.test(
        (document.querySelector('.settingRow[data-rule="chopSflush"] .settingLbl')||{}).textContent||'')),
      'and it is named for the shape a player would call it, with the definition in the note');
-  await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush'));
+  await p.evaluate(()=>window.__solo.setRulesFromKey('strikeOne,millAll,flatShields,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush'));
   await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
 
@@ -350,7 +360,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true && after.chopQuadro === true
      && after.chopKits === false && after.chopSflush === false,
      'the Chikicha preset turns on consecutive 2 pairs, 3+ consecutive pairs, four of a kind and the four-of-a-kind chop only (the pair-chop belongs to Tiến lên)');
-  ok(after.loss === 'chosen' && after.mill === 'targeted' && after.shieldScale === false
+  ok(after.loss === 'all' && after.mill === 'targeted' && after.shieldScale === true
      && after.drawScales === true && after.apexInf === false && after.apexNoStrip === false,
      'and turns everything else back OFF — "and nothing else" is part of the preset');
   ok((await p.evaluate(() => window.__solo.rulesKey())) === 'dblPair=kits,kits3,quadro,chopQuadro',
@@ -379,13 +389,13 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   row = await bulk(p);
   ok(row[1].active && !row[0].active, 'and the active marker moves with it');
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await painted(p);
-  await toggle(p, 'lossAll');
+  await toggle(p, 'strikeOne');
   ok(!(await bulk(p))[0].active, 'one further change and it stops reading active');
 
   await p.evaluate(() => document.getElementById('ruleClear').click()); await painted(p);
   ok((await p.evaluate(() => window.__solo.rulesKey())) === '', 'Clear all empties the whole rule set');
-  ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
-       drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
+  ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'all', mill: 'targeted', shieldScale: true,
+       drawScales: true, ward: true, damage: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
        chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false, noFullHouse: false, seqTwos: 'low',
        trioOne: false, fourOne: false, fourTwo: false, airplane: 'off', straightLen: 'off' }),
      'and the engine is back on the shipped game, mode rows included');
@@ -396,7 +406,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
      'the setup button drops its "· on" marker');
 
   // put a customised set back, since the rest of the suite plays a game under it
-  await p.evaluate(() => window.__solo.setRulesFromKey('shieldScale,flatDraw'));
+  await p.evaluate(() => window.__solo.setRulesFromKey('flatShields,flatDraw'));
   await p.evaluate(() => document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
 
@@ -409,7 +419,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(await until(async()=>!!(await p.evaluate(()=>window.__solo && window.__solo.st()))), 'a 4-player game starts');
   const live=await p.evaluate(()=>{ const st=window.__solo.st();
     return { players:st.numPlayers, shields:st.players[0].shields, draw:CardmenEngine.drawCountFor(st) }; });
-  ok(live.shields===6, `shields scaled with the table: ${live.shields} at ${live.players} players (default would be 4)`);
+  ok(live.shields===4, `shields did NOT scale with the table: ${live.shields} at ${live.players} players (default would be 6)`);
   ok(live.draw===2, `and the draw did NOT scale: ${live.draw} (default at 4 players would be 4)`);
 
   // ---------- mid-game the panel is READ-ONLY: an edit now would be ignored or incoherent
@@ -552,11 +562,19 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   { const c2=await b.newContext({viewport:{width:900,height:1000}});
     const p2=await c2.newPage();
     await p2.goto(HTML); await wait(400);
-    await p2.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','lossAll,flatDraw'); }catch(e){} });
+    await p2.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','strikeOne,flatDraw'); }catch(e){} });
     await p2.reload(); await wait(600);
     const f=await flags(p2);
-    ok(f.loss==='all' && f.drawScales===false && f.mill==='targeted' && f.shieldScale===false,
+    ok(f.loss==='chosen' && f.drawScales===false && f.mill==='targeted' && f.shieldScale===true,
        `a saved rule set is restored exactly (loss=${f.loss}, drawScales=${f.drawScales}, mill=${f.mill})`);
+    /* THE v1.36.0 MIGRATION. A key saved before it named `lossAll` / `shieldScale` to turn ON what is now the
+     * default, and a `millAll` without `strikeOne` now does nothing: all three drop, so an old saved key lands on
+     * the shipped game and does NOT read as customised. Both halves, or a parser that kept them as dead ticks passes. */
+    await p2.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','lossAll,millAll,shieldScale,quadro'); }catch(e){} });
+    await p2.reload(); await wait(600);
+    const m=await flags(p2), mk=await p2.evaluate(()=>window.__solo.rulesKey());
+    ok(m.loss==='all' && m.shieldScale===true && m.mill==='targeted' && m.quadro===true && mk==='quadro',
+       `a pre-v1.36 key migrates: lossAll, shieldScale and a lone millAll drop, the rest survives [${mk}]`);
     await c2.close(); }
 
   /* ---------- the EXPORT must record which rules the game was played under. Asserted from a REAL record via
@@ -565,7 +583,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   { const c3=await b.newContext({viewport:{width:900,height:1000}});
     const p3=await c3.newPage(); const e3=[]; p3.on('pageerror',e=>e3.push(e.message));
     await p3.goto(HTML); await wait(400);
-    await p3.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','lossAll,shieldScale'); localStorage.removeItem('cmf_games_v1'); }catch(e){} });
+    await p3.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','strikeOne,flatShields'); localStorage.removeItem('cmf_games_v1'); }catch(e){} });
     await p3.reload(); await wait(600);
     await p3.evaluate(()=>document.getElementById('newBtn').click()); await painted(p3);
     await p3.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await painted(p3);
@@ -578,8 +596,10 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
       const g=window.__solo.games(); return g[g.length-1]||null;
     });
     ok(!!rec, 'a real game record was written');
-    ok(!!rec && rec.v==='2.1-mp', `the schema is bumped so pre-rules files stay identifiable ("${rec&&rec.v}")`);
-    ok(!!rec && rec.rules==='lossAll,shieldScale',
+    /* 2.2 (v1.36.0): an EMPTY rules key now means the loss=all package, not the winner's pick, so the schema says
+     * the meaning moved even though the field did not. */
+    ok(!!rec && rec.v==='2.2-mp', `the schema is bumped so files from before the v1.36 defaults stay identifiable ("${rec&&rec.v}")`);
+    ok(!!rec && rec.rules==='strikeOne,flatShields',
        `and it records the RULE SET the game was played under ("${rec&&rec.rules}") — without this a homebrew game is indistinguishable from a weird one`);
     ok(e3.length===0,'no JS errors on the export path'+(e3.length?': '+e3.slice(0,2).join(' | '):''));
     await c3.close(); }

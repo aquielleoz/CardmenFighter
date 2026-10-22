@@ -2151,8 +2151,9 @@ __QR__
   E.setDeferRoundDraw(true);   // the UI draws the new round's cards AFTER the end-of-round hand-limit trim (see resolveRoundCeremony)
   E.setShieldCards(true);      // CATCH-UP M1: shields are cards — a broken shield returns to its owner's hand (the trailing player refuels)
   E.setLoserMill(true);        // CATCH-UP M2: the round's loser mills (winning-play size) cards into their Energy Pile (energy parity; deck-out guarded)
-  E.setSpecialLossMode('chosen'); // MP: on a Special win the victor strips ONE chosen rival's shield (not the whole table). No-op at 2p.
-  E.setMillScope('targeted');     // MP: only the struck rival(s) mill catch-up cards, not every non-winner. No-op at 2p. (Cutthroat combo — flattens 3–6p balance; see CARD-STATS.md.)
+  /* THE TABLE RULES (loss 'all', shields 2+N, the shared ward, every-rival damage — the shipped game since v1.36.0)
+     are the engine's own defaults and are set again by `applyRules()` at every game start, from the Custom rules
+     rows. Nothing is set here, so there is one place that decides them. (Until v1.36.0 this line set 'chosen'.) */
   /* The build stamp. Substituted by build.js from README.md's `**Status:**` line — see the note there. It
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
@@ -2752,10 +2753,15 @@ __QR__
    * comparison against a defaults map, and it is why `flatDraw` is phrased as the NEGATIVE of the shipped rule
    * (draw-scales-with-table ships ON, so the toggle turns it off).
    *
-   * All four are MULTIPLAYER-ONLY in effect, which the panel says out loud: the engine's own comment marks the
-   * first two as no-ops at 2 players, `startShieldsFor(2)` is 2+2=4 (the flat default), and `drawCountFor` at 2
-   * players is max(2,2)=2 (also the default). A duel plays identically with all four ticked. Kits and the apex
-   * pair would be the first duel-relevant rules. */
+   * The Table rules are MULTIPLAYER-ONLY in effect, which the panel says out loud: the loss and mill modes are
+   * no-ops at 2 players, `startShieldsFor(2)` is 4 either way, and `drawCountFor` at 2 players is 2 either way.
+   * A duel plays identically with all four ticked.
+   *
+   * SINCE v1.36.0 TWO OF THEM ARE THE OLD RULES, PHRASED AS NEGATIVES (Aj, 2026-10-22). The `loss=all` package
+   * became the shipped game, so `lossAll` and `shieldScale` became `strikeOne` and `flatShields` — the `flatDraw`
+   * inversion again, because every row must still default off. The package's other two halves (the shared ward,
+   * the every-rival attack cards) have NO row: they change what a card does, and a row that made a printed card
+   * text false is exactly what the one-wording ruling exists to prevent. `rulesFromKey` migrates the old keys. */
   var RULES_KEY='cmf_rules_v1';
   var RULE_DEFS=[
     /* GAME MODE, moved out of the setup dialog in v1.31.32 (Aj: "move this choice to the custom rules. full
@@ -2768,12 +2774,15 @@ __QR__
     { key:'basics',      duel:true, label:'Game mode',
       mode:[{v:'full',label:'Full game'},{v:'basics',label:'Basics'}],
       note:'“Full game” is the whole thing, J/Q/K Rides &amp; Form Changes included. “Basics” drops the transform layer for a clean 3–10 + A + 2 game — the way to learn the ladder, effects and energy first.' },
-    { key:'lossAll',     mp:true,  label:'Special fights destroy a shield for each rival',
-      note:'Normally the winner picks one rival to strike.' },
-    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile',
-      note:'Normally only the rival whose shield you strike does.' },
-    { key:'shieldScale', mp:true,  label:'Shields scale with the table (2 + players)',
-      note:'Normally 4 shields at every player count.' },
+    { key:'strikeOne',   mp:true,  label:'A Special win strikes only one rival',
+      note:'Normally a Special win costs every rival a shield. With this on, the winner picks one rival to strike — the rule before v1.36. Leyline, Holy Shroud and the attack cards still cover every rival.' },
+    /* INERT UNLESS `strikeOne` IS ON (v1.36.0): with every loser struck, every struck loser already mills, so
+     * "all losers" and "struck losers" are the same seats. `needsAny` makes it dead and self-clearing, the
+     * `chopStrips` precedent, so it can never mark a game as customised while doing nothing. */
+    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile', needsAny:['strikeOne'],
+      note:'Only matters with “strikes only one rival” on: by default every loser is struck, and every struck loser already does.' },
+    { key:'flatShields', mp:true,  label:'Shields do not scale with the table',
+      note:'Normally everyone starts with 2 + players shields (4 in a duel, 8 at six). With this on, 4 at every player count.' },
     { key:'flatDraw',    mp:true,  label:'Draw does not scale with the table',
       note:'Every round draws a flat 2 cards instead of one per player.' },
     /* The first two toggles that change a DUEL. Measured 2026-08-26 (PATCHNOTES 0m) and each carries a real
@@ -2891,7 +2900,7 @@ __QR__
     /* "The game", not "Game mode" — the single rule inside it is already called Game mode, and a heading that
      * repeats its only row is just noise. */
     { key:'mode',   title:'The game',       keys:['basics'] },
-    { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
+    { key:'table',  title:'Table rules',    keys:['strikeOne','millAll','flatShields','flatDraw'] },
     /* THE PRESET LINE LEADS FROM HERE (2026-08-30), not from Shapes. It moved because the presets now set a
      * rule in THIS section: with the 2 playing in chains by default, Tiến lên and Dou Dizhu have to switch
      * `noSeqTwos` ON to bar it. A preset line must precede every group it governs — below one of them it reads
@@ -2984,6 +2993,14 @@ __QR__
      * because the DEFAULT moved. An old peer and a new one will therefore play the 2 differently unless one of
      * them says so explicitly, which is what the build-version handshake (v1.31.21) exists to warn about. */
     if(want.seqTwos){ want.highTwos=1; }
+    /* MIGRATION (v1.36.0): `lossAll` and `shieldScale` turned ON what is now the default, so a key carrying them
+     * means nothing extra and they are dropped. `millAll` only acts beside `strikeOne`, so without it it is
+     * dropped too — a stale key must not carry an inert rule that marks the game customised. The other half
+     * cannot be migrated and is not: a key that OMITS `lossAll` meant the winner's pick and now means every
+     * rival, because the DEFAULT moved (the `seqTwos` note above). Migrating it would keep every existing player
+     * on the old rule for good. Over the wire none of this arises: v1.36 refuses a v1.35 peer. */
+    delete want.lossAll; delete want.shieldScale;
+    if(!want.strikeOne) delete want.millAll;
     RULE_DEFS.forEach(function(d){
       if(d.mode){
         var v=modes[d.key], ok=d.mode.some(function(m){ return m.v===v; });
@@ -3001,9 +3018,14 @@ __QR__
     applyRules();
   }
   function applyRules(){
-    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.lossAll ? 'all' : 'chosen');
+    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.strikeOne ? 'chosen' : 'all');   // NOTE the inversion (v1.36.0)
     if(E.setMillScope)       E.setMillScope(RULES.millAll ? 'universal' : 'targeted');
-    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!!RULES.shieldScale);
+    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!RULES.flatShields);   // NOTE the inversion (v1.36.0)
+    /* No row turns these off: they change what Leyline, Holy Shroud, Sanctuary-under-Apollo, Critical Hit and
+     * Ultima Attack DO, and the cards print it. Set every game start anyway, so the page never depends on
+     * whatever a debug hook or an earlier game left in the engine. */
+    if(E.setWardAll)   E.setWardAll(true);
+    if(E.setDamageAll) E.setDamageAll(true);
     if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
       if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
@@ -3728,8 +3750,11 @@ __QR__
     var net=(typeof NET!=='undefined' && NET.active && NET.active());
     /* v2.1-mp: the RULE SET is recorded. Without it a homebrew game silently poisons PLAYER-PROFILE.md's
      * ingestion log — a weird statistic becomes indistinguishable from a weird ruleset — and that is exactly the
-     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down. */
-    var rec={ v:'2.1-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
+     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down.
+     * v2.2-mp (v1.36.0): no new field, a moved MEANING — an empty `rules` key is now the loss=all package (every
+     * rival struck, shields 2+N, the shared ward), where before it was the winner's pick. Bumped so a reader of
+     * an old file and a new one cannot read the same '' as the same game. */
+    var rec={ v:'2.2-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
       numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
       winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
