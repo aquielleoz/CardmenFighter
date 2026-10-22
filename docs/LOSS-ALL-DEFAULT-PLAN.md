@@ -292,7 +292,8 @@ It fits one PR: one rules change, one version, and the measured blast radius is 
 
 ## Out of scope, noticed on the way
 
-For the later card-tweak pass, not this one:
+For the later card-tweak pass, not this one (both fixed in v1.35.2.4, Aj approving the texts as drafted on
+2026-10-22):
 - **Spiked Armor under the ♣ King** reads *"The Rival's highest card each fight drops 1 further (to −3)"*, while the
   card itself hits EVERY Rival. A sixth instance of the table-text class; it is wrong today, independent of the
   package.
@@ -350,6 +351,10 @@ this is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md).
 threat aimed at the AI itself. Measured before shipping, with no harm and a small lean in its favour
 ([`DECISIONS.md#ai-no-aid`](DECISIONS.md#ai-no-aid)). The AI uses a Holy Shroud only to guard, on Leyline's rule (two
 shields or fewer).
+
+**Two Form texts name the table** (v1.35.2.4): Spiked Armor under Meleager reads *"Every Rival's highest card each fight
+drops 1 further (to −3)."*, which is what it always did, and Poison the Air under Pandora reads *"Only Target Rival's
+Energy Pile moves to their Shuffle Pile — yours stays."*
 
 **Not in it:** the balance numbers were measured with the old, passive Holy Shroud and the AI before `noAid`;
 re-measuring is `v136-live-measurements`.

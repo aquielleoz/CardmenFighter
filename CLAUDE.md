@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.35.2.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.35.2.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -2722,7 +2722,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.35.2.3 — last FULL sweep 2026-10-22, `npm run sweep`, 137/138 in 551s, `nettest_sync` at full depth (rounds 13, actions 60); the one red, `oppbeatstest`, staged the AI countering a cast aimed at another seat (what `noAid` retired), was restaged and passed 30/0 alone** (this line was
+Status as of **v1.35.2.4 — last FULL sweep 2026-10-22, `npm run sweep`, 138/138 in 557s, `nettest_sync` at full depth (rounds 13, actions 60)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -3697,9 +3697,9 @@ line now (`/^### v1\.31\.127\b/m`), which is what "heading" means in Markdown an
 **The shape to distrust: a gate that searches for formatting with a substring.** The same insertion would be
 invisible to any `grep -c`; only `grep -n '^### '` shows it. Verified by re-burying the heading — one red.
 
-**Card text speaks to a TABLE, not a duel.** FIVE texts have now understated their own effect because the
+**Card text speaks to a TABLE, not a duel.** SIX texts have now understated their own effect because the
 code loops every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta`
-(Giant Ram), `swanValue` (Giant Swan), and **Armor Piercing** (2026-09-24). The house pattern for a genuinely
+(Giant Ram), `swanValue` (Giant Swan), **Armor Piercing** (2026-09-24), and Spiked Armor's Meleager patch (v1.35.2.4). The house pattern for a genuinely
 single-target card is **"Target Rival"**. After any text edit run `node gen-cardlist.js`.
 **THE FIFTH ONE IS THE INSTRUCTIVE ONE, because the fix could have gone either way and the code was right.**
 `resolveRoundWin` applies `strips` to EVERY entry in `strikeTargets`, so under the `lossAll` custom rule one
