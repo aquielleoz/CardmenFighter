@@ -6355,7 +6355,10 @@ __QR__
   }
   function cardById(id){ return state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; }
 
-  function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||eff.kind==='destroyShield'||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
+  /* CRITICAL HIT AND ULTIMA ATTACK PICK NO TARGET SINCE v1.36.0: "Every Rival loses 1 shield" (DAMAGE_ALL ships on),
+     so a tap on a rival would choose nothing — `hostileTargets` ignores it. They cast on the tap like any untargeted
+     card, a duel included, and still open the Broadway pitch pick when there is more than one card to pitch. */
+  function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||(eff.kind==='destroyShield'&&!E.isDamageAll())||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
   // Effects that pick a target before firing — the button reads "Choose target" and no energy is spent until a target is locked in.
   function effNeedsTarget(eff){ return eff && (eff.kind==='removeEquip' || eff.kind==='counterfeit' || isHostileSingular(eff)); }
   /* TARGETING IS NOW TWO STEPS (Aj: "always err on the side of confirming first"). Tapping a target used to

@@ -240,30 +240,32 @@ async function dragOnto(page, idA, idB){
      'THE COLUMN\'S ⚡ CASTS IT — the boost is banked, it cost energy, the column is empty and nothing was played  ['+b8b.energy+' → '+a8b.energy+', boost '+a8b.boost+']');
 
   // ═══ LEG 9 — A CARD WITH A CHOICE STAGES INTO ITS PICKER, AND ✕ BACKS OUT OF BOTH ═══
-  /* Ultima Attack (10♣) with TWO Broadway cards beside it, so its pitch has something to choose: dropped on the
-     column it is staged AND today's pitch picker opens (Fight reads Confirm, Pass reads Cancel), and nothing is
-     spent until that is confirmed. */
+  /* TELEKINESIS (3♦), a card whose choice is a TARGET: dropped on the column it is staged AND its target picker
+     opens, and nothing is spent until that is confirmed. This leg used Ultima Attack until v1.36.0, when Critical
+     Hit and Ultima came to hit every rival and stopped asking for a target — its only choice now is the Broadway
+     pitch, which is Armor Piercing's shape and not this leg's subject. */
   await settle();
   await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
     const you=st.players[0];
-    you.hand=[mk(10,'C','ult'), mk(11,'H','jA'), mk(12,'S','qB'), mk(4,'D','lowC')];
-    you.energy=[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'C','pe'+n));
+    you.hand=[mk(3,'D','ult'), mk(11,'H','jA'), mk(12,'S','qB'), mk(4,'D','lowC')];   // id kept as 'ult' so the legs below read the same
+    you.energy=[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'D','pe'+n));
+    st.players[1].hand=[mk(5,'C','rv1'), mk(6,'C','rv2'), mk(8,'S','rv3')];   // something for it to discard
     st.subPhase='main'; st.turn=0; st.pile=null; st.round=4; st.stack=[]; st.respondFor=null;
     window.__solo.render(); });
   await wait(300);
   const b9=await snap();
   const z9=await dragTo(p,'ult','column');
   await wait(300);
-  /* ITS FIRST CHOICE IS THE TARGET, then the pitch — `activate`'s own order (a hostile single-target card picks the
-     rival before anything else). So the leg asserts "a picker opened", read off the staged card's note, rather than
-     naming one: the column's job is to hand the card to whichever stager it already had. */
+  /* ITS CHOICE IS THE TARGET — `activate`'s own order (a hostile single-target card picks the rival before anything
+     else). The leg asserts "a picker opened", read off the staged card's note, rather than naming one: the
+     column's job is to hand the card to whichever stager it already had. */
   const a9=await p.evaluate(()=>({ staged:[].slice.call(document.querySelectorAll('#stagedSlot .card')).map(c=>c.dataset.id),
     note:((document.querySelector('#stagedSlot .stgNote')||{}).textContent||'').trim(),
     ctx:((document.getElementById('ctxBtn')||{}).textContent||'').trim(),
     ctxIcon:((document.getElementById('ctxBtn')||{getAttribute:()=>''}).getAttribute('data-icon')||''),
     go:((document.getElementById('stagedCastBtn')||{}).textContent||'').trim(),
     energy:window.__solo.st().players[0].energy.length }));
-  ok(z9 && z9.colOk, 'Ultima Attack is offered to the column  ['+(z9?z9.hint:'no drag')+']');
+  ok(z9 && z9.colOk, 'Telekinesis is offered to the column  ['+(z9?z9.hint:'no drag')+']');
   ok(a9.staged.indexOf('ult')>=0 && /^Choose/.test(a9.note), 'A CARD WITH A CHOICE STAGES INTO ITS PICKER — in the column, its first choice open  [note "'+a9.note+'", ⚡ "'+a9.ctx+'"]');
   ok(a9.energy===b9.energy, '  …and nothing is spent while the choice is open');
   /* THE COLUMN'S ⚡ IS THE ACTION ROW'S BUTTON, NOT A SECOND ONE: while a choice is open it reads what that button
@@ -277,7 +279,7 @@ async function dragOnto(page, idA, idB){
 
   // ═══ LEG 9b — A ⚡ TAP ON A CARD WITH A CHOICE SHOWS IT IN THE COLUMN TOO ═══
   /* Aj, 2026-10-14, asked whether a tapped card that needs a target should also sit in the column while you pick:
-     *"Yes, show it in the column"*. The SAME Ultima board, opened by selecting it and pressing the action row's ⚡
+     *"Yes, show it in the column"*. The SAME Telekinesis board, opened by selecting it and pressing the action row's ⚡
      rather than by a drop. The card a picker holds is the staged card whichever gesture opened it. */
   await settle();
   await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="ult"]'))[0]; if(g) g.click(); });
