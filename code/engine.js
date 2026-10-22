@@ -688,7 +688,7 @@
     if (!hit) return false;
     var owner = st.players[hit.owner], shroud = hit.e;
     shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
-    return shroud.name || true;                                                  // TRUTHY either way; the name feeds the round's "saved" line
+    return { name: shroud.name || 'Holy Shroud', owner: hit.owner };            // TRUTHY; the name AND whose Shroud it was feed the round's "saved" line — under WARD_ALL it can be someone else's
   }
   // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
   // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
@@ -2779,10 +2779,14 @@
   function newOid(st) { st.oidSeq = (st.oidSeq || 0) + 1; return 'o' + st.oidSeq; }
   /* WHO WAS SAVED, AND BY WHAT (2026-10-20). `prevented` said only that SOME loss was stopped, so the round line read
      "won with a Full House - but the loss was prevented" when it was Aj's own Holy Shroud saving Aj. Narration only:
-     one entry per seat, and the name is null where no card can be named. */
+     one entry per seat, and the name is null where no card can be named.
+     AND WHOSE IT WAS (v1.36.0). Under the shared ward a Holy Shroud saves ANY player, so yours can eat the shield you just
+     broke on your Rival; `owner` is that Shroud's seat, set only for an absorber (a Leyline's ward is cast, and the
+     cast line already names its caster). */
   function noteSaved(result, q, by) {
-    var nm = (typeof by === 'string') ? by : null, list = result.saved = result.saved || [];
-    if (!list.some(function (x) { return x.seat === q; })) list.push({ seat: q, by: nm });
+    var nm = (typeof by === 'string') ? by : (by && typeof by.name === 'string') ? by.name : null, list = result.saved = result.saved || [];
+    var own = (by && typeof by === 'object' && typeof by.owner === 'number') ? by.owner : null;
+    if (!list.some(function (x) { return x.seat === q; })) list.push(own == null ? { seat: q, by: nm } : { seat: q, by: nm, owner: own });
   }
   // Apply one shield-loss object's strips to its target (parity with the old doStrips inner loop).
   function resolveShieldLossObj(st, obj, result) {

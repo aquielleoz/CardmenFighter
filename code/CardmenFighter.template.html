@@ -6921,9 +6921,14 @@ __QR__
          copula rule. One card for every saved seat names it; otherwise the seats alone. */
       var sv=res.saved||[], svSeats=sv.map(function(x){ return x.seat; }),
           svBy=(sv.length && sv.every(function(x){ return x.by && x.by===sv[0].by; })) ? sv[0].by : null;
+      /* AND WHOSE HOLY SHROUD (v1.36.0, Aj approved "Your Holy Shroud saved Rival 2"). Under the shared ward a Shroud
+         saves ANY player, so yours can eat the shield you just broke. The banner is local, so a possessive is safe
+         here; the broadcast line cannot carry a third seat, so the owner gets its own line below (`sayShroudSpent`). */
+      var svOwn=(svBy && sv.every(function(x){ return x.owner!=null && x.owner===sv[0].owner && x.owner!==x.seat; })) ? sv[0].owner : null;
       if(svSeats.length && svBy){
-        setMessage('🛡 <b>'+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
+        setMessage('🛡 <b>'+(svOwn!=null ? (svOwn===YOU ? 'Your ' : esc(logName(svOwn))+'’s ') : '')+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
         sayOnce(w, '{who} won with a '+spec+' - but '+esc(svBy)+' saved {foe}.', cls, svSeats);
+        sayShroudSpent(sv, cls);
       } else if(svSeats.length){
         setMessage('🛡 <b>'+svSeats.map(logName).join(' & ')+'</b> lost no shield!');
         sayOnce(w, '{who} won with a '+spec+' - but {foe} lost no shield.', cls, svSeats);
@@ -6935,6 +6940,11 @@ __QR__
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
       sayOnce(w, '{who} won with a <b>'+spec+'</b> - {foe} lost a shield.', cls, struck);
+      /* EVERY RIVAL IS STRUCK SINCE v1.36.0, so a round where a ward saved SOME of them and not others is ordinary
+         now — a Holy Shroud absorbs one hit of several. This branch used to drop the save on the floor. */
+      var svM=res.saved||[];
+      svM.filter(function(x){ return x.by; }).forEach(function(x){ sayOnce(w, esc(x.by)+' saved {foe}.', cls, [x.seat]); });
+      sayShroudSpent(svM, cls);
       /* A LESSON MAY GATE ON THE SHIELD ACTUALLY BREAKING (2026-09-17). The Specials lesson gated its
          payoff on `play` — the instant the pair leaves your hand — and then announced "Shield broken! 🛡"
          before the Rival had even answered. If the pair LOST, it said so anyway. The note fires where the
@@ -6963,6 +6973,15 @@ __QR__
   function sayOnce(actor, tpl, cls, foes){
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()) return;
     return say(actor, tpl, cls, foes);
+  }
+  /* WHOSE SHROUD PAID FOR A SAVE (v1.36.0). Under the shared ward a Holy Shroud saves ANY player, so the player whose
+     counter went is often not the one saved — your Shroud can eat the shield you just broke on your Rival. A broadcast
+     line carries two seats, and a possessive on {who} is the "You’s" trap, so the OWNER is the actor of a line of its
+     own, in the past tense, which agrees with "You" and with a name alike. Only when the owner is someone else. */
+  function sayShroudSpent(saved, cls){
+    (saved||[]).forEach(function(x){
+      if(x && x.by && x.owner!=null && x.owner!==x.seat) sayOnce(x.owner, '{who} spent a '+esc(x.by)+' counter to save {foe}.', cls, [x.seat]);
+    });
   }
   function logCatchUp(res, w, struck){
     if(res.kick) return;
@@ -9780,7 +9799,7 @@ __QR__
          beats a pair of 8s in this hand, and an enabled button that cannot advance the step is a dead end. */
       { text:"Nothing in your hand beats a pair of <b>8s</b> — so <b>pass</b>. Passing is how a round <i>ends</i>: once nobody wants the lead, the fight resolves.",
         only:function(){ return []; }, hi:'#passBtn', gate:function(t){ return t==='pass'; }, wait:"Pass the round…" },
-      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Press <b>Yes</b>, tap your glowing <b>Leyline Ascension</b>, and press <b>⚡ Activate</b>: <i>you can’t lose this round.</i>",
+      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Press <b>Yes</b>, tap your glowing <b>Leyline Ascension</b>, and press <b>⚡ Activate</b>: <i>no player can lose a shield this round.</i>",
         answers:function(){ return tutPhLey ? [tutPhLey] : null; }, answersHint:'This step wants Leyline Ascension.', coach:'answer',
         hi:function(){ return tutPhLey ? ['#hand .card[data-id="'+tutPhLey+'"]','#ctxBtn'] : ['#hand']; },
         gate:function(t){ return t==='respond'; }, wait:"Spring Leyline Ascension…" },
@@ -10427,6 +10446,9 @@ __QR__
       '<li><b>Archetype effects:</b> each suit is a class — <b>♦ Wizard</b>, <b>♥ Cleric</b>, <b>♣ Fighter</b>, <b>♠ Rogue</b> — and every card carries that class’s effect. Tap a card’s chip to <b>Activate</b> it (cost = the card’s number; some pips must be its own suit). Hover/tap any card to read it in the side panel. A <b>⏩</b> badge marks a <b>Quick</b> — playable in response, even on the Rival’s turn.</li>'+
       '<li><b>Equipment</b> stays on the table and keeps working while equipped — it shifts your (or the Rival’s) fight <b>value</b> up or down every fight, <i>including the one already on the table</i>. The chips above your hand show what’s modifying your plays right now, and from where.</li>'+
       '<li>Each round both fighters <b>draw 2</b>. Ending a round with an empty hand is fine — you only <b>deck out</b> (and lose) if you ever have to <b>draw when both your deck and shuffle pile are empty</b>.</li>'+
+      /* THE ONE LINE FOR A FULL TABLE (v1.36.0, Aj approved the wording). This page states duel rules, and they stay
+         as they are: true in a duel. */
+      '<li><b>At 3–6 players:</b> everyone starts with <b>2 + players</b> shields, a Special win strikes <b>every</b> rival, and every player draws one card per player each round.</li>'+
       '<li><b>Play hints (💡, top bar):</b> off by default. Turn them on and cards you <b>can’t</b> play right now dim out; a <b>dashed</b> group means "break me — a card inside can beat the pile." The <b>Sort</b> button also cycles Singles → Pairs → Straights to line up your combos.</li>'+
       '</ul>'+
 
@@ -12728,7 +12750,7 @@ __QR__
          this is the v1.29.6 lesson — never infer the loser, read `result.struck` — as a redaction gap. */
       if(res.struck) o.struck=res.struck.map(rot);
       if(res.spared) o.spared=res.spared.map(rot);
-      if(res.saved) o.saved=res.saved.map(function(x){ return { seat:rot(x.seat), by:x.by }; });   // who a prevented loss saved, and by what
+      if(res.saved) o.saved=res.saved.map(function(x){ var r={ seat:rot(x.seat), by:x.by }; if(x.owner!=null) r.owner=rot(x.owner); return r; });   // who a prevented loss saved, by what, and (a Shroud) whose — rotated, so the guest's banner says "Your" for its own
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }
