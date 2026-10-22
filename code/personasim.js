@@ -12,7 +12,7 @@
 var E = require('./engine.js');
 var AI = require('./ai.js');
 E.setShieldCards(true); E.setLoserMill(true);
-E.setSpecialLossMode('chosen'); E.setMillScope('targeted');   // matches the live game
+E.setSpecialLossMode('all'); E.setMillScope('targeted'); E.setShieldsPerPlayer(true); E.setWardAll(true); E.setDamageAll(true);   // matches the live game (the loss=all package since v1.36.0; 'chosen' before)
 
 var GAMES = parseInt(process.argv[2] || '200', 10);
 var TIER  = process.argv[3] || 'demon';

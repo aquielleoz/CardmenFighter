@@ -47,7 +47,7 @@ var E = require('./engine.js');
 var AI = require('./ai.js');
 
 E.setShieldCards(true); E.setLoserMill(true);                      // catch-up is ON in the shipped game
-E.setSpecialLossMode('chosen'); E.setMillScope('targeted');        // the shipped defaults, stated not assumed
+E.setSpecialLossMode('all'); E.setMillScope('targeted'); E.setShieldsPerPlayer(true); E.setWardAll(true); E.setDamageAll(true);   // the shipped defaults (the loss=all package since v1.36.0), stated not assumed
 
 /* `players=N` (2-6, default 2) IS A NAMED FLAG, valid in any position and stripped before the positional slots
    are read — the `passsim` lesson: a positional slot added at the end is the one a typo silently fills with the

@@ -30,7 +30,7 @@ var ARGV=process.argv.slice(2).map(function(x){ return String(x).toLowerCase(); 
  * puts the flag in THRESH's slot and parseInt gives NaN — a config the run then reports as its own. */
 var POS=ARGV.filter(function(x){ return NAMED.indexOf(x) < 0; });
 var _dpp=ARGV.indexOf('drawplayers') >= 0; E.setDrawPerPlayer(_dpp);
-E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
+E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('all'); E.setMillScope('targeted'); E.setShieldsPerPlayer(true); E.setWardAll(true); E.setDamageAll(true);   // the live game since v1.36.0 (it was 'chosen', flat shields before)
 
 var GAMES = parseInt(POS[0] || '200', 10);
 var P     = parseInt(POS[1] || '6', 10);

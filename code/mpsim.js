@@ -20,11 +20,12 @@ var FLAGS = process.argv.slice(4).join(' ').toLowerCase();
  * instrument bug this file's own header warns about: the flags were right and the parser was wrong. */
 function flag(name){ return FLAGS.split(/\s+/).indexOf(name) >= 0; }
 function opt(name, dflt){ var m = FLAGS.match(new RegExp(name + '=([a-z]+)')); return m ? m[1] : dflt; }
-/* Defaults are the LIVE game as set in CardmenFighter.template.html (~1136): loss='chosen', mill='targeted',
- * and the engine's own flat shields/draw. They previously defaulted to the v1.31.0 package, which meant a bare
- * run measured a ruleset the game does not use — the same class of error that shipped that package. */
-var MS = (opt('mill','targeted') === 'universal') ? 'universal' : 'targeted';
-var LM = (opt('loss','chosen') === 'all') ? 'all' : 'chosen';
+/* Defaults are the LIVE game, read from the ENGINE (which holds the shipped defaults): since v1.36.0 that is loss='all',
+ * mill='targeted', shields 2+N, the shared ward and every-rival damage. They once defaulted to the v1.31.0 package and
+ * then to a hardcoded 'chosen', and each time a bare run measured a ruleset the game did not use. `loss=chosen`,
+ * `noshp`, `nowardall` and `nodamageall` reach the v1.35 rules. */
+var MS = (opt('mill', E.isMillScope()) === 'universal') ? 'universal' : 'targeted';
+var LM = (opt('loss', E.isSpecialLossMode()) === 'all') ? 'all' : 'chosen';
 /* seqtwos=off|low|high — what the 2 does in plays of FOUR OR MORE cards. Named rather than a bare flag because
  * there are three answers, not two: barred (Tien len / Dou Dizhu, the shipped default), lowest (Big Two /
  * Chikicha), or fight value 15 (the legacy J-Q-K-A-2, which matches no family). Defaults to the engine's own
@@ -36,9 +37,9 @@ var SEQ2 = (function (v) { return (v === 'low' || v === 'high') ? v : 'off'; })(
 var SHP = flag('noshp') ? false : (flag('shp') || E.isShieldsPerPlayer());
 var DPP = flag('nodpp') ? false : (flag('dpp') || E.isDrawPerPlayer());
 var APEX = flag('apex'), NOSTRIP = flag('nostrip');
-var DALL = flag('damageall') || flag('hostileall');
+var DALL = (flag('nodamageall') || flag('damagehalf')) ? false : (flag('damageall') || flag('hostileall') || E.isDamageAll());   // `damagehalf` must turn the default off, or 'all' would silently win
 var DHALF = flag('damagehalf');
-var WALL = flag('wardall');
+var WALL = flag('nowardall') ? false : (flag('wardall') || E.isWardAll());
 var KITS = flag('kits');                              // shorthand: the 2-kit slot AND 3+ runs
 var TWOPAIR = flag('twopair');                        // the 4-card slot in POKER mode (gaps allowed) instead
 var KITS3 = flag('kits3') || KITS;                    // 3+ consecutive-pair runs on their own

@@ -26,7 +26,7 @@ E.setShieldCards(true); E.setLoserMill(true);
  * proposal) | 'nostripOnly' = no shield strip while the 2 stays BEATABLE, so seizing the lead with it can be
  * contested. Split because the length cost belongs to the no-strip half. */
 var CFG=[
- ['A LIVE baseline (chosen, flat 4, draw=N)',        'chosen','targeted', false,true, ''],
+ ['A v1.35 baseline (chosen, flat 4, draw=N)',        'chosen','targeted', false,true, ''],
  /* THE 2 IN PLAYS OF 4+ (2026-08-30). A playtester with no chikicha background found the bar on the 2 weird,
   * and a chikicha player confirmed the 2 IS usable in sequences there — as the LOWEST card: 2-3-4-5-6 is the
   * smallest straight, 10-J-Q-K-A still the highest, 222XX the smallest full house. That is Big Two's rule too.
@@ -40,11 +40,11 @@ var CFG=[
  ['D  loss = chosen + shields 2+N (for contrast)',   'chosen','targeted', true, true, ''],
  /* The apex rows this file's own header describes had been dropped from CFG, so the harness no longer produced
   * the numbers it documented. Restored 2026-08-26 to measure them properly rather than trusting the comment. */
- ['E LIVE + apex-2 inf (shields still strip)',       'chosen','targeted', false,true, 'inf'],
- ['F LIVE + apex-2 inf+nostrip (both halves)',       'chosen','targeted', false,true, 'nostrip'],
+ ['E v1.35 + apex-2 inf (shields still strip)',       'chosen','targeted', false,true, 'inf'],
+ ['F v1.35 + apex-2 inf+nostrip (both halves)',       'chosen','targeted', false,true, 'nostrip'],
  /* G is the variant that could not be measured until the engine stopped gating no-strip behind infinity: a 2
   * that deals no damage but CAN be beaten, so taking the lead with it is contestable rather than final. */
- ['G LIVE + apex-2 nostrip ONLY (beatable 2)',       'chosen','targeted', false,true, 'nostripOnly'],
+ ['G v1.35 + apex-2 nostrip ONLY (beatable 2)',       'chosen','targeted', false,true, 'nostripOnly'],
  /* INTERACTIONS (2026-08-26, Aj's question). no-strip sets wonWithCombo=false, and that ONE variable drives both
   * the shield decision and the mill decision — so an apex win is resolved exactly like a JAB win: no strip at
   * all (SPECIAL_LOSS_MODE bypassed) and every loser mills (MILL_SCOPE bypassed, in the universal direction). */
@@ -54,22 +54,25 @@ var CFG=[
  /* K/L: the mitigation-side counterweight. `all` multiplies the value of shield protection by (N-1), and only
   * two of four classes have any — so share it (Leyline + Holy Shroud protect the table, not just the owner). */
  ['K  loss = all + shared ward',                     'all','targeted',    false,true, '', true],
- ['L  LIVE + shared ward (for contrast)',            'chosen','targeted', false,true, '', true],
+ ['L  v1.35 + shared ward (for contrast)',            'chosen','targeted', false,true, '', true],
  /* M: K plus Aj's shields-2+N, because K alone lands at 11 rounds at 6p and this file already records 9 as an
   * overshoot — shields scaling was the documented middle ground for exactly that. */
  ['M  all + shared ward + shields 2+N',              'all','targeted',    true, true, '', true],
+ /* V: THE SHIPPED GAME SINCE v1.36.0 — the M row plus every-rival damage, with the 2 lowest in chains (the shipped
+  * `seqTwos`). The rows labelled v1.35 were labelled LIVE until then: they are the winner's-pick game. */
+ ['V  LIVE v1.36 (all, ward, damage, 2+N)',         'all','targeted',    true, true, '', true, '', 'low', true],
  /* N-R: THE PAIR-SHAPE FAMILY, one row per configuration, because they are now separate settings and the
   * v1.31.24 measurement of the two together said nothing about either half. A pair shape is a Special, so it
   * breaks a shield, and the naive prediction is SHORTER games — that prediction was already measured wrong
   * once (kits changed pacing not at all), which is exactly why each arm gets its own row. */
- ['N  LIVE + 2 Kits only',                           'chosen','targeted', false,true, '', false, 'kits2'],
- ['O  LIVE + 3 Kits and up only',                    'chosen','targeted', false,true, '', false, 'kits3'],
- ['P  LIVE + 2 Kits + 3 Kits (the v1.31.24 rule)',   'chosen','targeted', false,true, '', false, 'both'],
- ['Q  LIVE + Poker two pair',                        'chosen','targeted', false,true, '', false, 'poker'],
- ['R  LIVE + Poker + 3 Kits',                        'chosen','targeted', false,true, '', false, 'pokerK3'],
+ ['N  v1.35 + 2 Kits only',                           'chosen','targeted', false,true, '', false, 'kits2'],
+ ['O  v1.35 + 3 Kits and up only',                    'chosen','targeted', false,true, '', false, 'kits3'],
+ ['P  v1.35 + 2 Kits + 3 Kits (the v1.31.24 rule)',   'chosen','targeted', false,true, '', false, 'both'],
+ ['Q  v1.35 + Poker two pair',                        'chosen','targeted', false,true, '', false, 'poker'],
+ ['R  v1.35 + Poker + 3 Kits',                        'chosen','targeted', false,true, '', false, 'pokerK3'],
  /* S: QUADRO on the live rules. Four of a kind as a plain shape — it breaks a shield like any Special, so the
   * naive read is again "shorter games". Kits and poker both said otherwise; this row is how we find out. */
- ['S  LIVE + Quadro (four of a kind)',               'chosen','targeted', false,true, '', false, 'quadro'],
+ ['S  v1.35 + Quadro (four of a kind)',               'chosen','targeted', false,true, '', false, 'quadro'],
  /* T/U: THE CHOP. T is the Chikicha Specials preset (kits + quadro + chop); U is the same shapes with the chop
   * OFF, which is the arm that says whether the chop is what gives those shapes a job. */
  ['T  Chikicha Specials (kits+quadro+chop)',         'chosen','targeted', false,true, '', false, 'chikicha'],
@@ -78,6 +81,9 @@ var CFG=[
 function run(loss,mill,sh,dp,ap,P,n,ward){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
   if (E.setWardAll) E.setWardAll(!!ward);
+  /* Column 10 (v1.36.0): Critical Hit / Ultima Attack on every rival. Set EXPLICITLY, because the engine now defaults it
+   * ON — left alone, every row recorded before v1.36.0 would silently measure a different game. */
+  if (E.setDamageAll) E.setDamageAll(!!arguments[10]);
   /* `pair` names one of the family's configurations rather than a boolean, because the four-card slot is a MODE
    * (2 Kits and Poker are alternatives) and 3-Kits-and-up is independent of it. */
   var pair = arguments[8] || '';
@@ -119,7 +125,7 @@ console.log('config                                      2p              3p     
 CFG.forEach(function(c){
   var out=c[0].padEnd(44);
   [2,3,4,6].forEach(function(P){
-    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6],c[7],c[8]);
+    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6],c[7],c[8],c[9]);
     out += (String(r.med)+'('+r.max+') j'+r.jabPct+' L'+r.lead).padEnd(16);
   });
   console.log(out);
