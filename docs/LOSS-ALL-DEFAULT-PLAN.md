@@ -42,6 +42,11 @@ round. The same holds for Leyline: cast it at any point in a round and your own 
 nothing either. This is what `wardall` measured and what Aj accepted; it is listed here because a player will meet
 it in their first duel.
 
+**⚑ SUPERSEDED FOR HOLY SHROUD THE SAME DAY.** Reading this scenario, Aj made the Shroud a Quick ability on the
+Equipment (*"So you can decide when to take the counter off and protect the table. Especially if you were the one
+winning the round"*): it absorbs nothing by itself any more, so your Shroud never eats your own strike. Built as
+v1.35.2.2, the epic's second merge. The Leyline half of the scenario stands.
+
 ## Questions for Aj
 
 **ANSWERED 2026-10-22: Aj approved all six card texts and all five recommendations exactly as drafted** (*"Approve
@@ -78,7 +83,7 @@ Current text is what the card reader and `docs/CARD-LIST.md` show today (`BASE_O
 | card | today | draft |
 | --- | --- | --- |
 | **Leyline Ascension** ♦9 (Quick) | You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either. | **No player can lose a shield this round — and no one at 0 shields can take the Fighter Kick.** |
-| **Holy Shroud** ♥9 (Equipment) | If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. | **If any player would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. A player's own Holy Shroud is used before anyone else's.** |
+| **Holy Shroud** ♥9 (Equipment) | If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. | ~~If any player would lose a shield … A player's own Holy Shroud is used before anyone else's.~~ (shipped in v1.35.2.1) → since v1.35.2.2, at Aj's call: **Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your Energy.** |
 | **Critical Hit** ♠9 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. | **Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.** |
 | **Ultima Attack** ♣10 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. | **Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.** |
 | Ultima Attack under **Ares Mode** (Super) | The Rival loses 1 additional shield (2 total). | **Every Rival loses 1 additional shield (2 total).** |
@@ -306,10 +311,14 @@ starts with **2 + players** shields (5 / 6 / 7 / 8); Critical Hit and Ultima Att
 for a target. Games run about **11 / 12 / 14 / 15** rounds at 3 / 4 / 5 / 6 players, against 14 / 20 / 26 / 31.
 
 **What you'll see in a duel:** the three cards that protect shields now protect **everyone**. Leyline Ascension means
-nobody loses a shield that round, your own Special wins included; Holy Shroud eats the next shield loss either player
-would take, the struck player's own Shroud first, so yours can save your Rival from your pair (or delay your Fighter
-Kick by a round); Sanctuary under Apollo locks every player's shields. Critical Hit and Ultima Attack cast on the
-tap, without the target tap.
+nobody loses a shield that round, your own Special wins included; Sanctuary under Apollo locks every player's
+shields. Critical Hit and Ultima Attack cast on the tap, without the target tap.
+
+**Holy Shroud is a Quick ability on the Equipment** (Aj, the same day: *"So you can decide when to take the counter off
+and protect the table. Especially if you were the one winning the round"*). It no longer absorbs anything by itself:
+its owner presses **⚡ Use** on the Shroud — in a window that is theirs after Yes, or in their own Main — the counter
+comes off, and the table gets Leyline's ward for the round. AUTO stops you for it when you are struck or a strike card
+is aimed at you, even with nothing castable in hand. It cannot be countered (it is not a Technique).
 
 **Why:** Aj chose the package on 2026-10-22 after `DECISIONS.md#loss-all-remeasured`: it is the first `loss=all`
 measured tighter than the shipped game at every table size from 3 to 6 (spread 8.3 / 9.9 / 10.8 / 9.9 against
@@ -318,8 +327,9 @@ card: *"i do not want to print different wordings for the same card when the gam
 The duel cost was measured with it (about 1 duel in 18 flips; Pure Wizard about −3, the attack decks about +2).
 
 **The card text, one wording at every table size:** Leyline Ascension *"No player can lose a shield this round — and no
-one at 0 shields can take the Fighter Kick."* · Holy Shroud *"If any player would lose a shield (or take the Kick at
-0), remove 1 counter from Holy Shroud instead. A player's own Holy Shroud is used before anyone else's."* · Critical
+one at 0 shields can take the Fighter Kick."* · Holy Shroud *"Quick ability — remove 1 counter from Holy Shroud: no
+player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your
+Energy."* · Critical
 Hit and Ultima Attack *"… Every Rival loses 1 shield."* · Ares Mode on Ultima *"Every Rival loses 1 additional shield
 (2 total)."* · Apollo Mode on Sanctuary *"…and no player can lose a shield until end of round."*
 
@@ -329,13 +339,15 @@ strikes only one rival"* (`strikeOne`, which keeps the winner's pick) and *"Shie
 shared ward and the every-rival attack cards have no row, because the cards print what they do. A saved rule set
 from before drops `lossAll`, `shieldScale` and a lone `millAll`.
 
-**Also:** the round line says whose Holy Shroud paid for a save (*"You spent a Holy Shroud counter to save Tank."*),
-and names a save in a round where other rivals still lost a shield. How to play gains a line for 3–6 players. The
+**Also:** a Shroud's use reads *"You removed a Holy Shroud counter — no player can lose a shield this round."* on every
+seat, a netplay client sends it as its own intent (`op:'ability'`), and Passo uses a dropped player's Shroud. How to play gains a line for 3–6 players. The
 playtest export moves to schema `2.2-mp`, because an empty rules key now means the package. A v1.36 build refuses a
 v1.35 peer online. Every sim that called `'chosen'` the live game now states the package (`rulesim` keeps its old
 rows, relabelled v1.35; `flagpair`'s `base` arm is v1.35, with a new `shipped` alias). The inventory behind all of
 this is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md).
 
 **Not in it:** no AI tuning (Aj's ruling; the AI was tuned on the winner's pick, and its `aimed` Leyline policy can no
-longer fire in the shipped game). That is the `ai-answers-others-casts` entry, now `ready to build`.
+longer fire in the shipped game). The AI uses a Shroud only to guard, on Leyline's rule (two shields or fewer). That is
+the `ai-answers-others-casts` entry, now `ready to build`. And the balance numbers were measured with the old,
+passive Holy Shroud; re-measuring is `v136-live-measurements`.
 

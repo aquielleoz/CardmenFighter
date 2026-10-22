@@ -221,47 +221,6 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!/the clean-up boundary did not complete/.test(src),
      'and the stale-pile detector no longer asserts a cause the trace disproved');
 
-  /* ---- WHOSE HOLY SHROUD SAVED WHOM (v1.36.0) ----
-     The shared ward lets YOUR Shroud eat the shield you just broke on your Rival, and the round line only named the
-     card ("Holy Shroud saved Rival 2"), so the player whose counter went was never told it was theirs. Aj approved
-     "Your Holy Shroud saved Rival 2". Staged as the duel it happens in: you lead a pair the Rival cannot answer,
-     you wear a one-counter Shroud, the Rival wears none. Asserted on the BOARD first (the Rival keeps its shields,
-     your Shroud is gone), so the narration legs cannot pass on a round where nothing was saved. */
-  { const { selectAndFight } = require('./fightclick');
-    const ps=await (await b.newContext({viewport:{width:1100,height:820}})).newPage(); const e4=[]; ps.on('pageerror',e=>e4.push(e.message));
-    await ps.goto(URL); await wait(700);
-    await ps.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
-    await ps.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1500);
-    await ps.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
-      st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main';
-      st.players.forEach(pl=>{ pl.energy=[]; pl.equipment=[]; });
-      st.players[0].shields=3; st.players[1].shields=3;
-      st.players[0].hand=[mk(9,'C','a9'),mk(9,'H','b9'),mk(4,'D','x4')]; st.players[1].hand=[mk(3,'H','r3'),mk(5,'S','r5')];
-      st.players[0].equipment=[{ id:'shr', name:'Holy Shroud', absorb:true, counters:1, decay:false, card:mk(9,'H','shr') }];
-      window.__solo.render(); });
-    await wait(400);
-    await selectAndFight(ps, ['a9','b9']);
-    const tapper=setInterval(()=>{ ps.evaluate(()=>{
-        const d=document.getElementById('respDecline'); if(d && d.offsetParent){ d.click(); return; }
-        const pb=document.getElementById('passBtn'), st=window.__solo.st();
-        if(st.turn===0 && st.pile && pb && !pb.disabled) pb.click();
-      }).catch(()=>{}); }, 300);
-    let seen=null; const t0=Date.now();
-    while(Date.now()-t0<20000){
-      seen=await ps.evaluate(()=>({ log:[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'),
-        msg:(document.getElementById('message')||{}).textContent||'', rival:window.__solo.st().players[1].shields,
-        shroud:window.__solo.st().players[0].equipment.length }));
-      if(/spent a Holy Shroud counter/.test(seen.log)) break;
-      await wait(150);
-    }
-    clearInterval(tapper);
-    ok(seen && seen.rival===3 && seen.shroud===0, `shared ward: YOUR Holy Shroud absorbed the shield your pair broke on the Rival, and retired  [rival ${seen&&seen.rival}, shroud ${seen&&seen.shroud?'kept':'spent'}]`);
-    ok(seen && /won with a Pair - but Holy Shroud saved \S/.test(seen.log), 'the round line names the card that saved the Rival  ['+((seen&&seen.log.match(/.*Holy Shroud saved.*/)||[''])[0])+']');   // the Rival is a persona ("Tank"), so its name is not matched
-    ok(seen && /You spent a Holy Shroud counter to save \S/.test(seen.log), '…and a line of its own says whose counter it was, agreement-free  ['+((seen&&seen.log.match(/.*spent a Holy Shroud counter.*/)||[''])[0])+']');
-    ok(seen && !/You’s|You's/.test(seen.log), '…with no "You’s" anywhere — the possessive the broadcast template cannot carry');
-    ok(e4.length===0,'no JS errors on the Shroud leg'+(e4.length?': '+e4.slice(0,2).join(' | '):''));
-  }
-
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
