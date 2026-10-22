@@ -199,6 +199,11 @@
   .equipZone .eq.eqSpent .eqGone{ color:#c9b58a; font-weight:800; letter-spacing:.5px; text-transform:uppercase; font-size:10px; }
   .equipZone .eq.buff .eqCtr{color:var(--good);} .equipZone .eq.debuff .eqCtr{color:var(--bad);}
   .equipZone .eq.targetable{cursor:pointer; outline:2px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.75); animation:tgtPulse .9s ease-in-out infinite;}
+  /* A QUICK ABILITY YOU CAN USE NOW (Holy Shroud, v1.35.2.2) glows the answer GREEN a castable hand card does, so "what can I
+     do here" reads the same on the hand and on the board. The button inside is the control; the glow is the signal. */
+  .equipZone .eq.eqUsable{ box-shadow:0 0 0 2px rgb(82,224,143), 0 0 12px 2px rgba(82,224,143,.55); }
+  .equipZone .eqUse{ display:block; margin:3px auto 0; padding:2px 8px; font-size:11px; font-weight:800; border-radius:8px; border:1px solid rgb(82,224,143); background:rgba(82,224,143,.18); color:inherit; cursor:pointer; }
+
   .equip{display:flex; gap:5px; flex-wrap:wrap;}
   .equip .e{font-size:10px; font-weight:800; padding:2px 6px; border-radius:10px; border:1px solid var(--line);}
   .equip .e.targetable{cursor:pointer; outline:2px solid var(--pick); box-shadow:0 0 10px rgba(201,139,255,.7); animation:tgtPulse .9s ease-in-out infinite;}
@@ -3438,7 +3443,7 @@ __QR__
        and `mptest` asserts every one of them has a row rather than trusting this list. */
     if(k==='onWin') keys=['destroyShield'];                                // Armor Piercing just reads as a Shield−
     else if(k==='equip'){                                                  // by what the equipment DOES:
-      keys = eff.absorb ? ['shieldImmune']                                 // Holy Shroud = shield protection
+      keys = eff.quickAbility ? ['shieldImmune']                           // Holy Shroud = shield protection (a Quick ability since v1.35.2.2)
            : eff.delta ? ['equipUp','valueBoost']                          // Holy Bow / Hero's Sword = gear (equip) + sword+ (raises you)
            : eff.oppDelta ? ['equipUp','valueReduce']                      // Cursed Pendant etc = TWO chips: gear (equip) + sword− (reduces them)
            : ['equipUp'];
@@ -3818,7 +3823,7 @@ __QR__
     var eff='';
     if(d>0)                         eff=owner+' highest +'+d+' each fight';
     else if(od<0)                   eff=foe+' highest '+od+' each fight';
-    else if(e.absorb)               eff='Absorbs '+(mine?'your':"the Rival's")+' next shield loss';
+    else if(e.quickAbility)         eff='Quick: remove a counter — no player loses a shield this round';   // Holy Shroud's ability (v1.35.2.2)
     else if(e.ability==='draw')     eff=(mine?'You':(typeof seat==='number'?logName(seat):'Rival'))+' can spend a counter to draw';
     else if(e.protect==='special')  eff='No shield loss on '+(mine?'your':"the Rival's")+' Special';
     return { good:mine, eff:eff };
@@ -3996,11 +4001,16 @@ __QR__
        not designing a new one.** Targeting and the spent ghost are untouched — neither is a state you browse. */
     box.innerHTML='<div class="eqName">'+(e.name||'Equipment')+'</div>'+
       (info.eff?'<div class="eqEff">'+info.eff+'</div>':'')+
-      (opts.ghost?'<div class="eqCtr eqGone">◇ gone</div>':'<div class="eqCtr">◆ <b>'+Math.max(0,e.counters)+'</b></div>');   // one diamond + the count, not a row of pips
+      (opts.ghost?'<div class="eqCtr eqGone">◇ gone</div>':'<div class="eqCtr">◆ <b>'+Math.max(0,e.counters)+'</b></div>')+   // one diamond + the count, not a row of pips
+      ((opts.own && !opts.ghost && abilityUsable(e)) ? '<button class="eqUse" type="button" title="Remove a counter: no player can lose a shield this round">⚡ Use</button>' : '');
     var open=!!(opts.open && e.card && !opts.ghost && !targeting);
     if(open) box.classList.add('eqOpen');
     box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s')+(open?'':' — tap to expand'));
     if(!opts.ghost){
+      /* THE QUICK ABILITY'S BUTTON (v1.35.2.2). Its own control rather than the box's tap, because the box's tap already
+         means read / expand / target; a button that is only there when the ability is usable is also its affordance. */
+      var useB=box.querySelector('.eqUse');
+      if(useB){ box.classList.add('eqUsable'); (function(id){ useB.addEventListener('click', function(ev){ ev.stopPropagation(); useOwnAbility(id); }); })(eqKeyOf(e)); }
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
       if(targeting && targeting.protect){                      // Annoint in answer: only YOUR Equipment that `respondChoices` names (piece 5)
         if(opts.own && targeting.equip.indexOf(e.id)>=0){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(ev){ ev.stopPropagation(); stageProtect(id); }); })(e.id); }
@@ -5211,6 +5221,49 @@ __QR__
   }
   function hideTip(){ if(_tipEl) _tipEl.classList.remove('show'); }
   document.addEventListener('click', function(){ hideTip(); }, false);   // any other click dismisses it (button handlers stopPropagation)
+  /* HOLY SHROUD'S QUICK ABILITY, FROM YOUR BOARD (v1.35.2.2; Aj, 2026-10-22: *"So you can decide when to take the counter
+     off and protect the table"*). Usable where a Quick from your hand is: in a window that is yours once you press Yes
+     (`answerLive`), or on your own turn in the Main Sub-Phase with nothing pending. The engine re-checks both
+     (`E.useAbility`), and a client sends `op:'ability'` for the host to apply — the host is the authority. */
+  function eqKeyOf(e){ return e.card ? e.card.id : e.id; }
+  function abilityProactiveOk(){
+    return !!(state && !state.finished && state.turn===YOU && state.respondFor==null && state.subPhase!=='play' && !state.discardPending &&
+              !state.pendingLossChoice && !busy && !castHolding() && !pick && !targeting && !targetPick && !peeking && !ceremonyBlocks() && !answering);
+  }
+  function abilityUsable(e){
+    if(!state || !e || !e.quickAbility || !(e.counters>0) || !E.equipAbilities) return false;
+    var mine=E.equipAbilities(state, YOU).some(function(a){ return a.id===eqKeyOf(e); });
+    return mine && (answerLive() || abilityProactiveOk());
+  }
+  function useOwnAbility(eqId){
+    if(!state) return;
+    var inWin=answerLive(), rec=inWin ? answering : null;
+    if(!inWin && !abilityProactiveOk()) return;
+    var e=state.players[YOU].equipment.filter(function(x){ return eqKeyOf(x)===eqId; })[0], nm=(e&&e.name)||'Holy Shroud';
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){
+      if(rec){ answering=null; lastAnswer={ g:rec.g, cont:rec.cont, prioGen:(state && state.prioGen)||0 }; endAnswerUI(); }
+      prioNote('  → you USED ' + nm + ' — sent to the host');
+      NET.clientSend({op:'ability', eq:eqId}); busy=true; render(); return;
+    }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host… wait for the game to start.'); return; }
+    var r=E.useAbility(state, YOU, eqId);
+    if(!r || r.ok===false){ setMessage((r && r.reason) || 'That cannot be used now.'); render(); return; }
+    if(rec){ answering=null; endAnswerUI(); }
+    hideOverlay();
+    var card=r.ability && r.ability.card;
+    if(card){ flashArt(card, 'You'); quickFlash('You', nm, false); presentOwnCast(card); }
+    setMessage('You removed a <b>'+esc(nm)+'</b> counter — no player can lose a shield this round.');
+    sayAbility(YOU, nm, 'you');
+    prioNote('  → you USED ' + nm + (rec ? '' : '  (in your Main)'));
+    if(rec){ render(); return rec.cont(); }
+    settleWindows(gen, function(){                       // the table may answer it, like any cast — and a host hands its board back
+      if(state.finished){ render(); return endGame(); }
+      if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
+      render();
+    });
+  }
+  // ONE LINE FOR EVERY SEAT'S USE — the effect is the subject's object, past tense, so it agrees with "You" and a name alike
+  function sayAbility(seat, nm, cls){ say(seat, '{who} removed a '+esc(nm||'Holy Shroud')+' counter — no player can lose a shield this round.', cls||'rival'); }
   function useEquip(equipId){
     if(state.turn!==YOU||state.finished||busy||castHolding()||pick) return;
     var e=state.players[YOU].equipment.filter(function(x){return x.id===equipId;})[0];
@@ -6921,14 +6974,12 @@ __QR__
          copula rule. One card for every saved seat names it; otherwise the seats alone. */
       var sv=res.saved||[], svSeats=sv.map(function(x){ return x.seat; }),
           svBy=(sv.length && sv.every(function(x){ return x.by && x.by===sv[0].by; })) ? sv[0].by : null;
-      /* AND WHOSE HOLY SHROUD (v1.36.0, Aj approved "Your Holy Shroud saved Rival 2"). Under the shared ward a Shroud
-         saves ANY player, so yours can eat the shield you just broke. The banner is local, so a possessive is safe
-         here; the broadcast line cannot carry a third seat, so the owner gets its own line below (`sayShroudSpent`). */
-      var svOwn=(svBy && sv.every(function(x){ return x.owner!=null && x.owner===sv[0].owner && x.owner!==x.seat; })) ? sv[0].owner : null;
+      /* (v1.35.2.1 named whose Holy Shroud had absorbed a loss here — under the shared ward, yours could eat your own
+         strike. The Shroud is a Quick ability since v1.35.2.2, so a save is always a ward somebody CAST, and the cast
+         line already says who.) */
       if(svSeats.length && svBy){
-        setMessage('🛡 <b>'+(svOwn!=null ? (svOwn===YOU ? 'Your ' : esc(logName(svOwn))+'’s ') : '')+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
+        setMessage('🛡 <b>'+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
         sayOnce(w, '{who} won with a '+spec+' - but '+esc(svBy)+' saved {foe}.', cls, svSeats);
-        sayShroudSpent(sv, cls);
       } else if(svSeats.length){
         setMessage('🛡 <b>'+svSeats.map(logName).join(' & ')+'</b> lost no shield!');
         sayOnce(w, '{who} won with a '+spec+' - but {foe} lost no shield.', cls, svSeats);
@@ -6940,11 +6991,6 @@ __QR__
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
       sayOnce(w, '{who} won with a <b>'+spec+'</b> - {foe} lost a shield.', cls, struck);
-      /* EVERY RIVAL IS STRUCK SINCE v1.36.0, so a round where a ward saved SOME of them and not others is ordinary
-         now — a Holy Shroud absorbs one hit of several. This branch used to drop the save on the floor. */
-      var svM=res.saved||[];
-      svM.filter(function(x){ return x.by; }).forEach(function(x){ sayOnce(w, esc(x.by)+' saved {foe}.', cls, [x.seat]); });
-      sayShroudSpent(svM, cls);
       /* A LESSON MAY GATE ON THE SHIELD ACTUALLY BREAKING (2026-09-17). The Specials lesson gated its
          payoff on `play` — the instant the pair leaves your hand — and then announced "Shield broken! 🛡"
          before the Rival had even answered. If the pair LOST, it said so anyway. The note fires where the
@@ -6973,15 +7019,6 @@ __QR__
   function sayOnce(actor, tpl, cls, foes){
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()) return;
     return say(actor, tpl, cls, foes);
-  }
-  /* WHOSE SHROUD PAID FOR A SAVE (v1.36.0). Under the shared ward a Holy Shroud saves ANY player, so the player whose
-     counter went is often not the one saved — your Shroud can eat the shield you just broke on your Rival. A broadcast
-     line carries two seats, and a possessive on {who} is the "You’s" trap, so the OWNER is the actor of a line of its
-     own, in the past tense, which agrees with "You" and with a name alike. Only when the owner is someone else. */
-  function sayShroudSpent(saved, cls){
-    (saved||[]).forEach(function(x){
-      if(x && x.by && x.owner!=null && x.owner!==x.seat) sayOnce(x.owner, '{who} spent a '+esc(x.by)+' counter to save {foe}.', cls, [x.seat]);
-    });
   }
   function logCatchUp(res, w, struck){
     if(res.kick) return;
@@ -7664,7 +7701,7 @@ __QR__
           beats.push({ dwell:(reduceMotion()?300:1400), run:function(){
             var below=replayStack[replayStack.length-1];
             if(e.respCard) replayPush(e.respBy, e.respCard, { countered:isCounter, tgt:(isCounter && below) ? { effect:{ owner:below.p, name:(below.eff && below.eff.name) || 'that' } } : null });
-            noteAIAnswer(e.respBy, e.respName, isCounter, e.transition, e.round, e.pitched); cueAIAnswer(e.respBy, e.respName, isCounter, e.respCard); render(); } });
+            noteAIAnswer(e.respBy, e.respName, isCounter, e.transition, e.round, e.pitched, !!e.ability); cueAIAnswer(e.respBy, e.respName, isCounter, e.respCard); render(); } });
           if(!answered) chainResolves();
         }
       });
@@ -7806,7 +7843,10 @@ __QR__
      NAME THE TIMING, NOT JUST THE CARD. "answered at instant speed" is right for a response to a cast and wrong
      at the Main → Fight transition, where nothing has been cast to answer — the old pre-fight path said "sprang X"
      for exactly that reason. Same family as the decline button reading "Let it resolve" where nothing resolves. */
-  function noteAIAnswer(q, name, countered, atTransition, roundAt, pitched){
+  function noteAIAnswer(q, name, countered, atTransition, roundAt, pitched, isAbility){
+    /* A QUICK ABILITY IS NOT A CAST (Holy Shroud, v1.35.2.2): it reads as the counter it spends, the line a player's own use
+       and a remote seat's both print (`sayAbility`). */
+    if(isAbility){ prioNote('  → ' + logName(q) + ' USED ' + name, null, roundAt); return sayAbility(q, name, 'rival'); }
     var pt=pitchTail({ pitched:pitched });
     prioNote('  → ' + logName(q) + ' CAST ' + name + (countered ? '  (a counter)' : '') + pt, null, roundAt);
     if(countered) say(q, '{who} countered with '+name+pt+'!', 'rival');
@@ -7862,7 +7902,7 @@ __QR__
            DETAIL, so the line kept the UI's `r7` in front and carried the engine's round as a trailing `6`.
            `noteAIAnswer` passes it as `roundAt`. */
         noteAIAnswer(q, resp.respondName || resp.respondedWith, resp.countered, atTransition,
-                     (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round), resp.pitched);
+                     (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round), resp.pitched, !!resp.ability);
         lastResp=resp; lastQ=q;
       }
     }
@@ -8197,6 +8237,14 @@ __QR__
       : (state.subPhase === 'main' ? 'prefight' : 'respond')))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
     var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
+    /* AND THE BOARD'S QUICK ABILITIES (Holy Shroud, v1.35.2.2). `canAddToStack` counts them, so the engine offers you this
+       window for a Shroud alone — and if only the HAND decided whether to stop, a player whose one answer is on the board
+       would be auto-passed past it. Same three modes: ON stops whenever one is usable, AUTO on its stake
+       (`E.abilityStakeFor`: you are struck, or a strike card is aimed at you), OFF never. */
+    var myAbs=(E.equipAbilities ? E.equipAbilities(state, YOU) : []);
+    var abStake=(myAbs.length && E.abilityStakeFor) ? E.abilityStakeFor(state, YOU, promptTiming) : null;
+    var abStop=!!myAbs.length && PROMPT_MODE!=='off' && (PROMPT_MODE==='on' || !!abStake);
+    var abNames=myAbs.map(function(a){ return a.name+' (ability)'; }).join(', ');
     /* THE THREE OUTCOMES, AND TWO OF THEM ARE INVISIBLE ON SCREEN. "You held nothing" and "you held
        something and your own preference said don't ask" are the same silence to a player, and they are
        completely different bugs — the second is what hid Sanctuary. Recorded with the CARD NAMES so a
@@ -8220,7 +8268,7 @@ __QR__
        timing whose box is unticked, and the next reader has to rediscover `shieldSaveOverride` to explain
        it — the same "a diagnostic that cannot explain itself" cost the prompt ledger already paid once. */
     var saved=quicks.filter(function(c){ return !promptWanted(c, promptTiming) && shieldSaveOverride(c, promptTiming); });
-    if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat + (saved.length ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
+    if(quicks.length || abStop) prioNote('['+tName+'] window SHOWN to you' + onWhat + ((saved.length || abStake) ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + [feNames(eligible), abNames].filter(Boolean).join(', ') + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
     /* NAME THE MODE, because "PROMPT OFF" alone sends the next reader to the card reader for a row that is
        not what silenced them. In `off` the global toggle did it and no checkbox will explain it — and OFF
        can suppress a STAKE, which is the one auto-pass a reader must never have to guess at. */
@@ -8236,8 +8284,8 @@ __QR__
     /* ⚠ `NO STAKE (AUTO)` WAS `PROMPT OFF` UNTIL 2026-10-20. That name came from the per-card checkboxes retired on
        2026-09-30, and Aj read a ledger full of it as his OFF setting when he was on AUTO. In AUTO this branch means one
        thing: the window was not shown because nothing was at stake for you. */
-    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'NO STAKE (AUTO)') + onWhat,
-      'you could have cast: ' + feNames(eligible) +
+    else if(eligible.length || myAbs.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'NO STAKE (AUTO)') + onWhat,
+      'you could have cast: ' + [feNames(eligible), abNames].filter(Boolean).join(', ') +
       (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (notifications → ON)'));
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
     /* A SUPPRESSED **STAKE** GETS A VISIBLE LINE, and only that (Aj, 2026-09-24: *"can we add to the logs
@@ -8260,7 +8308,9 @@ __QR__
       var staked=eligible.filter(function(c){ return !!E.stakeFor(state, YOU, c, promptTiming); });
       if(staked.length) logMsg('🔕 Notifications are off — you passed on <b>'+esc(feNames(staked))+'</b> with a shield at stake.', 'dim');
     }
-    if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline', auto:true}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass, and `auto` is what stops the host narrating it as a choice
+    if(PROMPT_MODE==='off' && myAbs.length && E.abilityStakeFor && E.abilityStakeFor(state, YOU, promptTiming))
+      logMsg('🔕 Notifications are off — you passed on <b>'+esc(myAbs[0].name)+'</b>\u2019s ability with a shield at stake.', 'dim');
+    if(!quicks.length && !abStop){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline', auto:true}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass, and `auto` is what stops the host narrating it as a choice
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
@@ -11450,6 +11500,8 @@ __QR__
            `resolutionGuardCard` is the AI's own policy, self-gated on the window, so this cannot answer an
            ordinary Counter-a-Counter chain by burning a guard. */
         if(k==='respond'){
+          var pa=AI.guardAbility ? AI.guardAbility(hostState, seat) : null;   // a Holy Shroud on the board first, as the AI does (v1.35.2.2)
+          if(pa) return hostApplyMoveN(seat, {op:'ability', eq:pa});
           var pg=AI.resolutionGuardCard(hostState, seat);
           return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline', auto:true});   // Passo answers FOR a dropped seat — never narrate it as their choice
         }
@@ -11481,6 +11533,8 @@ __QR__
       if(!MP() && seat===1){
         if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
         if(netSettle){                                                                   // the Fight End go-round reaches a duel here — defend, exactly as the N-player branch above does
+          var da=AI.guardAbility ? AI.guardAbility(hostState, 1) : null;      // Holy Shroud first, as the N-player branch above
+          if(da) return hostApplyMove({op:'ability', eq:da});
           var dg=AI.resolutionGuardCard(hostState, 1);
           return hostApplyMove(dg ? {op:'respond', id:dg.id} : {op:'decline', auto:true});   // same as the N-player branch above
         }
@@ -12492,7 +12546,17 @@ __QR__
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
-      if(it.op==='respond' || it.op==='decline'){
+      /* HOLY SHROUD'S QUICK ABILITY FROM THE REMOTE SEAT (v1.35.2.2). On its own turn with nothing open it is a proactive
+         use, settled like an `activate`; inside a window it is an ANSWER, and falls through to the window branch below,
+         which owns the park, the held-answer rule and the grant stamp. */
+      if(it.op==='ability' && !netSettle && hostState.respondFor==null){
+        try{ r=E.useAbility(hostState, 1, it.eq); }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
+        if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
+        sayAbility(1, r && r.ability && r.ability.name, 'rival');
+        if(r && r.ability && r.ability.card) fxBroadcast(1, r.ability.card);
+        return hostSettle(g, function(){ hostRivalContinue(g); });
+      }
+      if(it.op==='respond' || it.op==='decline' || it.op==='ability'){
         var curPg=hostState.prioGen||0;
         if(!netSettle){                                         // not parked on it yet — see `heldAnswer`
           if(it.pg!=null && it.pg===curPg && hostState.respondFor===1){ heldAnswer={ it:it, pg:curPg }; trace('answer HELD — its window is not parked yet', 'op='+it.op+' prioGen='+curPg); }
@@ -12505,6 +12569,8 @@ __QR__
         if(it.pg!=null && it.pg!==curPg){ trace('answer DROPPED — it was for an earlier grant', 'op='+it.op+' pg='+it.pg+' prioGen='+curPg); return; }
         try{
           if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+pitchTail(r)+'.', 'rival'); if(qc) fxBroadcast(1, qc); }   // the host announces the answer (drag-and-stack step 3)
+          else if(it.op==='ability'){ r=E.useAbility(hostState, 1, it.eq); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
+            sayAbility(1, r && r.ability && r.ability.name, 'rival'); if(r && r.ability && r.ability.card) fxBroadcast(1, r.ability.card); }
           else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
@@ -12750,7 +12816,7 @@ __QR__
          this is the v1.29.6 lesson — never infer the loser, read `result.struck` — as a redaction gap. */
       if(res.struck) o.struck=res.struck.map(rot);
       if(res.spared) o.spared=res.spared.map(rot);
-      if(res.saved) o.saved=res.saved.map(function(x){ var r={ seat:rot(x.seat), by:x.by }; if(x.owner!=null) r.owner=rot(x.owner); return r; });   // who a prevented loss saved, by what, and (a Shroud) whose — rotated, so the guest's banner says "Your" for its own
+      if(res.saved) o.saved=res.saved.map(function(x){ return { seat:rot(x.seat), by:x.by }; });   // who a prevented loss saved, and by what
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }
@@ -12899,7 +12965,7 @@ __QR__
         var nrl=netReact; netReact=null; return nrl.cont(lr);
       }
       // ---- REACTIVE ops: valid only for the seat whose reactive window is parked (which may NOT be its turn) ----
-      if(it.op==='respond'||it.op==='decline'||it.op==='discard'){   // `guard`/`guardPass` went with the window (step 19)
+      if(it.op==='respond'||it.op==='decline'||it.op==='discard'||(it.op==='ability' && (hostState.respondFor!=null || (netReact && netReact.seat===seat)))){   // `guard`/`guardPass` went with the window (step 19); an ability IN a window is an answer (v1.35.2.2)
         /* SAY WHY IT WAS IGNORED. This return is correct for a duplicate and FATAL when the window really is
          * open — and until now it could not tell you which had happened. Aj's host trace ends on
          * `move IN … op=discard` with nothing after it, which is exactly what this line looks like from
@@ -12919,6 +12985,9 @@ __QR__
         if(it.op!=='discard' && it.pg!=null && it.pg!==curPgN){ trace('answer DROPPED — it was for an earlier grant', 'seat '+seat+' op='+it.op+' pg='+it.pg+' prioGen='+curPgN); return; }
         try{
           if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+seat)%hostState.numPlayers : (it.target||null))}); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed'+pitchTail(rr)+'.')), 'rival'); if(qc) fxBroadcast(seat, qc); }
+          else if(it.op==='ability'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=ability but the open window is '+netReact.kind); return; }
+            var abr=E.useAbility(hostState, seat, it.eq); if(abr && abr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:abr.reason||'Illegal move.'}); broadcastMirror(); return; }
+            sayAbility(seat, abr && abr.ability && abr.ability.name, 'rival'); if(abr && abr.ability && abr.ability.card) fxBroadcast(seat, abr.ability.card); }
           else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat);
             /* AN AUTO-PASS IS NOT A CHOICE (2026-09-23). A client whose prompt for this timing is off answers
                with the SAME `{op:'decline'}` a player clicking "Let it resolve" sends, so the host narrated
@@ -12984,6 +13053,11 @@ __QR__
           if(it.copyId) sayCounterfeit(seat, hostState, it.copyId, 'rival');
           fxBroadcast(seat, ac);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
+        } else if(it.op==='ability'){   // Holy Shroud's ability on the seat's own turn (v1.35.2.2) — `driveN` below settles the go-round it opens
+          r=E.useAbility(hostState, seat, it.eq);
+          if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
+          sayAbility(seat, r && r.ability && r.ability.name, 'rival');
+          if(r && r.ability && r.ability.card) fxBroadcast(seat, r.ability.card);
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
       netParked=null;
@@ -13169,7 +13243,7 @@ __QR__
     // Test-only (behind ?dbg=1): overwrite both hands on the host and resync, to stage a deterministic scenario.
     function dbgForce(hh, rh, he, re, hs, rs){ if(!hostState) return false; hostState.players[0].hand=hh.slice(); hostState.players[1].hand=rh.slice(); if(he) hostState.players[0].energy=he.slice(); if(re) hostState.players[1].energy=re.slice(); if(hs!=null) hostState.players[0].shields=hs; if(rs!=null) hostState.players[1].shields=rs; busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
     function dbgForceAll(hands, energies, shields, opts){ if(!hostState) return false; for(var s=0;s<hostState.numPlayers;s++){ if(hands&&hands[s]) hostState.players[s].hand=hands[s].slice(); if(energies&&energies[s]) hostState.players[s].energy=energies[s].slice(); if(shields&&shields[s]!=null) hostState.players[s].shields=shields[s]; if(opts&&opts.forms&&opts.forms[s]) hostState.players[s].forms=opts.forms[s].map(function(f){ return { rank:f.rank, suit:f.suit, tier:f.tier||'queen', name:f.name||'', card:{ rank:f.rank, suit:f.suit, id:'form'+f.rank+f.suit+'#'+s } }; });
-        if(opts&&opts.equip&&opts.equip[s]) hostState.players[s].equipment=opts.equip[s].map(function(e){ return { id:e.id||'dbg', name:e.name||'Equipment', delta:e.delta||0, oppDelta:e.oppDelta||0, counters:e.counters!=null?e.counters:3, decay:true, card:{ rank:e.rank, suit:e.suit, id:'eq'+e.rank+e.suit+'#'+s } }; });
+        if(opts&&opts.equip&&opts.equip[s]) hostState.players[s].equipment=opts.equip[s].map(function(e){ return { id:e.id||'dbg', name:e.name||'Equipment', delta:e.delta||0, oppDelta:e.oppDelta||0, counters:e.counters!=null?e.counters:3, decay:e.decay!==false, quickAbility:e.quickAbility||null, card:{ rank:e.rank, suit:e.suit, id:'eq'+e.rank+e.suit+'#'+s } }; });   // quickAbility: Holy Shroud (v1.35.2.2)
         if(opts&&opts.deck&&opts.deck[s]) hostState.players[s].deck=opts.deck[s].slice(); if(opts&&opts.shuffle&&opts.shuffle[s]) hostState.players[s].shuffle=opts.shuffle[s].slice();
         if(opts&&opts.shieldPile&&opts.shieldPile[s]){ hostState.players[s].shieldPile=opts.shieldPile[s].slice(); hostState.players[s].shields=opts.shieldPile[s].length; }   // the LAST card is the one a broken shield returns to hand (`nettest_strip`)
         } if(opts){ if(opts.round!=null) hostState.round=opts.round; if(opts.turn!=null){ hostState.turn=opts.turn; hostState.initiative=opts.turn; hostState.pile=null; hostState.passes=0; hostState.lastPlayer=null; hostState.preFightHandled=false; for(var q=0;q<hostState.numPlayers;q++){ hostState.players[q].lockSkip=false; hostState.players[q].lockRound=false; } } } busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
@@ -13341,7 +13415,7 @@ __QR__
      * the stamp check already exempts (v1.31.57), for the same reason. */
     /* A WINDOW ANSWER NAMES THE GRANT IT ANSWERS (`pg`, 2026-10-07) — the `prioGen` this seat's mirror showed,
        so the host can hold an answer that beat its park and drop one meant for an earlier grant (`heldAnswer`). */
-    function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline') && it.pg==null && state) it.pg=state.prioGen||0;
+    function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline' || it.op==='ability') && it.pg==null && state) it.pg=state.prioGen||0;
       trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')+(it&&it.pg!=null?' pg='+it.pg:'')+(it&&it.coid?' coid='+it.coid:''));   /* a counter's target, so a saved log says what it aimed at */ if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)

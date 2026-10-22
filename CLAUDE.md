@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.35.2.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.35.2.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 757 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 761 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 757 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 761 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -302,6 +302,11 @@ node nettest_counterfeit.js                     # COUNTERFEIT'S PICK ON THE PILE
                                                 # (step 4, piece 10): the HOST's own Counterfeit SETTLES — the
                                                 # guest is asked, not answered for by the AI (`rivalMayRespond`,
                                                 # its only caller, is deleted)
+node nettest_shroud.js                          # A CLIENT USES HOLY SHROUD'S QUICK ABILITY AND THE HOST APPLIES IT (14).
+                                                # v1.35.2.2: struck at Resolution with nothing castable in hand, the
+                                                # client is still stopped (the board's ability counts), presses Yes and
+                                                # ⚡ Use, and `op:'ability'` reaches the host. A/B'd: with the duel host's
+                                                # window branch blind to the op it goes 10/4
 node sorttest.js                                # THE STRAIGHTS SORT (6): the HIGHEST legal five-card straight
                                                 # first (Aj's 7-8-9-10-J), and only legal ones — 2-3-4-5-6 under
                                                 # the default low-2 rule, J-Q-K-A-2 only when the 2 chains high
@@ -470,7 +475,9 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # F: the board's STACK stays readable while the box asks —
                                                 # clear of it, undimmed (step 4, piece 8). B's answer line must name the
                                                 # ♦10 it pitched. C8b leaves a closed window's buttons in the page
-                                                # and the shared visible-only reads must refuse them (74)
+                                                # and the shared visible-only reads must refuse them. S (v1.35.2.2):
+                                                # Holy Shroud's Quick ability stops you with nothing in hand, ⚡ Use saves
+                                                # the shield, and declining is the control (82)
 node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
                                                 # checkboxes were RETIRED 2026-09-30 and two thirds of this
                                                 # suite went with them — it asserted six rendered rows, that
@@ -2713,7 +2720,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.35.2.1 — last FULL sweep 2026-10-22, `npm run sweep`, 137/137 in 559s, `nettest_sync` at full depth (rounds 14, actions 60)** (this line was
+Status as of **v1.35.2.2 — last FULL sweep 2026-10-22, `npm run sweep`, 137/137 in 559s, `nettest_sync` at full depth (rounds 14, actions 60)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2727,9 +2734,9 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 757, `netview` 74, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 761, `netview` 74, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 38, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 74, `lessontest_phases` 52, `lessontest_howto` 29,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 82, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 128, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2738,7 +2745,7 @@ The 83 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, 
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 17, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7.
+`target3` 17, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7, `shroud` 14.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -3391,6 +3398,15 @@ that window into the ordinary Main → Fight go-round. `stakeFor`'s `prefight` b
 INTERRUPTS you, never where a card is legal.
 **So describe a Quick as BASE + what the Form adds, as two separate facts**, and when listing where a card
 can be played, start from "every Technique can be played in Main".
+
+**A QUICK ABILITY CAN LIVE ON THE BOARD, NOT ONLY IN THE HAND (v1.35.2.2, Holy Shroud).** `canAddToStack` counts
+`equipAbilities` as well as the hand, so every question of the form *"can this seat act here?"* has to ask both — the
+page's stop decision in `promptHumanResponse` asked only the hand at first, which would have auto-passed a player whose
+one answer was their Shroud. The pieces: `E.useAbility` (in a window or proactively in Main, the cost a counter paid on
+push), `E.equipAbilities`, `E.abilityStakeFor` (AUTO's stake), `op:'ability'` in both host families, `AI.guardAbility`
+(the AI and Passo), and the ⚡ Use button `buildEqBox` draws. An ability's stack object has `type: 'Equipment ability'`,
+which is what keeps Counter Spell (`COUNTERABLE`) off it. The dormant `useEquipment` (Seed Pouch's draw, no card uses it)
+resolves on the spot and bypasses priority; do not build on it.
 
 **`effectOf` vs `effectFor` — the trap that hid three bugs.** `effectOf(card)` is the card's **base** effect;
 `effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** — SIX patches, enumerated

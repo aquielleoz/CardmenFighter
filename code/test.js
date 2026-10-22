@@ -3506,11 +3506,14 @@ function cards(ids) { return ids.map(card); }
   var castFor1 = function (card, su) { g.turn = 1; g.subPhase = 'main'; P[1].hand.push(card); P[1].energy = EN(su, 'n' + card.id);
     var r = E.activate(g, 1, card.id, {}); drain(); g.turn = 0; g.subPhase = 'main'; return r; };
   var strike = function () { go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); }); return go(function () { return E.pass(g, 1); }); };
-  // Holy Shroud (9♥) absorbs the strike
+  // Holy Shroud (9♥): since v1.35.2.2 a Quick ABILITY, so the Rival spends its counter in the Resolution window
   deal(4, [mk(9, 'C', 'a9'), mk(9, 'S', 'b9'), mk(4, 'D', 'x4')], [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')]);
-  var hs = castFor1(mk(9, 'H', 'shroud'), 'H'), sh = P[1].shields;
-  var r1 = strike();
-  ok(hs && hs.ok !== false && P[1].shields === sh, 'STAGED: the Rival cast Holy Shroud, and the strike cost it no shield  (' + sh + '→' + P[1].shields + ')');
+  var hs = castFor1(mk(9, 'H', 'shroud'), 'H'), sh = P[1].shields, usedAb = null;
+  var useDrain = function () { while (g.respondFor != null) { var ab = E.equipAbilities(g, 1); if (!usedAb && g.respondFor === 1 && ab.length) usedAb = E.useAbility(g, 1, ab[0].id); else E.declineResponse(g, g.respondFor); } };
+  go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); });
+  var pr = E.pass(g, 1); useDrain(); if (pr && pr.transition === 'play') { pr = E.pass(g, 1); useDrain(); }   // the pass crossed Main → Fight first, as `go` re-applies
+  var r1 = g.resolutionResult || pr;
+  ok(hs && hs.ok !== false && usedAb && usedAb.ok !== false && P[1].shields === sh, 'STAGED: the Rival cast Holy Shroud, used its ability at Resolution, and the strike cost it no shield  (' + sh + '→' + P[1].shields + ')');
   ok(r1 && r1.prevented && JSON.stringify(r1.saved) === JSON.stringify([{ seat: 1, by: 'Holy Shroud' }]),
      'a prevented loss names WHO was saved and BY WHAT: the Rival, by Holy Shroud  ' + JSON.stringify(r1 && r1.saved));
   // Leyline Ascension (9♦), cast in the Rival's Main: the ward's own name
@@ -4071,24 +4074,43 @@ function cards(ids) { return ids.map(card); }
   var cAll = crit(true), cOne = crit(false);
   ok(cAll.ok && cAll.s.join() === '3,2,2', 'Critical Hit at three players hits EVERY rival — "Every Rival loses 1 shield"  [' + (cAll.ok ? cAll.s.join() : cAll.why) + ']');
   ok(cOne.ok && cOne.s.join() === '3,2,3', '…CONTROL: with damageAll off the same cast hits only its target  [' + (cOne.ok ? cOne.s.join() : cOne.why) + ']');
-  // the shared ward in a DUEL: your own Holy Shroud eats the shield you break on your Rival
-  function shroud(wardAll) {
-    var was = E.isWardAll(); E.setWardAll(wardAll);
+  /* HOLY SHROUD IS A QUICK ABILITY (v1.35.2.2, Aj). Under the shared ward the old passive absorb ate the shield YOU had
+     just broken on your Rival; now nothing is absorbed in passing, and the counter comes off only when its owner
+     chooses — buying Leyline's ward for the whole table. */
+  function shroudDuel(useIt) {
     var g = E.newGame(null, { numPlayers: 2 }); g.round = 4; g.turn = 0; g.passes = 0; g.pile = null; g.lastPlayer = null;
     g.players.forEach(function (p) { p.hand = [mk(6, 'C', 'x')]; p.energy = []; p.equipment = []; p.shields = 3; });
     g.players[0].hand = [mk(9, 'S'), mk(10, 'C', 'pk'), mk(6, 'S', 'y')]; g.players[0].energy = nrg(10, 'S');
-    g.players[0].equipment = [{ id: 'shr', name: 'Holy Shroud', absorb: true, counters: 1, decay: false, card: mk(9, 'H', 'shr') }];
-    var c = E.activate(g, 0, '9S', { target: 1 }); settle(g);
-    E.setWardAll(was);
-    return { ok: c.ok, why: c.reason, rival: g.players[1].shields, kept: g.players[0].equipment.length };
+    g.players[0].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: mk(9, 'H', 'myShroud') }];
+    g.players[1].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: mk(9, 'H', 'rvShroud') }];
+    var c = E.activate(g, 0, '9S', { target: 1 }), used = null;
+    for (var k = 0; g.respondFor != null && k < 12; k++) {
+      if (useIt && !used && g.respondFor === 1) used = E.useAbility(g, 1, 'rvShroud9H'); else E.declineResponse(g, g.respondFor);
+    }
+    return { ok: c.ok, why: c.reason, used: used, rival: g.players[1].shields, mine: g.players[0].equipment.length, theirs: g.players[1].equipment.length,
+             retired: g.players[1].energy.some(function (x) { return x.id === 'rvShroud9H'; }), youWarded: !!g.players[0].cantLoseRound };
   }
-  var wOn = shroud(true), wOff = shroud(false);
-  ok(wOn.ok && wOn.rival === 3 && wOn.kept === 0, 'shared ward, duel: YOUR Holy Shroud absorbs the shield your own Critical Hit breaks on your Rival, and retires  [rival ' + wOn.rival + ', shroud ' + (wOn.kept ? 'kept' : 'spent') + (wOn.ok ? '' : ', ' + wOn.why) + ']');
-  ok(wOff.ok && wOff.rival === 2 && wOff.kept === 1, '…CONTROL: with wardAll off the Rival loses the shield and your Shroud stays  [rival ' + wOff.rival + ']');
+  var sNo = shroudDuel(false), sYes = shroudDuel(true);
+  ok(sNo.ok && sNo.rival === 2 && sNo.mine === 1 && sNo.theirs === 1,
+     'Holy Shroud absorbs nothing in passing: your Critical Hit lands on a Rival who declines, and BOTH Shrouds keep their counter  [rival ' + sNo.rival + (sNo.ok ? '' : ', ' + sNo.why) + ']');
+  ok(sYes.ok && sYes.used && sYes.used.ok !== false && sYes.rival === 3 && sYes.theirs === 0 && sYes.retired && sYes.mine === 1,
+     '…the Rival USES its Shroud in the Critical Hit\'s window: no shield lost, its counter spent and the Shroud retired to its Energy, yours untouched  [rival ' + sYes.rival + ']');
+  ok(sYes.youWarded, '…and the ward covers the TABLE, as the text says — you are warded too (WARD_ALL)');
+  // the gates: not the owner's priority, a locked seat, and Counter Spell cannot name it
+  var gg = E.newGame(null, { numPlayers: 2 }); gg.round = 4; gg.turn = 0; gg.pile = null; gg.subPhase = 'main'; gg.respondFor = null;
+  gg.players[1].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: mk(9, 'H', 'gShroud') }];
+  var notTurn = E.useAbility(gg, 1, 'gShroud9H');
+  ok(notTurn.ok === false && gg.players[1].equipment[0].counters === 1, 'outside a window only the active player may use it — refused, counter kept  [' + notTurn.reason + ']');
+  gg.players[1].lockRound = true;
+  ok(E.equipAbilities(gg, 1).length === 0, 'a locked seat has no ability to use ("skips means skips")');
+  gg.players[1].lockRound = false; gg.turn = 1;
+  var proactive = E.useAbility(gg, 1, 'gShroud9H');
+  ok(proactive && proactive.ok !== false && gg.players[1].cantLoseRound && gg.players[0].cantLoseRound,
+     'on your own turn, in Main, it is used proactively and wards the table  [' + (proactive && proactive.reason || 'ok') + ']');
   // and the text says what the rules do — one wording, at every table size
   var txt = function (su, r) { return E.effectOf({ rank: r, suit: su, id: 'x' }).text; };
-  ok(/Every Rival loses 1 shield/.test(txt('S', 9)) && /Every Rival loses 1 shield/.test(txt('C', 10)) && /^No player can lose a shield/.test(txt('D', 9)) && /^If any player would lose a shield/.test(txt('H', 9)),
-     'the card text matches the package: Critical Hit and Ultima hit every Rival, Leyline and Holy Shroud cover any player');
+  ok(/Every Rival loses 1 shield/.test(txt('S', 9)) && /Every Rival loses 1 shield/.test(txt('C', 10)) && /^No player can lose a shield/.test(txt('D', 9)) && /^Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round/.test(txt('H', 9)),
+     'the card text matches the package: Critical Hit and Ultima hit every Rival, Leyline and Holy Shroud\'s ability cover any player');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

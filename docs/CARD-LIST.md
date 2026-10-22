@@ -85,7 +85,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 6 | Divine Tactics | 6 | Increase the value of your next play by 5. |
 | 7 | Plead for Peace | 7 | Put target Equipment into its owner's Shuffle Pile. |
 | 8 | Holy Bow | 8 | Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2. |
-| 9 | Holy Shroud | 9 | If any player would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. A player's own Holy Shroud is used before anyone else's. |
+| 9 | Holy Shroud | 9 | Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your Energy. |
 | 10 | Sanctuary | 10 | Every player gains 1 Shield. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 

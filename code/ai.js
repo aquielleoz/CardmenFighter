@@ -844,6 +844,8 @@
         if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
         return E.declineResponse(st, q);
       }
+      var ga = guardAbility(st, q);                                          // a Holy Shroud on the board first: its counter is already paid for
+      if (ga) { var gar = E.useAbility(st, q, ga); if (gar && gar.ok !== false) return gar; }
       var guardC = resolutionGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
@@ -898,6 +900,8 @@
        held the card for the Resolution window, where `resolutionGuardCard` plays it. A forced-board A/B
        (`forcesim.js`) says that loses at 2-4 players and is a wash at 6; numbers in DECISIONS.md#ai-strength. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
+      var gd = guardAbility(st, q);                                          // Holy Shroud first, as at Resolution — `abilityStakeFor` already excludes an own cast
+      if (gd) { var gdr = E.useAbility(st, q, gd); if (gdr && gdr.ok !== false) return gdr; }
       var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       var elsewhere = !!immuneQ && pend.p !== q && policyOn(q, 'aimed') && !E.stakeFor(st, q, immuneQ, 'respond');
       if (immuneQ) { if (ownCast) heldBack = true; else if (elsewhere) heldAimed = true; else { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; } }
@@ -930,7 +934,7 @@
       var roundAt = (st.resolvedRound != null && st.resolution) ? st.resolvedRound : st.round;
       var rr = respondDecision(st, q);
       if (!rr) break;
-      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respCard: rr.respondCard || null, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null });
+      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respCard: rr.respondCard || null, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null, ability: !!rr.ability });   // `ability`: a Holy Shroud use, narrated as the counter it spends
     }
   }
 
@@ -1049,6 +1053,19 @@
     }
     if (best) POLICY_STATS.push++;
     return best;
+  }
+  /* HOLY SHROUD'S QUICK ABILITY, AS A GUARD (v1.35.2.2) — ONE DEFINITION, TWO ASKERS, like `resolutionGuardCard`:
+     `respondDecision` for an AI seat and PASSO in the template for a dropped one. The same policy as Leyline
+     (`shieldGuardWants`: guard on two shields or fewer) on the same stakes the engine defines for the ability
+     (`E.abilityStakeFor`: struck at Resolution, or a strike card aimed here). Returns the Equipment's id to use, or
+     null. Tried BEFORE a guard card from the hand, because its cost is a counter already paid, not 9 energy.
+     NOT A TUNED POLICY: the AI follow-up (`ai-answers-others-casts`) decides what the AI should do under the
+     package; this only keeps the card from being dead in AI hands. */
+  function guardAbility(st, q) {
+    if (!E.equipAbilities || !shieldGuardWants(st, q)) return null;
+    var a = E.equipAbilities(st, q)[0];
+    if (!a) return null;
+    return (E.abilityStakeFor(st, q, 'resolution') || E.abilityStakeFor(st, q, 'respond')) ? a.id : null;
   }
   function shieldGuardWants(st, q) {
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
@@ -1182,7 +1199,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, pitchOptsFor: pitchOptsFor, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, guardAbility: guardAbility, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, pitchOptsFor: pitchOptsFor, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

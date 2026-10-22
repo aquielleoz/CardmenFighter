@@ -502,6 +502,9 @@ preset, or a 3-6 player default. That is Aj's call, and so is whether the AI sho
   is a stake for every player. The parked `ai-answers-others-casts` entry waits on this decision.
 - **Deck cycling at these lengths:** `recyclesim` has no rule switches, so how often a deck reshuffles in a
   15-round six-player game is not measured.
+- **Holy Shroud became a Quick ability on the epic (v1.35.2.2, Aj, 2026-10-22).** Every `wardall` number here has the
+  OLD Shroud: a passive absorb, shared, that could eat its owner's own strike. The shipped one is used by choice and
+  buys Leyline's ward for the table. Not re-measured; it is in `v136-live-measurements`.
 - **Human play.** Every number is knight self-play. A table of people may value protection, or coordinate
   against a leader, in ways this AI does not.
 

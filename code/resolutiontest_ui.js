@@ -907,6 +907,63 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
           : (ledH.length > 1 ? '' : '  ← a one-line ledger cannot discriminate; the claim is vacuous')));
     await p.close(); }
 
+  // ---------------------------------------------------------------- S · HOLY SHROUD'S QUICK ABILITY (v1.35.2.2)
+  /* Aj, 2026-10-22: *"it needs to be a quick activatable ability on an equip. So you can decide when to take the counter off
+     and protect the table."* The board: the Rival's pair wins, you are struck, and your ONLY answer is a Holy Shroud on the
+     board — nothing castable in hand. So the window opening at all proves the board's ability counts in the stop decision
+     (AUTO, on its stake), and the save proves the ⚡ Use button reaches `E.useAbility`. The CONTROL is the same board
+     declined: the shield goes and the Shroud keeps its counter, so nothing is absorbed in passing any more. */
+  async function stageShroud(p) {
+    return await p.evaluate(() => {
+      const st = window.__solo.st(), E = window.CardmenEngine;
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;
+      you.hand = [C(4, 'C', 'x')]; you.energy = []; you.forms = [];
+      you.equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: C(9, 'H', 'shroud') }];
+      riv.hand = []; riv.energy = []; riv.equipment = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'r'), C(9, 'S', 'r')] } };
+      window.__solo.render();
+      return { usable: E.equipAbilities(st, 0).length === 1, quicksInHand: you.hand.filter(c => E.canCastQuick(st, 0, c)).length };
+    });
+  }
+  const shroudBoard = p => p.evaluate(() => { const st = window.__solo.st(), you = st.players[0];
+    return { shields: you.shields, eq: you.equipment.length, inEnergy: you.energy.some(c => c.id === 'shroud9H'), round: st.round,
+             log: [...document.querySelectorAll('#log .le')].map(e => e.textContent).join('\n') }; });
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('S: ' + e.message));
+    await p.goto(URL);
+    ok(await freshGame(p), 'S · a solo game is running');
+    const s = await stageShroud(p);
+    ok(s.usable && s.quicksInHand === 0, `S · STAGED: the Shroud's ability is usable and NOTHING in hand is castable (abilities ${s.usable}, castable cards ${s.quicksInHand})`);
+    await clearTransition(p);
+    await clickPass(p);
+    const up = await until(async () => !!(await modalText(p)));
+    ok(up, 'S · the Resolution window STOPS you for the Shroud alone — the board\'s ability counts in the stop decision (AUTO, on its stake)');
+    await p.evaluate(() => { const y = document.getElementById('respYes'); if (y) y.click(); });
+    const btn = await until(() => p.evaluate(() => { const u = document.querySelector('#youEquipZone .eqUse'); return !!(u && u.offsetParent); }));
+    ok(btn, 'S · after Yes your Holy Shroud carries a live ⚡ Use button');
+    await p.evaluate(() => { const u = document.querySelector('#youEquipZone .eqUse'); if (u) u.click(); });
+    await until(async () => { const x = await shroudBoard(p); return x.round > 3 && /won with/.test(x.log); });   // the engine ends the round before the ceremony narrates it
+    const a = await shroudBoard(p);
+    ok(a.shields === 2 && a.eq === 0 && a.inEnergy, `S · USED: no shield lost, the counter spent and the Shroud retired to your Energy  [shields ${a.shields}, equipment ${a.eq}]`);
+    ok(/You removed a Holy Shroud counter — no player can lose a shield this round\./.test(a.log), 'S · …and the log says what it did, in a line that agrees with "You" and a name alike');
+    ok(/won with a Pair - but Holy Shroud saved You\./.test(a.log), 'S · …and the round line names the save' + (/won with a Pair - but Holy Shroud saved You\./.test(a.log) ? '' : '  [' + a.log.split('\n').slice(-4).join(' / ') + ']'));
+    await p.close(); }
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('S2: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'S · second board for the control');
+    await stageShroud(p);
+    await clearTransition(p);
+    await clickPass(p);
+    await until(async () => !!(await modalText(p)));
+    await clickDecline(p);
+    await until(async () => (await shroudBoard(p)).round > 3);
+    const c = await shroudBoard(p);
+    ok(c.shields === 1 && c.eq === 1, `S · CONTROL: declined, the shield goes and the Shroud keeps its counter — nothing absorbs in passing  [shields ${c.shields}, equipment ${c.eq}]`);
+    await p.close(); }
+
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
   await b.close(); process.exit(fail ? 1 : 0);
