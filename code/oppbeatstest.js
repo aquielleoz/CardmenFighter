@@ -226,14 +226,17 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   /* …AND A LOG THE REAL AI WROTE, unedited. The legs above hand-write `countered:true`, and until 2026-10-19 the AI
      never wrote it: `E.respond` did not report a counter, so Aj's board — a Disarm countered by Counter Spell — would
      have replayed the counter resolving and then the Disarm resolving anyway. Seat 1 casts Telekinesis, seat 2 holds
-     Counter Spell and the fuel for it (test.js's in-turn staging, with a rival on enough cards to be worth hitting). */
+     Counter Spell and the fuel for it (test.js's in-turn staging, with a rival on enough cards to be worth hitting).
+     THAT RIVAL IS SEAT 2, THE COUNTERER, since v1.35.2.3: under `noAid` the AI no longer counters a cast aimed at another
+     seat. A Knight aims at the rival on the fewest shields (`chooseTarget`), so seat 2 is put on 2, and it holds the big
+     hand, which is what makes Telekinesis worth casting at it. */
   const E=require('./engine.js'), AI=require('./ai.js');
   const mkc=(r,su,t)=>({rank:r,suit:su,id:(t||'')+r+su}), fuel=(n,su)=>Array.from({length:n},(_,i)=>mkc(3,su,'e'+i));
   const g=E.newGame(null,{numPlayers:3}); g.round=4; g.turn=1; g.passes=0; g.pile=null; g.lastPlayer=null;
   g.players.forEach(p=>{ p.hand=[mkc(9,'C','x'),mkc(5,'H','x')]; p.energy=[]; });
-  g.players[0].hand=[9,5,6,7,8,10,11].map((r,i)=>mkc(r,i%2?'H':'C','a'));
+  g.players[2].hand=[9,5,6,7,8,10,11].map((r,i)=>mkc(r,i%2?'H':'C','a'));
   g.players[1].hand=[mkc(3,'D'),mkc(9,'C','y')]; g.players[1].energy=fuel(8,'D');
-  g.players[2].hand.push(mkc(4,'D')); g.players[2].energy=fuel(8,'D');
+  g.players[2].hand.push(mkc(4,'D')); g.players[2].energy=fuel(8,'D'); g.players[2].shields=2;
   const realLog=AI.takeTurn(g,1,'knight',[0]), realAns=realLog.find(e=>e.respond);
   ok(!!realLog.find(e=>e.play && e.card && e.card.id==='3D') && !!realAns && realAns.respBy===2 && realAns.countered===true,
      'staged: the real AI casts Telekinesis and seat 2 counters it — and the log SAYS it countered  '+JSON.stringify(realAns||null));

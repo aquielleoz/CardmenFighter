@@ -122,9 +122,9 @@
      apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
      are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
      confident zero — it did, on the first attempt, and the zero was believed for a minute. */
-  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0, ownCast: 0, aimed: 0 };
-  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts, ownCast: POLICY_STATS.ownCast, aimed: POLICY_STATS.aimed }; }
-  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; POLICY_STATS.ownCast = 0; POLICY_STATS.aimed = 0; }
+  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0, ownCast: 0, aimed: 0, noAid: 0 };
+  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts, ownCast: POLICY_STATS.ownCast, aimed: POLICY_STATS.aimed, noAid: POLICY_STATS.noAid }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; POLICY_STATS.ownCast = 0; POLICY_STATS.aimed = 0; POLICY_STATS.noAid = 0; }
   /* THE DEMON LORD PITCHES THE BROADWAY CARD IT CAN SPARE (broadway-pitch-chooses-itself; Aj: *"the ai should
      absolutely smart pitch as well... especially for the ones who are smarter"*). The engine's default takes
      the LOWEST Broadway card, which is exactly the card a 10-high straight or a pair of 10s is built from.
@@ -868,11 +868,23 @@
        answers are for an OPPONENT'S cast; this is the AI catching up with it. A policy (`ownCast`, default on)
        so `strengthsim` can put the old behaviour on one side of a head-to-head; `heldBack` counts the answers it
        stopped, which is what tells "worth nothing" from "never fired". */
-    var ownCast = (pend.p === q) && policyOn(q, 'ownCast'), heldBack = false, heldAimed = false;
+    var ownCast = (pend.p === q) && policyOn(q, 'ownCast'), heldBack = false, heldAimed = false, heldAid = false;
+    /* DO NOT SPEND A QUICK PROTECTING A RIVAL (`ai-answers-others-casts`; Aj, 2026-10-09: *"no"*, held until the loss=all
+       package, which `epic/loss-all-default` shipped). Counter Spell answered any threat that was not the AI's own, and
+       Annoint any removal while the AI owned Equipment — whoever the threat was AIMED at. With `noAid` the AI answers only
+       what is aimed at IT: its seat, its Equipment, its Ride/Form, its cast, or every rival (which includes it). "Aimed
+       at" is the engine's own `stackTargetOf`, the noun the board's stack caption and the Respond? box already print, so
+       the AI and the screen cannot disagree about who a cast is for. Inert in a duel, where every threat is aimed at the
+       one seat that can answer.
+       SHIPPED v1.35.2.3 AFTER MEASURING (DECISIONS.md#ai-no-aid): it was built OPT-IN, because `policyOn` reads every name
+       as on and would have shipped it unmeasured, and against the shipped AI it read +0.53 / +0.42 / +0.22 points at
+       3 / 4 / 6 players (knight) and +0.40 at six (demon), each under 2σ, holding ~1 answer per six-player game. A
+       policy like `ownCast`: default on, and `strengthsim … knight:push,pitch,ownCast,aimed` is the arm without it. */
+    var aid = pend.p !== q && policyOn(q, 'noAid') && !aimedAtMe(st, q, pend);
     // Annoint: save our own equipment from a removal aimed at it.
     if (eff.kind === 'removeEquip' && qp.equipment.length > 0) {
       var prot = bestQuick('protect');
-      if (prot) { if (ownCast) heldBack = true; else { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; } }
+      if (prot) { if (ownCast) heldBack = true; else if (aid) heldAid = true; else { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; } }
     }
     /* Reactive immunity: spring an immunity Quick to blank a destroyShield technique aimed at us.
        THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `immunityEffFor` has admitted
@@ -914,10 +926,11 @@
                  (eff.kind === 'phantasm' && !!st.pile && st.pile.byPlayer === q);
     if (threat) {
       var cs = bestQuick('counter');
-      if (cs) { if (ownCast) heldBack = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
+      if (cs) { if (ownCast) heldBack = true; else if (aid) heldAid = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
     }
     if (heldBack) POLICY_STATS.ownCast++;
     if (heldAimed) POLICY_STATS.aimed++;
+    if (heldAid) POLICY_STATS.noAid++;
     return E.declineResponse(st, q);
   }
 
@@ -1061,6 +1074,15 @@
      null. Tried BEFORE a guard card from the hand, because its cost is a counter already paid, not 9 energy.
      NOT A TUNED POLICY: the AI follow-up (`ai-answers-others-casts`) decides what the AI should do under the
      package; this only keeps the card from being dead in AI hands. */
+  // Is this stack object aimed at seat q? Read off the engine's `stackTargetOf`. No target at all (a draw, a ramp) is
+  // nobody singled out, so it counts as the table's — `threat` decides whether it is worth answering at all.
+  function aimedAtMe(st, q, obj) {
+    var t = E.stackTargetOf ? E.stackTargetOf(st, obj) : null;
+    if (!t || t.allRivals) return true;
+    if (typeof t.seat === 'number') return t.seat === q;
+    var who = t.equip || t.zone || t.effect;
+    return who ? who.owner === q : true;
+  }
   function guardAbility(st, q) {
     if (!E.equipAbilities || !shieldGuardWants(st, q)) return null;
     var a = E.equipAbilities(st, q)[0];

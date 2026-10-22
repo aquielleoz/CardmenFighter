@@ -346,8 +346,11 @@ v1.35 peer online. Every sim that called `'chosen'` the live game now states the
 rows, relabelled v1.35; `flagpair`'s `base` arm is v1.35, with a new `shipped` alias). The inventory behind all of
 this is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md).
 
-**Not in it:** no AI tuning (Aj's ruling; the AI was tuned on the winner's pick, and its `aimed` Leyline policy can no
-longer fire in the shipped game). The AI uses a Shroud only to guard, on Leyline's rule (two shields or fewer). That is
-the `ai-answers-others-casts` entry, now `ready to build`. And the balance numbers were measured with the old,
-passive Holy Shroud; re-measuring is `v136-live-measurements`.
+**The AI stops protecting rivals** (v1.35.2.3, Aj's "no" from 2026-10-09): Counter Spell and Annoint answer only a
+threat aimed at the AI itself. Measured before shipping, with no harm and a small lean in its favour
+([`DECISIONS.md#ai-no-aid`](DECISIONS.md#ai-no-aid)). The AI uses a Holy Shroud only to guard, on Leyline's rule (two
+shields or fewer).
+
+**Not in it:** the balance numbers were measured with the old, passive Holy Shroud and the AI before `noAid`;
+re-measuring is `v136-live-measurements`.
 
