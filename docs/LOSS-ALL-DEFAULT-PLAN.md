@@ -40,7 +40,9 @@ it in their first duel.
 
 ## Questions for Aj
 
-Each has a recommendation. Nothing below is built until these are answered.
+**ANSWERED 2026-10-22: Aj approved all six card texts and all five recommendations exactly as drafted** (*"Approve
+the six card texts and the five recommendations as drafted"*). The build follows them; the questions are kept as
+asked, so the reasons stay beside the answers.
 
 1. **Card text.** Approve, or edit, the six drafts in [Card text](#card-text).
 2. **Which old rules stay as Custom rules rows.** Recommended: keep **two** as rows phrased as the negative of the
