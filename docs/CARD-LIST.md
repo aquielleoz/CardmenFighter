@@ -33,7 +33,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 **King Form — ♣K · Meleager Form**:
 - **Brilliant Tactic** → Boost your next play by 1 more (to +3).
 - **Hero's Javelin** → Your highest card each fight gains an additional +1 (to +2).
-- **Spiked Armor** → The Rival's highest card each fight drops 1 further (to −3).
+- **Spiked Armor** → Every Rival's highest card each fight drops 1 further (to −3).
 
 **Super Mode — ♣ · Ares Mode** *(J+Q+K in zone)*:
 - **Instant Recovery** → The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.
@@ -126,7 +126,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 
 **Queen Form — ♠Q · Pandora Form**:
 - **Outbalance** → Look at the target's hand. They discard 1 more (2 total).
-- **Poison the Air** → Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).
+- **Poison the Air** → Only Target Rival's Energy Pile moves to their Shuffle Pile — yours stays.
 - **Counterfeit** → The copy enters your hand at +1 value.
 
 **King Form — ♠K · Perseus Form**:

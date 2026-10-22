@@ -1002,11 +1002,11 @@
     },
     C: {
       queen: { 1: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 7: { quick: true, desc: 'Armor Piercing becomes a Quick.' }, 8: { reclaimDiscard: true, desc: 'Also shuffle your Exile (used Techniques, destroyed Equipment) back into your deck before drawing.' } },
-      king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "The Rival's highest card each fight drops 1 further (to −3)." } },
+      king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "Every Rival's highest card each fight drops 1 further (to −3)." } },
       super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'Every Rival loses 1 additional shield (2 total).' } }
     },
     S: {
-      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
+      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: "Only Target Rival's Energy Pile moves to their Shuffle Pile — yours stays." }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
       king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { quick: true, desc: 'Back Stab becomes a Quick.' } },
       super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, all: true, desc: 'Back Stab becomes a Quick AND ALL rivals skip the whole round.' } }
     }

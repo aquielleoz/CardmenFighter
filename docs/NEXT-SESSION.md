@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.35.2.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.35.2.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -120,8 +120,8 @@ re-read its tag.
 
 ### Open — in priority order
 
-*`epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default — and the two
-entries below are its remaining follow-ups (the AI one shipped as v1.35.2.3), not yet ranked by Aj. Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
+*`epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default — and the
+entry below is its remaining follow-up (the AI one shipped as v1.35.2.3, the Form texts as v1.35.2.4). Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). **The first entry is the next job.***
 
@@ -134,13 +134,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   became in v1.35.2.2 (the study measured the old passive one). Each is a number, not a change; route a surprising one
   to `DECISIONS.md`.
   `[id: v136-live-measurements]`
-
-- `needs a decision`    · **TWO FORM PATCHES STILL SAY "THE RIVAL" FOR A ONE-OF-MANY EFFECT** — noticed building v1.36.0, out of
-  its scope (Aj: card tweaks *"can come after"*). **Spiked Armor under the ♣ King** reads *"The Rival's highest card each
-  fight drops 1 further (to −3)"* while the card hits EVERY Rival (the table-text class `CLAUDE.md` catalogues; this
-  is its sixth). **Poison the Air under Pandora** reads *"Poison only the Rival"* where the house form for one target is
-  *"Target Rival"*. Wording only; for Aj's card-tweak pass.
-  `[id: form-patch-singular-rival]`
 
 ### Parked — each entry says what revives it
 
