@@ -124,6 +124,11 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
 
 - `needs a decision` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.**
+  **DECIDED 2026-10-22: THE PACKAGE BELOW SHIPS AS THE DEFAULT FOR EVERY GAME, DUELS INCLUDED** (Aj: *"i do not
+  want to print different wordings for the same card when the game changes from duel to multi"*). The inventory,
+  the card-text and rules-row drafts, and the questions still open are in
+  [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md); the decision this entry now waits on is Aj's approval of
+  those drafts. It closes when v1.36.0 ships.
   **MEASURED 2026-10-21, SO WHAT IS LEFT IS AJ'S CHOICE.** Every candidate below now has a balance run beside its
   length, in [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured). Shields scaling down hits
   the length (20 rounds at six) and widens the 4- and 6-player spread. `loss=all` with the shared ward,

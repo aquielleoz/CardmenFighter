@@ -4215,9 +4215,12 @@ now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits
 - `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
   Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
 - `docs/DRAG-AND-STACK-DESIGN.md` — the design for `epic/drag-and-stack`: playing from the board instead of the
+  Respond? modal, with Aj's rulings. **Read it before touching the drag, `#stackView` or `promptHumanResponse`.**
 - `docs/DRAG-AND-STACK-STEP4.md` — the inventory taken before step 4 (answering on the board): what changes, which
   suites move, the traps, the build order and the open questions. A measurement of the epic at `dbbe80d`; re-check before building on it.
-  Respond? modal, with Aj's rulings. **Read it before touching the drag, `#stackView` or `promptHumanResponse`.**
+- `docs/LOSS-ALL-DEFAULT-PLAN.md` — the inventory taken before making the `loss=all` package the default for every
+  game (Aj, 2026-10-22): the card-text and Custom-rules drafts, every site, lesson, suite and sim that moves, the
+  questions for Aj and the build order. A measurement of `main` at `3db7701`; re-check before building on it.
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
   https origin actually unblock the camera? **Read it for the answer; do not summarise it here.** This line used
   to say *"results table still empty"* — it had been RUN AND SETTLED on 2026-08-28 and the summary rotted while
