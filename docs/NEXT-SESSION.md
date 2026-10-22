@@ -120,20 +120,11 @@ re-read its tag.
 
 ### Open — in priority order
 
-*`epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default — and the
-entry below is its remaining follow-up (the AI one shipped as v1.35.2.3, the Form texts as v1.35.2.4). Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
+*Nothing is open. `epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default —
+and its follow-ups have shipped on it (the AI as v1.35.2.3, the Form texts as v1.35.2.4) or been measured
+([`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)). Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
-fixed v1.33.16 on the way). **The first entry is the next job.***
-
-- `needs a measurement` · **RE-TAKE THE LIVE-GAME MEASUREMENTS ON v1.36.0.** Every recorded "shipped" number was taken on the
-  winner's pick and flat 4 shields. Three are worth re-taking now that the sims state the package:
-  persona parity (`personasim`, all five tiers — the personas' `focus` knob mostly chose the round's strike target,
-  which only `strikeOne` still reaches, so a tier's spread may have moved), deck cycling at the new lengths
-  (`recyclesim`, which the study could not run because it had no rule switches), and the round-length table
-  (`rulesim`'s new `V` row beside its v1.35 rows), and the package's spread with Holy Shroud as the Quick ability it
-  became in v1.35.2.2 (the study measured the old passive one). Each is a number, not a change; route a surprising one
-  to `DECISIONS.md`.
-  `[id: v136-live-measurements]`
+fixed v1.33.16 on the way). Everything left is parked below, each entry saying what revives it.*
 
 ### Parked — each entry says what revives it
 

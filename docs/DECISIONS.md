@@ -345,6 +345,9 @@ with one wording per card (the inventory and Aj's approvals are in [`LOSS-ALL-DE
 **So every "shipped" arm from v1.36.0 on is the package**, and every "shipped" number recorded before it, here and
 elsewhere in this file, is the winner's pick on flat shields: `flagpair`'s `base` arm is that game, and it has a
 `shipped` alias for this one. The numbers below are unchanged history.
+**RE-MEASURED ON v1.35.2.4**, with Holy Shroud as a Quick ability and the AI's `noAid`: the package's spread holds at
+4-6 players, widens about 2 points at three (Pure Cleric), and games run 11 / 13 / 15 / 17 rounds. See
+[#v136-remeasured](#v136-remeasured).
 
 **What it means for play.** `loss=all` on its own is still a balance disaster at a full table: Pure Fighter
 wins about 4% of six-player games, and the Cleric and Wizard decks take over. The shared ward (`wardall`) still
@@ -500,15 +503,144 @@ preset, or a 3-6 player default. That is Aj's call, and so is whether the AI sho
 - **The AI was tuned on `chosen`.** Its answer policies (`aimed`, `ownCast`, Leyline at Resolution) and its
   targeting were measured there. Under `all` everyone is struck every Special round, so a stake for one player
   is a stake for every player. The parked `ai-answers-others-casts` entry waits on this decision.
-- **Deck cycling at these lengths:** `recyclesim` has no rule switches, so how often a deck reshuffles in a
-  15-round six-player game is not measured.
+- **Deck cycling at these lengths:** `recyclesim` had no rule switches, so how often a deck reshuffles in a
+  15-round six-player game was not measured here. Measured on v1.35.2.4: [#v136-remeasured](#v136-remeasured).
 - **Holy Shroud became a Quick ability on the epic (v1.35.2.2, Aj, 2026-10-22).** Every `wardall` number here has the
   OLD Shroud: a passive absorb, shared, that could eat its owner's own strike. The shipped one is used by choice and
-  buys Leyline's ward for the table. Not re-measured; it is in `v136-live-measurements`.
+  buys Leyline's ward for the table. Re-measured on v1.35.2.4: [#v136-remeasured](#v136-remeasured).
 - **Human play.** Every number is knight self-play. A table of people may value protection, or coordinate
   against a leader, in ways this AI does not.
 
 <a id="host-client-fork"></a>
+## The v1.36 package re-measured with the Shroud ability and `noAid` (v1.35.2.4, 2026-10-22) <a id="v136-remeasured"></a>
+
+**Asked:** the backlog's `v136-live-measurements`. The package was chosen on [the study above](#loss-all-remeasured),
+which measured the passive Holy Shroud and an AI that still spent Counter Spell and Annoint protecting rivals; both
+changed on the epic (v1.35.2.2 and v1.35.2.3). The persona, deck-cycling and round-length numbers had only ever been
+taken on the winner's pick. Nothing here changes a rule.
+
+**What it means for play.**
+- **Balance at 4-6 players did not move.** The spread is 11.2 / 11.1 / 10.1 against 10.4 / 10.8 / 10.3 before the
+  two changes, a tie at every size under the study's 2-point read, and still under v1.35's 17.7 / 15.0 / 12.2 on the
+  same deals.
+- **Three players widened by about 2 points, and Pure Cleric is why.** Over 16,000 paired games the spread goes
+  9.3 → 11.6 (seeds 55+66 alone, fresh: 10.9 → 12.0), and Pure Cleric goes 38.6 → 41.1% against a fair 33.3%. The
+  Shroud ability does it on its own: a copy with `noAid` switched off reads Pure Cleric 41.0. The old Shroud saved a
+  shield for whoever lost one, often a rival struck by its own owner's win; the ability saves only when its owner
+  chooses, and Pure Cleric carries four Holy Shrouds, more than any other deck. Still under v1.35's 14.1.
+- **Games got longer at 4-6 players:** median rounds 12 / 14 / 15 → 13 / 15 / 17 with random decks. One counter
+  now wards the whole table for the rest of the round, where it used to save one shield; at six players a warded
+  round can save five. Still well under v1.35's 20 / 26 / 31.
+- **`noAid` changes no deck's share.** Its strength effect is at [#ai-no-aid](#ai-no-aid).
+- **Persona parity holds at every tier**, deck cycling stays as busy as before in fewer rounds, and six-player
+  deck-outs all but disappear (tables below).
+
+### How it was measured
+
+- **The package's spread:** `flagpair.js games=4000 a=base b=shipped`, seeds 33 and 44 (the study's replication
+  seeds), 3 / 4 / 5 / 6 players, knight self-play, on the epic at v1.35.2.4 and on a worktree at v1.35.2.1 (`d1ad889`,
+  the package with the passive Shroud and no `noAid`). **The v1.35.2.1 run reproduced the study to the decimal**
+  (package 8.4 / 10.4 / 10.8 / 10.3; v1.35 arm 14.1 / 17.7 / 15.0 / 12.2), so the instrument is the study's. Both
+  builds deal the same games, so their shares compare directly, though a game is not paired across the two builds.
+  Controls on v1.35.2.4 (`a=shipped control`, 300 games at 3 and 6 players) flipped 0.
+- **Three players, replicated:** the same on seeds 55 and 66, on both builds and on a v1.35.2.4 copy with the
+  `noAid` clause switched off in `ai.js` (scratch only; nothing committed carries a switch).
+- **Persona parity:** `personasim.js 600 <tier>`, two runs per tier (3,600 games, six seats; the Minion tier has
+  eight personas, so 4,800 games), and four runs of the demon control. The harness sets the package itself.
+- **Deck cycling:** `recyclesim.js 300` on both builds (seeded, so one run each).
+- **Round lengths with the Full Set at every seat:** `rulesim.js`, three runs on each build, its `V` row (the package)
+  beside its `A` row (v1.35).
+
+### The package's spread
+
+`flagpair`, 8,000 paired games per cell (seeds 33+44), shares pooled over both seeds. Fair is 33.3 / 25 / 20 / 16.7%.
+
+| players | 3 | 4 | 5 | 6 |
+| --- | --- | --- | --- | --- |
+| v1.35 rules, the same deals (v1.35.2.1) | 14.1 | 17.7 | 15.0 | 12.2 |
+| the package, v1.35.2.1 (passive Shroud, no `noAid`) | 8.4 | 10.4 | 10.8 | 10.3 |
+| **the package, v1.35.2.4 (Shroud ability, `noAid`)** | **11.3** | **11.2** | **11.1** | **10.1** |
+| median rounds, v1.35.2.1 → v1.35.2.4 | 11 → 11 | 12 → 13 | 14 → 15 | 15 → 17 |
+| v1.35 rules, median rounds | 14 | 20 | 25–26 | 30–31 |
+
+At six players the top and bottom are Bard 22.7 and Pure Fighter 12.6 (they were Bard 22.9 and Pure Wizard 12.6);
+Pure Fighter / Pure Rogue / Berserker read 12.6 / 17.1 / 16.2 against 13.6 / 17.1 / 16.9. Single-seed-pair moves of
+2-3 points (Pure Fighter −3.1 at four players, Pure Wizard +2.2 at six) were not replicated and sit inside what 44
+deck cells throw up by chance. Do not read the v1.35 arm on v1.35.2.4 (13.5 / 15.0 / 9.8 / 8.5): the Shroud ability
+exists in that arm too, so it is no longer the v1.35 game.
+
+**Three players over four seeds (16,000 paired games per build):**
+
+| deck | v1.35.2.1 | Shroud ability only | + `noAid` (shipped) |
+| --- | --- | --- | --- |
+| Pure Cleric | 38.6 | 41.0 | **41.1** |
+| Bard (Cle+Rog) | 37.3 | 37.6 | 36.8 |
+| Sage (Wiz+Cle) | 33.0 | 34.6 | 35.7 |
+| Paladin (Cle+Fig) | 36.0 | 35.5 | 35.0 |
+| Pure Fighter | 34.3 | 33.3 | 32.5 |
+| Mage Knight (Wiz+Fig) | 32.5 | 32.0 | 32.0 |
+| Full Set | 31.3 | 31.6 | 31.9 |
+| Berserker (Fig+Rog) | 32.6 | 32.3 | 31.6 |
+| Warlock (Wiz+Rog) | 31.3 | 30.9 | 30.7 |
+| Pure Rogue | 30.3 | 29.7 | 29.7 |
+| Pure Wizard | 29.3 | 28.1 | 29.5 |
+| **spread** | **9.3** | **13.0** | **11.6** |
+
+### Persona parity
+
+Spread in points, top minus bottom persona. The floor recorded at [#ai-strength](#ai-strength) for 3,600 games is
+0.8-2.2 (median 1.5); the control here read 0.3 / 1.6 / 1.7 / 1.6.
+
+| tier | run 1 | run 2 |
+| --- | --- | --- |
+| Demon Lord | 1.6 | 1.5 |
+| Knight | 1.6 | 1.8 |
+| Fighter | 1.2 | 2.2 |
+| Squire (`recruit`) | 1.5 | 2.2 |
+| Minion (8 seats, 4,800 games) | 1.5 | 1.5 |
+
+Every tier sits inside the recorded floor (two runs touch its 2.2 maximum), so the personas still vary style, not strength, now that a Special win
+strikes every rival. Squire put Beaumains top and Sagramore bottom in both runs, and Minion put Phil top and Dave
+bottom in both; both gaps are inside the floor, so treat them as leads, not findings.
+
+### Deck cycling
+
+`recyclesim.js 300`. The v1.35 row is the recorded [v1.33.10 measurement](#deck-cycling), on the winner's pick.
+
+| players | build | rounds (med / max) | seats that reshuffle | reshuffles per seat | first reshuffle (median round) | exiled per seat | deck-outs per game |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2 | v1.35.2.1 | 11 / 21 | 41% | 0.43 | 12 | 3.6 | 0.00 |
+| 2 | **v1.35.2.4** | 11 / 24 | 40% | 0.42 | 12 | 3.5 | 0.00 |
+| 3 | v1.35 (v1.33.10) | 14 | 80% | 1.05 | 11 | 4.3 | 0.00 |
+| 3 | v1.35.2.1 | 11 / 20 | 88% | 1.09 | 9 | 4.3 | 0.00 |
+| 3 | **v1.35.2.4** | 11 / 18 | 90% | 1.12 | 9 | 4.4 | 0.00 |
+| 4 | v1.35 (v1.33.10) | 19 | 97% | 2.35 | 10 | 5.7 | 0.00 |
+| 4 | v1.35.2.1 | 12 / 21 | 100% | 2.04 | 7 | 5.3 | 0.00 |
+| 4 | **v1.35.2.4** | 12 / 24 | 100% | 2.21 | 7 | 5.6 | 0.00 |
+| 6 | v1.35 (v1.33.10) | 30 | 100% | 4.64 | 8 | 7.7 | 0.09 |
+| 6 | v1.35.2.1 | 14 / 25 | 100% | 3.83 | 6 | 6.8 | 0.01 |
+| 6 | **v1.35.2.4** | 16 / 32 | 100% | 4.20 | 6 | 7.5 | 0.01 |
+
+(The v1.35 rows' reshuffle, first-reshuffle and seat columns are from the 2026-10-06 table, the last run that printed them.)
+
+- **Decks cycle about as much in fewer rounds** (half as many at six players). Every seat still draws one card per
+  player each round, and shields 2 + players take more cards off the deck at the deal (eight at six players), so the
+  first reshuffle comes two or three rounds sooner.
+- **Six-player deck-outs all but disappear:** about 3 games in 300 against 27, because the game ends first.
+- **The Shroud ability's longer games show up here too**, as slightly more reshuffles and exiled cards at six players.
+
+### Round lengths with the Full Set at every seat
+
+`rulesim.js`, three runs per build, 90 games per cell, median rounds at 2 / 3 / 4 / 6 players.
+
+| row | v1.35.2.1 | v1.35.2.4 |
+| --- | --- | --- |
+| `A` v1.35 rules | 11 / 14 / 19 / 30 | 11 / 14 / 19 / 29–30 |
+| `V` the package | 11 / 11 / 12 / 14 | 11 / 11 / 12–13 / 15–17 |
+
+Same reading as `flagpair`: unchanged at two and three players, one to three rounds longer at six. `rulesim` reads a
+round or two shorter than `flagpair` because every seat plays the Full Set.
+
 ## Giving the controller priority on their own object <a id="controller-priority"></a>
 
 **Measured 2026-09-09, `epic/priority-windows` step 6.** `openResponseWindow` walked `k = 1..n-1` from the
@@ -610,6 +742,9 @@ the draw scaling with player count.
 The same runs with `recycle` (spent Techniques go to the Shuffle Pile instead of the Discard): rounds
 11 / 14 / 19 / 30, reshuffles per seat 0.39 / 1.05 / 2.22 / 5.03, Discarded per seat **0.7 / 1.0 / 1.4 /
 2.2** (pitches, Counter Spell's own card and destroyed Equipment still go there), deck-outs **0.01** at six.
+
+**Under the v1.36 package** (shorter games, shields 2 + players), the same harness is at
+[#v136-remeasured](#v136-remeasured).
 
 **RE-MEASURED 2026-10-12, WHEN THE BROADWAY PITCH STOPPED BEING LOST (v1.33.10).** A pitched Broadway card
 banks to the energy pile now, like every other discard, and the gone-for-good pile is called the **Exile**. Same
@@ -1104,6 +1239,7 @@ in CLAUDE.md: a policy that has not shipped needs the opposite default from one 
     | 3600 | 10 | 0.8 | 1.5 | **2.2** | 1.48 |
 
     **So: at 900 games nothing under ~6 points is distinguishable from noise; at 3600 the floor is ~2.2.**
+    **Every tier re-measured under the v1.36 package sits inside that floor:** [#v136-remeasured](#v136-remeasured).
     4x the games tightens it ~2.6x. The three runs recorded above (5.6, 1.3, 4.6) sit inside the 900-game
     distribution and were never anomalous — one draw each from a range that wide.
     **AND THE INSTRUMENT IS NOT REPRODUCIBLE ALTHOUGH IT READS AS SEEDED**, which is why this took twenty runs

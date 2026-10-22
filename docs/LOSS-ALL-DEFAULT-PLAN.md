@@ -309,7 +309,7 @@ An epic gets ONE changelog entry, written into `CHANGELOG.md` when it merges to 
 
 **What you'll see at 3–6 players:** a Special win strikes **every** rival instead of one the winner picks; everyone
 starts with **2 + players** shields (5 / 6 / 7 / 8); Critical Hit and Ultima Attack hit every rival and no longer ask
-for a target. Games run about **11 / 12 / 14 / 15** rounds at 3 / 4 / 5 / 6 players, against 14 / 20 / 26 / 31.
+for a target. Games run about **11 / 13 / 15 / 17** rounds at 3 / 4 / 5 / 6 players, against 14 / 20 / 26 / 31.
 
 **What you'll see in a duel:** the three cards that protect shields now protect **everyone**. Leyline Ascension means
 nobody loses a shield that round, your own Special wins included; Sanctuary under Apollo locks every player's
@@ -356,6 +356,9 @@ shields or fewer).
 drops 1 further (to −3)."*, which is what it always did, and Poison the Air under Pandora reads *"Only Target Rival's
 Energy Pile moves to their Shuffle Pile — yours stays."*
 
-**Not in it:** the balance numbers were measured with the old, passive Holy Shroud and the AI before `noAid`;
-re-measuring is `v136-live-measurements`.
+**Measured as built** (v1.35.2.4, [`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)): the spread is 11.3 /
+11.2 / 11.1 / 10.1 at 3 / 4 / 5 / 6 players against v1.35's 14.1 / 17.7 / 15.0 / 12.2 on the same deals. The
+Shroud ability made Pure Cleric about 2.5 points stronger at three players and games one to two rounds longer at
+four to six; the AI personas within each tier still differ in style, not strength, and six-player deck-outs all
+but disappear.
 
