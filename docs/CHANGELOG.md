@@ -15,6 +15,26 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.36.4 — deckouttest waits for the lead, not for nine seconds
+
+**What you'll see when you play: nothing.** The game is unchanged; this fixes a test that could go red on a game that
+was playing correctly.
+
+`deckouttest`'s 3-player leg stages Lefty decking out and requires Tank, the next seat, to lead the new round. It
+sampled for a flat **9s** after the deck-out. In a v1.36.3 sweep Tank cast Giant Ram and then Outbalance at you before
+it led. Each cast holds the game for its art flash (`castHolding`, ~2.5s), and you had a one-card discard to pick, so
+the lead landed at about **9.3s**. The suite reported *"nobody led, the table stopped"* about a table that had not
+stopped.
+
+- **The loop stops on the lead.** It ends 1s after Tank leads, so the end-screen and message checks still look past
+  it, and a stall gets **20s** after the deck-out. A passing run is shorter than before: 26s against 32s. A lead past
+  half that window prints `⚠ … OVER HALF THE BUDGET`, which the sweep shows for a green suite.
+- **`DECKOUT_TWOCAST=1` forces the sweep's deal**: a J♠ in Tank's draw ahead of the Outbalance. On the old loop it
+  went red 3 runs of 3 (Tank led 9.2–9.5s after the deck-out); on the new one it is green.
+- **It still catches a real stall.** With `driveStep`'s pick answer removed, both forced deals go red at the 20s
+  guard. With the original bug restored (the ceremony running `endGame()` on any deck-out), the old suite and the new
+  one both go red **10 / 2**: the end screen, and no lead.
+
 ### v1.36.0 — the loss=all package is the default, duels included
 
 **What you'll see at 3–6 players:** a Special win strikes **every** rival instead of one the winner picks; everyone
