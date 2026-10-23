@@ -128,12 +128,9 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
                                    ['flatShields','shieldScale',false],['flatDraw','drawScales',false],
                                    ['apexInf','apexInf',true],['apexNoStrip','apexNoStrip',true],
                                    ['kits3','kits3',true],['quadro','quadro',true],['noFullHouse','noFullHouse',true],
-                                   /* Two panel booleans drive ONE engine mode: noSeqTwos wins and gives 'off',
-                                      otherwise highTwos picks 'high' over the default 'low'. */
-                                   /* Two panel booleans drive ONE engine mode. Only `noSeqTwos` belongs in this
-                                      CUMULATIVE walk — `highTwos` goes dead the moment it is on, which is the
-                                      dependency working, so it is asserted on its own below. */
-                                   ['noSeqTwos','seqTwos','off'],
+                                   /* The 2's two rows are independent since v1.37.0: the bar alone leaves the 2
+                                      LOW in plays of four or more ('offlow'). `highTwos` is walked on its own below. */
+                                   ['noSeqTwos','seqTwos','offlow'],
                                    ['chopQuadro','chopQuadro',true],['chopKits','chopKits',true],
                                    ['chopSflush','chopSflush',true],
                                    ['chopStrips','chopStrips',true],
@@ -183,24 +180,26 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
     return CardmenEngine.isDoublePair()==='kits' && CardmenEngine.isKits3()===true; }),
      'and a legacy `kits` key migrates to dblPair=kits + kits3, rather than quietly reverting to off');
 
-  /* THE 2's TWO RULES DEPEND ON EACH OTHER, and the dependency is the mirror of `needsAny`: `highTwos` asks
-   * where the 2 RANKS inside a chain, and `noSeqTwos` removes it from chains, so the question stops meaning
-   * anything. Asserted in BOTH directions — dead while barred, live and reaching the engine once not — because
-   * a row that is always dead and a row that is always live both pass a single check. */
+  /* THE 2's TWO ROWS ARE INDEPENDENT (v1.37.0). They used to depend on each other — `noSeqTwos` made `highTwos` a dead
+   * row, and its one mode kept the 2 HIGH in every non-chain play — so a Dou Dizhu table saw 2-2-2-9-9 beat every full
+   * house under a row that said only "Sequences do not include the 2". Aj: *"it's not a sequence tho? it's a full
+   * house?"*. All four combinations are reached from the PANEL, and the full house is judged in the page, because a
+   * mode that reads right and a game that plays right are two different claims. */
   await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await painted(p);
-  ok((await flags(p)).seqTwos==='low', 'the 2 plays in chains as the LOW card by default (Chikicha, Big Two)');
-  ok(await toggle(p,'highTwos'), 'toggling highTwos while the 2 is allowed in chains');
-  ok((await flags(p)).seqTwos==='high', '  → reaches the engine as seqTwos="high" (the legacy J-Q-K-A-2)');
-  ok(await toggle(p,'noSeqTwos'), 'now barring the 2 from chains');
-  ok((await flags(p)).seqTwos==='off', '  → the bar WINS: the engine reports "off"');
-  ok(await p.evaluate(()=>{
-       const r=document.querySelector('.settingRow[data-rule="highTwos"]');
-       return !!r && (r.disabled===true || r.getAttribute('aria-disabled')==='true' || /off|dead/.test(r.className));
-     }), '  → and the highTwos row is DEAD, not merely ignored — a live control that does nothing is worse');
-  ok(!(await p.evaluate(()=>{
-       const r=document.querySelector('.settingRow[data-rule="highTwos"]');
-       return !!r && r.classList.contains('on');
-     })), '  → and its tick was cleared, so a stale one cannot travel in rulesKey()');
+  const fh2 = ()=>p.evaluate(()=>{ const E=CardmenEngine, c=(r,s)=>({rank:r,suit:s,id:r+s+'x'});
+    const two=E.detectCombo([c(2,'D'),c(2,'H'),c(2,'S'),c(9,'H'),c(9,'C')]), qq=E.detectCombo([c(12,'D'),c(12,'H'),c(12,'S'),c(9,'D'),c(9,'S')]);
+    return E.beats(qq, two) ? 'lowest' : 'highest'; });
+  const rowLive=k=>p.evaluate(k=>{ const r=document.querySelector('.settingRow[data-rule="'+k+'"]');
+    return !!r && !r.disabled && r.getAttribute('aria-disabled')!=='true' && !/dead/.test(r.className); }, k);
+  ok((await flags(p)).seqTwos==='low' && await fh2()==='lowest', 'the 2 plays in chains as the LOW card by default (Chikicha, Big Two), and 2-2-2-9-9 is the lowest full house');
+  ok(await toggle(p,'noSeqTwos'), 'ticking ONLY "Sequences do not include the 2"');
+  ok((await flags(p)).seqTwos==='offlow', '  → the engine bars the 2 from runs and leaves its rank LOW ("offlow")');
+  ok(await fh2()==='lowest', '  → so 2-2-2-9-9 is still the LOWEST full house — a full house is not a sequence'+((await fh2())==='lowest'?'':'  ← REPRODUCED: the Dou Dizhu table'));
+  ok(await rowLive('highTwos'), '  → and the "highest card" row stays LIVE — it no longer depends on the bar');
+  ok(await toggle(p,'highTwos'), 'ticking both (Dou Dizhu, Tiến lên)');
+  ok((await flags(p)).seqTwos==='off' && await fh2()==='highest', '  → barred from runs AND highest elsewhere: 2-2-2-9-9 is the HIGHEST full house');
+  ok(await toggle(p,'noSeqTwos'), 'unticking the bar, leaving only "highest card"');
+  ok((await flags(p)).seqTwos==='high' && await fh2()==='highest', '  → the legacy rule: J-Q-K-A-2 is a straight and 2-2-2-9-9 the highest full house');
   await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await painted(p);
 
   await p.evaluate(()=>window.__solo.setRulesFromKey('strikeOne,millAll,flatShields,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chop'));
@@ -351,7 +350,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(dd.dblPair === 'off' && dd.chopKits === false && dd.chopSflush === false,
      'and nothing else — the four-card slot stays off (连对 needs three pairs) and Tiến lên\'s kit-chop is cleared');
   const ddKey = await p.evaluate(() => window.__solo.rulesKey());
-  ok(ddKey === 'kits3,quadro,noSeqTwos,trioOne,fourTwo,airplane=wings,straightLen=5,chopQuadro',
+  ok(ddKey === 'kits3,quadro,noSeqTwos,highTwos,trioOne,fourTwo,airplane=wings,straightLen=5,chopQuadro',
      `so the three presets are three exact states, not three accumulations [got ${ddKey}]`);
   ok((await bulk(p)).filter(b => b.active).length === 1, 'and exactly one reads active at a time');
 
@@ -384,7 +383,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
      `and its sequences run from THREE, which is that game's rule (${tl.straightLen})`);
   ok(tl.dblPair === 'off' && tl.chopSflush === false,
      'and leaves out the four-card slot and the straight-flush chop — neither is a Tiến lên shape');
-  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,noFullHouse,noSeqTwos,straightLen=3,chopQuadro,chopKits',
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,noFullHouse,noSeqTwos,highTwos,straightLen=3,chopQuadro,chopKits',
      'so switching presets REPLACES the rule set rather than adding to it');
   row = await bulk(p);
   ok(row[1].active && !row[0].active, 'and the active marker moves with it');

@@ -75,12 +75,12 @@
    * Dou Dizhu both run their chains "from 3 up to ace" and say so of every chain type; Big Two lets a 2 into a
    * run but demotes it BELOW the 3 there, so its top straight is 10-J-Q-K-A as well. Our J-Q-K-A-2 window came
    * from no family at all — it fell out of laddering the apex at 15 and having straights read the same
-   * fightValue. `SEQ_TWOS` restores it for anyone who wants it.
+   * fightValue. `TWO_CHAINS` + `TWO_HIGH` restore it for anyone who wants it.
    * A LINK ONLY. An attached spare may be a 2, which is Dou Dizhu's rule exactly: a trio of 2s cannot be a link
    * in an airplane, but a lone 2 is a perfectly good wing. So this guards the CHAIN, never the baggage.
    * Note APEX_INF already did this for straights and kits as a side effect (an Infinity-valued 2 is not v+1),
    * so the two rules agree rather than fighting; this one just does not need the apex rule switched on. */
-  /* SEQ_TWOS IS A MODE, NOT A BOOLEAN (2026-08-30). The four source games agree the 2 is the apex at sizes
+  /* SEQ_TWOS WAS A MODE, NOT A BOOLEAN (2026-08-30; split into two settings at v1.37.0, below). The four source games agree the 2 is the apex at sizes
    * 1-3 and differ on exactly one axis in plays of 4+, with exactly two answers:
    *   'off'  barred from every chain          — Tien len, Dou Dizhu   (shipped default)
    *   'low'  ranks LOWEST in plays of 4+      — Big Two, CHIKICHA     (2-3-4-5-6 smallest, 222XX smallest full house)
@@ -93,16 +93,25 @@
    * there, as the LOWEST card. Measured before flipping (twosim.js): pacing 11/20/31 unmoved at 2/4/6p, jab
    * share within noise, straights +12%, and the real change is that a trio of 2s goes from the HIGHEST full
    * house to the lowest — intended, and larger than the straight effect everyone was discussing. */
-  var SEQ_TWOS = 'low';
-  function seqValue(c) { return (SEQ_TWOS === 'low' && c && c.rank === 2) ? 2 : fightValue(c); }
+  /* TWO QUESTIONS, TWO SETTINGS (v1.37.0). The mode above answered "may the 2 be a link in a chain?" and "where does
+   * it rank in plays of four or more?" with one value, so it could not say "barred from chains AND lowest elsewhere" —
+   * and 'off' quietly kept the 2 at the TOP of every non-chain play. A table on the Dou Dizhu preset found it: a Rival
+   * led 2-2-2-9-9 and no full house could beat it, while the row said only "Sequences do not include the 2". Aj: *"it's
+   * not a sequence tho? it's a full house?"* — and ruled that the two rows are independent:
+   *   TWO_CHAINS  the 2 may be a link in a run (a straight, consecutive pairs, consecutive trios)   — off: Dou Dizhu, Tiến lên
+   *   TWO_HIGH    the 2 ranks HIGH in every play of four or more, chains included                  — on:  Dou Dizhu, Tiến lên
+   * Default: it chains, and ranks LOW (Chikicha). `setSeqTwos` keeps its three old meanings for the sims and the old
+   * tests: 'low' = chains + low, 'high' = chains + high, 'off' = barred + high. */
+  var TWO_CHAINS = true, TWO_HIGH = false;
+  function seqValue(c) { return (!TWO_HIGH && c && c.rank === 2) ? 2 : fightValue(c); }
   function twoInChain(cards) {
-    if (SEQ_TWOS !== 'off') return false;
+    if (TWO_CHAINS) return false;
     for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2) return true;
     return false;
   }
   /* For the winged airplane, where only the TRIOS are links — a 2 among the spares is legal. */
   function twoIsChainTrio(cards, counts) {
-    if (SEQ_TWOS !== 'off') return false;
+    if (TWO_CHAINS) return false;
     for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2 && counts[fightValue(cards[i])] === 3) return true;
     return false;
   }
@@ -114,7 +123,7 @@
     if (n < 3) return null;
     // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
     // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is consecutive values just like the old 1..10.
-    if (twoInChain(cards)) return null;                                   // 3 up to ace, unless SEQ_TWOS
+    if (twoInChain(cards)) return null;                                   // 3 up to ace, unless TWO_CHAINS
     var rs = cards.map(seqValue).sort(function (a, b) { return a - b; });
     for (var i = 1; i < n; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
     var top = rs[n - 1];
@@ -215,7 +224,11 @@
     if (n === 3 && same) return { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards };
     /* Ahead of the double-pair slot, which returns early for anything that is not two pairs. No ambiguity is
      * possible: four cards of ONE value can never be two pairs or a kit, both of which need two values. */
-    if (n === 4 && quadroOn() && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
+    /* KEYED BY `seqValue`, LIKE EVERY OTHER PLAY OF FOUR OR MORE (v1.37.0). It read the fight value, so four 2s were the
+     * HIGHEST Four of a Kind under the default rule while four 2s + a spare were the LOWEST Four + 1 and 2-2-2-X-X the
+     * lowest Full House. Aj, asked: four 2s are the lowest in Chikicha too; Dou Dizhu ranks them highest, which is
+     * `TWO_HIGH`. */
+    if (n === 4 && quadroOn() && same) { var qv4 = seqValue(cards[0]); return { type: 'quadro', value: qv4, size: 4, key: [qv4], cards: cards }; }
     if (n === 4 && TRIO_ONE) {                       // 三带一 — trio + one spare, compared by the trio
       var t1 = valueCounts(cards), t1c = countsOf(t1);
       if (t1c.length === 2 && t1c[0] === 3 && t1c[1] === 1) {
@@ -401,7 +414,7 @@
        the Straights sort could never show one. `runRank` moves the 2 to 2 when it chains low; every candidate is
        still passed through `detectCombo` below, so an extra window can never make an illegal run playable. */
     var runRank = {}; Object.keys(byRank).forEach(function (r) { runRank[r] = byRank[r]; });
-    if (SEQ_TWOS === 'low' && byRank[15]) { runRank[2] = byRank[15]; delete runRank[15]; }
+    if (!TWO_HIGH && byRank[15]) { runRank[2] = byRank[15]; delete runRank[15]; }
     // straight windows over chain value: 2-6 (2 low) / 3-7 .. J-Q-K-A-2 (2 high) — detectCombo decides which are legal
     var loMin = 2, loMax = 11;
     for (var lo = loMin; lo <= loMax; lo++) {
@@ -651,16 +664,80 @@
   // Returns { ok, finished, winner } / { ok, eliminated, turn }. 2p callers should just end the game (last one wins).
   function concede(st, seat) {
     if (!st || st.finished || !st.players[seat] || st.players[seat].eliminated) return { ok: false };
+    dropSeat(st, seat);
+    if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
+    var lead = handOn(st, seat);
+    return { ok: true, eliminated: seat, turn: lead };
+  }
+  /* The two halves of a seat leaving mid-round, shared by a concede and a deck-out (v1.37.0). `dropSeat` takes the seat
+   * out and drops everything it owed or that pointed at it; `handOn` gives a clean lead to the next living player, for
+   * when the seat that left was the one on turn. */
+  function dropSeat(st, seat) {
     eliminatePlayer(st, seat);
     st.stack = (st.stack || []).filter(function (o) { return o.target !== seat && o.p !== seat && o.winner !== seat; });
     if (st.discardPending && st.discardPending.player === seat) st.discardPending = null;
     if (st.respondFor === seat) st.respondFor = null;
     if (st.pending && st.pending.p === seat) { st.pending = null; st.respondFor = null; }
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
-    if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
+  }
+  function handOn(st, seat) {
     var lead = nextPlayer(st, seat);
     st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.resolution = null; st.resolutionResult = null; st._effUsed = false;
-    return { ok: true, eliminated: seat, turn: lead };
+    return lead;
+  }
+  /* A DECK-OUT IS A GAME LOSS, REGARDLESS OF SHIELDS (Aj, 2026-10-23: *"deck out are game loss... regardless of shield
+   * count"*). It used to be only "the leader has no card to lead with": a draw that found an empty deck and an empty
+   * Shuffle Pile just fizzled, and in Aj's six-player game four seats drew nothing at round 26 and played on. Asked:
+   * **the first card you cannot draw puts you out** — the round's draw, a card's draw, a Ride's — and when everyone
+   * left decks out on the same draw the game ends with **no winner**. A duel ends; at 3-6 players the seat is out
+   * (`dropSeat`), the turn moves on if it was theirs, and the last seat standing wins. `st.deckOuts` records each one
+   * for the board to narrate; a netplay guest hears it through the host's narration, so it is not on the mirror.
+   * Returns the seats that went out. */
+  function deckOut(st, seats, via) {
+    var out = seats.filter(function (q) { return st.players[q] && !st.players[q].eliminated; });
+    if (!out.length || st.finished) return [];
+    (st.deckOuts = st.deckOuts || []).push({ seats: out.slice(), round: st.round, via: via || 'card' });   // 'round': the round's draw, which the ceremony narrates
+    if (st.numPlayers === 2) {
+      st.finished = true;
+      st.winner = out.length > 1 ? null : nextPlayer(st, out[0]);
+      return out;
+    }
+    var onTurn = st.turn;
+    out.forEach(function (q) { dropSeat(st, q); });
+    if (aliveCount(st) === 0) { st.finished = true; st.winner = null; }
+    else if (aliveCount(st) === 1) { st.finished = true; st.winner = lastAlive(st); }
+    else if (st.players[onTurn].eliminated) handOn(st, onTurn);
+    return out;
+  }
+  /* A card's draw. `need` is how many it must DRAW (a dig looks at more than it draws), and short of that the seat is out. */
+  function drawFor(st, q, n, need) {
+    var got = drawCards(st.players[q], n);
+    if (got < (need == null ? n : need)) deckOut(st, [q]);
+    return got;
+  }
+  /* HOW MANY CARDS CASTING `card` WOULD ASK SEAT p TO DRAW THAT ITS DECK AND SHUFFLE PILE CANNOT GIVE — 0 when the cast
+   * is safe. One definition, read by the AI (never deck yourself out) and the board (⚡ warns you first). It reads
+   * `effectFor`, since a Form can add a draw, and counts what the cast moves first: its paid energy lands in the Shuffle
+   * Pile, Sanctuary's gained shields are cards off the same deck, and a reclaim shuffles piles back in (and the Wheel
+   * your hand) before it draws. */
+  function drawShortfall(st, p, card) {
+    var pl = st.players[p], eff = card ? effectFor(st, p, card) : null;
+    if (!pl || !eff) return 0;
+    /* The cast's own energy goes to the Shuffle Pile when it is paid (`payEnergy`), before the draw resolves, so it is
+       drawable: casting with one card left in the deck and one energy spent can still draw two. */
+    var avail = pl.deck.length + pl.shuffle.length + Math.min(pl.energy.length, effectiveCost(st, p, card)), need = 0;
+    if (eff.kind === 'draw') need = eff.discard ? Math.max(0, (eff.draw || 0) - eff.discard) : (eff.draw || 0);
+    else if (eff.kind === 'shield') { need = eff.draw || 0; if (need && SHIELD_CARDS && pl.shieldPile) avail -= (eff.shield || 1); }
+    else if (eff.kind === 'reclaim') {
+      need = eff.draw || 0;
+      if (need) {
+        if (eff.wheel || eff.reclaimDiscard) avail += pl.removed.length;
+        if (eff.wheel) avail += pl.hand.filter(function (c) { return c.id !== card.id; }).length;
+        if (eff.half) avail -= Math.floor(avail / 2);
+      }
+    }
+    else if (eff.kind === 'transform') need = TRANSFORM_DRAW;
+    return Math.max(0, need - Math.max(0, avail));
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
   function retireEquip(pl, e) { if (e && e.card) pl.energy.push(e.card); }   // worn-out / spent Equipment → its card becomes Energy (recyclable via the shuffle cycle)
@@ -2158,6 +2235,7 @@
   }
   function resolveEffect(st, p, card, eff, opts) {
     opts = opts || {};
+    var deckOutsAtStart = (st.deckOuts || []).length;   // so the result can say whether THIS effect decked anyone out
     var pl = st.players[p], oppIdx = effectTarget(st, p, opts);
     if (st.players[oppIdx] && (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp'))) st.players[oppIdx].lastAttacker = p;   // grudge signal
     switch (eff.kind) {
@@ -2166,9 +2244,10 @@
         spendCard(pl, card); break;
       case 'draw':
         var beforeDraw = {}; pl.hand.forEach(function (c) { beforeDraw[c.id] = true; });
-        drawCards(pl, eff.draw);
+        drawFor(st, p, eff.draw, eff.discard ? Math.max(0, (eff.draw || 0) - eff.discard) : eff.draw);   // a dig looks at eff.draw and must DRAW the rest
+        if (pl.eliminated || st.finished) { spendCard(pl, card); break; }                                 // decked out: nothing left to keep or bank
         var drawnIds = pl.hand.filter(function (c) { return !beforeDraw[c.id]; }).map(function (c) { return c.id; });   // the cards this dig just LOOKED AT
-        if (eff.oppDraw) for (var q = 0; q < st.numPlayers; q++) if (q !== p) drawCards(st.players[q], eff.oppDraw);
+        if (eff.oppDraw) for (var q = 0; q < st.numPlayers; q++) if (q !== p && !st.players[q].eliminated) drawFor(st, q, eff.oppDraw);
         if (eff.top) {                                  // return N to the top of the deck (auto-picks lowest)
           var backs = choose(pl.hand, opts.toTop, eff.top), bset = {};
           backs.forEach(function (c) { bset[c.id] = true; });
@@ -2199,7 +2278,7 @@
          * symmetric (`shieldAll` — every player gains a shield, a wash on the shield race), so THIS is the only
          * asymmetric protection left once Leyline and Holy Shroud are shared, and WARD_ALL shares it too. */
         if (eff.shieldImmune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
-        if (eff.draw) drawCards(pl, eff.draw);
+        if (eff.draw) drawFor(st, p, eff.draw);
         spendCard(pl, card); break;
       case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle
         // WARD_ALL shares it with the table — see the note in `reclaim`. THIS is the base card's branch; the
@@ -2219,7 +2298,7 @@
         pl.forms = pl.forms.filter(function (f) { return f.rank !== card.rank; });
         tDisp.forEach(function (f) { if (f.card) pl.energy.push(f.card); });
         pl.forms.push({ rank: card.rank, suit: card.suit, tier: eff.tier, name: eff.name, card: card });
-        if (TRANSFORM_DRAW) drawCards(pl, TRANSFORM_DRAW);
+        if (TRANSFORM_DRAW) drawFor(st, p, TRANSFORM_DRAW);
         return { ok: true, state: st, transformed: true, tier: eff.tier, name: eff.name, isSuper: hasSuper(pl), card: card, displaced: tDisp.length };
       }
       case 'onWin':                                       // Armor Piercing (renamed from Finishing Blow): your next combo win strips an extra shield
@@ -2293,7 +2372,7 @@
           if (eff.reclaimDiscard) { pl.deck = pl.deck.concat(shuffle(pl.removed)); pl.removed = []; }   // Hippolyta: also pull your Exile (used Techniques, destroyed Equipment) back
         }
         if (eff.half) { var half = Math.floor(pl.deck.length / 2); for (var iH = 0; iH < half; iH++) { var hc = pl.deck.shift(); if (hc) bankEnergy(pl, hc); } }
-        if (eff.draw) drawCards(pl, eff.draw);
+        if (eff.draw) drawFor(st, p, eff.draw);
         /* WARD_ALL (Aj, 2026-08-26): Leyline protects EVERYONE's shields, not just the caster's. Aimed at the
          * reason loss=all breaks deck balance — Leyline (♦9) is the only shield-protection card in the game, so
          * under `all`, where every Special win hits every rival, its value multiplies by (N-1) in the caster's
@@ -2384,11 +2463,11 @@
         }
         spendCard(pl, card); break;
     }
-    // Genuine deck-out: activating your last card while you must lead (no reserve) is a loss.
-    if (!pl.pendingTop && st.turn === p && st.pile == null && pl.hand.length === 0) {
-      st.finished = true; st.winner = nextPlayer(st, p);
-    }
-    return { ok: true, state: st, effect: eff.id, kind: eff.kind, revealed: pendingReveal || undefined, deckedOut: st.finished || undefined };
+    /* Activating your last card while you must lead (no reserve) is a deck-out too. It set `finished` at every table
+       size, so at six players one player emptying their hand on a lead ended the whole game; `deckOut` takes the seat
+       out instead (v1.37.0). */
+    if (!pl.pendingTop && st.turn === p && st.pile == null && pl.hand.length === 0 && !pl.eliminated) deckOut(st, [p]);
+    return { ok: true, state: st, effect: eff.id, kind: eff.kind, revealed: pendingReveal || undefined, deckedOut: ((st.deckOuts || []).length > deckOutsAtStart) || undefined };
   }
 
   // Resolve a deferred DRAW2TOP1 top-of-deck choice (opts.pickTop). The UI calls
@@ -2413,7 +2492,7 @@
     if (!e || !e.ability) return { ok: false, reason: 'No usable equipment ability.' };
     if (e.usedThisRound) return { ok: false, reason: 'Already used this round.' };
     if (e.counters <= 0) return { ok: false, reason: 'No counters left.' };
-    if (e.ability === 'draw') drawCards(pl, 1);
+    if (e.ability === 'draw') drawFor(st, p, 1);
     e.counters -= 1; e.usedThisRound = true;
     if (e.counters <= 0) { retireEquip(pl, e); pl.equipment = pl.equipment.filter(function (x) { return x !== e; }); refreshPile(st); }   // a spent stat-stick leaving play re-values a standing pile
     return { ok: true, state: st, ability: e.ability, name: e.name };
@@ -3268,10 +3347,14 @@
   /* Accepts the mode, and migrates the v1.31.45 boolean: `true` meant the legacy value-15 behaviour, which is
    * now 'high'. A saved rule key or an older peer must not silently land on a different game. */
   function setSeqTwos(v) {
-    if (v === true) { SEQ_TWOS = 'high'; return; }
-    if (v === false || v == null) { SEQ_TWOS = 'off'; return; }
-    SEQ_TWOS = (v === 'low' || v === 'high') ? v : 'off';
+    if (v === true) v = 'high';
+    if (v !== 'low' && v !== 'high') v = 'off';          // false / null / anything else: barred, as it always was
+    TWO_CHAINS = v !== 'off'; TWO_HIGH = v !== 'low';
   }
+  function setTwoChains(v) { TWO_CHAINS = !!v; }
+  function setTwoHigh(v)   { TWO_HIGH = !!v; }
+  /* The old mode's name where one exists, and 'offlow' for the combination it could not express. */
+  function isSeqTwos() { return TWO_CHAINS ? (TWO_HIGH ? 'high' : 'low') : (TWO_HIGH ? 'off' : 'offlow'); }
   function isNoFullHouse()   { return NO_FULL_HOUSE; }
   function setTrioOne(v)   { TRIO_ONE = !!v; }
   function isTrioOne()     { return TRIO_ONE; }
@@ -3372,21 +3455,25 @@
     if (result.drawn) return result;
     result.draws = [];
     var perRound = drawCountFor(st);
-    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], perRound);
+    var short = [];
+    for (var r = 0; r < st.numPlayers; r++) {
+      result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], perRound);
+      if (!st.players[r].eliminated && result.draws[r] < perRound) short.push(r);   // a card it could not draw: out (v1.37.0)
+    }
     result.drawn = true;
     /* THE DEAL IS COUNTED, SO A NETPLAY CLIENT NEVER HAS TO INFER IT (v1.33.0). A client holds the new round's
        deal until its own ceremony reaches the Round card, and it used to find the deal by looking for a card
        it did not hold. A seat whose draw fizzled, or a knocked-out seat, is dealt no card, so its deal was
        never found and its Round card came late and wrong. Once per result, like the draw itself. */
     st.dealSeq = (st.dealSeq || 0) + 1;
-    // deck-out: the new leader has no card to lead with. Duel → they lose; N-player → they're eliminated.
-    if (st.players[st.turn].hand.length === 0) {
-      if (st.numPlayers === 2) { st.finished = true; st.winner = nextPlayer(st, st.turn); result.deckedOut = true; }
-      else {
-        var dq = st.turn; eliminatePlayer(st, dq); result.deckedOut = true; (result.eliminated = result.eliminated || []).push(dq);
-        if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); }
-        else { st.turn = nextPlayer(st, dq); st.initiative = st.turn; st._effUsed = false; }
-      }
+    /* Every seat that drew short goes out TOGETHER, so the last two decking out on one draw is a game with no winner
+       rather than a win for whichever seat was counted second. Then the old rule, still true: a leader with nothing
+       in hand cannot lead (the draw above makes that rare). */
+    var gone = deckOut(st, short, 'round');
+    if (!st.finished && st.players[st.turn].hand.length === 0) gone = gone.concat(deckOut(st, [st.turn], 'round'));
+    if (gone.length) {
+      result.deckedOut = true; result.deckedOutSeats = gone;
+      if (st.numPlayers > 2) result.eliminated = (result.eliminated || []).concat(gone);
     }
     return result;
   }
@@ -3693,14 +3780,15 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     fadeTemps: CLEANUP_EVENTS.temps,   // the round-end fade, callable early: the UI trims before its Clean-up drain, so it fades the copies first or they count toward the hand limit
-    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, equipMods: equipMods, costModifiers: costModifiers,
+    effectOf: effectOf, cardName: cardName, drawShortfall: drawShortfall, deckOut: deckOut, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, equipMods: equipMods, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     setNoFullHouse: setNoFullHouse, isNoFullHouse: isNoFullHouse,
-    setSeqTwos: setSeqTwos, isSeqTwos: function () { return SEQ_TWOS; },
+    setSeqTwos: setSeqTwos, isSeqTwos: isSeqTwos, setTwoChains: setTwoChains, setTwoHigh: setTwoHigh,
+    isTwoChains: function () { return TWO_CHAINS; }, isTwoHigh: function () { return TWO_HIGH; },
     setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo, setFourOne: setFourOne, isFourOne: isFourOne,
     setAirplane: setAirplane, isAirplane: isAirplane,
     setStraightMin: setStraightMin, isStraightMin: isStraightMin,

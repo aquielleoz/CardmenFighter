@@ -46,10 +46,13 @@ async function instantNext(id, viewport){
     if(r.rank) break; await p.waitForTimeout(80); }
   await b.close(); return r;
 }
-async function openLesson(id, viewport){
+/* `opts.savedRules` seeds `cmf_rules_v1` before the page loads, as a player with custom rules saved has it — a lesson must
+   play the DEFAULT rules regardless (v1.37.0) and leave the saved ones alone. */
+async function openLesson(id, viewport, opts){
   const b=await chromium.launch(LAUNCH);
   const vp=viewportFor(viewport);
   const p=await (await b.newContext({viewport:vp})).newPage();
+  if(opts && opts.savedRules!=null) await p.addInitScript(k=>{ try{ if(!sessionStorage.getItem('__seeded')){ localStorage.setItem('cmf_rules_v1', k); sessionStorage.setItem('__seeded','1'); } }catch(e){} }, opts.savedRules);
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   /* THE COACH MUST NOT COVER WHAT A STEP POINTS AT (drag-and-stack step 6b). Every 400ms: does the coach panel sit over
      the centre of anything the step spotlights, or of the Respond? box's buttons? Phases shipped with the coach over

@@ -1,18 +1,16 @@
-/* A CLIENT IS TOLD ITS DRAW FIZZLED (client-never-told-draw-fizzled, v1.32.7).
+/* A DUEL GUEST WHO CANNOT DRAW LOSES, AND BOTH SCREENS SAY SO (v1.37.0; this was `nettest_drawfizzle`).
  *
- * The line lived in `logRoundDraw` as one host-local `logMsg`, and that function runs on the host and in solo
- * only — so a client whose deck AND shuffle pile were empty was never told, in any game. Aj's wording splits it:
- * the FACT goes to the table ("Draw fizzled for {who} — no cards left in the deck or shuffle pile."), the ADVICE
- * only to the seat it helps ("Spend energy on effects to recycle cards back into your deck.").
+ * Aj, 2026-10-23: *"deck out are game loss... regardless of shield count"*. The draw at the start of a round used to
+ * FIZZLE for a seat whose deck and Shuffle Pile were both empty, and this suite asserted that a guest was told so
+ * ("Draw fizzled for You", with advice to recycle). That line no longer exists: the first card a seat cannot draw puts
+ * it out, and in a duel that is the game. Same staging, the new claims: the guest decks out, the host WINS with the
+ * guest's shields still up, each screen names the deck-out in its own frame, and neither says "fizzled".
  *
- * BOTH DIRECTIONS: the client must get both lines, the host must get the public one, and the host must NOT get
- * the advice — a broadcast advice line passes "the client was told" while telling everyone.
- *
- * Run: node nettest_drawfizzle.js */
+ * Run: node nettest_deckoutduel.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const { clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=+(process.env.PORT||8463),ROOM='DF'+Date.now().toString().slice(-3);
+const DIR=__dirname,PORT=+(process.env.PORT||8463),ROOM='DO'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -45,30 +43,19 @@ const logOf=p=>p.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>
     new MutationObserver(()=>{ const r=fx.querySelector('.rfRound'), s=fx.querySelector('.rfSub');
       if(r&&s){ const t=r.textContent+' | '+s.textContent; if(window.__rf[window.__rf.length-1]!==t) window.__rf.push(t); } })
       .observe(fx,{subtree:true,childList:true,characterData:true}); };
-  await host.evaluate(filmRoundCards); await join.evaluate(filmRoundCards);
   await clickPass(join);
-  const told=await until(async()=>/Draw fizzled for You/.test(await logOf(join)), 120);
+  const joinOut=await until(async()=>/You decked out — could not draw a card\./.test(await logOf(join)), 120);
   const jl=await logOf(join), hl=await logOf(host);
-  ok(told, 'the CLIENT is told its draw fizzled ("Draw fizzled for You — …")'+(told?'':'  ← REPRODUCED: never told'));
-  ok(/Spend energy on effects to recycle cards back into your deck/.test(jl), '…and gets the advice');
-  ok(/Draw fizzled for Rival 2/.test(hl), 'the HOST reads the public line about the client ("Draw fizzled for Rival 2 — …")');
-  ok(!/Spend energy on effects to recycle/.test(hl), '…and NOT the advice, which is the client\'s alone');
-  ok(!/Draw fizzled for You/.test(hl), 'the host did not fizzle — no line about itself');
-
-  /* …AND THE CLIENT'S ROUND CARD SAYS SO (v1.33.0). A seat that draws nothing gets "Deck empty" on its Round
-     card; the host's own fizzle always did. The client's never could: it found the new round's deal by
-     looking for a card it did not hold, and a fizzled draw deals it none, so the deal was never recognised,
-     its draw never counted, and its Round card came LATE, read "Specials unlocked!" or "Each player draws N",
-     after the host's ceremony had ended. The host now marks the deal (`dealSeq`), so the client holds and
-     reveals it like any other. The host drew normally and is the control: a round-2 card that unlocks
-     Specials. */
-  const rfDone=await until(async()=>(await join.evaluate(()=>(window.__rf||[]).length))>0 && (await host.evaluate(()=>(window.__rf||[]).length))>0, 80);
-  const jrf=await join.evaluate(()=>window.__rf||[]), hrf=await host.evaluate(()=>window.__rf||[]);
-  const jtr=JSON.stringify(await join.evaluate(()=>window.__cmf.trace()));
-  ok(rfDone, 'STAGED: both seats showed a Round card  [host '+JSON.stringify(hrf)+' · client '+JSON.stringify(jrf)+']');
-  ok(hrf.some(t=>/Round 2 \| Specials unlocked!/.test(t)), 'the host, which drew, reads "Round 2 | Specials unlocked!" (the control)  '+JSON.stringify(hrf));
-  ok(jrf.some(t=>/Deck empty/.test(t)), 'the CLIENT, which drew nothing, reads "Deck empty" on its Round card  '+JSON.stringify(jrf)+(jrf.some(t=>/Deck empty/.test(t))?'':'  ← REPRODUCED: the fizzled draw was never counted'));
-  ok(!/Round card shown LATE/.test(jtr), 'the client showed its Round card WITH the deal, not late after the host\'s ceremony'+(/Round card shown LATE/.test(jtr)?'  ← REPRODUCED: the deal was not recognised':''));
+  ok(joinOut, 'the GUEST reads its own deck-out: "You decked out — could not draw a card."'+(joinOut?'':'  ← '+(/fizzled/.test(jl)?'REPRODUCED: the draw just fizzled':'no line')));
+  ok(/Rival 2 decked out — could not draw a card\./.test(hl), 'the HOST reads it about the guest, in its own frame ("Rival 2 decked out — could not draw a card.")');
+  if(!joinOut || !/Rival 2 decked out/.test(hl)) console.log('   WHY: guest log tail '+JSON.stringify(jl.split('\n').slice(-6))+'\n        host log tail '+JSON.stringify(hl.split('\n').slice(-6)));
+  ok(!/fizzled/i.test(jl) && !/fizzled/i.test(hl), 'neither screen says the draw "fizzled" — a missed draw is a deck-out now');
+  const endUp=await until(async()=>(await host.evaluate(()=>{ const m=document.getElementById('modal'); return !!m && !!m.offsetParent && /WIN/.test(m.textContent); })) &&
+                                  (await join.evaluate(()=>{ const m=document.getElementById('modal'); return !!m && !!m.offsetParent && /Wins/.test(m.textContent); })), 120);
+  const hEnd=await host.evaluate(()=>((document.querySelector('#modal h2')||{}).textContent||'').trim()), jEnd=await join.evaluate(()=>((document.querySelector('#modal h2')||{}).textContent||'').trim());
+  ok(endUp, 'the duel is OVER on both screens: the host reads "'+hEnd+'", the guest "'+jEnd+'"');
+  const hs=await host.evaluate(()=>({ fin:!!window.__cmf.finished(), w:window.__cmf.winner(), sh:window.__cmf.shieldsOf(1) }));
+  ok(hs.fin && hs.w===0 && hs.sh>0, 'the host\'s engine: finished, the host won, and the guest still had shields ('+hs.sh+') — a deck-out ignores them  '+JSON.stringify(hs));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

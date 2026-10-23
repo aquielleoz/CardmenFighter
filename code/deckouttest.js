@@ -132,6 +132,80 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      message naming Lefty; the title now reads the winner's name, as the 3-6 player one always did. */
   ok(!!done2 && done2.title==='Lefty Wins', '[duel] and the end screen\'s TITLE names the same winner  ["'+(done2?done2.title:'—')+'"]');
   ok(errs2.length===0, '[duel] no JS errors'+(errs2.length?': '+errs2.join(' | '):''));
+
+  /* ---------- ANY CARD YOU CANNOT DRAW PUTS YOU OUT (v1.37.0), and the board asks before you do it to yourself.
+     Aj: *"deck out are game loss... regardless of shield count"*, then: a card's draw counts too, the ⚡ warns first,
+     and everyone decking out on one draw is no winner. Prepare for Combat (♣A, draw 2) paid with one ♣ energy, which
+     lands in your own Shuffle Pile — so one card in the deck is enough, and none is one short. */
+  async function soloPage(players){
+    const pg=await (await b.newContext({viewport:{width:1100,height:900}})).newPage(); const er=[]; pg.on('pageerror',e=>er.push(e.message));
+    await pg.goto(URL); await wait(700);
+    await pg.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await pg.evaluate(n=>{ const s=document.getElementById('setPlayers'); s.value=String(n); s.dispatchEvent(new Event('change')); }, players); await wait(350);
+    await pg.evaluate(()=>{ document.querySelectorAll('#oppList select.strength').forEach(s=>{ s.value='fighter'; s.dispatchEvent(new Event('change')); }); }); await wait(200);
+    await pg.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1500);
+    return { pg, er };
+  }
+  const stagePfc=(pg, deckN)=>pg.evaluate(n=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+    st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main';
+    st.players.forEach(pl=>{ pl.energy=[]; pl.shields=3; });
+    window.__solo.setName(1,'Lefty'); if(st.players[2]) window.__solo.setName(2,'Tank');
+    st.players[0].hand=[mk(1,'C','pfc'),mk(9,'H','y9'),mk(10,'H','y10')]; st.players[0].energy=[mk(3,'C','e3')];
+    st.players[0].deck=st.players[0].deck.slice(0,n); st.players[0].shuffle=[];
+    window.__solo.render(); }, deckN);
+  const tapCast=async(pg,id)=>{ await pg.evaluate(id=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>el.querySelector('.card[data-id="'+id+'"]'))[0]; if(g) g.click(); }, id); await wait(300);
+    await pg.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c && c.offsetParent) c.click(); }); await wait(500); };
+  const confirmUp=pg=>pg.evaluate(()=>{ const m=document.getElementById('modal'); return !!m && !!m.offsetParent && /Deck yourself out\?/.test(m.textContent); });
+  const handIds=pg=>pg.evaluate(()=>window.__solo.st().players[0].hand.map(c=>c.id));
+  { const { pg, er }=await soloPage(2);
+    await stagePfc(pg, 1); await wait(400);
+    await tapCast(pg,'pfc');
+    ok(!(await confirmUp(pg)) && (await handIds(pg)).indexOf('pfc')<0, '[⚡] CONTROL: with one card left (and the energy you pay), Prepare for Combat casts without asking');
+    await stagePfc(pg, 0); await wait(2600);
+    await tapCast(pg,'pfc');
+    ok(await confirmUp(pg), '[⚡] with an EMPTY deck, ⚡ asks first: "Deck yourself out?"');
+    await pg.evaluate(()=>document.getElementById('keepDeck').click()); await wait(300);
+    ok((await handIds(pg)).indexOf('pfc')>=0 && !(await pg.evaluate(()=>window.__solo.st().finished)), '[⚡] "Keep it": nothing is cast and the game goes on');
+    await tapCast(pg,'pfc');
+    await pg.evaluate(()=>{ const c=document.getElementById('castDeckOut'); if(c) c.click(); });
+    let end=null; for(let i=0;i<120 && !end;i++){ await wait(100); end=await pg.evaluate(()=>{ const a=document.getElementById('againBtn'); return a ? ((document.querySelector('#modal h2')||{}).textContent||'').trim() : null; }); }
+    const lg=await pg.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent.trim()));
+    ok(end==='Lefty Wins' && lg.some(l=>/You decked out — could not draw a card\./.test(l)),
+       '[⚡] "Cast it anyway": you draw nothing, DECK OUT and lose the duel, and the log says why  ["'+end+'"]');
+    ok(er.length===0, '[⚡] no JS errors'+(er.length?': '+er.join(' | '):''));
+  }
+  /* EVERYONE LEFT DECKS OUT ON ONE DRAW: NO WINNER. You lead your last card, an apex 2, with your deck empty — and the
+     Rival's is empty too, so the round's draw gives neither of you a card. */
+  { const { pg, er }=await soloPage(2);
+    await pg.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+      st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main';
+      st.players.forEach(pl=>{ pl.energy=[]; pl.shields=3; pl.deck=[]; pl.shuffle=[]; });
+      window.__solo.setName(1,'Lefty');
+      st.players[0].hand=[mk(2,'S','ap2')]; st.players[1].hand=[mk(5,'H','r5'),mk(9,'C','r9')];
+      window.__solo.render(); });
+    await wait(500);
+    await selectAndFight(pg, ['ap2']);
+    let s=null; for(let i=0;i<200;i++){ await wait(100); s=await pg.evaluate(()=>({ end:!!document.getElementById('againBtn'), title:((document.querySelector('#modal h2')||{}).textContent||'').trim(),
+      msg:((document.getElementById('message')||{}).textContent||'').trim(), w:window.__solo.st().winner, fin:!!window.__solo.st().finished })); if(s.end) break; }
+    ok(s.fin && s.w===null, '[both out] STAGED: both seats drew nothing and the engine ended the game with no winner  '+JSON.stringify({fin:s.fin, w:s.w}));
+    ok(s.end && s.title==='No winner' && /no winner/.test(s.msg), '[both out] the end screen says "No winner", and so does the board  ["'+s.title+'" · "'+s.msg+'"]');
+    ok(er.length===0, '[both out] no JS errors'+(er.length?': '+er.join(' | '):''));
+  }
+  /* AT THREE PLAYERS YOUR OWN DRAW PUTS YOU OUT MID-TURN, and the table plays on: the engine hands the turn to the next
+     seat, and something has to start it — the cast's tail would otherwise hand the board back to you. */
+  { const { pg, er }=await soloPage(3);
+    await stagePfc(pg, 0); await wait(400);
+    await tapCast(pg,'pfc');
+    await pg.evaluate(()=>{ const c=document.getElementById('castDeckOut'); if(c) c.click(); });
+    let s=null, played=false; const t3=Date.now();
+    while(Date.now()-t3<20000){ await wait(150);
+      s=await pg.evaluate(()=>{ const st=window.__solo.st(); return { out:!!st.players[0].eliminated, fin:!!st.finished, turn:st.turn, end:!!document.getElementById('againBtn'),
+        spect:document.body.classList.contains('spectating'), pileBy:st.pile?st.pile.byPlayer:null }; });
+      if(s.out && s.pileBy!=null && s.pileBy!==0){ played=true; break; } }
+    ok(s && s.out && !s.fin && !s.end && s.spect, '[3 players] casting it anyway puts YOU out, the game goes on, and you spectate  '+JSON.stringify(s));
+    ok(played, '[3 players] and the next seat PLAYS: the table was handed on'+(played?'':'  ← nobody moved after your deck-out'));
+    ok(er.length===0, '[3 players] no JS errors'+(er.length?': '+er.join(' | '):''));
+  }
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR: '+e.message); process.exit(2); });

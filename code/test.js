@@ -193,6 +193,20 @@ function cards(ids) { return ids.map(card); }
   ok(fhOff && fhOff.value === 15,
      '  → and under off it is the HIGHEST, because the bar is on chains and a full house is not one');
   E.setSeqTwos('low');
+  /* THE TWO ROWS ARE INDEPENDENT (v1.37.0) — the Dou Dizhu table. A Rival led 2-2-2-9-9 and no full house could beat
+     it, because 'off' was one mode that barred the 2 from chains AND kept it high everywhere else. Aj: *"it's not a
+     sequence tho? it's a full house?"*. The bar now says nothing about rank; the rank is its own setting. */
+  var fhQQQ = E.detectCombo([sc(12, 'D'), sc(12, 'H'), sc(12, 'C'), sc(9, 'S'), sc(9, 'D')]);
+  var fh222 = [sc(2, 'D'), sc(2, 'H'), sc(2, 'S'), sc(9, 'H'), sc(9, 'C')], run26 = [sc(2, 'D'), sc(3, 'S'), sc(4, 'H'), sc(5, 'C'), sc(6, 'D')];
+  E.setTwoChains(false); E.setTwoHigh(false);
+  ok(E.beats(fhQQQ, E.detectCombo(fh222)) && !E.beats(E.detectCombo(fh222), fhQQQ),
+     'ONLY "Sequences do not include the 2": 2-2-2-9-9 is the LOWEST full house — QQQ-99 beats it');
+  ok(E.detectCombo(run26) === null && E.isSeqTwos() === 'offlow', '  → and the 2 is still barred from the straight 2-3-4-5-6 (the fourth combination, "offlow")');
+  E.setTwoHigh(true);
+  ok(!E.beats(fhQQQ, E.detectCombo(fh222)) && E.beats(E.detectCombo(fh222), fhQQQ),
+     'BOTH ticked (Dou Dizhu): 2-2-2-9-9 is the HIGHEST full house');
+  ok(E.isSeqTwos() === 'off', '  → which is exactly the old "off", so a sim or saved mode that meant it still does');
+  E.setTwoChains(true); E.setTwoHigh(false);
   ok(E.detectCombo([sc(10, 'C'), sc(11, 'D'), sc(12, 'H'), sc(13, 'S'), sc(1, 'C')]).value === 14, 'REWORK: 10-J-Q-K-A straight tops at Ace (14)');
   ok(E.detectCombo([sc(1, 'D'), sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D')]) === null, 'REWORK: old A-2-3-4-5 low straight no longer a combo');
   // The apex 2 is a vanilla trump. The STOPPER mechanic it used to carry was retired by the rework and its
@@ -2191,8 +2205,17 @@ function cards(ids) { return ids.map(card); }
      'a higher quadro beats a lower one, and not the reverse');
   ok(E.beats(qd, E.detectCombo([C(3, 'D'), C(3, 'H')])) === false,
      'and a quadro CANNOT answer a pair — no chop until beats() gains cross-shape overrides');
-  ok(E.beats(E.detectCombo([C(2, 'D'), C(2, 'H'), C(2, 'C'), C(2, 'S')]), qd) === true,
-     'the apex 2 makes the highest quadro, since fightValue orders it at 15');
+  /* FOUR 2s FOLLOW THE 2's RANK RULE (v1.37.0). This line asserted "the apex 2 makes the highest quadro, since
+     fightValue orders it at 15" — true of the code and against the rule every other play of four or more obeys, so
+     four 2s were the top Four of a Kind while four 2s + a spare were the bottom Four + 1. Aj: lowest in Chikicha
+     (the default); Dou Dizhu's highest is `TWO_HIGH`. A pair off one board, so neither half passes alone. */
+  var q2 = [C(2, 'D'), C(2, 'H'), C(2, 'C'), C(2, 'S')];
+  ok(E.beats(qd, E.detectCombo(q2)) === true && E.beats(E.detectCombo(q2), qd) === false,
+     'DEFAULT: four 2s are the LOWEST quadro — four 7s beat them, like 2-2-2-X-X is the lowest full house');
+  E.setTwoHigh(true);
+  ok(E.beats(E.detectCombo(q2), qd) === true && E.beats(qd, E.detectCombo(q2)) === false,
+     'with the 2 ranked HIGH in plays of 4+ (Dou Dizhu), four 2s are the highest quadro');
+  E.setTwoHigh(false);
   /* THE FOUR-CARD SLOT IS NOW SHARED, and the two shapes cannot collide: four cards of ONE value can never be
    * two pairs or a kit, both of which need two distinct values. Asserted in every mode. */
   ['off', 'kits', 'poker'].forEach(function (m) {
@@ -4172,6 +4195,76 @@ function cards(ids) { return ids.map(card); }
   ok(sE.ok && !(rsE && rsE.respondedWith), 'noAid: a seat does NOT Annoint against a Sabotage aimed at another seat\'s Equipment  ' + (sE.ok ? said(rsE) : sE.why));
   var sM = stage(5, 'S', { target: 'eqB' }, annointer()), rsM = sM.ok ? decide(sM, true) : null;
   ok(sM.ok && rsM && rsM.respondedWith === 'H5', 'noAid: …and DOES Annoint when the Sabotage is aimed at its own Equipment — the control  ' + (sM.ok ? said(rsM) : sM.why));
+})();
+
+/* ---- A DECK-OUT IS A GAME LOSS, REGARDLESS OF SHIELDS (v1.37.0). Aj, 2026-10-23, from a six-player log where four seats'
+   round draw "fizzled" and they played on: *"deck out are game loss... regardless of shield count"*. Rulings: the first card
+   you cannot draw puts you out — the round's draw and a card's draw alike — and when everyone left decks out on the same
+   draw there is no winner. Every claim is a pair: the same board with the card there, and without it. */
+(function () {
+  var c = function (r, s, i) { return { rank: r, suit: s, id: i || ('' + r + s) }; };
+  function table(np) { var g = E.newGame(null, { numPlayers: np, starter: 0 }); g.round = 3; g.turn = 0; g.pile = null; g.passes = 0; g.lastPlayer = null; g.subPhase = 'main';
+    g.players.forEach(function (p, i) { p.energy = []; p.hand = [c(9, 'S', 'h9' + i), c(10, 'H', 'h10' + i)]; }); return g; }
+  function empty(pl, keep) { pl.deck = pl.deck.slice(0, keep || 0); pl.shuffle = []; }
+  // the round's draw, in a duel
+  var g = table(2); var per = E.drawCountFor(g);
+  var r0 = E.roundDraw(g, {});
+  ok(!g.finished && !r0.deckedOut, 'deck-out CONTROL: a round draw with cards to draw decks nobody out');
+  g = table(2); empty(g.players[1]);
+  var r1 = E.roundDraw(g, {});
+  ok(g.finished && g.winner === 0 && r1.deckedOut && r1.deckedOutSeats[0] === 1 && g.players[1].shields > 0,
+     'a duel seat that cannot draw its round cards LOSES, with shields still up (' + g.players[1].shields + ')' + (g.finished ? '' : '  ← REPRODUCED: the draw just fizzles'));
+  g = table(2); empty(g.players[1], per - 1);
+  E.roundDraw(g, {});
+  ok(g.finished && g.winner === 0, 'one card short is out too: it draws the ' + (per - 1) + ' that are there, and loses');
+  g = table(2); empty(g.players[0]); empty(g.players[1]);
+  E.roundDraw(g, {});
+  ok(g.finished && g.winner === null, 'both duel seats decking out on one draw is a game with NO winner (winner ' + g.winner + ')');
+  // the round's draw at three players
+  g = table(3); empty(g.players[2]); g.turn = 1;
+  var r3 = E.roundDraw(g, {});
+  ok(!g.finished && g.players[2].eliminated && !g.players[0].eliminated && r3.eliminated.indexOf(2) >= 0 && g.turn === 1,
+     'at three players the seat that cannot draw is OUT, the game goes on, and the turn stays where it was');
+  g = table(3); empty(g.players[1]); empty(g.players[2]);
+  E.roundDraw(g, {});
+  ok(g.finished && g.winner === 0, 'two of three decking out together: the last seat standing wins');
+  g = table(3); g.players.forEach(function (p) { empty(p); });
+  E.roundDraw(g, {});
+  ok(g.finished && g.winner === null, 'everyone left decking out on one draw: no winner');
+  // a card's draw — Prepare for Combat (♣A, draw 2), paid with one ♣ energy, which itself lands in the Shuffle Pile
+  function caster(np, deckN) { var t = table(np), me = t.players[0]; me.hand.push(c(1, 'C', 'pfc')); me.energy = [c(3, 'C', 'e1')]; empty(me, deckN); return t; }
+  g = caster(2, 1);
+  ok(E.drawShortfall(g, 0, g.players[0].hand[2]) === 0, 'drawShortfall: one card in the deck plus the energy you pay is two — enough for draw 2');
+  E.activate(g, 0, 'pfc');
+  ok(!g.finished && g.players[0].hand.length === 4, '  …and casting it draws both and plays on (the CONTROL)');
+  g = caster(2, 0);
+  ok(E.drawShortfall(g, 0, g.players[0].hand[2]) === 1, 'drawShortfall: with an empty deck the same cast is ONE card short');
+  E.activate(g, 0, 'pfc');
+  ok(g.finished && g.winner === 1, '  …and casting it anyway decks you out: the duel is lost' + (g.finished ? '' : '  ← REPRODUCED'));
+  g = caster(3, 0);
+  E.activate(g, 0, 'pfc');
+  ok(!g.finished && g.players[0].eliminated && g.turn === 1 && g.pile === null,
+     'at three players your own draw puts you out mid-turn, and the next seat gets a clean lead');
+  // a dig: Back to the Books (♦6) looks at 3, banks 1 and DRAWS 2 — so it is short only when 2 cannot be drawn
+  var bttb = c(6, 'D', 'bttb'), tg = table(2), dm = tg.players[0]; dm.hand.push(bttb); dm.energy = [c(3, 'D', 'd1'), c(4, 'D', 'd2'), c(5, 'C', 'd3'), c(7, 'C', 'd4'), c(8, 'C', 'd5'), c(9, 'C', 'd6')];
+  empty(dm, 0);
+  ok(E.drawShortfall(tg, 0, bttb) === 0, 'a dig paying 6 energy refills its own Shuffle Pile: nothing short');
+  dm.energy = dm.energy.slice(0, 1); dm.energy[0] = c(3, 'D', 'd1');
+  ok(E.drawShortfall(tg, 0, bttb) === 0 || !E.canAfford(dm, bttb), '(a dig you cannot afford is not cast at all)');
+  // the old rule, fixed at three players: casting your last card while you must lead put out the whole TABLE
+  g = table(3); var me3 = g.players[0]; me3.hand = [c(1, 'H', 'imb')]; me3.energy = [c(5, 'H', 'eh')]; empty(me3);   // with cards left to draw `activate` refuses this outright
+  E.activate(g, 0, 'imb');
+  ok(!g.finished && me3.eliminated && g.turn === 1,
+     'emptying your hand on a lead at three players puts YOU out and the game goes on' + (g.finished ? '  ← REPRODUCED: the whole game ended' : ''));
+  // the AI never decks itself out: the same hand casts Prepare for Combat with cards to draw, and fights without
+  var AI2 = require('./ai.js');
+  function aiBoard(deckN) { var t = E.newGame(null, { numPlayers: 2, starter: 1 }); t.round = 3; t.turn = 1; t.pile = null; t.passes = 0; t.lastPlayer = null; t.subPhase = 'main';
+    t.players.forEach(function (p, i) { p.energy = []; p.hand = [c(9, 'S', 'a9' + i)]; });
+    var a = t.players[1]; a.hand.push(c(1, 'C', 'apfc')); a.energy = [c(3, 'C', 'x1'), c(4, 'C', 'x2'), c(5, 'C', 'x3')]; empty(a, deckN); return t; }
+  var withDeck = AI2.takeTurn(aiBoard(5), 1, 'knight', [0]);
+  ok(withDeck.some(function (e) { return e.card && e.card.id === 'apfc'; }), 'AI CONTROL: with cards to draw, the AI casts Prepare for Combat');
+  var tb = aiBoard(0), noDeck = AI2.takeTurn(tb, 1, 'knight', [0]);
+  ok(!noDeck.some(function (e) { return e.card && e.card.id === 'apfc'; }) && !tb.finished, '…and with an empty deck it does not: it never decks itself out');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

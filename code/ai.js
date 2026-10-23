@@ -641,6 +641,7 @@
         if (!ef || !ef.impl || !E.canAfford(pl, c) || !pred(ef)) return;   // quicks are proactively castable now; picked by kind below (Counter/Annoint have no proactive pick, so stay held)
         if (avoidCombo && cnt[c.rank] >= 2) return;                        // don't break a Special for this effect
         if (!keepsTheWin(c)) return;                                       // …and never break the play a banked boost was cast FOR
+        if (E.drawShortfall && E.drawShortfall(st, p, c) > 0) return;      // …and never cast a draw the deck cannot give: a missed draw is a deck-out (v1.37.0)
         if (!best || ef.cost < bestEff.cost) { best = c; bestEff = ef; }
       });
       return best;
@@ -669,6 +670,7 @@
          Inert until step 18 makes such a window reachable, which is why these land ahead of the flip
          rather than after it. */
       if (st.respondFor != null) return;                                                  // a response window is open — suspend the turn
+      if (pl.eliminated || st.finished || st.turn !== p) return;                          // out of the game (a deck-out) or the turn moved on
       if (st.discardPending) {                                                            // a forced discard was set (discardOpp)
         if (isHuman(humans, st.discardPending.player)) return;                            // human must choose — suspend
         E.resolveDiscard(st);                                                             // AI target auto-pitches (avoids breaking its Specials)
@@ -695,7 +697,7 @@
       var wd = pick(function (ef) { return ef.kind === 'ward'; });
       if (wd && pl.shields <= 1 && !pl.cantLoseRound && act(st, p, wd.id, log, 'WARD', humans)) continue;       // Leyline (REWORK base): can't-lose when desperate
       var tr = pickTransform(st, p);
-      if (tr && !basic && keepsTheWin(tr) && act(st, p, tr.id, log, 'TRANSFORM', humans)) continue;              // REWORK: transform into the Forms & Rides Zone (Recruit skips the advanced zone game). keepsTheWin: a transform does not go through `pick`, and a J/Q/K is exactly the kind of card a boosted pair is built on
+      if (tr && !basic && keepsTheWin(tr) && !(E.drawShortfall && E.drawShortfall(st, p, tr) > 0) && act(st, p, tr.id, log, 'TRANSFORM', humans)) continue;              // REWORK: transform into the Forms & Rides Zone (Recruit skips the advanced zone game). keepsTheWin: a transform does not go through `pick`, and a J/Q/K is exactly the kind of card a boosted pair is built on
 
       // Back Stab is now a reactive Quick — the AI springs it in the NON-active pre-fight window
       // (see the pre-fight block in takeTurn), not proactively here.
@@ -762,7 +764,7 @@
       var rcl = pick(function (ef) { return ef.kind === 'reclaim'; }, true);
       if (rcl && pl.shuffle.length >= 6 && act(st, p, rcl.id, log, 'RECLAIM', humans)) continue;   // refuel from the Shuffle Pile
       var sp = pl.equipment.filter(function (x) { return x.ability === 'draw' && !x.usedThisRound && x.counters > 0; })[0];
-      if (sp && pl.hand.length <= drawT) { var rr = E.useEquipment(st, p, sp.id); if (rr.ok) { if (log) log.push({ useEquip: sp.id, name: rr.name }); continue; } }  // spend a Seed Pouch counter
+      if (sp && pl.hand.length <= drawT && pl.deck.length + pl.shuffle.length > 0) { var rr = E.useEquipment(st, p, sp.id); if (rr.ok) { if (log) log.push({ useEquip: sp.id, name: rr.name }); continue; } }  // spend a Seed Pouch counter
       break;
     }
   }
@@ -857,7 +859,7 @@
       var best = null, bestEff = null;
       qp.hand.forEach(function (c) {
         var ef = E.effectFor(st, q, c);   // effectFor: Forms can GRANT quick (Hector→Sanctuary, Hippolyta→Armor Piercing)
-        if (ef && ef.impl && ef.quick && ef.kind === kind && E.canAfford(qp, c) && (!best || ef.cost < bestEff.cost)) { best = c; bestEff = ef; }
+        if (ef && ef.impl && ef.quick && ef.kind === kind && E.canAfford(qp, c) && !(E.drawShortfall && E.drawShortfall(st, q, c) > 0) && (!best || ef.cost < bestEff.cost)) { best = c; bestEff = ef; }
       });
       return best;
     }

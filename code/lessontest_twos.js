@@ -13,9 +13,17 @@
  * goes red rather than the lesson quietly telling the player something that did not happen.
  * Run: node lessontest_twos.js */
 const { openLesson } = require('./lessonlib');
+/* A LESSON PLAYS THE DEFAULT RULES, WHATEVER YOU HAVE SAVED (v1.37.0). This suite runs with three custom rules saved, each
+   of which used to break this lesson on its own: "Sequences do not include the 2" (2-2-2 + a pair stayed the HIGHEST
+   full house, so step 7's full house was refused and its `only` locked Pass — measured 31/5), no full house at all, and
+   the unbeatable 2. Every step below must still pass, and the saved rules must come out untouched. */
+const SAVED='apexInf,noFullHouse,noSeqTwos';
 (async()=>{
-  const L=await openLesson('twos');
+  const L=await openLesson('twos', undefined, { savedRules:SAVED });
   const { p, ok, until, step, at, next, playAny } = L;
+  const r0=await p.evaluate(()=>({ key:window.__solo.rulesKey(), seq:CardmenEngine.isSeqTwos(), fh:CardmenEngine.isNoFullHouse(), inf:CardmenEngine.isApexInfinity() }));
+  ok(r0.key===SAVED, `STAGED: your saved custom rules are loaded (${r0.key})`);
+  ok(r0.seq==='low' && r0.fh===false && r0.inf===false, '  → and the lesson plays the DEFAULT rules anyway  '+JSON.stringify(r0));
 
   ok((await at()||{}).n===8,'8 steps');
   /* THE ILLEGAL DECK IS THE POINT: the Rival needs SIX 2s across three rounds (one to beat your Ace, two for
@@ -56,12 +64,15 @@ const { openLesson } = require('./lessonlib');
   /* FORCE THE PILOT'S HOLE (twos-lesson-pilot-leads-nothing). The round-3 lead needs three 2s AND a non-2 pair,
      and before the repair a short hand fell through to `E.pass` in silence — the lesson then waited forever for
      the full house below. The rig supplies both on a good day, so thirty green runs proved only that. Strip the
-     Rival's non-2 cards and empty its deck + shuffle pile (so the round draw cannot hand the pair back), and the
-     full-house assertion below must STILL pass — through the repair, which the ledger names. */
-  const forced=await p.evaluate(()=>{ const f=window.__solo.st().players[1];
-    f.hand=f.hand.filter(c=>c.rank===2); f.deck=[]; f.shuffle=[];
-    return { n:f.hand.length, nonTwo:f.hand.filter(c=>c.rank!==2).length, deck:f.deck.length }; });
-  ok(forced.nonTwo===0 && forced.deck===0 && forced.n>=3, `STAGED: the Rival holds only its 2s and has nothing to draw  [${forced.n} cards]`);
+     Rival's non-2 cards and give it a deck of UNPAIRED cards (so the round draw cannot hand the pair back), and the
+     full-house assertion below must STILL pass — through the repair, which the ledger names.
+     ⚠ NOT AN EMPTY DECK SINCE v1.37.0: a card a seat cannot draw is a deck-out, so an empty deck ended the duel at the
+     round-3 draw, before the full house could be led (32/7). Six cards of six ranks: two drawn now, two at round 4. */
+  const forced=await p.evaluate(()=>{ const f=window.__solo.st().players[1], mk=(r,s)=>({rank:r,suit:s,id:'unp'+r+s});
+    f.hand=f.hand.filter(c=>c.rank===2); f.deck=[mk(4,'C'),mk(6,'D'),mk(8,'H'),mk(10,'S'),mk(12,'C'),mk(5,'D')]; f.shuffle=[];
+    const ranks=f.deck.map(c=>c.rank);
+    return { n:f.hand.length, nonTwo:f.hand.filter(c=>c.rank!==2).length, deck:f.deck.length, unpaired:new Set(ranks).size===ranks.length && ranks.indexOf(2)<0 }; });
+  ok(forced.nonTwo===0 && forced.unpaired && forced.n>=3, `STAGED: the Rival holds only its 2s, and its deck can hand it no pair  [${forced.n} cards, deck ${forced.deck}]`);
   ok(await L.passTurn()!==null,'you passed');
   ok(await L.atStep(7),'passing advanced the lesson to step 7');
 
@@ -106,5 +117,7 @@ const { openLesson } = require('./lessonlib');
 
   await next();
   await L.finish('twos');
+  const r1=await p.evaluate(()=>({ ls:localStorage.getItem('cmf_rules_v1'), key:window.__solo.rulesKey() }));
+  ok(r1.ls===SAVED && r1.key===SAVED, 'your saved rules come out of the lesson untouched  '+JSON.stringify(r1));
   await L.done();
 })().catch(e=>{console.error('ERR',e);process.exit(2);});
