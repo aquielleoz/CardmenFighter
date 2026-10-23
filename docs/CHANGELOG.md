@@ -15,6 +15,26 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.36.6 — a Quick answer flashes its card, like any cast
+
+**What you'll see:** when the Rival answers with Counter Spell (or any Quick: Annoint, Leyline, Back Stab…), its art
+pops centre-stage, its text rises in, and the card drops into the reader, exactly as a cast in Main does. The gold
+"⏩ QUICK!" banner, which dimmed the screen and never showed the card, is gone. Your own answers lose the banner too:
+they already showed the art, with the banner laid over it, and now also light the reader. Holy Shroud's
+⚡ Use, new in v1.36.0, shows the Shroud the same way. An AI's answer inside
+another AI's turn dwells as long as a cast does (2.65s, 1.2s under reduced motion), so it can be read.
+
+**Why:** Aj: *"the counter spell dim only shows quick (not counter spell) i think we can just do the counter spell
+art and text flash like regular spell casting"*, and asked whether that meant every Quick answer: yes.
+
+**How:** `cueAIAnswer`, `humanResponds` and `useOwnAbility` call `revealEffect`, the cast's own presentation, and
+`quickFlash` is deleted (those were its three callers; the third arrived with v1.36.0's Holy Shroud ability). The cast hold that `presentStackArrival` starts was already the art flash's
+length, so the board waits for the flash as before. `#stopfx` stays: the emote bubble uses it. `oppbeatstest` 30 → 33
+(an AI's Counter Spell answer must flash Counter Spell's art, light the reader, and show no banner) and
+`answercasttest` 22 → 23 (your Leyline answer lights the reader with no banner); against `main`'s page all four go
+red. Its stack-replay films now end when the beats do (`__solo.oppBeats` takes a completion callback): a fixed 8.4s
+film ran out before the longer answer beat finished.
+
 ### v1.36.5 — the sorts follow the custom rules, and Sort: Match
 
 **What you'll see:** with a shape rule switched on in Custom rules, Sort shows the plays that rule makes legal. With

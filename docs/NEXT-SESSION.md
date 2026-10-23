@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.36.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.36.6.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.36.5**. `epic/loss-all-default` landed as v1.36.0 (2026-10-23): the `loss=all` package is the default for
+`main` is at **v1.36.6**. `epic/loss-all-default` landed as v1.36.0 (2026-10-23): the `loss=all` package is the default for
 every game, duels included; its inventory is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md) and its measurements are
 [`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured). `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`

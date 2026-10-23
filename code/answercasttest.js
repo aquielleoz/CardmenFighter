@@ -113,11 +113,20 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await tap('ley9D'); await wait(250);
   const e0=await row();
   if(!(e0.ctx==='⚡ Activate' && !e0.ctxOff)){ await tap('ley9D'); await wait(250); }
+  /* YOUR ANSWER FLASHES LIKE A CAST (answer-art-flash): the reader lights, and no "⏩ QUICK" banner is laid over the art.
+     Sampled from the click, because the banner was transient (1.4s). The reader's class is cleared first, so an
+     earlier reveal cannot answer for this one. */
+  await p.evaluate(()=>{ const cv=document.getElementById('cardView'); if(cv) cv.classList.remove('reveal','you'); });
   await p.evaluate(()=>document.getElementById('ctxBtn').click());
-  let e=null; for(let i=0;i<60;i++){ await wait(100); e=await row(); if(e.hand.indexOf('ley9D')<0) break; }
+  let e=null, eQuick=false, eReader=false;
+  for(let i=0;i<60;i++){ await wait(100); e=await row();
+    const fx=await p.evaluate(()=>({ quick:!!document.querySelector('#stopfx.show') && /QUICK/.test((document.querySelector('#stopfx .stx')||{}).textContent||''), reader:!!document.querySelector('#cardView.reveal') }));
+    if(fx.quick) eQuick=true; if(fx.reader) eReader=true;
+    if(e.hand.indexOf('ley9D')<0 && i>=8) break; }
   const led=await ledger();
   ok(e.hand.indexOf('ley9D')<0 && e.stack.some(o=>o.p===0 && o.id==='ley9D') && e.turn===1 && led.some(l=>/→ you CAST Leyline Ascension/.test(l)),
      'E · ⚡ CASTS IT IN ANSWER ON THE RIVAL\'S TURN — Leyline is on the stack as yours, and the ledger records the cast  ['+JSON.stringify({hand:e.hand, stack:e.stack, turn:e.turn})+']');
+  ok(eReader && !eQuick, '  …and it flashes like a cast: the card drops into the reader, with no "⏩ QUICK" banner over it  '+JSON.stringify({reader:eReader, quickBanner:eQuick}));
   ok(await waitBox(80), '  …and in ON the box comes back for the new grant (ruling 22)');
   await clickDecline(p);
   for(let i=0;i<120 && (await p.evaluate(()=>window.__solo.st().respondFor!=null)); i++){ await clickDecline(p); await wait(100); }

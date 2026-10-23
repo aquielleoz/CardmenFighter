@@ -204,10 +204,14 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   await p3.evaluate(()=>document.getElementById('goFirstBtn').click());
   for(let k=0;k<60 && !(await p3.evaluate(()=>!!(window.__solo.st() && window.__solo.st().numPlayers===3 && document.querySelectorAll('#hand .card').length))); k++) await wait(150);
   for(let k=0;k<60 && await p3.evaluate(()=>{ const r=document.getElementById('roundfx'); return !!(r && r.classList.contains('show')); }); k++) await wait(150);
-  const film = (log)=>p3.evaluate(async(log)=>{ const snaps=[], seen=new Set(), msgs=new Set();
-    window.__solo.oppBeats(log, 1);
-    for(let k=0;k<140;k++){ const s=[...document.querySelectorAll('#stackView .stkCard .card')].map(c=>c.dataset.id||c.getAttribute('data-card')||'?').join(',');
+  /* FILMED UNTIL THE BEATS END, NOT FOR 140 SAMPLES (answer-art-flash). An answer now dwells as long as a cast does
+     (`revealDwell`, 2650ms), and a fixed ~8.4s film ended mid-replay, leaving a card in the column for the next film to
+     start on. The hook's completion callback ends it, plus a short tail for the last frame; 30s is a hang guard. */
+  const film = (log)=>p3.evaluate(async(log)=>{ const snaps=[], seen=new Set(), msgs=new Set(); let done=false, tail=0;
+    window.__solo.oppBeats(log, 1, ()=>{ done=true; });
+    for(let k=0;k<500 && tail<10;k++){ const s=[...document.querySelectorAll('#stackView .stkCard .card')].map(c=>c.dataset.id||c.getAttribute('data-card')||'?').join(',');
       if(!snaps.length || snaps[snaps.length-1]!==s) snaps.push(s); msgs.add(((document.getElementById('message')||{}).textContent||'').trim());
+      if(done) tail++;
       await new Promise(r=>setTimeout(r,60)); }
     return { snaps, msgs:[...msgs] }; }, log);
   const lifo = await film([{ play:'X', card:{rank:5,suit:'S',id:'sab5S'}, target:{ equip:{ owner:2, name:'Holy Bow' } } },
@@ -246,6 +250,21 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   ok(real.msgs.some(m=>/Counter Spell resolves — Telekinesis is countered/.test(m)), '  …and the board says so: "Counter Spell resolves — Telekinesis is countered."  '+JSON.stringify(real.msgs.filter(m=>/resolves/.test(m))));
   const lone = await film([{ play:'X', card:{rank:3,suit:'D',id:'gt3D'}, target:null }]);
   ok(lone.snaps.every(s=>s===''), 'CONTROL: an unanswered cast still passes through as a ghost and never sits in the column  '+JSON.stringify(lone.snaps));
+  /* AN AI'S ANSWER FLASHES ITS CARD, LIKE A CAST (answer-art-flash). Aj: *"the counter spell dim only shows quick (not
+     counter spell) i think we can just do the counter spell art and text flash like regular spell casting"*. The answer
+     beat called `quickFlash`, a gold "⏩ QUICK!" banner over a dimmed screen, and never showed the card. Fed the entry
+     `ai.js` logs for an answer, sampled while it plays: the art flash must name Counter Spell, and the banner must not
+     appear. BOTH, because the old build's art flash could still be showing the card cast before the answer. */
+  await wait(3000);
+  await p.evaluate(()=>{ const cv=document.getElementById('cardView'); if(cv) cv.classList.remove('reveal','you'); });   // an earlier leg's reveal must not answer for this one
+  await p.evaluate(()=>window.__solo.oppBeats([{ respond:'counter', respName:'Counter Spell', respCard:{rank:4,suit:'D',id:'cs4Dx'}, respBy:1, countered:true, transition:false }], 1));
+  let artName='', sawQuick=false, sawReader=false;
+  for(let i=0;i<25;i++){ const s=await p.evaluate(()=>({ art:document.querySelector('#artFlash.show .afName') ? document.querySelector('#artFlash.show .afName').textContent : '',
+      quick:!!document.querySelector('#stopfx.show') && /QUICK/.test((document.querySelector('#stopfx .stx')||{}).textContent||''), reader:!!document.querySelector('#cardView.reveal') }));
+    if(s.art) artName=artName||s.art; if(s.quick) sawQuick=true; if(s.reader) sawReader=true; await wait(60); }
+  ok(/Counter Spell/.test(artName), `an AI's Counter Spell answer pops Counter Spell's art centre-stage  ["${artName}"]`+(artName?'':'  ← REPRODUCED: no art for the answer'));
+  ok(!sawQuick, '  …and the gold "⏩ QUICK!" banner does not dim the screen over it'+(sawQuick?'  ← REPRODUCED':''));
+  ok(sawReader, '  …and the card drops into the reader, as a cast does');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
