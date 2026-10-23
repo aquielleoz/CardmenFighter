@@ -1610,6 +1610,7 @@
     .panelZones .superBadge{font-size:.6rem; padding:2px 6px; letter-spacing:.04em;}   /* it sits over ~3 mini cards here, not a table-wide zone */
     .panelZones .eq{padding:2px 7px;}
     .panelZones .eqName{font-size:11px; max-width:92px;}
+    .panelZones .equipZone .eqUse{padding:0 5px; font-size:12px;}   /* the 44px height stays; the width comes back to the name (v1.35.2.5). 0,3,0: the phone band's `.equipZone .eqUse` comes later */
     #side{height:clamp(132px,20vh,172px); flex-direction:row; align-items:stretch; border-left:none; border-top:1px solid var(--line); padding-left:0; padding-top:8px;}
     #cardView{flex:1 1 auto; flex-direction:row; align-items:flex-start; gap:10px; padding:10px 12px;}   /* image left, text right (strip) */
     #cardView .cvBigFace{display:none;}                                  /* mobile: hide the full layout (its printed text is unreadable at strip size) */
@@ -1760,6 +1761,9 @@
     .equipZone .eqEff{display:none;}
     .equipZone .eqName{font-size:12px; max-width:112px;}
     .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
+    /* ⚡ USE IS A THUMB TARGET (v1.35.2.5): 44px on both small layouts, the phone standard `viewtest` holds the other
+       controls to. It was 36px tall in portrait and 24 in landscape, measured when Aj asked to see it on a phone. */
+    .equipZone .eqUse{min-height:44px; min-width:44px; margin:0; padding:0 10px; font-size:13px;}
     /* TAPPED OPEN = THE DESKTOP BOX, PUT BACK. Every declaration here restores a value the four rules above
        took away, and deliberately nothing more: this state has no design of its own, it is the absence of the
        compaction. If a base `.eq` value changes, change it in ONE place and this follows — a number invented
@@ -1769,6 +1773,7 @@
     .equipZone .eq.eqOpen .eqEff{display:block;}
     .equipZone .eq.eqOpen .eqName{font-size:13.5px; max-width:150px;}
     .equipZone .eq.eqOpen .eqCtr{font-size:12px;} .equipZone .eq.eqOpen .eqCtr b{font-size:13.5px;}
+    .equipZone .eq.eqOpen .eqUse{margin:3px auto 0;}
     /* THE STACK IS UNCAPTIONED CARDS FITTED TO THE COLUMN on both phone layouts: the landscape band (ruling 31, *"Smaller
        cards, no captions"*) and a portrait phone (ruling 35, *"Like landscape"*), where a 76px column wrapped each caption
        onto 4-5 lines and fitted two of three casts. `--stkCs` is the scale `placeCastZone` measures (`compactStack`, the
@@ -1813,6 +1818,11 @@
     .equipZone.lsCol .eq:not(.eqOpen){padding:2px 7px;}
     .equipZone.lsCol .eq:not(.eqOpen) .eqName{display:none;}
     .equipZone.lsCol .eqCtr{white-space:nowrap;}
+    /* …EXCEPT A CHIP YOU CAN USE, WHICH KEEPS ITS NAME (v1.35.2.5): "◆ 1 ⚡ Use" did not say WHAT it uses. It stacks
+       rather than widens, because the width is what reached the pile; your zone is anchored at its bottom, so the
+       height grows up into the table. */
+    .equipZone.lsCol .eq.eqUsable:not(.eqOpen){flex-direction:column; gap:2px; padding:4px 7px;}
+    .equipZone.lsCol .eq.eqUsable:not(.eqOpen) .eqName{display:block; max-width:96px; font-size:11px;}
     .equipZone.lsCol.zoneOpen{z-index:7;}   /* open, it is a popover over the left column: above the Forms and the other chip */
     header{padding:3px 10px; gap:6px;}
     header h1{font-size:13px;}
@@ -5230,6 +5240,23 @@ __QR__
     return !!(state && !state.finished && state.turn===YOU && state.respondFor==null && state.subPhase!=='play' && !state.discardPending &&
               !state.pendingLossChoice && !busy && !castHolding() && !pick && !targeting && !targetPick && !peeking && !ceremonyBlocks() && !answering);
   }
+  /* WHAT YOUR ANSWER IS, IN WORDS (v1.35.2.5). A window can be yours on an Equipment's Quick ability alone, and then
+     "Play a Quick" points at a hand with nothing castable in it while the thing that glows is the Shroud on the board.
+     So the Respond? box and the answering hint both ask this: your abilities by their Equipment's name, the hand only
+     when something in it is castable. */
+  function answerParts(){
+    var ab=(state && E.equipAbilities) ? E.equipAbilities(state, YOU) : [], names=[];
+    ab.forEach(function(a){ if(names.indexOf(a.name)<0) names.push(a.name); });
+    return { gear:names.join(' or '), cards:!names.length || eligibleQuicks().length>0 };
+  }
+  function answerPhrase(capital){   // the box: "Play a Quick" / "Use your Holy Shroud" / "Play a Quick or use your Holy Shroud"
+    var a=answerParts(), s=!a.gear ? 'play a Quick' : (a.cards ? 'play a Quick or use your '+a.gear : 'use your '+a.gear);
+    return capital ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+  }
+  function answeringHint(){         // the board after Yes, where the hand glows and the Equipment carries ⚡ Use
+    var a=answerParts(), use=a.gear ? 'tap ⚡ Use on your '+a.gear : '';
+    return !use ? 'cast a glowing card' : (a.cards ? 'cast a glowing card or '+use : use);
+  }
   function abilityUsable(e){
     if(!state || !e || !e.quickAbility || !(e.counters>0) || !E.equipAbilities) return false;
     var mine=E.equipAbilities(state, YOU).some(function(a){ return a.id===eqKeyOf(e); });
@@ -6127,7 +6154,7 @@ __QR__
         : choosing ? (aa.ok ? 'Press ⚡ Activate to confirm, or Clear to cancel.' : aa.reason)
         : (staged && selected[staged.cardId]) ? 'Staged — ⚡ Activate casts it, ✕ takes it back.'
         : one ? (aa.ok ? '⚡ Activate casts it in answer.' : aa.reason)
-        : 'Answering: cast a glowing card, or “'+declineLabel()+'”.';
+        : 'Answering: '+answeringHint()+', or “'+declineLabel()+'”.';
       hint.className='pick';
       if(actRow) actRow.setAttribute('data-live','1');
       return;
@@ -8344,18 +8371,18 @@ __QR__
          the table; naming its owner and what it is about to do is the honest version. */
       lead = '<p><b>'+esc(pend.name||'Equipment')+'</b> is about to lose a counter'
            + (typeof pend.p==='number' && pend.p!==YOU ? ' ('+logName(pend.p)+'\u2019s)' : '')
-           + '. Play a Quick in response, or let it happen.</p>';
+           + '. '+answerPhrase(true)+' in response, or let it happen.</p>';
     } else if (pend) {
       /* WHAT IT IS AIMED AT, when that is not a seat (ruling 25: *"card being cast + target"*): an Equipment, a Ride,
          another effect on the stack — `E.stackTargetOf`, the noun the board's stack caption uses, so the two agree. */
       var tgtPh=(!aimTxt && E.stackTargetOf) ? stackTargetPhrase(E.stackTargetOf(state, pend)) : '';
-      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+(tgtPh ? ' at '+tgtPh : '')+'. Play a Quick in response, or let it resolve.</p>';
+      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+(tgtPh ? ' at '+tgtPh : '')+'. '+answerPhrase(true)+' in response, or let it resolve.</p>';
     } else if (fe) {
       var feWho = (typeof fe.winner==='number') ? ('<b>'+logName(fe.winner)+'</b>') : 'The winner';
       var feType = '<b>'+((state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special')+'</b>';
       var hit = (fe.strikeTargets||[]);
       if (!fe.wonWithCombo || !hit.length) {
-        lead = '<p>'+feWho+' won the round with '+feType+' — no shield is lost. Last chance to play a Quick.</p>';
+        lead = '<p>'+feWho+' won the round with '+feType+' — no shield is lost. Last chance to '+answerPhrase()+'.</p>';
       } else if (hit.indexOf(YOU) >= 0) {
         /* AT ZERO SHIELDS THIS IS THE KICK, and that is the single most important thing the window can say —
            it is the difference between losing a shield and losing the game. `kicksLanded`/`noKick` are not
@@ -8363,14 +8390,14 @@ __QR__
         var kick = (state.players[YOU] && state.players[YOU].shields <= 0);
         lead = kick
           ? ('<p>'+feWho+'’s '+feType+' is about to land the <b class="respAtYou">FIGHTER KICK</b> on <b class="respAtYou">YOU</b>. This is your last window.</p>')
-          : ('<p>'+feWho+'’s '+feType+' is about to strip one of <b class="respAtYou">YOUR</b> shields. Play a Quick, or pass.</p>');
+          : ('<p>'+feWho+'’s '+feType+' is about to strip one of <b class="respAtYou">YOUR</b> shields. '+answerPhrase(true)+', or pass.</p>');
       } else {
         var names = hit.map(function(sq){ return logName(sq); }).join(' and ');
-        lead = '<p>'+feWho+'’s '+feType+' is about to strip <b>'+names+'</b>’s shield. Play a Quick, or pass.</p>'
+        lead = '<p>'+feWho+'’s '+feType+' is about to strip <b>'+names+'</b>’s shield. '+answerPhrase(true)+', or pass.</p>'
              + '<p class="respNotYou">You are not struck this round — a Quick here only helps '+names+'.</p>';
       }
     } else {
-      lead = '<p>You have priority. Play a Quick, or pass.</p>';
+      lead = '<p>You have priority. '+answerPhrase(true)+', or pass.</p>';
     }
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
