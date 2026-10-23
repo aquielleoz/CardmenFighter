@@ -352,6 +352,10 @@ threat aimed at the AI itself. Measured before shipping, with no harm and a smal
 ([`DECISIONS.md#ai-no-aid`](DECISIONS.md#ai-no-aid)). The AI uses a Holy Shroud only to guard, on Leyline's rule (two
 shields or fewer).
 
+**Holy Shroud on a phone** (v1.35.2.5): ⚡ Use is a 44px thumb target in portrait and landscape, the landscape chip keeps
+the Shroud's name when you can use it, and the Respond? box and the answering hint name the Shroud (*"Use your Holy
+Shroud, or pass."*) instead of pointing at a hand with nothing castable in it.
+
 **Two Form texts name the table** (v1.35.2.4): Spiked Armor under Meleager reads *"Every Rival's highest card each fight
 drops 1 further (to −3)."*, which is what it always did, and Poison the Air under Pandora reads *"Only Target Rival's
 Energy Pile moves to their Shuffle Pile — yours stays."*

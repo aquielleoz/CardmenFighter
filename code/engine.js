@@ -537,8 +537,7 @@
   /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — the SHIPPED rule since v1.36.0.
    * Companion to loss 'all': that makes damage scale with the table, which holds game length flat at ~10 rounds,
    * too SHORT for six players. Scaling the shield pool with the table gives the middle ground: 2p keeps exactly
-   * the old 4, 6p gets 8, and the package lands at 11 / 12 / 14 / 15 rounds at 3 / 4 / 5 / 6 players
-   * (DECISIONS.md#loss-all-remeasured). The `flatShields` custom rule turns it off. */
+   * the old 4, 6p gets 8. What the package's games measure at, as built, is in DECISIONS.md#v136-remeasured. The `flatShields` custom rule turns it off. */
   var SHIELDS_PER_PLAYER = true;
   function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
   function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }

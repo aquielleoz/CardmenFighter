@@ -964,6 +964,62 @@ const quickBtns = p => respQuicks(p);   // the VISIBLE buttons only — a closed
     ok(c.shields === 1 && c.eq === 1, `S · CONTROL: declined, the shield goes and the Shroud keeps its counter — nothing absorbs in passing  [shields ${c.shields}, equipment ${c.eq}]`);
     await p.close(); }
 
+  /* S3 · HOLY SHROUD ON A PHONE (v1.35.2.5). Aj asked to see ⚡ Use on a phone, and three things were off on this very
+     board: the button was 36px tall in portrait and 24 in landscape against the 44px phone standard `viewtest` holds the
+     other controls to; the landscape chip read "◆ 1 ⚡ Use" with no name; and the box and the hint said "Play a Quick" and
+     "cast a glowing card" when the only answer was the Shroud on the board. Same board in both orientations. */
+  const phoneShroud = (p) => p.evaluate(() => {
+    const u = document.querySelector('#youEquipZone .eqUse'), chip = u && u.closest('.eq'), nm = chip && chip.querySelector('.eqName');
+    const r = u.getBoundingClientRect(), cr = chip.getBoundingClientRect(), pe = document.getElementById('pile'), pr = pe && pe.offsetParent ? pe.getBoundingClientRect() : null;
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { h: Math.round(r.height), w: Math.round(r.width), top: !!(hit && (hit === u || u.contains(hit))),
+             inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+             name: !!(nm && nm.offsetParent && getComputedStyle(nm).display !== 'none' && nm.clientWidth > 20),
+             pile: !!(pr && pr.width && cr.left < pr.right - 1 && pr.left < cr.right - 1 && cr.top < pr.bottom - 1 && pr.top < cr.bottom - 1),
+             hint: (document.getElementById('hint') || {}).textContent || '',
+             at: Math.round(r.left) + ',' + Math.round(r.top) + ' in ' + innerWidth + 'x' + innerHeight, over: hit && !(hit === u || u.contains(hit)) ? (hit.id || String(hit.className).slice(0, 50)) : '' }; });
+  for (const [vw, vh, tag] of [[390, 844, 'portrait 390x844'], [844, 390, 'landscape 844x390']]) {
+    const ctx = await b.newContext({ viewport: { width: vw, height: vh }, isMobile: true, hasTouch: true });
+    const p = await ctx.newPage(); p.on('pageerror', e => errs.push('S3: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) { ok(false, 'S3 · a phone board (' + tag + ')'); await ctx.close(); continue; }
+    /* `#roundfx.show` takes taps on purpose (a tap dismisses the round card), so wait the opening card out — measured
+       first without this, the landscape button read "under roundfx": staging, not the product. */
+    await until(() => p.evaluate(() => { const fx = document.getElementById('roundfx'); return !(fx && fx.classList.contains('show')); }));
+    await stageShroud(p); await clearTransition(p); await clickPass(p);
+    await until(async () => !!(await modalText(p)));
+    const box = await modalText(p) || '';
+    ok(/Use your Holy Shroud, or pass\./.test(box) && !/Play a Quick/.test(box), `S3 · ${tag}: the box names the Shroud, not "a Quick"  [${box.slice(0, 110)}]`);
+    await p.evaluate(() => { const y = document.getElementById('respYes'); if (y) y.click(); });
+    await until(() => p.evaluate(() => { const u = document.querySelector('#youEquipZone .eqUse'); return !!(u && u.offsetParent); }));
+    const m = await phoneShroud(p);
+    ok(m.h >= 44 && m.w >= 44, `S3 · ${tag}: ⚡ Use is a 44px thumb target  [${m.w}x${m.h}]`);
+    ok(m.top && m.inView, `S3 · ${tag}: …in view and on top, so a tap lands on it` + (m.top && m.inView ? '' : `  [at ${m.at}${m.over ? ', under ' + m.over : ''}]`));
+    ok(m.name, `S3 · ${tag}: the chip you can use shows its name`);
+    ok(!m.pile, `S3 · ${tag}: …and the chip stays clear of the pile`);
+    ok(/Answering: tap ⚡ Use on your Holy Shroud, or /.test(m.hint), `S3 · ${tag}: the hint points at the Shroud  [${m.hint}]`);
+    await ctx.close();
+  }
+  /* …AND WITH A QUICK IN HAND AS WELL, the wording names both. The CONTROL for the two above: a build that always says
+     "use your Holy Shroud" would pass them, and would tell this player to ignore a castable Leyline. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('S4: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'S4 · a board with Leyline and the Shroud');
+    await stageShroud(p);
+    const ley = await p.evaluate(() => { const st = window.__solo.st(), E = window.CardmenEngine, you = st.players[0];
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      you.hand.push(C(9, 'D', 'ley')); for (let i = 0; i < 12; i++) you.energy.push(C(3, 'D', 'ed' + i));
+      window.__solo.render(); return you.hand.length; });
+    await clearTransition(p); await clickPass(p);
+    await until(async () => !!(await modalText(p)));
+    const box = await modalText(p) || '';
+    ok(/Play a Quick or use your Holy Shroud, or pass\./.test(box), `S4 · with Leyline castable too, the box names both  [${box.slice(0, 110)}]  (hand ${ley})`);
+    await p.evaluate(() => { const y = document.getElementById('respYes'); if (y) y.click(); });
+    await until(() => p.evaluate(() => /Answering:/.test((document.getElementById('hint') || {}).textContent || '')));
+    const hint = await p.evaluate(() => (document.getElementById('hint') || {}).textContent || '');
+    ok(/Answering: cast a glowing card or tap ⚡ Use on your Holy Shroud, or /.test(hint), `S4 · …and so does the hint  [${hint}]`);
+    await p.close(); }
+
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
   await b.close(); process.exit(fail ? 1 : 0);
