@@ -17,7 +17,9 @@ Sanctuary protect every player) and Critical Hit / Ultima Attack on every rival.
 the two halves that fix it: 0n's ward, and the every-rival damage that 0n had closed and the 2026-10-21 re-measure
 reopened once the ward is in place. Knight self-play, `flagpair` paired: spread **8.3 / 9.9 / 10.8 / 9.9** at
 3 / 4 / 5 / 6 players against the old **15.1 / 17.4 / 15.0 / 12.5**, median rounds **11 / 12 / 14 / 15** against
-14 / 20 / 26 / 31. Its costs, the duel effect of the ward (about 1 duel in 18 flips) and what it does not settle
+14 / 20 / 26 / 31. Re-measured as built (Holy Shroud a Quick ability, the AI's `noAid`): spread **11.3 / 11.2 / 11.1 /
+10.1** against v1.35's 14.1 / 17.7 / 15.0 / 12.2 on the same deals, median rounds **11 / 13 / 15 / 17**
+([`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)). Its costs, the duel effect of the ward (about 1 duel in 18 flips) and what it does not settle
 (the AI was tuned on the winner's pick; human play) are in [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured).
 **The durable learning:** a rule that multiplies a class's intended weakness is fixed at the rules level (0n), and
 the fix here was to share the protection and scale the attack, not to move either between classes.
