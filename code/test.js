@@ -414,6 +414,25 @@ function cards(ids) { return ids.map(card); }
       E.refreshPile(g);
       ok(g.pile.mod === -1 && g.pile.combo.value === 8, 'Round-7 repro: after you equip Spiked Armor the standing pair reads −1 (9 +1 −2 = 8)');
     })();
+    (function () {
+      // (e) MODIFIED AT ZERO (2026-10-23): Aj's round-18 board. Adell's pile carries a +3 charge and Giant Swan (+1) under
+      //     two −2 debuffs, nets to 0, and the caption read like a play nothing touches. `modded` is what tells them apart.
+      var g0 = E.newGame(null, { starter: 1 }); g0.round = 5; g0.turn = 1; g0.pile = null; g0.passes = 0; g0.lastPlayer = null;
+      g0.players[1].hand = [sc(9, 'C'), sc(9, 'C')];
+      var r0 = E.play(g0, 1, [g0.players[1].hand[0], g0.players[1].hand[1]]);
+      ok(r0.ok && g0.pile.mod === 0 && g0.pile.modded === false, 'modded: a pile nothing touches reads 0 and NOT modified (the control)');
+      var g = E.newGame(null, { starter: 1 }); g.round = 5; g.turn = 1; g.pile = null; g.passes = 0; g.lastPlayer = null;
+      g.players[1].hand = [sc(9, 'C'), sc(9, 'C')]; g.players[1].nextPlayBoost = 3;
+      g.players[1].forms = [{ rank: 11, suit: 'H', name: 'Giant Swan', card: sc(11, 'H') }];
+      g.players[0].equipment = [{ id: 'cp', name: 'Cursed Pendant', oppDelta: -2, counters: 3, card: sc(8, 'D') }, { id: 'ct', name: 'Caltrops', oppDelta: -2, counters: 3, card: sc(7, 'S') }];
+      var r = E.play(g, 1, [g.players[1].hand[0], g.players[1].hand[1]]);
+      ok(r.ok && g.pile.mod === 0 && g.pile.modded === true, 'modded: +3 charge, +1 Swan, −2 −2 nets to 0 and IS modified  (mod ' + g.pile.mod + ', modded ' + g.pile.modded + ')');
+      g.players[0].equipment = []; g.players[1].forms = [];
+      E.refreshPile(g);
+      ok(g.pile.mod === 4 && g.pile.modded === true, 'modded: with the debuffs gone the locked +4 still counts (mod ' + g.pile.mod + ')');
+      var em = E.equipMods(g0, 1); g0.players[0].equipment = [{ name: 'Caltrops', oppDelta: -2, counters: 3, card: sc(7, 'S') }]; g0.players[1].equipment = [{ name: "Hero's Sword", delta: 1, counters: 3, card: sc(5, 'C') }];
+      ok(em.length === 0 && E.equipMods(g0, 1).reduce(function (a, m) { return a + m.amount; }, 0) === E.equipDelta(g0, 1), 'equipMods itemizes exactly what equipDelta sums (−2 +1 = ' + E.equipDelta(g0, 1) + ')');
+    })();
     // ---- playModifiers / costModifiers: itemized readout for the hand status ----
     (function () {
       var g = E.newGame(null, { starter: 0 }); g.turn = 0;

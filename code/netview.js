@@ -65,6 +65,7 @@
     return {
       byPlayer: p.byPlayer,
       mod: p.mod || 0,
+      modded: !!p.modded,
       combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, cards: cards(p.combo.cards) } : null
     };
   }
@@ -138,7 +139,7 @@
     var n = st.numPlayers;
     function rot(i) { return (typeof i === 'number' && i >= 0) ? ((i - seat + n) % n) : i; }
     var players = []; for (var i = 0; i < n; i++) players[rot(i)] = clonePlayer(st.players[i], i === seat, 'p' + i, rot);
-    function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
+    function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, modded: !!p.modded, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
     /* SAME TREATMENT for the stack. The blanket copy carried `eff` and `opts` by reference — `opts.target`
        is an ABSOLUTE seat (engine.js effectTarget reads it) reaching a client whose own seat is 0, and
        `passed` is a map keyed by absolute seat. `eff` is static card data so it is safe to pass through,

@@ -5,7 +5,7 @@
  * fight values (the apex 2 is 15), it could never show the DEFAULT-legal 2-3-4-5-6. (Its walk also computed the
  * illegal J-Q-K-A-2, but the page never showed that as a group — case 3 is a guard, not a reproduction.) Read from the hand the page RENDERS, after pressing Sort into Straights — not from a helper.
  *
- * AND EVERY SORT FOLLOWS THE CUSTOM RULES THAT ARE ON (sort-follows-rules, v1.36.1). Aj, 2026-10-23, with
+ * AND EVERY SORT FOLLOWS THE CUSTOM RULES THAT ARE ON (sort-follows-rules, v1.36.5). Aj, 2026-10-23, with
  * "Straight length" on and 8-9-10-J-Q-K-A in hand: *"can we make the sorting also account for activated custom
  * rules?"* — the sort grouped only 10-J-Q-K-A. Every claim below is a PAIR off ONE hand: the rule off, then on, and
  * the grouping must differ, because "the sort shows the longest straight" is also true of a build that never shows

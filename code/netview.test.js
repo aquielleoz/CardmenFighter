@@ -300,7 +300,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
     'dealSeq': 1,   // a COUNT of round deals, the same for every reader — the client's deal marker (v1.33.0)
     'resolution.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
 
-    'pile.mod': 1, 'pile.combo.size': 1,
+    'pile.mod': 1, 'pile.modded': 1, 'pile.combo.size': 1,   // `modded`: whether anything touches the pile's value, the same for every reader
     'stack.0.n': 1, 'stack.0.oid': 1   // `shieldResponse.obj.n` was here until step 19 deleted the field
   };
   function pub(p) {

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.36.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.36.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 767 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 771 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 767 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 771 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -145,7 +145,7 @@ node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS
                                                 # sweep went red when Tank drew Outbalance and the table waited on
                                                 # your pick. `DECKOUT_OUTBALANCE=1` forces that draw. The lead
                                                 # check stops ONCE TANK LEADS (20s guard): a flat 9s window went red
-                                                # in a v1.36.3 sweep when Tank cast twice first, each cast held for
+                                                # in #467's sweep when Tank cast twice first, each cast held for
                                                 # its art flash. `DECKOUT_TWOCAST=1` forces that (Giant Ram too)
 node roartest.js                                # THE ROAR BANNER ON THE HOST/SOLO CEREMONY (32). Duel (the
                                                 # CONTROL), a 3-player round YOU win, and one an AI wins: it
@@ -313,10 +313,15 @@ node nettest_shroud.js                          # A CLIENT USES HOLY SHROUD'S QU
                                                 # client is still stopped (the board's ability counts), presses Yes and
                                                 # ⚡ Use, and `op:'ability'` reaches the host. A/B'd: with the duel host's
                                                 # window branch blind to the op it goes 10/4
+node modtest.js                                 # THE VALUE MODIFIERS AS THE BOARD SHOWS THEM (8): the chips under
+                                                # your bar are ONE PER DIRECTION, netted with their sources ("+1 from
+                                                # Giant Boar", "−4 from Cursed Pendant, Caltrops"), and the caption
+                                                # over the play in the middle reads "modified ±0" when its modifiers
+                                                # cancel (the engine's `pile.modded`). Pairs off one board each
 node sorttest.js                                # THE SORTS FOLLOW THE CUSTOM RULES (30): the HIGHEST legal straight
                                                 # first (Aj's 7-8-9-10-J), and only legal ones — 2-3-4-5-6 under
                                                 # the default low-2 rule, J-Q-K-A-2 only when the 2 chains high.
-                                                # Since v1.36.1 every claim is a rule-off/rule-on PAIR off one hand:
+                                                # Since v1.36.5 every claim is a rule-off/rule-on PAIR off one hand:
                                                 # Straights shows the LONGEST run under "Straight length", Pairs
                                                 # JOINS Four of a kind / consecutive pairs / consecutive trios,
                                                 # a drag BUILDS a rule's shape (Trio + 1), and Sort: Match groups
@@ -2737,7 +2742,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.36.6 — last FULL sweep 2026-10-23, `npm run sweep`, 138/138 in 571s, `nettest_sync` at full depth (rounds 12, actions 60)** (this line was
+Status as of **v1.36.7 — last FULL sweep 2026-10-23, `npm run sweep`, 138/139 in 558s, `nettest_sync` at full depth (rounds 13, actions 60)** (the one red, `deckouttest`'s 3-player leg, was the 9s window v1.36.4 replaced; green here once rebased onto it) (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2751,7 +2756,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 767, `netview` 74, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 771, `netview` 74, `modtest` 8, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 33, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 23, `answerglowtest` 14, `sorttest` 30, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 96, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
