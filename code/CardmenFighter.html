@@ -2130,7 +2130,7 @@
     <div id="hand"></div>
     <div id="actions">
       <span id="hint"></span>
-      <button id="sortBtn" title="Cycle sorting: singles → pairs → straights" data-icon="⇅ Unsorted">Sort: Unsorted</button>
+      <button id="sortBtn" title="Cycle sorting: singles → pairs → straights → match (match: the plays shaped like the one on the table)" data-icon="⇅ Unsorted">Sort: Unsorted</button>
       <button id="clearBtn" data-icon="✕">Clear</button>
       <button id="viewCardBtn" data-icon="🔍" title="View the selected card full-screen">🔍 View card</button>
       <button id="ctxBtn" title="Activate" data-icon="⚡">⚡ Activate</button>
@@ -7664,7 +7664,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.36.4';
+  var GAME_VERSION='v1.36.5';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7849,11 +7849,11 @@ window.CardFace = {};
   var handPresetN=0;           // how many times resetHandPresentation has run — the MECHANISM nettest_clientdeal asserts
   var layout=[], gidSeq=0, drag=null, tapTimer=null, tapPendingGid=null, justDragged=false;   // hand shown as draggable groups (combos)
   var sortState='unsorted';   // current hand arrangement; the Sort button label reflects THIS. Reverts to 'unsorted' when a fresh card is drawn.
-  var SORT_NEXT={ unsorted:'singles', singles:'pairs', pairs:'straights', straights:'singles' };   // click cycles among the three sorts
-  var SORT_TITLE={ unsorted:'Sort: Unsorted', singles:'Sort: Singles', pairs:'Sort: Pairs', straights:'Sort: Straights' };
+  var SORT_NEXT={ unsorted:'singles', singles:'pairs', pairs:'straights', straights:'match', match:'singles' };   // click cycles among the sorts; Match only while a play is on the table (flipSort)
+  var SORT_TITLE={ unsorted:'Sort: Unsorted', singles:'Sort: Singles', pairs:'Sort: Pairs', straights:'Sort: Straights', match:'Sort: Match' };
   /* The compact form keeps the STATE and drops the redundant label word — `Sort:` says nothing the ⇅ does not.
    * Measured: 131px -> 95px, which is what makes the whole row fit on one line at 360px. */
-  var SORT_SHORT={ unsorted:'⇅ Unsorted', singles:'⇅ Singles', pairs:'⇅ Pairs', straights:'⇅ Straights' };
+  var SORT_SHORT={ unsorted:'⇅ Unsorted', singles:'⇅ Singles', pairs:'⇅ Pairs', straights:'⇅ Straights', match:'⇅ Match' };
   var HINTS_KEY='cmf_hints_v1';
   var hintsOn=false; try{ hintsOn = localStorage.getItem(HINTS_KEY)==='1'; }catch(e){}   // play hints — DEFAULT OFF (opt-in guidance)
   var PULSE_KEY='cmf_pulse_detail_v1';
@@ -10796,22 +10796,28 @@ window.CardFace = {};
   // ===== HAND GROUPING + DRAG (drag cards together into a combo, drag up into the play area to play) =====
   function newGid(){ return ++gidSeq; }
   function groupById(gid){ for(var i=0;i<layout.length;i++) if(layout[i].id===gid) return layout[i]; return null; }
-  // Only matched-rank sets (pair/trio) and full houses can be BUILT by drag (straights/flushes are Sort-only).
+  /* A GROUP IS ANY LEGAL PLAY, AND THE ENGINE SAYS WHICH (sort-follows-rules). This used to name four shapes — set,
+     full house, straight, else 'invalid' — so a shape a custom rule switches on (Four of a kind, consecutive pairs,
+     Trio + one…) was 'invalid' here: `reconcileLayout` broke it into singles on the next render and a drag could
+     never build it. Aj, asked whether dragging should build those shapes: *"Yes, drag builds them"*. With every
+     rule off a merge can only ever make a pair, a trio or a full house, so the default game drags as it did. */
   function groupKindKF(cards){
     if(cards.length===1) return 'single';
     var combo=E.detectCombo(cards);
-    if(combo){ if(combo.type==='pair'||combo.type==='trio') return 'set'; if(combo.type==='fullhouse') return 'fullhouse'; if(combo.type==='straight') return 'straight'; }
-    return 'invalid';
+    if(!combo) return 'invalid';
+    if(combo.type==='pair'||combo.type==='trio') return 'set';
+    if(combo.type==='fullhouse') return 'fullhouse';
+    if(combo.type==='straight') return 'straight';
+    return 'shape';                                    // a shape a custom rule switched on
   }
-  function canMergeKF(a,b){ var k=groupKindKF(a.concat(b)); return k==='set'||k==='fullhouse'; }
+  function canMergeKF(a,b){ return groupKindKF(a.concat(b))!=='invalid'; }
   function orderGroupCards(cards){
     var byR={}; cards.forEach(function(c){ (byR[c.rank]=byR[c.rank]||[]).push(c); });
-    var ranks=Object.keys(byR).sort(function(a,b){ return byR[b].length-byR[a].length; });   // trio before pair (full house layout)
+    var ranks=Object.keys(byR).sort(function(a,b){ return byR[b].length-byR[a].length || E.fightValue(byR[a][0])-E.fightValue(byR[b][0]); });   // trio before pair (full house layout); a run reads low→high
     var out=[]; ranks.forEach(function(r){ byR[r].sort(function(x,y){ return E.SUITS.indexOf(x.suit)-E.SUITS.indexOf(y.suit); }); out=out.concat(byR[r]); });
     return out;
   }
-  var COMBO_LABEL={ pair:'Pair', trio:'Trio', fullhouse:'Full House', straight:'Straight', flush:'Flush' };
-  function groupLabel(cards){ var c=E.detectCombo(cards); return c?(COMBO_LABEL[c.type]||'Combo'):'Group'; }
+  function groupLabel(cards){ var c=E.detectCombo(cards); return c?comboName(c):'Group'; }   // the board's own names, so a group reads as the play it will make
   // Sync layout to the engine hand: drop played cards, split now-invalid groups, add new draws (in hand order).
   function reconcileLayout(){
     var byId={}; state.players[YOU].hand.forEach(function(c){ byId[c.id]=c; });
@@ -14274,18 +14280,54 @@ window.CardFace = {};
   // during a pick (forced discard / hand-limit) it ONLY reorders — your picked cards stay picked.
   function fv(c){ return E.fightValue(c); }
   function bySortVal(a,b){ return fv(a)-fv(b) || E.SUITS.indexOf(a.suit)-E.SUITS.indexOf(b.suit); }
-  // Group the hand into pairs/trios by rank (rank with 4 → two pairs), ordered low→high; singles interleave by rank.
+  /* THE SORTS SHOW WHAT THE CUSTOM RULES MAKE LEGAL, AND THE ENGINE IS WHAT KNOWS (sort-follows-rules). Aj, with
+     "Straight length" on and 8-9-10-J-Q-K-A in hand: *"can we make the sorting also account for activated custom
+     rules?"* — the Straights sort kept only five-card runs, so it grouped 10-J-Q-K-A and left the 8 and 9 single.
+     No sort restates a shape rule: each one asks `enumerateCombos` (every rule already applied) and keeps the kind
+     of play it shows. ONE GREEDY LOOP for all of them: claim the best play, ask again on what is left. Asking again
+     matters — the engine lists one play per shape and top card, so the second pair of a four of a kind only
+     appears once the first pair is gone. */
+  function claimPlays(cards, wants, better){
+    var remaining=cards.slice(), groups=[];
+    for(var guard=0; guard<20; guard++){
+      var best=null;
+      E.enumerateCombos(remaining).forEach(function(x){ if(wants(x.combo, x.cards) && (!best || better(x.combo, best.combo))) best=x; });
+      if(!best) break;
+      groups.push(best.cards.slice().sort(bySortVal));
+      remaining=remaining.filter(function(c){ return best.cards.indexOf(c)<0; });
+    }
+    return { groups:groups, rest:remaining };
+  }
+  function longerThenHigher(a,b){ return a.size>b.size || (a.size===b.size && a.value>b.value); }
+  function lowFirst(groups){ return groups.sort(function(a,b){ return Math.min.apply(null,a.map(fv)) - Math.min.apply(null,b.map(fv)) || b.length-a.length; }); }   // low→high by the group's lowest card
+  /* PAIRS JOINS THE SETS A RULE TURNS INTO ONE PLAY (Aj: *"Pairs joins them"*): Four of a kind, consecutive pairs
+     (2 under "2 pairs: Consecutive", 3+ under "3 or more consecutive pairs") and consecutive trios — biggest first,
+     then highest. It never attaches a spare card, as it never built a full house; and a non-consecutive two pair
+     stays two pairs, since any two of them would do. With those rules off nothing is joined, and the hand groups
+     as it always did. */
+  var JOINED_SETS={ quadro:1, kit:1, airplane:1 };
+  function onlySets(cards){ return cards.every(function(x){ return cards.filter(function(y){ return fv(y)===fv(x); }).length===3; }); }   // an airplane with no wings: trios and nothing else
   function sortIntoPairs(hand){
-    var byV={}; hand.forEach(function(c){ (byV[fv(c)]=byV[fv(c)]||[]).push(c); });
-    var groups=[];
+    var r=claimPlays(hand, function(c, cards){ return JOINED_SETS[c.type] && (c.type!=='airplane' || onlySets(cards)); }, longerThenHigher);
+    var byV={}; r.rest.forEach(function(c){ (byV[fv(c)]=byV[fv(c)]||[]).push(c); });
+    var groups=r.groups;
     Object.keys(byV).map(Number).sort(function(a,b){return a-b;}).forEach(function(v){
       var cs=byV[v].slice().sort(bySortVal);
       if(cs.length===4){ groups.push(cs.slice(0,2)); groups.push(cs.slice(2,4)); }   // 4-of-a-kind → two playable pairs
       else groups.push(cs);                                                          // 1 single · 2 pair · 3 trio
     });
-    return groups;
+    return lowFirst(groups);
   }
-  // Pull out runs of 5 consecutive values as straight groups (low→high), rest as singles.
+  /* SORT: MATCH — every play with the SHAPE AND SIZE of the one on the table, highest first, whether or not it beats
+     it (Aj, 2026-10-23: *"same shape and size, from highest first"*). It is skipped in the cycle while nothing is on
+     the table, because there is nothing to match (`flipSort`). */
+  function pileCombo(){ return (state && state.pile && state.pile.combo) || null; }
+  function sortIntoMatch(hand){
+    var pc=pileCombo();
+    var r=claimPlays(hand, function(c){ return !!pc && c.type===pc.type && c.size===pc.size; }, function(a,b){ return E.beats(a,b); });
+    r.rest.slice().sort(bySortVal).forEach(function(c){ r.groups.push([c]); });
+    return lowFirst(r.groups);
+  }
   /* THE HIGHEST STRAIGHT FIRST, AND ONLY LEGAL ONES (straight-sort-picks-the-lowest; Aj, 2026-09-24: *"i think
      it should sort by the higher straight"*). This walked raw fight values ASCENDING and claimed the first
      five-in-a-row, which had two faults:
@@ -14295,23 +14337,16 @@ window.CardFace = {};
        never show 2-3-4-5-6 (and its walk COMPUTED J-Q-K-A-2, which the engine refuses — replayed in Node;
        the page did not show that one as a group, so the visible symptom is the missing 2-low run).
      So it asks the ENGINE: `enumerateCombos` already applies `seqTwos` and the straight-length rule, and the
-     greedy loop takes the highest-valued five-card straight, removes it, and repeats on what is left. Greedy
-     is Aj's rule; a hand where it loses to a lower-first split would be a second entry, not this one. */
+     greedy loop takes the highest-valued straight, removes it, and repeats on what is left. Greedy
+     is Aj's rule; a hand where it loses to a lower-first split would be a second entry, not this one.
+     THE LONGEST RUN, THEN THE HIGHEST (sort-follows-rules). It kept only FIVE-card runs, so under "Straight length"
+     it grouped 10-J-Q-K-A out of 8-9-10-J-Q-K-A; Aj, asked whether it should show the longest run or the run the
+     pile's length asks for: *"both… we'll have a Sort: Match"*. So this mode shows the longest, and Match the
+     pile's. With the rule off every straight is five long, so it still picks the highest five. */
   function sortIntoStraights(hand){
-    var remaining=hand.slice(), groups=[];
-    for(var guard=0; guard<4; guard++){
-      var best=null;
-      E.enumerateCombos(remaining).forEach(function(x){               // {cards, combo} — already filtered to LEGAL combos by `detectCombo`
-        if(!x.combo || x.combo.type!=='straight' || x.combo.size!==5) return; // five-card runs: what this mode has always shown
-        if(!best || x.combo.value>best.value) best={ value:x.combo.value, cards:x.cards };
-      });
-      if(!best) break;
-      groups.push(best.cards.slice().sort(bySortVal));
-      remaining=remaining.filter(function(x){ return best.cards.indexOf(x)<0; });
-    }
-    remaining.slice().sort(bySortVal).forEach(function(c){ groups.push([c]); });
-    groups.sort(function(a,b){ return Math.min.apply(null,a.map(fv)) - Math.min.apply(null,b.map(fv)); });   // low→high by the group's lowest card
-    return groups;
+    var r=claimPlays(hand, function(c){ return c.type==='straight'; }, longerThenHigher);
+    r.rest.slice().sort(bySortVal).forEach(function(c){ r.groups.push([c]); });
+    return lowFirst(r.groups);
   }
   function updateSortLabel(){ var b=$('sortBtn'); if(!b) return;
     b.textContent=SORT_TITLE[sortState]||'Sort'; b.setAttribute('data-icon', SORT_SHORT[sortState]||'⇅'); }
@@ -14330,12 +14365,13 @@ window.CardFace = {};
      * players — which is exactly when you want to. Aj: "i always wondered why i could not sort my hand while
      * the other players where taking their turns". Peeking still refuses, because peek is inspect-only. */
     var target=SORT_NEXT[sortState]||'singles';
+    if(target==='match' && !pileCombo()) target='singles';   // nothing on the table to match while you lead (Aj: skip it)
     /* A LESSON MAY GATE ON SORTING (2026-09-17) — the Initiative lesson asks the player to cycle Sort and
        SEE their pairs and straights, which is the whole "you choose the shape" beat. The note carries the
        mode being switched TO, so a step can require Pairs or Straights specifically rather than any tap. */
     if(typeof TUT!=='undefined' && TUT.note) TUT.note('sort', { mode:target });
     var hand=state.players[YOU].hand.slice();
-    var groups = target==='pairs' ? sortIntoPairs(hand) : target==='straights' ? sortIntoStraights(hand) : E.sortHand(hand).map(function(c){ return [c]; });
+    var groups = target==='pairs' ? sortIntoPairs(hand) : target==='straights' ? sortIntoStraights(hand) : target==='match' ? sortIntoMatch(hand) : E.sortHand(hand).map(function(c){ return [c]; });
     applySortLayout(groups);
     sortState=target; updateSortLabel();   // label shows the arrangement now applied
   }

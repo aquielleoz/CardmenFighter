@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.36.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.36.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -313,9 +313,15 @@ node nettest_shroud.js                          # A CLIENT USES HOLY SHROUD'S QU
                                                 # client is still stopped (the board's ability counts), presses Yes and
                                                 # ⚡ Use, and `op:'ability'` reaches the host. A/B'd: with the duel host's
                                                 # window branch blind to the op it goes 10/4
-node sorttest.js                                # THE STRAIGHTS SORT (6): the HIGHEST legal five-card straight
+node sorttest.js                                # THE SORTS FOLLOW THE CUSTOM RULES (30): the HIGHEST legal straight
                                                 # first (Aj's 7-8-9-10-J), and only legal ones — 2-3-4-5-6 under
-                                                # the default low-2 rule, J-Q-K-A-2 only when the 2 chains high
+                                                # the default low-2 rule, J-Q-K-A-2 only when the 2 chains high.
+                                                # Since v1.36.1 every claim is a rule-off/rule-on PAIR off one hand:
+                                                # Straights shows the LONGEST run under "Straight length", Pairs
+                                                # JOINS Four of a kind / consecutive pairs / consecutive trios,
+                                                # a drag BUILDS a rule's shape (Trio + 1), and Sort: Match groups
+                                                # every play shaped like the pile's, skipped while you lead.
+                                                # Every sort asks `enumerateCombos`, never a shape rule of its own
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
 node exporttest.js                              # the playtest export at 3 players — per-seat stats (19)
@@ -2731,7 +2737,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.36.4 — last FULL sweep 2026-10-24, `npm run sweep`, 138/138 in 568s, `nettest_sync` at full depth (rounds 13, actions 60)** (this line was
+Status as of **v1.36.5 — last FULL sweep 2026-10-23, `npm run sweep`, 138/138 in 563s, `nettest_sync` at full depth (rounds 14, actions 60)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2747,7 +2753,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 767, `netview` 74, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 6, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 96, `lessontest_phases` 52, `lessontest_howto` 29,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 30, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 22, `answerglowtest` 14, `sorttest` 30, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 96, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
 `lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 128, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

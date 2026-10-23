@@ -15,6 +15,38 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.36.5 — the sorts follow the custom rules, and Sort: Match
+
+**What you'll see:** with a shape rule switched on in Custom rules, Sort shows the plays that rule makes legal. With
+every rule off, Singles, Pairs and Straights group exactly as before; the one change there is Sort: Match.
+- **Sort: Straights shows the longest run.** With "Straight length" at 3 or more or 5 or more, 8-9-10-J-Q-K-A is one
+  seven-card Straight (it used to group 10-J-Q-K-A and leave the 8 and 9 single). Between two runs of one length the
+  higher top card wins, then it looks again in what is left. Rule off: the highest five, as before.
+- **Sort: Pairs joins the sets a rule makes one play:** Four of a kind (four 7s are one group, not two Pairs),
+  consecutive pairs (4-4 5-5 6-6 under "3 or more consecutive pairs"; the higher two under "2 pairs: Consecutive")
+  and consecutive trios (7-7-7 8-8-8). It still never attaches a spare card, and a non-consecutive two pair stays two
+  Pairs, since any two of them would do.
+- **Sort: Match (new)** groups every play with the shape and size of the one on the table, highest first, whether or
+  not it beats it. Against a five-card straight it groups your five-card straights; against a Pair, your Pairs. It is
+  in the cycle after Straights only while something is on the table, so while you lead the cycle is still Singles →
+  Pairs → Straights.
+- **Dragging builds a rule's shape:** with "Trio + one spare card" on, dropping the 4♠ on 9-9-9 makes one "Trio + 1"
+  group (it was refused). The same goes for any shape a rule makes legal; with the rules off a drag builds what it
+  always did.
+- A group's label uses the board's own names, so it reads "Four of a Kind", "3 Consecutive Pairs", "Trio + 1".
+
+**Why:** Aj, with "Straight length" on and a seven-card run in hand: *"can we make the sorting also account for
+activated custom rules?"*. The Straights sort kept only five-card runs. Rulings, asked as card scenarios: the longest
+run *and* a Sort: Match (*"both… we'll have a Sort: Match"*), Match takes *"same shape and size, from highest first"*
+and is skipped while you lead, Pairs joins the rule's sets, and drag builds them.
+
+**How:** no sort restates a shape rule. All four ask the engine's `enumerateCombos` (every custom rule already
+applied), keep the kind of play they show, claim the best and ask again on what is left (`claimPlays`). The hand's
+own group check (`groupKindKF`) now accepts any play `detectCombo` calls legal: it named four shapes, so a Four of a
+kind built by any means was called invalid and `reconcileLayout` broke it into singles on the next render.
+`sorttest` 6 → 30, every claim a pair off one hand (the rule off, then on); against `main`'s page every rule-on half
+fails (17/13), and with only the old group check every joined group falls apart (24/6).
+
 ### v1.36.4 — deckouttest waits for the lead, not for nine seconds
 
 **What you'll see when you play: nothing.** The game is unchanged; this fixes a test that could go red on a game that
