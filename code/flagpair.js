@@ -13,9 +13,11 @@
  *
  * Usage: node flagpair.js [games=600] [players=6] [a=SPEC] [b=SPEC] [tier=knight] [seed=424242] [control]
  *        node flagpair.js ... flag=recycle          the original form: a=base b=recycle
- *   SPEC is `base` (the shipped game) or rule tokens joined by `+` (2026-10-21, the `loss=all` review):
+ *   SPEC is `base`, `shipped`, or rule tokens joined by `+` (2026-10-21, the `loss=all` review).
+ *   ⚠ `base` IS THE v1.35 GAME — every token off, the winner's pick, flat 4 shields. Since v1.36.0 the shipped game is
+ *   `shipped` = `lossall+wardall+damageall+shp`, the package that review measured; read an old result's `base` as v1.35.
  *     recycle      spent Techniques go to the Shuffle Pile instead of the Exile (`setRecycleTech`)
- *     lossall      a Special win strikes EVERY rival (`setSpecialLossMode('all')`, the `lossAll` custom rule)
+ *     lossall      a Special win strikes EVERY rival (`setSpecialLossMode('all')`; shipped since v1.36.0)
  *     wardall      Leyline, Holy Shroud and Apollo's lock protect the table, not the owner (`setWardAll`)
  *     damageall    Critical Hit / Ultima Attack hit every rival (`setDamageAll`)
  *     damagehalf   ...or ceil(living rivals / 2) of them (`setDamageSpan('half')`)
@@ -23,7 +25,7 @@
  *     shdown       start shields = max(2, 6 − players): 4/3/2/2 at 2/3/4/6 (PATCHNOTES 0k), via newGame's `shields`
  *     sh<k>        start shields = k at every player count, e.g. sh3
  *   e.g. `a=lossall b=lossall+wardall` reads what the ward does to a `loss=all` game.
- * Engine defaults are the LIVE game (`mpsim`'s setup): shields-as-cards, loser mill, loss=chosen, mill=targeted.
+ * Shields-as-cards, loser mill and mill=targeted are set for every arm, as in the live game.
  * Every arm is applied IN FULL before each game, so a switch one arm sets can never leak into the other. */
 'use strict';
 var E = require('./engine.js'), AI = require('./ai.js');
@@ -38,6 +40,7 @@ var TOKENS = ['recycle', 'lossall', 'wardall', 'damageall', 'damagehalf', 'shp',
 function parseSpec(s) {
   var c = { recycle: false, lossall: false, wardall: false, damageall: false, damagehalf: false, shp: false, shdown: false, sh: 0 };
   if (s === 'base') return c;
+  if (s === 'shipped') s = 'lossall+wardall+damageall+shp';   // the v1.36.0 default — `base` is v1.35
   s.split('+').forEach(function (t) {
     var m = /^sh(\d)$/.exec(t);
     if (m) { c.sh = +m[1]; return; }

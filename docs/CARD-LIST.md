@@ -20,7 +20,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 7 | Armor Piercing | 7 | Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills). |
 | 8 | Instant Recovery | 8 | Shuffle your Shuffle Pile into your deck, then draw 2 cards. |
 | 9 | Spiked Armor | 9 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
-| 10 | Ultima Attack | 10 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
+| 10 | Ultima Attack | 10 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
 **Ride — J♣ · Giant Boar** (Super keystone): While in your zone: your plays fight at +1 value on your turn — offensive.
@@ -33,11 +33,11 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 **King Form — ♣K · Meleager Form**:
 - **Brilliant Tactic** → Boost your next play by 1 more (to +3).
 - **Hero's Javelin** → Your highest card each fight gains an additional +1 (to +2).
-- **Spiked Armor** → The Rival's highest card each fight drops 1 further (to −3).
+- **Spiked Armor** → Every Rival's highest card each fight drops 1 further (to −3).
 
 **Super Mode — ♣ · Ares Mode** *(J+Q+K in zone)*:
 - **Instant Recovery** → The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.
-- **Ultima Attack** → The Rival loses 1 additional shield (2 total).
+- **Ultima Attack** → Every Rival loses 1 additional shield (2 total).
 
 ---
 
@@ -52,7 +52,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 6 | Back to the Books | 6 | Look at the top 3 cards of your deck. Put 1 into your Energy Pile and draw the other 2. |
 | 7 | Forceful Strip | 7 | Return Target Equipment to its owner's hand. |
 | 8 | Cursed Pendant | 8 | Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your Rivals' highest card each fight has its value reduced by 2. |
-| 9 | Leyline Ascension *(Quick)* | 9 | You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either. |
+| 9 | Leyline Ascension *(Quick)* | 9 | No player can lose a shield this round — and no one at 0 shields can take the Fighter Kick. |
 | 10 | Phantasmal Illusion | 10 | Conjure a copy of the current play into your hand, at its base values. Fight with the copies this round, alone or with your own cards. Their effects can't be activated, and any left at the round's end fade away. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
@@ -85,7 +85,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 6 | Divine Tactics | 6 | Increase the value of your next play by 5. |
 | 7 | Plead for Peace | 7 | Put target Equipment into its owner's Shuffle Pile. |
 | 8 | Holy Bow | 8 | Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2. |
-| 9 | Holy Shroud | 9 | If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. |
+| 9 | Holy Shroud | 9 | Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your Energy. |
 | 10 | Sanctuary | 10 | Every player gains 1 Shield. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
@@ -103,7 +103,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 
 **Super Mode — ♥ · Apollo Mode** *(J+Q+K in zone)*:
 - **Holy Bow** → Your highest card each fight gains a further +1 (to +4).
-- **Sanctuary** → Sanctuary becomes a Quick, and you can't lose a shield until end of round.
+- **Sanctuary** → Sanctuary becomes a Quick, and no player can lose a shield until end of round.
 
 ---
 
@@ -118,7 +118,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 6 | Never Out of Options | 6 | Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1. |
 | 7 | Caltrops | 7 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
 | 8 | Counterfeit | 8 | Copy a card from the current play on the pile into your hand. You must play the copy in a fight this round — at the round's end it fades away. |
-| 9 | Critical Hit | 9 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
+| 9 | Critical Hit | 9 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield. |
 | 10 | Back Stab | 10 | Target Rival skips the whole round — no fights, no Techniques. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
@@ -126,7 +126,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 
 **Queen Form — ♠Q · Pandora Form**:
 - **Outbalance** → Look at the target's hand. They discard 1 more (2 total).
-- **Poison the Air** → Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).
+- **Poison the Air** → Only Target Rival's Energy Pile moves to their Shuffle Pile — yours stays.
 - **Counterfeit** → The copy enters your hand at +1 value.
 
 **King Form — ♠K · Perseus Form**:

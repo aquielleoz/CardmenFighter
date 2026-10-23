@@ -743,8 +743,8 @@ function cards(ids) { return ids.map(card); }
   E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]); E.pass(g, 2);   // p1 is out; only p2 left to pass
   ok(g.finished && g.winner === 0 && g.players[0].kicksLanded === 2, 'MP: last Rider standing — p0 wins, 2 kicks landed');
 
-  // reset toggles for any later suites — back to the SHIPPED defaults, not the reverted v1.31.0 ones
-  E.setSpecialLossMode('chosen'); E.setMillScope('targeted'); E.setShieldTargetChooser(null);
+  // reset toggles for any later suites — back to the SHIPPED defaults ('all' since v1.36.0, 'chosen' before it)
+  E.setSpecialLossMode('all'); E.setMillScope('targeted'); E.setShieldTargetChooser(null);
 })();
 
 // ===== N-PLAYER TARGETING + RESPONSE PRIORITY (Phase 2) =====
@@ -2846,9 +2846,9 @@ function cards(ids) { return ids.map(card); }
   /* A5 — THE SCOPE THE CARD TEXT NOW CLAIMS. Under `lossAll` every struck seat takes the extra, which is
      the behaviour Aj kept and the reason the singular text was corrected. Asserting ONE seat would pass on
      a build that struck only the chosen target, so both are read and required to agree. */
-  E.setSpecialLossMode('all');
+  var a6Was = E.isSpecialLossMode(); E.setSpecialLossMode('all');
   var a6 = fightWin(1, 6, 3);
-  E.setSpecialLossMode('chosen');
+  E.setSpecialLossMode(a6Was);
   ok(!a6.err && lost(a6, 1, 6) === 2 && lost(a6, 2, 6) === 2,
     'AP: under lossAll EVERY struck seat takes the extra — what "each Rival you strike" now says' +
     (a6.err ? ' (' + a6.err + ')' : ' [' + lost(a6, 1, 6) + ', ' + lost(a6, 2, 6) + ']'));
@@ -3016,7 +3016,7 @@ function cards(ids) { return ids.map(card); }
    every assertion above it and break the next round instead. */
 (function () {
   function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
-  var prevMode = 'chosen';
+  var prevMode = E.isSpecialLossMode();
   E.setSpecialLossMode('chosen');
   E.setLossTargetInteractive(function () { return true; });          // defer the pick, so chooseLossTarget is the entry
   /* THREE PLAYERS, because the deferral needs a CHOICE to defer. At two seats there is exactly one living
@@ -3374,10 +3374,12 @@ function cards(ids) { return ids.map(card); }
         /* A BACK STAB CAST UNDER A SUPER LOCKS EVERY RIVAL, and since step 4 piece 10 its log entry says so
            (`{allRivals:true}`) instead of naming one seat. Accepted for exactly that case: a Back Stab whose
            effect, read with the caster's Forms, carries `all`. Anything else must still name a seat. This was
-           red ~1 run in 20 after piece 10, whenever a seeded game happened to give an AI a Super Back Stab. */
+           red ~1 run in 20 after piece 10, whenever a seeded game happened to give an AI a Super Back Stab.
+           SINCE v1.36.0 CRITICAL HIT AND ULTIMA ATTACK HIT EVERY RIVAL TOO (DAMAGE_ALL ships on), so their entries
+           say "every rival" while more than one rival lives — and a seat, the last rival, once only one does. */
         if (ef && HOSTILE[ef.kind]) { seen++;
           var allR = !!(e.target && e.target.allRivals), fe = E.effectFor(gg, caster, e.card);
-          if (allR ? (ef.kind === 'lockout' && fe && fe.all) : (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster)) named++; }
+          if (allR ? ((ef.kind === 'lockout' && fe && fe.all) || (ef.kind === 'destroyShield' && E.isDamageAll())) : (e.target && typeof e.target.seat === 'number' && e.target.seat !== caster)) named++; }
       });
     }
   }
@@ -3392,7 +3394,7 @@ function cards(ids) { return ids.map(card); }
    because "a single cannot beat a pair" would refuse it on any build and prove nothing. */
 (function () {
   var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
-  E.setSpecialLossMode('chosen'); E.setLossTargetInteractive(function (st, w) { return w === 2; });
+  var lossWas = E.isSpecialLossMode(); E.setSpecialLossMode('chosen'); E.setLossTargetInteractive(function (st, w) { return w === 2; });   // the winner's pick is the `strikeOne` rule since v1.36.0
   var g = E.newGame(null, { numPlayers: 3, starter: 2 });
   g.round = 3; g.turn = 2; g.pile = null; g.subPhase = 'main'; g.players.forEach(function (p) { p.energy = []; });
   g.players[2].hand = [mk(9, 'C', 'a9'), mk(9, 'H', 'b9'), mk(4, 'D', 'x4')];
@@ -3416,7 +3418,7 @@ function cards(ids) { return ids.map(card); }
   E.chooseLossTarget(g, 0);
   ok(!g.pendingLossChoice, 'choosing the target clears the wait — the guard has a way out');
   ok(g.stripRound === 3, 'the chosen strike STAMPS the round it stripped in (stripRound=' + g.stripRound + ')');
-  E.setLossTargetInteractive(null);
+  E.setLossTargetInteractive(null); E.setSpecialLossMode(lossWas);
 })();
 
 /* ============ …NOR IS ANY ROUND WINDOW — UPKEEP INCLUDED (2026-10-07) ============
@@ -3504,11 +3506,14 @@ function cards(ids) { return ids.map(card); }
   var castFor1 = function (card, su) { g.turn = 1; g.subPhase = 'main'; P[1].hand.push(card); P[1].energy = EN(su, 'n' + card.id);
     var r = E.activate(g, 1, card.id, {}); drain(); g.turn = 0; g.subPhase = 'main'; return r; };
   var strike = function () { go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); }); return go(function () { return E.pass(g, 1); }); };
-  // Holy Shroud (9♥) absorbs the strike
+  // Holy Shroud (9♥): since v1.35.2.2 a Quick ABILITY, so the Rival spends its counter in the Resolution window
   deal(4, [mk(9, 'C', 'a9'), mk(9, 'S', 'b9'), mk(4, 'D', 'x4')], [mk(3, 'H', 'h3'), mk(5, 'S', 'h5')]);
-  var hs = castFor1(mk(9, 'H', 'shroud'), 'H'), sh = P[1].shields;
-  var r1 = strike();
-  ok(hs && hs.ok !== false && P[1].shields === sh, 'STAGED: the Rival cast Holy Shroud, and the strike cost it no shield  (' + sh + '→' + P[1].shields + ')');
+  var hs = castFor1(mk(9, 'H', 'shroud'), 'H'), sh = P[1].shields, usedAb = null;
+  var useDrain = function () { while (g.respondFor != null) { var ab = E.equipAbilities(g, 1); if (!usedAb && g.respondFor === 1 && ab.length) usedAb = E.useAbility(g, 1, ab[0].id); else E.declineResponse(g, g.respondFor); } };
+  go(function () { return E.play(g, 0, [P[0].hand[0], P[0].hand[1]]); });
+  var pr = E.pass(g, 1); useDrain(); if (pr && pr.transition === 'play') { pr = E.pass(g, 1); useDrain(); }   // the pass crossed Main → Fight first, as `go` re-applies
+  var r1 = g.resolutionResult || pr;
+  ok(hs && hs.ok !== false && usedAb && usedAb.ok !== false && P[1].shields === sh, 'STAGED: the Rival cast Holy Shroud, used its ability at Resolution, and the strike cost it no shield  (' + sh + '→' + P[1].shields + ')');
   ok(r1 && r1.prevented && JSON.stringify(r1.saved) === JSON.stringify([{ seat: 1, by: 'Holy Shroud' }]),
      'a prevented loss names WHO was saved and BY WHAT: the Rival, by Holy Shroud  ' + JSON.stringify(r1 && r1.saved));
   // Leyline Ascension (9♦), cast in the Rival's Main: the ward's own name
@@ -3841,11 +3846,12 @@ function cards(ids) { return ids.map(card); }
     return g;
   }
   var answers = function (log) { return log.filter(function (e) { return e.respond; }); };
-  // a response to a cast: seat 1 casts Telekinesis, seat 2 counters it inside seat 1's turn
+  // a response to a cast: seat 1 casts Telekinesis AT SEAT 2, seat 2 counters it inside seat 1's turn
+  // (aimed at the counterer since v1.35.2.3: under `noAid` the AI no longer counters a cast aimed at another seat)
   var gC = fresh();
   gC.players[1].hand = [mk(3, 'D'), mk(9, 'C', 'y')]; gC.players[1].energy = nrg(8, 'D');
   gC.players[2].hand.push(mk(4, 'D')); gC.players[2].energy = nrg(8, 'D');
-  var cast = E.activate(gC, 1, '3D', { target: 0 });
+  var cast = E.activate(gC, 1, '3D', { target: 2 });
   var aC = answers(AI.takeTurn(gC, 1, 'knight', [0]))[0];
   ok(cast.ok && !!aC && aC.respBy === 2 && aC.respName === 'Counter Spell', 'in-turn answer: staged — seat 2 counters seat 1\'s Telekinesis inside seat 1\'s turn  ' + JSON.stringify(aC || null));
   ok(!!aC && aC.transition === false && aC.round === 4, 'in-turn answer: …logged as a response to a cast (not the transition), in round 4  ' + JSON.stringify(aC || null));
@@ -3909,8 +3915,14 @@ function cards(ids) { return ids.map(card); }
  * Hit aimed at SOMEONE ELSE. Three seats: seat 1 casts at seat 0 (the case) or at seat 2 (the control — a seat that
  * still defends itself is what proves the branch can fire at all), and seat 2, holding Leyline, is asked once
  * priority reaches it. Then both switches: `aimed` off brings the old answer back, and `ownCast` off must NOT be
- * swallowed by `aimed` — an own cast is never aimed at its caster, so a careless gate would hold it back too. */
+ * swallowed by `aimed` — an own cast is never aimed at its caster, so a careless gate would hold it back too.
+ * ⚠ SINCE v1.36.0 THIS BRANCH IS UNREACHABLE IN THE SHIPPED GAME, and the block pins the rules under which it is
+ * reachable. With DAMAGE_ALL on no Critical Hit is aimed at "someone else" — it hits every rival — and with
+ * WARD_ALL on a Leyline sprung by anyone protects that someone anyway. The policy is still code that runs, so it
+ * keeps its test; whether it stays at all is the parked `ai-answers-others-casts` entry's question. */
 (function () {
+  var damageWas = E.isDamageAll(), wardWas = E.isWardAll();
+  E.setDamageAll(false); E.setWardAll(false);
   function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
   var holds = function (g, p, id) { return g.players[p].hand.some(function (c) { return c.id === id; }); };
@@ -3947,6 +3959,7 @@ function cards(ids) { return ids.map(card); }
   AI.setArmPolicy(null);
   ok(sOff.ok && rOff && rOff.respondedWith === 'D9', 'aimed elsewhere: with `aimed` switched off it springs Leyline at the other seat\'s strike again — the arm strengthsim compares against  ' + said(rOff));
   ok(cO.ok && pO === 1 && rO && rO.respondedWith === 'D9', 'aimed elsewhere: with only `ownCast` switched off the caster answers its own Critical Hit again — `aimed` does not swallow it  ' + (cO.ok ? said(rO) : cO.reason));
+  E.setDamageAll(damageWas); E.setWardAll(wardWas);
 })();
 
 /* ===== NO CROSSING AND NO ILLUSION WHILE SOMEBODY HOLDS PRIORITY (2026-10-16) =====
@@ -4032,6 +4045,114 @@ function cards(ids) { return ids.map(card); }
   var ra = E.activate(g, 0, 'bt3C');
   ok(ra.ok === true,
      'Illusion hand-off: …so that seat can still cast a Main effect (Brilliant Tactic)' + (ra.ok ? '' : '  ← refused: "' + ra.reason + '"'));
+})();
+
+// ===== THE v1.36.0 DEFAULTS: THE loss=all PACKAGE IS THE GAME (Aj, 2026-10-22) =====
+/* The engine's defaults ARE the shipped rules (CLAUDE.md), and since v1.36.0 the shipped rules are the measured
+ * package: every-rival strikes, shields 2 + players, the shared ward and the every-rival attack cards
+ * (DECISIONS.md#loss-all-remeasured). Pinned by BEHAVIOUR as well as by getter, because the card text now promises
+ * each of these at every table size, and a default that drifted back would make that text false in silence.
+ * Each behaviour leg has its CONTROL with the switch off, so "it happened" cannot pass on a board where it would
+ * have happened anyway. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  ok(E.isSpecialLossMode() === 'all' && E.isShieldsPerPlayer() && E.isWardAll() && E.isDamageAll() && E.isMillScope() === 'targeted' && E.isDrawPerPlayer(),
+     'v1.36.0 defaults: loss all, shields 2+N, shared ward, every-rival damage, targeted mill, draw per player');
+  ok(E.startShieldsFor(2) === 4 && E.startShieldsFor(3) === 5 && E.startShieldsFor(6) === 8 && E.newGame(null, { numPlayers: 6 }).players[0].shields === 8,
+     'v1.36.0 defaults: 4 shields in a duel, 5 at three, 8 at six — and a new six-player game deals 8');
+  function settle(g) { for (var k = 0; g.respondFor != null && k < 12; k++) E.declineResponse(g, g.respondFor); }
+  // Critical Hit at three players: it hits BOTH rivals, whatever target the cast names
+  function crit(damageAll) {
+    var was = E.isDamageAll(); E.setDamageAll(damageAll);
+    var g = E.newGame(null, { numPlayers: 3 }); g.round = 4; g.turn = 0; g.passes = 0; g.pile = null; g.lastPlayer = null;
+    g.players.forEach(function (p) { p.hand = [mk(6, 'C', 'x')]; p.energy = []; p.equipment = []; p.shields = 3; });
+    g.players[0].hand = [mk(9, 'S'), mk(10, 'C', 'pk'), mk(6, 'S', 'y')]; g.players[0].energy = nrg(10, 'S');
+    var c = E.activate(g, 0, '9S', { target: 1 }); settle(g);
+    E.setDamageAll(was);
+    return { ok: c.ok, why: c.reason, s: g.players.map(function (p) { return p.shields; }) };
+  }
+  var cAll = crit(true), cOne = crit(false);
+  ok(cAll.ok && cAll.s.join() === '3,2,2', 'Critical Hit at three players hits EVERY rival — "Every Rival loses 1 shield"  [' + (cAll.ok ? cAll.s.join() : cAll.why) + ']');
+  ok(cOne.ok && cOne.s.join() === '3,2,3', '…CONTROL: with damageAll off the same cast hits only its target  [' + (cOne.ok ? cOne.s.join() : cOne.why) + ']');
+  /* HOLY SHROUD IS A QUICK ABILITY (v1.35.2.2, Aj). Under the shared ward the old passive absorb ate the shield YOU had
+     just broken on your Rival; now nothing is absorbed in passing, and the counter comes off only when its owner
+     chooses — buying Leyline's ward for the whole table. */
+  function shroudDuel(useIt) {
+    var g = E.newGame(null, { numPlayers: 2 }); g.round = 4; g.turn = 0; g.passes = 0; g.pile = null; g.lastPlayer = null;
+    g.players.forEach(function (p) { p.hand = [mk(6, 'C', 'x')]; p.energy = []; p.equipment = []; p.shields = 3; });
+    g.players[0].hand = [mk(9, 'S'), mk(10, 'C', 'pk'), mk(6, 'S', 'y')]; g.players[0].energy = nrg(10, 'S');
+    g.players[0].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: mk(9, 'H', 'myShroud') }];
+    g.players[1].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: mk(9, 'H', 'rvShroud') }];
+    var c = E.activate(g, 0, '9S', { target: 1 }), used = null;
+    for (var k = 0; g.respondFor != null && k < 12; k++) {
+      if (useIt && !used && g.respondFor === 1) used = E.useAbility(g, 1, 'rvShroud9H'); else E.declineResponse(g, g.respondFor);
+    }
+    return { ok: c.ok, why: c.reason, used: used, rival: g.players[1].shields, mine: g.players[0].equipment.length, theirs: g.players[1].equipment.length,
+             retired: g.players[1].energy.some(function (x) { return x.id === 'rvShroud9H'; }), youWarded: !!g.players[0].cantLoseRound };
+  }
+  var sNo = shroudDuel(false), sYes = shroudDuel(true);
+  ok(sNo.ok && sNo.rival === 2 && sNo.mine === 1 && sNo.theirs === 1,
+     'Holy Shroud absorbs nothing in passing: your Critical Hit lands on a Rival who declines, and BOTH Shrouds keep their counter  [rival ' + sNo.rival + (sNo.ok ? '' : ', ' + sNo.why) + ']');
+  ok(sYes.ok && sYes.used && sYes.used.ok !== false && sYes.rival === 3 && sYes.theirs === 0 && sYes.retired && sYes.mine === 1,
+     '…the Rival USES its Shroud in the Critical Hit\'s window: no shield lost, its counter spent and the Shroud retired to its Energy, yours untouched  [rival ' + sYes.rival + ']');
+  ok(sYes.youWarded, '…and the ward covers the TABLE, as the text says — you are warded too (WARD_ALL)');
+  // the gates: not the owner's priority, a locked seat, and Counter Spell cannot name it
+  var gg = E.newGame(null, { numPlayers: 2 }); gg.round = 4; gg.turn = 0; gg.pile = null; gg.subPhase = 'main'; gg.respondFor = null;
+  gg.players[1].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, card: mk(9, 'H', 'gShroud') }];
+  var notTurn = E.useAbility(gg, 1, 'gShroud9H');
+  ok(notTurn.ok === false && gg.players[1].equipment[0].counters === 1, 'outside a window only the active player may use it — refused, counter kept  [' + notTurn.reason + ']');
+  gg.players[1].lockRound = true;
+  ok(E.equipAbilities(gg, 1).length === 0, 'a locked seat has no ability to use ("skips means skips")');
+  gg.players[1].lockRound = false; gg.turn = 1;
+  var proactive = E.useAbility(gg, 1, 'gShroud9H');
+  ok(proactive && proactive.ok !== false && gg.players[1].cantLoseRound && gg.players[0].cantLoseRound,
+     'on your own turn, in Main, it is used proactively and wards the table  [' + (proactive && proactive.reason || 'ok') + ']');
+  // and the text says what the rules do — one wording, at every table size
+  var txt = function (su, r) { return E.effectOf({ rank: r, suit: su, id: 'x' }).text; };
+  ok(/Every Rival loses 1 shield/.test(txt('S', 9)) && /Every Rival loses 1 shield/.test(txt('C', 10)) && /^No player can lose a shield/.test(txt('D', 9)) && /^Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round/.test(txt('H', 9)),
+     'the card text matches the package: Critical Hit and Ultima hit every Rival, Leyline and Holy Shroud\'s ability cover any player');
+})();
+
+// ===== THE AI DOES NOT SPEND A QUICK PROTECTING A RIVAL — `noAid` (ai-answers-others-casts, 2026-10-22) =====
+/* Aj's answer was "no", held until the loss=all package shipped on `epic/loss-all-default`. Counter Spell answered any threat
+ * that was not the AI's own and Annoint any removal while it owned Equipment, whoever the threat was AIMED at. Under `noAid`
+ * the AI answers only what is aimed at IT (the engine's `stackTargetOf`). Each leg is a pair off one staging: aimed
+ * elsewhere (held) against aimed at the seat itself (answered), and the policy switched OFF must answer again, so a
+ * strengthsim arm without it really is the old AI. Shipped in v1.35.2.3 after measuring (DECISIONS.md#ai-no-aid). */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function nrg(n, su) { var a = []; for (var i = 0; i < n; i++) a.push(mk(3, su, 'e' + i)); return a; }
+  var said = function (r) { return JSON.stringify(r && r.respondedWith || null); };
+  function stage(cardR, cardS, opts, answerer) {      // seat 1 casts at `opts.target`; seat 2 holds `answerer`; priority walked to seat 2
+    var g = E.newGame(null, { numPlayers: 3 }); g.round = 4; g.turn = 1; g.passes = 0; g.pile = null; g.lastPlayer = null; g.subPhase = 'main';
+    g.players.forEach(function (p) { p.hand = [mk(9, 'C', 'x')]; p.energy = []; p.equipment = []; p.shields = 3; });
+    g.players[0].hand = [mk(6, 'C', 'p0a'), mk(7, 'C', 'p0b'), mk(8, 'C', 'p0c')];
+    g.players[0].equipment = [{ id: 'eqA', name: 'Holy Bow', delta: 2, counters: 3, decay: true, card: mk(8, 'H', 'bowA') }];
+    g.players[1].hand = [mk(cardR, cardS, 'cast'), mk(9, 'C', 'keep')]; g.players[1].energy = nrg(12, cardS);   // a spare: a cast may not empty the hand
+    g.players[2].hand = answerer.hand; g.players[2].energy = answerer.energy;
+    g.players[2].equipment = [{ id: 'eqB', name: 'Holy Bow', delta: 2, counters: 3, decay: true, card: mk(8, 'H', 'bowB') }];
+    var c = E.activate(g, 1, 'cast' + cardR + cardS, opts);
+    for (var k = 0; c.ok && g.respondFor != null && g.respondFor !== 2 && k < 6; k++) E.declineResponse(g, g.respondFor);
+    return { g: g, ok: c.ok && g.respondFor === 2, why: c.ok ? 'priority at ' + g.respondFor : c.reason };
+  }
+  var counterer = function () { return { hand: [mk(4, 'D', 'cs'), mk(9, 'C', 'y')], energy: nrg(8, 'D') }; };
+  var annointer = function () { return { hand: [mk(5, 'H', 'an'), mk(9, 'C', 'y')], energy: nrg(8, 'H') }; };
+  function decide(st, noAid) { AI.setArmPolicy(noAid ? null : function (p, name) { return name !== 'noAid'; }); var r = AI.respondDecision(st.g, 2); AI.setArmPolicy(null); return r; }   // no arm = the shipped AI, which has noAid since v1.35.2.3
+  AI.resetPolicyStats();
+  // Counter Spell vs Telekinesis (♦3)
+  var tE = stage(3, 'D', { target: 0 }, counterer()), rtE = tE.ok ? decide(tE, true) : null;
+  ok(tE.ok && !(rtE && rtE.respondedWith), 'noAid: a seat does NOT counter a Telekinesis aimed at another seat  ' + (tE.ok ? said(rtE) : tE.why));
+  ok(AI.policyStats().noAid >= 1, 'noAid: …and the tally records the answer it held back (' + AI.policyStats().noAid + ')');
+  var tM = stage(3, 'D', { target: 2 }, counterer()), rtM = tM.ok ? decide(tM, true) : null;
+  ok(tM.ok && rtM && rtM.respondedWith === 'D4', 'noAid: the same seat DOES counter a Telekinesis aimed at it — the control  ' + (tM.ok ? said(rtM) : tM.why));
+  var tS = stage(3, 'D', { target: 0 }, counterer()), rtS = tS.ok ? decide(tS, false) : null;
+  ok(tS.ok && rtS && rtS.respondedWith === 'D4', 'noAid switched OFF brings the old answer back — the arm strengthsim compares against  ' + (tS.ok ? said(rtS) : tS.why));
+  // Annoint vs Sabotage (♠5) — at another seat's Equipment, then at its own
+  var sE = stage(5, 'S', { target: 'eqA' }, annointer()), rsE = sE.ok ? decide(sE, true) : null;
+  ok(sE.ok && !(rsE && rsE.respondedWith), 'noAid: a seat does NOT Annoint against a Sabotage aimed at another seat\'s Equipment  ' + (sE.ok ? said(rsE) : sE.why));
+  var sM = stage(5, 'S', { target: 'eqB' }, annointer()), rsM = sM.ok ? decide(sM, true) : null;
+  ok(sM.ok && rsM && rsM.respondedWith === 'H5', 'noAid: …and DOES Annoint when the Sabotage is aimed at its own Equipment — the control  ' + (sM.ok ? said(rsM) : sM.why));
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

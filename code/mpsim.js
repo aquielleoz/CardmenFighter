@@ -20,11 +20,12 @@ var FLAGS = process.argv.slice(4).join(' ').toLowerCase();
  * instrument bug this file's own header warns about: the flags were right and the parser was wrong. */
 function flag(name){ return FLAGS.split(/\s+/).indexOf(name) >= 0; }
 function opt(name, dflt){ var m = FLAGS.match(new RegExp(name + '=([a-z]+)')); return m ? m[1] : dflt; }
-/* Defaults are the LIVE game as set in CardmenFighter.template.html (~1136): loss='chosen', mill='targeted',
- * and the engine's own flat shields/draw. They previously defaulted to the v1.31.0 package, which meant a bare
- * run measured a ruleset the game does not use — the same class of error that shipped that package. */
-var MS = (opt('mill','targeted') === 'universal') ? 'universal' : 'targeted';
-var LM = (opt('loss','chosen') === 'all') ? 'all' : 'chosen';
+/* Defaults are the LIVE game, read from the ENGINE (which holds the shipped defaults): since v1.36.0 that is loss='all',
+ * mill='targeted', shields 2+N, the shared ward and every-rival damage. They once defaulted to the v1.31.0 package and
+ * then to a hardcoded 'chosen', and each time a bare run measured a ruleset the game did not use. `loss=chosen`,
+ * `noshp`, `nowardall` and `nodamageall` reach the v1.35 rules. */
+var MS = (opt('mill', E.isMillScope()) === 'universal') ? 'universal' : 'targeted';
+var LM = (opt('loss', E.isSpecialLossMode()) === 'all') ? 'all' : 'chosen';
 /* seqtwos=off|low|high — what the 2 does in plays of FOUR OR MORE cards. Named rather than a bare flag because
  * there are three answers, not two: barred (Tien len / Dou Dizhu, the shipped default), lowest (Big Two /
  * Chikicha), or fight value 15 (the legacy J-Q-K-A-2, which matches no family). Defaults to the engine's own
@@ -36,9 +37,9 @@ var SEQ2 = (function (v) { return (v === 'low' || v === 'high') ? v : 'off'; })(
 var SHP = flag('noshp') ? false : (flag('shp') || E.isShieldsPerPlayer());
 var DPP = flag('nodpp') ? false : (flag('dpp') || E.isDrawPerPlayer());
 var APEX = flag('apex'), NOSTRIP = flag('nostrip');
-var DALL = flag('damageall') || flag('hostileall');
+var DALL = (flag('nodamageall') || flag('damagehalf')) ? false : (flag('damageall') || flag('hostileall') || E.isDamageAll());   // `damagehalf` must turn the default off, or 'all' would silently win
 var DHALF = flag('damagehalf');
-var WALL = flag('wardall');
+var WALL = flag('nowardall') ? false : (flag('wardall') || E.isWardAll());
 var KITS = flag('kits');                              // shorthand: the 2-kit slot AND 3+ runs
 var TWOPAIR = flag('twopair');                        // the 4-card slot in POKER mode (gaps allowed) instead
 var KITS3 = flag('kits3') || KITS;                    // 3+ consecutive-pair runs on their own
@@ -126,23 +127,16 @@ console.log('CONFIG: seqtwos=' + SEQ2 + ' loss=' + LM + ' mill=' + MS + ' shield
   wg.players[0].energy = []; for (i = 0; i < 14; i++) wg.players[0].energy.push(hk(4, 'D'));
   E.activate(wg, 0, 'sc9D', {});
   var warded = [0, 1, 2, 3].filter(function (q) { return !!wg.players[q].cantLoseRound; }).length;
-  /* Holy Shroud shared: seat 1 OWNS the only Shroud, seat 0 wins a Special under loss=all, and we count how
-   * many rivals actually keep their shield. Without the flag exactly one is saved (the owner). With it the
-   * single counter still saves exactly one player, but it may be a NON-owner — so the thing to assert is that a
-   * seat with no equipment of its own gets saved, which is impossible unless the ward is shared. */
+  /* Holy Shroud is a Quick ABILITY since v1.35.2.2 (it absorbed passively before): seat 1 owns the only one and uses it on
+   * its own turn, and we count who ends up warded — the whole table with wardall, the owner alone without. */
   var sg = E.newGame(null, { numPlayers: 4 });
-  sg.round = 3; sg.pile = null; sg.turn = 0; sg.passes = 0;
-  sg.players[0].hand = [hk(9, 'H'), hk(9, 'D')];
-  for (i = 1; i < 4; i++) sg.players[i].hand = [hk(3, 'S')];
-  sg.players[1].equipment = [{ id: 'scHS', name: 'Holy Shroud', absorb: true, counters: 1, decay: false,
-                               card: { rank: 10, suit: 'H', id: 'scHS10H' } }];
-  var sBefore = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
-  E.play(sg, 0, [hk(9, 'H'), hk(9, 'D')]);
-  for (i = 1; i < 4 && !sg.finished; i++) { if (sg.turn === i) E.pass(sg, i); }
-  if (sg.pendingLossChoice) E.chooseLossTarget(sg, sg.pendingLossChoice.cands ? sg.pendingLossChoice.cands[0] : 1);
-  var sAfter = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
-  var shroudSpent = !sg.players[1].equipment.some(function (e) { return e.absorb && e.counters > 0; });
-  var nonOwnerSaved = (sAfter[1] === sBefore[1]) || (sAfter[2] === sBefore[2]);   // seat 2 or 3 kept its shield
+  sg.round = 3; sg.pile = null; sg.turn = 1; sg.passes = 0; sg.subPhase = 'main';
+  sg.players[1].equipment = [{ id: 'H9', name: 'Holy Shroud', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true },
+                               card: { rank: 9, suit: 'H', id: 'scHS9H' } }];
+  E.useAbility(sg, 1, 'scHS9H');
+  for (var sk = 0; sg.respondFor != null && sk < 12; sk++) E.declineResponse(sg, sg.respondFor);
+  var shroudSpent = sg.players[1].equipment.length === 0;
+  var shroudWarded = [0, 1, 2, 3].filter(function (q) { return !!sg.players[q].cantLoseRound; }).length;
   var kg = E.newGame(null, { numPlayers: 4 });
   kg.round = 3; kg.pile = null; kg.turn = 0;
   kg.players[0].hand = [hk(4, 'D'), hk(4, 'H'), hk(5, 'C'), hk(5, 'S')];
@@ -162,13 +156,12 @@ console.log('CONFIG: seqtwos=' + SEQ2 + ' loss=' + LM + ' mill=' + MS + ' shield
   console.log('SELF-CHECK kits: 4-card plays offered from 4-4-5-5 = ' + kitsFound +
               ' (expect ' + ((KITS || TWOPAIR) ? 1 : 0) + ')');
   console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')' +
-              '   Shroud spent=' + shroudSpent + ' non-owner saved=' + nonOwnerSaved +
-              (LM === 'all' ? ' (expect a non-owner save only with wardall)' : ' (loss=chosen: not probed)'));
+              '   Shroud spent=' + shroudSpent + ' warded ' + shroudWarded + ' (expect true, ' + (WALL ? 4 : 1) + ')');
   console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : (DHALF ? 2 : 1)) +
               '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ', whole-round ' + bRound + ')');
   var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
             (hStruck !== (DALL ? 3 : (DHALF ? 2 : 1))) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock) ||
-            (warded !== (WALL ? 4 : 1)) || (kitsFound !== ((KITS || TWOPAIR) ? 1 : 0));
+            (warded !== (WALL ? 4 : 1)) || !shroudSpent || (shroudWarded !== (WALL ? 4 : 1)) || (kitsFound !== ((KITS || TWOPAIR) ? 1 : 0));
   if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
 })();
 

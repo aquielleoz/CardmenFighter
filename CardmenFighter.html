@@ -199,6 +199,11 @@
   .equipZone .eq.eqSpent .eqGone{ color:#c9b58a; font-weight:800; letter-spacing:.5px; text-transform:uppercase; font-size:10px; }
   .equipZone .eq.buff .eqCtr{color:var(--good);} .equipZone .eq.debuff .eqCtr{color:var(--bad);}
   .equipZone .eq.targetable{cursor:pointer; outline:2px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.75); animation:tgtPulse .9s ease-in-out infinite;}
+  /* A QUICK ABILITY YOU CAN USE NOW (Holy Shroud, v1.35.2.2) glows the answer GREEN a castable hand card does, so "what can I
+     do here" reads the same on the hand and on the board. The button inside is the control; the glow is the signal. */
+  .equipZone .eq.eqUsable{ box-shadow:0 0 0 2px rgb(82,224,143), 0 0 12px 2px rgba(82,224,143,.55); }
+  .equipZone .eqUse{ display:block; margin:3px auto 0; padding:2px 8px; font-size:11px; font-weight:800; border-radius:8px; border:1px solid rgb(82,224,143); background:rgba(82,224,143,.18); color:inherit; cursor:pointer; }
+
   .equip{display:flex; gap:5px; flex-wrap:wrap;}
   .equip .e{font-size:10px; font-weight:800; padding:2px 6px; border-radius:10px; border:1px solid var(--line);}
   .equip .e.targetable{cursor:pointer; outline:2px solid var(--pick); box-shadow:0 0 10px rgba(201,139,255,.7); animation:tgtPulse .9s ease-in-out infinite;}
@@ -1605,6 +1610,7 @@
     .panelZones .superBadge{font-size:.6rem; padding:2px 6px; letter-spacing:.04em;}   /* it sits over ~3 mini cards here, not a table-wide zone */
     .panelZones .eq{padding:2px 7px;}
     .panelZones .eqName{font-size:11px; max-width:92px;}
+    .panelZones .equipZone .eqUse{padding:0 5px; font-size:12px;}   /* the 44px height stays; the width comes back to the name (v1.35.2.5). 0,3,0: the phone band's `.equipZone .eqUse` comes later */
     #side{height:clamp(132px,20vh,172px); flex-direction:row; align-items:stretch; border-left:none; border-top:1px solid var(--line); padding-left:0; padding-top:8px;}
     #cardView{flex:1 1 auto; flex-direction:row; align-items:flex-start; gap:10px; padding:10px 12px;}   /* image left, text right (strip) */
     #cardView .cvBigFace{display:none;}                                  /* mobile: hide the full layout (its printed text is unreadable at strip size) */
@@ -1755,6 +1761,9 @@
     .equipZone .eqEff{display:none;}
     .equipZone .eqName{font-size:12px; max-width:112px;}
     .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
+    /* ⚡ USE IS A THUMB TARGET (v1.35.2.5): 44px on both small layouts, the phone standard `viewtest` holds the other
+       controls to. It was 36px tall in portrait and 24 in landscape, measured when Aj asked to see it on a phone. */
+    .equipZone .eqUse{min-height:44px; min-width:44px; margin:0; padding:0 10px; font-size:13px;}
     /* TAPPED OPEN = THE DESKTOP BOX, PUT BACK. Every declaration here restores a value the four rules above
        took away, and deliberately nothing more: this state has no design of its own, it is the absence of the
        compaction. If a base `.eq` value changes, change it in ONE place and this follows — a number invented
@@ -1764,6 +1773,7 @@
     .equipZone .eq.eqOpen .eqEff{display:block;}
     .equipZone .eq.eqOpen .eqName{font-size:13.5px; max-width:150px;}
     .equipZone .eq.eqOpen .eqCtr{font-size:12px;} .equipZone .eq.eqOpen .eqCtr b{font-size:13.5px;}
+    .equipZone .eq.eqOpen .eqUse{margin:3px auto 0;}
     /* THE STACK IS UNCAPTIONED CARDS FITTED TO THE COLUMN on both phone layouts: the landscape band (ruling 31, *"Smaller
        cards, no captions"*) and a portrait phone (ruling 35, *"Like landscape"*), where a 76px column wrapped each caption
        onto 4-5 lines and fitted two of three casts. `--stkCs` is the scale `placeCastZone` measures (`compactStack`, the
@@ -1808,6 +1818,11 @@
     .equipZone.lsCol .eq:not(.eqOpen){padding:2px 7px;}
     .equipZone.lsCol .eq:not(.eqOpen) .eqName{display:none;}
     .equipZone.lsCol .eqCtr{white-space:nowrap;}
+    /* …EXCEPT A CHIP YOU CAN USE, WHICH KEEPS ITS NAME (v1.35.2.5): "◆ 1 ⚡ Use" did not say WHAT it uses. It stacks
+       rather than widens, because the width is what reached the pile; your zone is anchored at its bottom, so the
+       height grows up into the table. */
+    .equipZone.lsCol .eq.eqUsable:not(.eqOpen){flex-direction:column; gap:2px; padding:4px 7px;}
+    .equipZone.lsCol .eq.eqUsable:not(.eqOpen) .eqName{display:block; max-width:96px; font-size:11px;}
     .equipZone.lsCol.zoneOpen{z-index:7;}   /* open, it is a popover over the left column: above the Forms and the other chip */
     header{padding:3px 10px; gap:6px;}
     header h1{font-size:13px;}
@@ -2152,11 +2167,13 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
- *   - Shields are flat at every player count. The per-round DRAW scales: = numPlayers (v1.31.3), so 2 in a duel
- *     and 6 at a six-player table. The rest of the v1.31.0 package (shields 2+numPlayers, loss 'all', mill
- *     'universal') was REVERTED in v1.31.2 — it broke deck balance badly (PATCHNOTES 0j); only the draw came back. The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
- *     A/B only. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI must never read the
- *     bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
+ *   - THE TABLE RULES SCALE WITH THE TABLE (v1.36.0): shields = 2 + numPlayers (4 in a duel, 8 at six), the
+ *     per-round DRAW = numPlayers (v1.31.3), a Special win strikes EVERY rival (loss 'all'), shield wards cover
+ *     the whole table (WARD_ALL) and Critical Hit / Ultima Attack hit every rival (DAMAGE_ALL). The v1.31.0
+ *     version of this (loss 'all' + universal mill + shields 2+N, no ward) was REVERTED in v1.31.2 for breaking
+ *     deck balance (PATCHNOTES 0j); the shared ward and the every-rival damage are what fixed it, measured in
+ *     DECISIONS.md#loss-all-remeasured. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI
+ *     must never read the bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
  *     A round is draw → one player leads → the fight is a trick; the last
  *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
  *     only banks energy. Specials are locked in round 1. At 0 shields the next
@@ -2668,11 +2685,11 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
-  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — flag, A/B only.
-   * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
-   * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
-   * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
-  var SHIELDS_PER_PLAYER = false;     // OFF: shipping this broke deck balance and was reverted in v1.31.2 (PATCHNOTES 0j).
+  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — the SHIPPED rule since v1.36.0.
+   * Companion to loss 'all': that makes damage scale with the table, which holds game length flat at ~10 rounds,
+   * too SHORT for six players. Scaling the shield pool with the table gives the middle ground: 2p keeps exactly
+   * the old 4, 6p gets 8. What the package's games measure at, as built, is in DECISIONS.md#v136-remeasured. The `flatShields` custom rule turns it off. */
+  var SHIELDS_PER_PLAYER = true;
   function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
   function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
   function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
@@ -2797,46 +2814,22 @@
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
-  // Holy Shroud: spend one of its counters to EAT the hit (a physical absorb — works vs a shield loss OR,
-  // at 0 shields, the Fighter Kick). Returns true (and spends a counter) if an absorber is available.
   function retireEquip(pl, e) { if (e && e.card) pl.energy.push(e.card); }   // worn-out / spent Equipment → its card becomes Energy (recyclable via the shuffle cycle)
-  /* WARD_ALL also shares Holy Shroud (Aj, 2026-08-26): its counters can absorb a hit for ANYONE, not only its
-   * owner. Note the difference from Leyline — Shroud is counter-limited equipment, so sharing it does NOT simply
-   * hand everyone protection: one counter still absorbs exactly one hit, it just no longer matters whose. Under
-   * `all` that turns a per-owner save into a single table-wide save, which is the asymmetry being removed.
-   * The loser's OWN absorber is always tried first, so behaviour is unchanged whenever only they have one. */
-  function findAbsorber(st, q) {
-    var own = st.players[q].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
-    if (own) return { owner: q, e: own };
-    if (!WARD_ALL) return null;
-    for (var w = 0; w < st.numPlayers; w++) {
-      if (w === q || st.players[w].eliminated) continue;
-      var e2 = st.players[w].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
-      if (e2) return { owner: w, e: e2 };
-    }
-    return null;
-  }
-  function absorbSaved(st, q) {
-    var hit = findAbsorber(st, q);
-    if (!hit) return false;
-    var owner = st.players[hit.owner], shroud = hit.e;
-    shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
-    return shroud.name || true;                                                  // TRUTHY either way; the name feeds the round's "saved" line
-  }
-  // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
-  // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
+  /* `findAbsorber` AND `absorbSaved` WERE HERE AND ARE DELETED (v1.35.2.2, epic/loss-all-default). They were Holy
+     Shroud's PASSIVE absorb: the first shield loss that reached a seat ate a counter, and under the shared ward that
+     could be the shield YOU had just broken on your Rival (Aj, 2026-10-22). The Shroud is a Quick ability now
+     (`useAbility`), so its protection arrives as Leyline's ward on the stack, and no loss is ever absorbed in passing. */
+  // Would player q's shield loss be prevented WITHOUT costing a shield? Round-long shield immunity: Leyline's `immune`,
+  // Apollo-Sanctuary's `shieldImmune`, or Holy Shroud's ability (the same ward). Nothing absorbs in passing any more.
   function shieldSaved(st, q) {
     var pl = st.players[q];
-    if (pl.shieldImmune) return pl.wardBy || true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
-                                                                                 // "Sphere of Invulnerability"; that name outlived the card by a long way.)
-    return absorbSaved(st, q);                                                   // Holy Shroud absorber
+    return pl.shieldImmune ? (pl.wardBy || true) : false;                       // (There is no card called "Sphere of Invulnerability"; that name outlived the card by a long way.)
   }
   /* `wouldBeSaved` WAS HERE AND IS DELETED (epic step 19). It was a read-only peek asking "would this
      seat's loss be prevented anyway?", used to SUPPRESS the guard window when nothing was at stake — and
      "nothing is at stake for you" is not a reason to deny priority (`PHASES-AND-PRIORITY.md` §2). It also
      held a SECOND copy of the prevention ladder that `resolveShieldLossObj` implements independently, so
-     the two could disagree. `findAbsorber` has one caller left, which is the tell that this copy existed
-     only for the whitelist. */
+     the two could disagree. (`findAbsorber`, which it shared, is deleted too — see above.) */
 
   function drawOne(pl) {
     if (pl.deck.length === 0) { if (pl.shuffle.length === 0) return null; pl.deck = shuffle(pl.shuffle); pl.shuffle = []; }
@@ -3117,11 +3110,11 @@
     D: {  // Wizard: Back to the Books draw 3 → a dig (look 3, 1→Energy, keep 2); Cursed Pendant 5→4 counters; Leyline Ascension loses its recycle/ramp (moved to Athena)
       6: { kind: 'draw', draw: 3, discard: 1, name: 'Back to the Books', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 1 into your Energy Pile and draw the other 2.' },
       8: { kind: 'equip', oppDelta: -2, counters: 4, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your Rivals' highest card each fight has its value reduced by 2." },
-      9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either." }
+      9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "No player can lose a shield this round — and no one at 0 shields can take the Fighter Kick." }   // the ward covers the table (WARD_ALL, v1.36.0): one wording at every table size
     },
     H: {  // Cleric: rename Holy Sword→Holy Bow; swap 9/10 so Holy Shroud=9, Sanctuary=10
       8:  { kind: 'equip', delta: 2, counters: 4, name: 'Holy Bow', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2." },
-      9:  { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: 'If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead.' },
+      9:  { kind: 'equip', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, name: 'Holy Shroud', type: 'Equipment', impl: true, text: "Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your Energy." },   // `useAbility` (v1.35.2.2, Aj): the owner picks the moment; the ward is Leyline's
       10: { kind: 'shield', shield: 1, shieldAll: true, name: 'Sanctuary', type: 'Technique', impl: true, text: 'Every player gains 1 Shield.' }
     },
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
@@ -3130,13 +3123,13 @@
       7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
       9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
-      10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
+      10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.' }   // DAMAGE_ALL (v1.36.0)
     },
     S: {  // Rogue: Hand-to-Hand and Back Stab lose Quick (moved to Perseus / Hermes); Never Out of Options dig 4→3; Caltrops 5→3 counters
       3:  { kind: 'draw', draw: 2, name: 'Hand-to-Hand Mastery', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
       7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
-      9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
+      9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.' },   // DAMAGE_ALL (v1.36.0)
       10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
   };
@@ -3155,15 +3148,15 @@
     H: {
       queen: { 3: { n: 6, desc: 'Dig 1 deeper — put the top 6 of your deck into Energy.' }, 5: { addCounter: 1, desc: 'Also add 1 counter to that Equipment.' }, 8: { delta: 3, desc: 'Your highest card each fight gains an additional +1 (to +3).' } },
       king:  { 1: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 4: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 10: { quick: true, desc: 'Sanctuary becomes a Quick — cast it in response.' } },
-      super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and you can't lose a shield until end of round." } }
+      super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and no player can lose a shield until end of round." } }
     },
     C: {
       queen: { 1: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 7: { quick: true, desc: 'Armor Piercing becomes a Quick.' }, 8: { reclaimDiscard: true, desc: 'Also shuffle your Exile (used Techniques, destroyed Equipment) back into your deck before drawing.' } },
-      king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "The Rival's highest card each fight drops 1 further (to −3)." } },
-      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
+      king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "Every Rival's highest card each fight drops 1 further (to −3)." } },
+      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'Every Rival loses 1 additional shield (2 total).' } }
     },
     S: {
-      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
+      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: "Only Target Rival's Energy Pile moves to their Shuffle Pile — yours stays." }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
       king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { quick: true, desc: 'Back Stab becomes a Quick.' } },
       super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, all: true, desc: 'Back Stab becomes a Quick AND ALL rivals skip the whole round.' } }
     }
@@ -3702,7 +3695,7 @@
   function canCastQuick(st, q, card) { return !castRefusal(st, q, card); }
   function canAddToStack(st, q) {
     var qp = st.players[q];
-    return qp.hand.some(function (c) { return canCastQuick(st, q, c); });
+    return qp.hand.some(function (c) { return canCastQuick(st, q, c); }) || equipAbilities(st, q).length > 0;   // a Quick ability on the board (Holy Shroud) is an addition too
   }
   /* ONE GO-ROUND WALK, PARAMETERISED BY ITS ORIGIN (epic step 11, prerequisite P2).
      `PHASES-AND-PRIORITY.md` §2/§3: a go-round starts at the CONTROLLER of the top object, or at the ACTIVE
@@ -4185,6 +4178,66 @@
     return openResponseWindow(st);                    // offer to the next opponent, or resolve when all have passed
   }
 
+  /* HOLY SHROUD IS A QUICK ABILITY ON AN EQUIPMENT (v1.35.2.2; Aj, 2026-10-22, on `epic/loss-all-default`: *"it needs
+     to be a quick activatable ability on an equip. So you can decide when to take the counter off and protect the
+     table. Especially if you were the one winning the round"*). Under the shared ward the old PASSIVE absorb fired
+     on whoever lost a shield first — the Rival you had just struck included. Now the owner picks the moment, and
+     what a counter buys is Leyline's ward for the table: no player loses a shield this round, and no one at 0 takes
+     the Fighter Kick (Aj chose that over "this hit only" and "one player you choose").
+     A STACK OBJECT, NOT AN INSTANT EFFECT. The dormant `useEquipment` (Seed Pouch's verb) resolves on the spot and
+     only on your turn; this goes on the stack like a Quick, so it gets the go-round, the brake and the ledger, and
+     anyone may answer it.
+     THE COST IS ONE COUNTER, PAID ON ACTIVATION, the way energy pays for a Technique: the counter comes off as the
+     object is pushed, and at 0 the Shroud retires to its owner's Energy at once — the ward is already on the stack.
+     IT CANNOT BE COUNTERED: Counter Spell names a Technique (`COUNTERABLE`), and the object's type is 'Equipment
+     ability', which the Queen of Diamonds' "an Equipment as it is played" does not reach either.
+     A LOCKED SEAT CANNOT USE IT — "skips means skips", the line `castRefusal` draws for a Quick.
+     THE EQUIPMENT IS NAMED BY ITS CARD'S ID, never its effect id: a class deck holds four Holy Shrouds, and they
+     share `H9` while each card id is unique. */
+  function eqKey(e) { return e.card ? e.card.id : e.id; }
+  function abilityEff(e) {
+    if (!e || !e.quickAbility || !(e.counters > 0)) return null;
+    var out = { id: 'ab:' + eqKey(e), name: e.name, type: 'Equipment ability', quick: true, impl: true, fromEquip: true };
+    for (var k in e.quickAbility) out[k] = e.quickAbility[k];
+    return out;
+  }
+  // the Quick abilities seat q could use right now — the board's half of `canAddToStack`
+  function equipAbilities(st, q) {
+    var qp = st.players[q];
+    if (!qp || qp.eliminated || st.finished || isLocked(st, q)) return [];
+    return qp.equipment.filter(function (e) { return !!abilityEff(e); }).map(function (e) { return { id: eqKey(e), name: e.name, counters: e.counters }; });
+  }
+  function useAbility(st, q, eqId) {
+    pendingReveal = null;
+    if (st.finished) return { ok: false, reason: 'Game over.' };
+    var qp = st.players[q];
+    var e = qp.equipment.filter(function (x) { return eqKey(x) === eqId; })[0], eff = abilityEff(e);
+    if (!eff) return { ok: false, reason: 'That Equipment has no ability to use.' };
+    if (isLocked(st, q)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this round.' };
+    var inWindow = st.respondFor != null;
+    if (inWindow && st.respondFor !== q) return { ok: false, reason: 'Priority is with another player.' };
+    if (!inWindow) {                                    // proactive: the gates `activate` puts on a Quick cast outside a window
+      if (q !== st.turn) return { ok: false, reason: 'Not your turn.' };
+      if (st.discardPending) return { ok: false, reason: 'A player is still discarding — the table is waiting on them.' };
+      if (st.pendingLossChoice) return { ok: false, reason: 'The round is won — the table is waiting on the winner’s strike.' };
+      if (st.subPhase === 'play') return { ok: false, reason: 'The Fight Sub-Phase has begun — play a card or pass.' };
+    }
+    var card = e.card || { rank: 9, suit: 'H', id: eqKey(e) };
+    e.counters -= 1;                                    // the cost, paid as the object is pushed
+    if (e.counters <= 0) { retireEquip(qp, e); qp.equipment = qp.equipment.filter(function (x) { return x !== e; }); refreshPile(st); }
+    st.castSeq = st.castSeq || {}; st.castSeq[q] = (st.castSeq[q] || 0) + 1;   // an addition, for the auto-pass brake (see `respond`)
+    var res;
+    if (inWindow) {
+      st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: card, eff: eff, opts: {}, countered: false });
+      st.prioPassed = {}; st.pending = null; st.respondFor = null;
+      res = openResponseWindow(st);
+      res.respondedWith = eff.id; res.respondKind = eff.kind; res.respondName = eff.name; res.countered = false;
+      res.respondCard = { rank: card.rank, suit: card.suit, id: card.id };
+    } else res = pushEffect(st, q, card, eff, {});
+    if (res) res.ability = { name: eff.name, eqId: eqId, card: { rank: card.rank, suit: card.suit, id: card.id } };
+    return res;
+  }
+
   // Resolve an effect body — called immediately, or after a response window closes.
   // Which single rival a "the Rival" effect hits. opts.target names it (human/AI choice); default = next living
   // opponent. At 2 players this is always the sole opponent, so singular effects are unchanged in a duel.
@@ -4236,6 +4289,10 @@
     /* EVERY RIVAL, WHEN IT HITS EVERY RIVAL (drag-and-stack step 4, piece 10): Back Stab under Hermes' Super carries
        `all`, and resolution locks every living rival — naming ONE seat here told the others it was not aimed at them. */
     if ((HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) && eff.all) return { allRivals: true };
+    /* AND SO DOES CRITICAL HIT / ULTIMA ATTACK SINCE v1.36.0 (DAMAGE_ALL ships on). Read off `hostileTargets`, the
+       lookup resolution uses, so the label cannot disagree with what lands. In a duel there is one rival, and it
+       is still named by seat. */
+    if (eff.kind === 'destroyShield' && DAMAGE_ALL && hostileTargets(st, o.p, effectTarget(st, o.p, opts), 'damage', eff).length > 1) return { allRivals: true };
     if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
     return null;
   }
@@ -4289,7 +4346,8 @@
         // reclaim branch is the boosted variant, and both must honour the flag or the study measures nothing.
         if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
-        spendCard(pl, card); break;
+        if (!eff.fromEquip) spendCard(pl, card);          // Holy Shroud's ability: the card is the Equipment, paid for with a counter — never Exiled
+        break;
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
         spendCard(pl, card); break;
@@ -4325,7 +4383,7 @@
           decay: eff.decay !== false,        // default true; Holy Shroud sets decay:false (spend-only)
           ability: eff.ability || null,      // 'draw' — spend a counter for the ability
           protect: eff.protect || null,      // 'special' — no shield loss on Special defeats
-          absorb: eff.absorb || false,       // Holy Shroud: spend a counter to absorb a shield loss
+          quickAbility: eff.quickAbility || null,   // Holy Shroud: a Quick ability — remove a counter for Leyline's ward (`useAbility`)
           usedThisRound: false, card: card
         });
         refreshPile(st);                                   // a new debuff/buff immediately re-values any pile already on the table (ongoing, not locked at play time)
@@ -4381,7 +4439,7 @@
          * under `all`, where every Special win hits every rival, its value multiplies by (N-1) in the caster's
          * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
          * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
-         * buys a private edge. Flag, default off. */
+         * buys a private edge. Shipped ON since v1.36.0, duels included (see the note at WARD_ALL). */
         if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
@@ -4777,7 +4835,7 @@
      proves a HUMAN plays that line and survives the Fighter Kick; the AI could not, in any mode, ever.
      THE ANSWER DEPENDS ON THE SHIELD COUNT, because `resolveShieldLossObj` has two branches and they
      honour different flags — read it, not this comment, if they ever disagree:
-       - at 0 shields the kick branch tests `cantLoseRound || absorbSaved` and deliberately NOT
+       - at 0 shields the kick branch tests `cantLoseRound` (it tested `absorbSaved` too until Holy Shroud became an ability) and deliberately NOT
          `shieldSaved`, so a bare `shieldImmune` is spent for NOTHING ("can't save a shield you don't
          have", its own comment). What works is Leyline's `cantLose`, or gaining a shield to get OFF 0 so
          the ordinary branch runs instead.
@@ -4802,6 +4860,26 @@
     return gainsShield ? e : null;                         // or a spare shield absorbs it
   }
 
+  /* AND THE BOARD'S HALF: DOES A QUICK ABILITY ON q's EQUIPMENT HAVE A STAKE? Holy Shroud's ward is Leyline's, so
+     its stakes are Leyline's two: q is struck at Resolution (a kick at 0 included — the ward stops it), or a
+     destroyShield on the stack is aimed at q. AUTO stops you for these, as `stakeFor` does for a card in hand;
+     ON stops you whenever `canAddToStack` says the ability is usable; OFF never. A seat already warded this
+     round has nothing left to protect. Returns the ability's effect, never a boolean, so the ledger can name it. */
+  function abilityStakeFor(st, q, timing) {
+    var ab = equipAbilities(st, q)[0]; if (!ab) return null;
+    if (st.players[q].cantLoseRound) return null;
+    var e = abilityEff(st.players[q].equipment.filter(function (x) { return eqKey(x) === ab.id; })[0]);
+    if (timing === 'resolution') {
+      var res = st.resolution;
+      return (res && (res.strikeTargets || []).indexOf(q) >= 0) ? e : null;
+    }
+    if (timing === 'respond') {
+      var top = st.pending;
+      if (top && top.eff && top.eff.kind === 'destroyShield' && top.p !== q &&
+          hostileTargets(st, top.p, effectTarget(st, top.p, top.opts), 'damage', top.eff).indexOf(q) >= 0) return e;
+    }
+    return null;
+  }
   /* DOES THIS CARD HAVE A LIVE STAKE IN WHAT IS HAPPENING RIGHT NOW, for seat q? The UI forces a prompt when it does,
      whatever the player's notification preferences say. `lossAnswerFor` answers only "does this SAVE my
      shield", and Aj widened the rule on 2026-09-23: *"i want you to see past sanctuary … when it sees
@@ -4908,7 +4986,9 @@
   function newOid(st) { st.oidSeq = (st.oidSeq || 0) + 1; return 'o' + st.oidSeq; }
   /* WHO WAS SAVED, AND BY WHAT (2026-10-20). `prevented` said only that SOME loss was stopped, so the round line read
      "won with a Full House - but the loss was prevented" when it was Aj's own Holy Shroud saving Aj. Narration only:
-     one entry per seat, and the name is null where no card can be named. */
+     one entry per seat, and the name is null where no card can be named.
+     (An `owner` field rode here for one build, naming whose Holy Shroud had absorbed a loss; the passive absorb is gone,
+     and a ward is cast, so its cast line already names who paid for it.) */
   function noteSaved(result, q, by) {
     var nm = (typeof by === 'string') ? by : null, list = result.saved = result.saved || [];
     if (!list.some(function (x) { return x.seat === q; })) list.push({ seat: q, by: nm });
@@ -4933,7 +5013,7 @@
         }
       }
       else if (wasBroken && !obj.noKick) {                                                             // struck while already at 0 = the Fighter Kick
-        var kv = opp.cantLoseRound ? (opp.wardBy || true) : absorbSaved(st, q);   // same order as before: the shroud is spent only when no ward holds
+        var kv = opp.cantLoseRound ? (opp.wardBy || true) : false;               // only "can't lose this round" stops the kick (Leyline, or Holy Shroud's ability since v1.35.2.2)
         if (kv) { result.prevented = true; noteSaved(result, q, kv); break; }               // "can't lose this round" (Leyline) or a Holy Shroud counter absorbs the killing blow; plain shield-immunity (Sphere) can't save a shield you don't have
         st.players[obj.winner].kicksLanded = (st.players[obj.winner].kicksLanded || 0) + 1;            // hidden per-player stat (seeds the future Assassin)
         result.kick = true; (result.eliminated = result.eliminated || []).push(q);
@@ -5131,7 +5211,7 @@
   var LOSER_MILL = false, LOSER_MILL_RESERVE = 4;
   function setLoserMill(v) { LOSER_MILL = !!v; }
   // ---- N-PLAYER round-resolution toggles (both are no-ops at numPlayers===2) ----
-  // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield; 'chosen' = winner strips one rival.
+  // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield (shipped); 'chosen' = winner strips one rival.
   // MILL_SCOPE: 'universal' = all non-winners mill each round; 'targeted' = only the struck rival(s) mill.
   /* HOSTILE_ALL (Aj, 2026-08-25): the targeted offensive techniques hit EVERY living rival instead of one —
    * Critical Hit and Back Stab (Rogue), Ultima Attack (Fighter). The idea pairs with SPECIAL_LOSS_MODE='all':
@@ -5144,8 +5224,13 @@
    * (Ultima Attack only) gained +0.8 while Rogue (Critical Hit AND Back Stab) gained +11.1 — and Critical Hit
    * and Ultima Attack are mechanically identical, so Back Stab was doing nearly all the work. Scaling a shield
    * strip to (N-1) matches what a Special win already costs; scaling a TURN SKIP to every rival is worth closer
-   * to a free round, a much bigger multiplier. */
-  var DAMAGE_ALL = false, LOCKOUT_ALL = false;
+   * to a free round, a much bigger multiplier.
+   * DAMAGE_ALL SHIPS ON SINCE v1.36.0 (Aj, 2026-10-22), as part of the loss 'all' package: with the ward shared,
+   * the every-rival reach is what lifts the attack decks back (DECISIONS.md#loss-all-remeasured). The card text
+   * says so at every table size ("Every Rival loses 1 shield"), so there is no Custom rules row to turn it off —
+   * a row that made the printed text false is what the one-wording ruling exists to prevent. LOCKOUT_ALL stays
+   * off: the package does not include it, and Back Stab still reads "Target Rival". */
+  var DAMAGE_ALL = true, LOCKOUT_ALL = false;
   function setDamageAll(v) { DAMAGE_ALL = !!v; }        // Critical Hit / Ultima Attack -> every rival
   function setLockoutAll(v) { LOCKOUT_ALL = !!v; }      // Back Stab -> every rival
   function setHostileAll(v) { DAMAGE_ALL = !!v; LOCKOUT_ALL = !!v; }
@@ -5186,7 +5271,11 @@
   var DAMAGE_SPAN = 1;
   function setDamageSpan(v) { DAMAGE_SPAN = (v === 'all' || v === 'half') ? v : Math.max(1, v | 0); }
   function isDamageSpan() { return DAMAGE_ALL ? 'all' : DAMAGE_SPAN; }
-  var WARD_ALL = false;
+  /* WARD_ALL SHIPS ON SINCE v1.36.0 (Aj, 2026-10-22), in duels too: Leyline, Holy Shroud and Apollo's
+     Sanctuary protect every player, and their printed text says so. It is the half of the package that changes
+     a duel — your own Shroud can eat the shield you just broke on your Rival — and Aj accepted that rather than
+     print two wordings of one card. No Custom rules row, for the same reason as DAMAGE_ALL. */
+  var WARD_ALL = true;
   function setWardAll(v) { WARD_ALL = !!v; }
   function isWardAll() { return WARD_ALL; }
   function wardTable(st, field, by) {                    // share a shield ward with every living player (`by`: the card, for the round's "saved" line)
@@ -5211,12 +5300,16 @@
          .forEach(function (x) { if (out.length < want) out.push(x); });
     return out;
   }
-  /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
-   * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
-   * explicitly ever since, so the engine's own defaults disagreed with the only game anyone plays: any probe,
-   * sim or test that did not set them got non-shipped rules and silently measured a different game. That is
-   * exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields when it strips one. */
-  var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
+  /* DEFAULTS MATCH THE SHIPPED GAME. They were 'all' / 'universal' for the v1.31.0 multiplayer package, which
+   * was REVERTED in v1.31.2, and the template then set 'chosen' / 'targeted' explicitly — so the engine's own
+   * defaults disagreed with the only game anyone played, and any probe, sim or test that did not set them
+   * silently measured a different game (a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields
+   * when it strips one).
+   * SINCE v1.36.0 THE SHIPPED GAME IS 'all' AGAIN (Aj, 2026-10-22), with the shared ward, the every-rival
+   * damage and shields 2+N beside it (DECISIONS.md#loss-all-remeasured). 'chosen' survives behind the
+   * `strikeOne` custom rule. MILL_SCOPE stays 'targeted' and does nothing under 'all': every loser is struck,
+   * and every struck loser mills. */
+  var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
   /* Getters, for symmetry with the other rule flags (isShieldsPerPlayer / isDrawPerPlayer / isApexInfinity) —
@@ -5740,7 +5833,7 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     fadeTemps: CLEANUP_EVENTS.temps,   // the round-end fade, callable early: the UI trims before its Clean-up drain, so it fades the copies first or they count toward the hand limit
-    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
+    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
@@ -5888,9 +5981,9 @@
      apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
      are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
      confident zero — it did, on the first attempt, and the zero was believed for a minute. */
-  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0, ownCast: 0, aimed: 0 };
-  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts, ownCast: POLICY_STATS.ownCast, aimed: POLICY_STATS.aimed }; }
-  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; POLICY_STATS.ownCast = 0; POLICY_STATS.aimed = 0; }
+  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0, ownCast: 0, aimed: 0, noAid: 0 };
+  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts, ownCast: POLICY_STATS.ownCast, aimed: POLICY_STATS.aimed, noAid: POLICY_STATS.noAid }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; POLICY_STATS.ownCast = 0; POLICY_STATS.aimed = 0; POLICY_STATS.noAid = 0; }
   /* THE DEMON LORD PITCHES THE BROADWAY CARD IT CAN SPARE (broadway-pitch-chooses-itself; Aj: *"the ai should
      absolutely smart pitch as well... especially for the ones who are smarter"*). The engine's default takes
      the LOWEST Broadway card, which is exactly the card a 10-high straight or a pair of 10s is built from.
@@ -6610,6 +6703,8 @@
         if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
         return E.declineResponse(st, q);
       }
+      var ga = guardAbility(st, q);                                          // a Holy Shroud on the board first: its counter is already paid for
+      if (ga) { var gar = E.useAbility(st, q, ga); if (gar && gar.ok !== false) return gar; }
       var guardC = resolutionGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
@@ -6632,11 +6727,23 @@
        answers are for an OPPONENT'S cast; this is the AI catching up with it. A policy (`ownCast`, default on)
        so `strengthsim` can put the old behaviour on one side of a head-to-head; `heldBack` counts the answers it
        stopped, which is what tells "worth nothing" from "never fired". */
-    var ownCast = (pend.p === q) && policyOn(q, 'ownCast'), heldBack = false, heldAimed = false;
+    var ownCast = (pend.p === q) && policyOn(q, 'ownCast'), heldBack = false, heldAimed = false, heldAid = false;
+    /* DO NOT SPEND A QUICK PROTECTING A RIVAL (`ai-answers-others-casts`; Aj, 2026-10-09: *"no"*, held until the loss=all
+       package, which `epic/loss-all-default` shipped). Counter Spell answered any threat that was not the AI's own, and
+       Annoint any removal while the AI owned Equipment — whoever the threat was AIMED at. With `noAid` the AI answers only
+       what is aimed at IT: its seat, its Equipment, its Ride/Form, its cast, or every rival (which includes it). "Aimed
+       at" is the engine's own `stackTargetOf`, the noun the board's stack caption and the Respond? box already print, so
+       the AI and the screen cannot disagree about who a cast is for. Inert in a duel, where every threat is aimed at the
+       one seat that can answer.
+       SHIPPED v1.35.2.3 AFTER MEASURING (DECISIONS.md#ai-no-aid): it was built OPT-IN, because `policyOn` reads every name
+       as on and would have shipped it unmeasured, and against the shipped AI it read +0.53 / +0.42 / +0.22 points at
+       3 / 4 / 6 players (knight) and +0.40 at six (demon), each under 2σ, holding ~1 answer per six-player game. A
+       policy like `ownCast`: default on, and `strengthsim … knight:push,pitch,ownCast,aimed` is the arm without it. */
+    var aid = pend.p !== q && policyOn(q, 'noAid') && !aimedAtMe(st, q, pend);
     // Annoint: save our own equipment from a removal aimed at it.
     if (eff.kind === 'removeEquip' && qp.equipment.length > 0) {
       var prot = bestQuick('protect');
-      if (prot) { if (ownCast) heldBack = true; else { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; } }
+      if (prot) { if (ownCast) heldBack = true; else if (aid) heldAid = true; else { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; } }
     }
     /* Reactive immunity: spring an immunity Quick to blank a destroyShield technique aimed at us.
        THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `immunityEffFor` has admitted
@@ -6664,6 +6771,8 @@
        held the card for the Resolution window, where `resolutionGuardCard` plays it. A forced-board A/B
        (`forcesim.js`) says that loses at 2-4 players and is a wash at 6; numbers in DECISIONS.md#ai-strength. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
+      var gd = guardAbility(st, q);                                          // Holy Shroud first, as at Resolution — `abilityStakeFor` already excludes an own cast
+      if (gd) { var gdr = E.useAbility(st, q, gd); if (gdr && gdr.ok !== false) return gdr; }
       var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       var elsewhere = !!immuneQ && pend.p !== q && policyOn(q, 'aimed') && !E.stakeFor(st, q, immuneQ, 'respond');
       if (immuneQ) { if (ownCast) heldBack = true; else if (elsewhere) heldAimed = true; else { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; } }
@@ -6676,10 +6785,11 @@
                  (eff.kind === 'phantasm' && !!st.pile && st.pile.byPlayer === q);
     if (threat) {
       var cs = bestQuick('counter');
-      if (cs) { if (ownCast) heldBack = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
+      if (cs) { if (ownCast) heldBack = true; else if (aid) heldAid = true; else { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; } }
     }
     if (heldBack) POLICY_STATS.ownCast++;
     if (heldAimed) POLICY_STATS.aimed++;
+    if (heldAid) POLICY_STATS.noAid++;
     return E.declineResponse(st, q);
   }
 
@@ -6696,7 +6806,7 @@
       var roundAt = (st.resolvedRound != null && st.resolution) ? st.resolvedRound : st.round;
       var rr = respondDecision(st, q);
       if (!rr) break;
-      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respCard: rr.respondCard || null, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null });
+      if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respCard: rr.respondCard || null, respBy: q, countered: !!rr.countered, transition: atTransition, round: roundAt, pitched: rr.pitched || null, ability: !!rr.ability });   // `ability`: a Holy Shroud use, narrated as the counter it spends
     }
   }
 
@@ -6815,6 +6925,28 @@
     }
     if (best) POLICY_STATS.push++;
     return best;
+  }
+  /* HOLY SHROUD'S QUICK ABILITY, AS A GUARD (v1.35.2.2) — ONE DEFINITION, TWO ASKERS, like `resolutionGuardCard`:
+     `respondDecision` for an AI seat and PASSO in the template for a dropped one. The same policy as Leyline
+     (`shieldGuardWants`: guard on two shields or fewer) on the same stakes the engine defines for the ability
+     (`E.abilityStakeFor`: struck at Resolution, or a strike card aimed here). Returns the Equipment's id to use, or
+     null. Tried BEFORE a guard card from the hand, because its cost is a counter already paid, not 9 energy.
+     NOT A TUNED POLICY: the AI follow-up (`ai-answers-others-casts`) decides what the AI should do under the
+     package; this only keeps the card from being dead in AI hands. */
+  // Is this stack object aimed at seat q? Read off the engine's `stackTargetOf`. No target at all (a draw, a ramp) is
+  // nobody singled out, so it counts as the table's — `threat` decides whether it is worth answering at all.
+  function aimedAtMe(st, q, obj) {
+    var t = E.stackTargetOf ? E.stackTargetOf(st, obj) : null;
+    if (!t || t.allRivals) return true;
+    if (typeof t.seat === 'number') return t.seat === q;
+    var who = t.equip || t.zone || t.effect;
+    return who ? who.owner === q : true;
+  }
+  function guardAbility(st, q) {
+    if (!E.equipAbilities || !shieldGuardWants(st, q)) return null;
+    var a = E.equipAbilities(st, q)[0];
+    if (!a) return null;
+    return (E.abilityStakeFor(st, q, 'resolution') || E.abilityStakeFor(st, q, 'respond')) ? a.id : null;
   }
   function shieldGuardWants(st, q) {
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
@@ -6948,7 +7080,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, pitchOptsFor: pitchOptsFor, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, guardAbility: guardAbility, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, pitchOptsFor: pitchOptsFor, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
@@ -7525,13 +7657,14 @@ window.CardFace = {};
   E.setDeferRoundDraw(true);   // the UI draws the new round's cards AFTER the end-of-round hand-limit trim (see resolveRoundCeremony)
   E.setShieldCards(true);      // CATCH-UP M1: shields are cards — a broken shield returns to its owner's hand (the trailing player refuels)
   E.setLoserMill(true);        // CATCH-UP M2: the round's loser mills (winning-play size) cards into their Energy Pile (energy parity; deck-out guarded)
-  E.setSpecialLossMode('chosen'); // MP: on a Special win the victor strips ONE chosen rival's shield (not the whole table). No-op at 2p.
-  E.setMillScope('targeted');     // MP: only the struck rival(s) mill catch-up cards, not every non-winner. No-op at 2p. (Cutthroat combo — flattens 3–6p balance; see CARD-STATS.md.)
+  /* THE TABLE RULES (loss 'all', shields 2+N, the shared ward, every-rival damage — the shipped game since v1.36.0)
+     are the engine's own defaults and are set again by `applyRules()` at every game start, from the Custom rules
+     rows. Nothing is set here, so there is one place that decides them. (Until v1.36.0 this line set 'chosen'.) */
   /* The build stamp. Substituted by build.js from README.md's `**Status:**` line — see the note there. It
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.35.2';
+  var GAME_VERSION='v1.36.0';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8126,10 +8259,15 @@ window.CardFace = {};
    * comparison against a defaults map, and it is why `flatDraw` is phrased as the NEGATIVE of the shipped rule
    * (draw-scales-with-table ships ON, so the toggle turns it off).
    *
-   * All four are MULTIPLAYER-ONLY in effect, which the panel says out loud: the engine's own comment marks the
-   * first two as no-ops at 2 players, `startShieldsFor(2)` is 2+2=4 (the flat default), and `drawCountFor` at 2
-   * players is max(2,2)=2 (also the default). A duel plays identically with all four ticked. Kits and the apex
-   * pair would be the first duel-relevant rules. */
+   * The Table rules are MULTIPLAYER-ONLY in effect, which the panel says out loud: the loss and mill modes are
+   * no-ops at 2 players, `startShieldsFor(2)` is 4 either way, and `drawCountFor` at 2 players is 2 either way.
+   * A duel plays identically with all four ticked.
+   *
+   * SINCE v1.36.0 TWO OF THEM ARE THE OLD RULES, PHRASED AS NEGATIVES (Aj, 2026-10-22). The `loss=all` package
+   * became the shipped game, so `lossAll` and `shieldScale` became `strikeOne` and `flatShields` — the `flatDraw`
+   * inversion again, because every row must still default off. The package's other two halves (the shared ward,
+   * the every-rival attack cards) have NO row: they change what a card does, and a row that made a printed card
+   * text false is exactly what the one-wording ruling exists to prevent. `rulesFromKey` migrates the old keys. */
   var RULES_KEY='cmf_rules_v1';
   var RULE_DEFS=[
     /* GAME MODE, moved out of the setup dialog in v1.31.32 (Aj: "move this choice to the custom rules. full
@@ -8142,12 +8280,15 @@ window.CardFace = {};
     { key:'basics',      duel:true, label:'Game mode',
       mode:[{v:'full',label:'Full game'},{v:'basics',label:'Basics'}],
       note:'“Full game” is the whole thing, J/Q/K Rides &amp; Form Changes included. “Basics” drops the transform layer for a clean 3–10 + A + 2 game — the way to learn the ladder, effects and energy first.' },
-    { key:'lossAll',     mp:true,  label:'Special fights destroy a shield for each rival',
-      note:'Normally the winner picks one rival to strike.' },
-    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile',
-      note:'Normally only the rival whose shield you strike does.' },
-    { key:'shieldScale', mp:true,  label:'Shields scale with the table (2 + players)',
-      note:'Normally 4 shields at every player count.' },
+    { key:'strikeOne',   mp:true,  label:'A Special win strikes only one rival',
+      note:'Normally a Special win costs every rival a shield. With this on, the winner picks one rival to strike — the rule before v1.36. Leyline, Holy Shroud and the attack cards still cover every rival.' },
+    /* INERT UNLESS `strikeOne` IS ON (v1.36.0): with every loser struck, every struck loser already mills, so
+     * "all losers" and "struck losers" are the same seats. `needsAny` makes it dead and self-clearing, the
+     * `chopStrips` precedent, so it can never mark a game as customised while doing nothing. */
+    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile', needsAny:['strikeOne'],
+      note:'Only matters with “strikes only one rival” on: by default every loser is struck, and every struck loser already does.' },
+    { key:'flatShields', mp:true,  label:'Shields do not scale with the table',
+      note:'Normally everyone starts with 2 + players shields (4 in a duel, 8 at six). With this on, 4 at every player count.' },
     { key:'flatDraw',    mp:true,  label:'Draw does not scale with the table',
       note:'Every round draws a flat 2 cards instead of one per player.' },
     /* The first two toggles that change a DUEL. Measured 2026-08-26 (PATCHNOTES 0m) and each carries a real
@@ -8265,7 +8406,7 @@ window.CardFace = {};
     /* "The game", not "Game mode" — the single rule inside it is already called Game mode, and a heading that
      * repeats its only row is just noise. */
     { key:'mode',   title:'The game',       keys:['basics'] },
-    { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
+    { key:'table',  title:'Table rules',    keys:['strikeOne','millAll','flatShields','flatDraw'] },
     /* THE PRESET LINE LEADS FROM HERE (2026-08-30), not from Shapes. It moved because the presets now set a
      * rule in THIS section: with the 2 playing in chains by default, Tiến lên and Dou Dizhu have to switch
      * `noSeqTwos` ON to bar it. A preset line must precede every group it governs — below one of them it reads
@@ -8358,6 +8499,14 @@ window.CardFace = {};
      * because the DEFAULT moved. An old peer and a new one will therefore play the 2 differently unless one of
      * them says so explicitly, which is what the build-version handshake (v1.31.21) exists to warn about. */
     if(want.seqTwos){ want.highTwos=1; }
+    /* MIGRATION (v1.36.0): `lossAll` and `shieldScale` turned ON what is now the default, so a key carrying them
+     * means nothing extra and they are dropped. `millAll` only acts beside `strikeOne`, so without it it is
+     * dropped too — a stale key must not carry an inert rule that marks the game customised. The other half
+     * cannot be migrated and is not: a key that OMITS `lossAll` meant the winner's pick and now means every
+     * rival, because the DEFAULT moved (the `seqTwos` note above). Migrating it would keep every existing player
+     * on the old rule for good. Over the wire none of this arises: v1.36 refuses a v1.35 peer. */
+    delete want.lossAll; delete want.shieldScale;
+    if(!want.strikeOne) delete want.millAll;
     RULE_DEFS.forEach(function(d){
       if(d.mode){
         var v=modes[d.key], ok=d.mode.some(function(m){ return m.v===v; });
@@ -8375,9 +8524,14 @@ window.CardFace = {};
     applyRules();
   }
   function applyRules(){
-    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.lossAll ? 'all' : 'chosen');
+    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.strikeOne ? 'chosen' : 'all');   // NOTE the inversion (v1.36.0)
     if(E.setMillScope)       E.setMillScope(RULES.millAll ? 'universal' : 'targeted');
-    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!!RULES.shieldScale);
+    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!RULES.flatShields);   // NOTE the inversion (v1.36.0)
+    /* No row turns these off: they change what Leyline, Holy Shroud, Sanctuary-under-Apollo, Critical Hit and
+     * Ultima Attack DO, and the cards print it. Set every game start anyway, so the page never depends on
+     * whatever a debug hook or an earlier game left in the engine. */
+    if(E.setWardAll)   E.setWardAll(true);
+    if(E.setDamageAll) E.setDamageAll(true);
     if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
       if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
@@ -8790,7 +8944,7 @@ window.CardFace = {};
        and `mptest` asserts every one of them has a row rather than trusting this list. */
     if(k==='onWin') keys=['destroyShield'];                                // Armor Piercing just reads as a Shield−
     else if(k==='equip'){                                                  // by what the equipment DOES:
-      keys = eff.absorb ? ['shieldImmune']                                 // Holy Shroud = shield protection
+      keys = eff.quickAbility ? ['shieldImmune']                           // Holy Shroud = shield protection (a Quick ability since v1.35.2.2)
            : eff.delta ? ['equipUp','valueBoost']                          // Holy Bow / Hero's Sword = gear (equip) + sword+ (raises you)
            : eff.oppDelta ? ['equipUp','valueReduce']                      // Cursed Pendant etc = TWO chips: gear (equip) + sword− (reduces them)
            : ['equipUp'];
@@ -9102,8 +9256,11 @@ window.CardFace = {};
     var net=(typeof NET!=='undefined' && NET.active && NET.active());
     /* v2.1-mp: the RULE SET is recorded. Without it a homebrew game silently poisons PLAYER-PROFILE.md's
      * ingestion log — a weird statistic becomes indistinguishable from a weird ruleset — and that is exactly the
-     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down. */
-    var rec={ v:'2.1-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
+     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down.
+     * v2.2-mp (v1.36.0): no new field, a moved MEANING — an empty `rules` key is now the loss=all package (every
+     * rival struck, shields 2+N, the shared ward), where before it was the winner's pick. Bumped so a reader of
+     * an old file and a new one cannot read the same '' as the same game. */
+    var rec={ v:'2.2-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
       numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
       winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
@@ -9167,7 +9324,7 @@ window.CardFace = {};
     var eff='';
     if(d>0)                         eff=owner+' highest +'+d+' each fight';
     else if(od<0)                   eff=foe+' highest '+od+' each fight';
-    else if(e.absorb)               eff='Absorbs '+(mine?'your':"the Rival's")+' next shield loss';
+    else if(e.quickAbility)         eff='Quick: remove a counter — no player loses a shield this round';   // Holy Shroud's ability (v1.35.2.2)
     else if(e.ability==='draw')     eff=(mine?'You':(typeof seat==='number'?logName(seat):'Rival'))+' can spend a counter to draw';
     else if(e.protect==='special')  eff='No shield loss on '+(mine?'your':"the Rival's")+' Special';
     return { good:mine, eff:eff };
@@ -9345,11 +9502,16 @@ window.CardFace = {};
        not designing a new one.** Targeting and the spent ghost are untouched — neither is a state you browse. */
     box.innerHTML='<div class="eqName">'+(e.name||'Equipment')+'</div>'+
       (info.eff?'<div class="eqEff">'+info.eff+'</div>':'')+
-      (opts.ghost?'<div class="eqCtr eqGone">◇ gone</div>':'<div class="eqCtr">◆ <b>'+Math.max(0,e.counters)+'</b></div>');   // one diamond + the count, not a row of pips
+      (opts.ghost?'<div class="eqCtr eqGone">◇ gone</div>':'<div class="eqCtr">◆ <b>'+Math.max(0,e.counters)+'</b></div>')+   // one diamond + the count, not a row of pips
+      ((opts.own && !opts.ghost && abilityUsable(e)) ? '<button class="eqUse" type="button" title="Remove a counter: no player can lose a shield this round">⚡ Use</button>' : '');
     var open=!!(opts.open && e.card && !opts.ghost && !targeting);
     if(open) box.classList.add('eqOpen');
     box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s')+(open?'':' — tap to expand'));
     if(!opts.ghost){
+      /* THE QUICK ABILITY'S BUTTON (v1.35.2.2). Its own control rather than the box's tap, because the box's tap already
+         means read / expand / target; a button that is only there when the ability is usable is also its affordance. */
+      var useB=box.querySelector('.eqUse');
+      if(useB){ box.classList.add('eqUsable'); (function(id){ useB.addEventListener('click', function(ev){ ev.stopPropagation(); useOwnAbility(id); }); })(eqKeyOf(e)); }
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
       if(targeting && targeting.protect){                      // Annoint in answer: only YOUR Equipment that `respondChoices` names (piece 5)
         if(opts.own && targeting.equip.indexOf(e.id)>=0){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(ev){ ev.stopPropagation(); stageProtect(id); }); })(e.id); }
@@ -10560,6 +10722,66 @@ window.CardFace = {};
   }
   function hideTip(){ if(_tipEl) _tipEl.classList.remove('show'); }
   document.addEventListener('click', function(){ hideTip(); }, false);   // any other click dismisses it (button handlers stopPropagation)
+  /* HOLY SHROUD'S QUICK ABILITY, FROM YOUR BOARD (v1.35.2.2; Aj, 2026-10-22: *"So you can decide when to take the counter
+     off and protect the table"*). Usable where a Quick from your hand is: in a window that is yours once you press Yes
+     (`answerLive`), or on your own turn in the Main Sub-Phase with nothing pending. The engine re-checks both
+     (`E.useAbility`), and a client sends `op:'ability'` for the host to apply — the host is the authority. */
+  function eqKeyOf(e){ return e.card ? e.card.id : e.id; }
+  function abilityProactiveOk(){
+    return !!(state && !state.finished && state.turn===YOU && state.respondFor==null && state.subPhase!=='play' && !state.discardPending &&
+              !state.pendingLossChoice && !busy && !castHolding() && !pick && !targeting && !targetPick && !peeking && !ceremonyBlocks() && !answering);
+  }
+  /* WHAT YOUR ANSWER IS, IN WORDS (v1.35.2.5). A window can be yours on an Equipment's Quick ability alone, and then
+     "Play a Quick" points at a hand with nothing castable in it while the thing that glows is the Shroud on the board.
+     So the Respond? box and the answering hint both ask this: your abilities by their Equipment's name, the hand only
+     when something in it is castable. */
+  function answerParts(){
+    var ab=(state && E.equipAbilities) ? E.equipAbilities(state, YOU) : [], names=[];
+    ab.forEach(function(a){ if(names.indexOf(a.name)<0) names.push(a.name); });
+    return { gear:names.join(' or '), cards:!names.length || eligibleQuicks().length>0 };
+  }
+  function answerPhrase(capital){   // the box: "Play a Quick" / "Use your Holy Shroud" / "Play a Quick or use your Holy Shroud"
+    var a=answerParts(), s=!a.gear ? 'play a Quick' : (a.cards ? 'play a Quick or use your '+a.gear : 'use your '+a.gear);
+    return capital ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+  }
+  function answeringHint(){         // the board after Yes, where the hand glows and the Equipment carries ⚡ Use
+    var a=answerParts(), use=a.gear ? 'tap ⚡ Use on your '+a.gear : '';
+    return !use ? 'cast a glowing card' : (a.cards ? 'cast a glowing card or '+use : use);
+  }
+  function abilityUsable(e){
+    if(!state || !e || !e.quickAbility || !(e.counters>0) || !E.equipAbilities) return false;
+    var mine=E.equipAbilities(state, YOU).some(function(a){ return a.id===eqKeyOf(e); });
+    return mine && (answerLive() || abilityProactiveOk());
+  }
+  function useOwnAbility(eqId){
+    if(!state) return;
+    var inWin=answerLive(), rec=inWin ? answering : null;
+    if(!inWin && !abilityProactiveOk()) return;
+    var e=state.players[YOU].equipment.filter(function(x){ return eqKeyOf(x)===eqId; })[0], nm=(e&&e.name)||'Holy Shroud';
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){
+      if(rec){ answering=null; lastAnswer={ g:rec.g, cont:rec.cont, prioGen:(state && state.prioGen)||0 }; endAnswerUI(); }
+      prioNote('  → you USED ' + nm + ' — sent to the host');
+      NET.clientSend({op:'ability', eq:eqId}); busy=true; render(); return;
+    }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host… wait for the game to start.'); return; }
+    var r=E.useAbility(state, YOU, eqId);
+    if(!r || r.ok===false){ setMessage((r && r.reason) || 'That cannot be used now.'); render(); return; }
+    if(rec){ answering=null; endAnswerUI(); }
+    hideOverlay();
+    var card=r.ability && r.ability.card;
+    if(card){ flashArt(card, 'You'); quickFlash('You', nm, false); presentOwnCast(card); }
+    setMessage('You removed a <b>'+esc(nm)+'</b> counter — no player can lose a shield this round.');
+    sayAbility(YOU, nm, 'you');
+    prioNote('  → you USED ' + nm + (rec ? '' : '  (in your Main)'));
+    if(rec){ render(); return rec.cont(); }
+    settleWindows(gen, function(){                       // the table may answer it, like any cast — and a host hands its board back
+      if(state.finished){ render(); return endGame(); }
+      if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
+      render();
+    });
+  }
+  // ONE LINE FOR EVERY SEAT'S USE — the effect is the subject's object, past tense, so it agrees with "You" and a name alike
+  function sayAbility(seat, nm, cls){ say(seat, '{who} removed a '+esc(nm||'Holy Shroud')+' counter — no player can lose a shield this round.', cls||'rival'); }
   function useEquip(equipId){
     if(state.turn!==YOU||state.finished||busy||castHolding()||pick) return;
     var e=state.players[YOU].equipment.filter(function(x){return x.id===equipId;})[0];
@@ -11423,7 +11645,7 @@ window.CardFace = {};
         : choosing ? (aa.ok ? 'Press ⚡ Activate to confirm, or Clear to cancel.' : aa.reason)
         : (staged && selected[staged.cardId]) ? 'Staged — ⚡ Activate casts it, ✕ takes it back.'
         : one ? (aa.ok ? '⚡ Activate casts it in answer.' : aa.reason)
-        : 'Answering: cast a glowing card, or “'+declineLabel()+'”.';
+        : 'Answering: '+answeringHint()+', or “'+declineLabel()+'”.';
       hint.className='pick';
       if(actRow) actRow.setAttribute('data-live','1');
       return;
@@ -11704,7 +11926,10 @@ window.CardFace = {};
   }
   function cardById(id){ return state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; }
 
-  function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||eff.kind==='destroyShield'||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
+  /* CRITICAL HIT AND ULTIMA ATTACK PICK NO TARGET SINCE v1.36.0: "Every Rival loses 1 shield" (DAMAGE_ALL ships on),
+     so a tap on a rival would choose nothing — `hostileTargets` ignores it. They cast on the tap like any untargeted
+     card, a duel included, and still open the Broadway pitch pick when there is more than one card to pitch. */
+  function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||(eff.kind==='destroyShield'&&!E.isDamageAll())||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
   // Effects that pick a target before firing — the button reads "Choose target" and no energy is spent until a target is locked in.
   function effNeedsTarget(eff){ return eff && (eff.kind==='removeEquip' || eff.kind==='counterfeit' || isHostileSingular(eff)); }
   /* TARGETING IS NOW TWO STEPS (Aj: "always err on the side of confirming first"). Tapping a target used to
@@ -12267,6 +12492,9 @@ window.CardFace = {};
          copula rule. One card for every saved seat names it; otherwise the seats alone. */
       var sv=res.saved||[], svSeats=sv.map(function(x){ return x.seat; }),
           svBy=(sv.length && sv.every(function(x){ return x.by && x.by===sv[0].by; })) ? sv[0].by : null;
+      /* (v1.35.2.1 named whose Holy Shroud had absorbed a loss here — under the shared ward, yours could eat your own
+         strike. The Shroud is a Quick ability since v1.35.2.2, so a save is always a ward somebody CAST, and the cast
+         line already says who.) */
       if(svSeats.length && svBy){
         setMessage('🛡 <b>'+esc(svBy)+'</b> saved <b>'+svSeats.map(logName).join(' & ')+'</b>!');
         sayOnce(w, '{who} won with a '+spec+' - but '+esc(svBy)+' saved {foe}.', cls, svSeats);
@@ -12991,7 +13219,7 @@ window.CardFace = {};
           beats.push({ dwell:(reduceMotion()?300:1400), run:function(){
             var below=replayStack[replayStack.length-1];
             if(e.respCard) replayPush(e.respBy, e.respCard, { countered:isCounter, tgt:(isCounter && below) ? { effect:{ owner:below.p, name:(below.eff && below.eff.name) || 'that' } } : null });
-            noteAIAnswer(e.respBy, e.respName, isCounter, e.transition, e.round, e.pitched); cueAIAnswer(e.respBy, e.respName, isCounter, e.respCard); render(); } });
+            noteAIAnswer(e.respBy, e.respName, isCounter, e.transition, e.round, e.pitched, !!e.ability); cueAIAnswer(e.respBy, e.respName, isCounter, e.respCard); render(); } });
           if(!answered) chainResolves();
         }
       });
@@ -13133,7 +13361,10 @@ window.CardFace = {};
      NAME THE TIMING, NOT JUST THE CARD. "answered at instant speed" is right for a response to a cast and wrong
      at the Main → Fight transition, where nothing has been cast to answer — the old pre-fight path said "sprang X"
      for exactly that reason. Same family as the decline button reading "Let it resolve" where nothing resolves. */
-  function noteAIAnswer(q, name, countered, atTransition, roundAt, pitched){
+  function noteAIAnswer(q, name, countered, atTransition, roundAt, pitched, isAbility){
+    /* A QUICK ABILITY IS NOT A CAST (Holy Shroud, v1.35.2.2): it reads as the counter it spends, the line a player's own use
+       and a remote seat's both print (`sayAbility`). */
+    if(isAbility){ prioNote('  → ' + logName(q) + ' USED ' + name, null, roundAt); return sayAbility(q, name, 'rival'); }
     var pt=pitchTail({ pitched:pitched });
     prioNote('  → ' + logName(q) + ' CAST ' + name + (countered ? '  (a counter)' : '') + pt, null, roundAt);
     if(countered) say(q, '{who} countered with '+name+pt+'!', 'rival');
@@ -13189,7 +13420,7 @@ window.CardFace = {};
            DETAIL, so the line kept the UI's `r7` in front and carried the engine's round as a trailing `6`.
            `noteAIAnswer` passes it as `roundAt`. */
         noteAIAnswer(q, resp.respondName || resp.respondedWith, resp.countered, atTransition,
-                     (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round), resp.pitched);
+                     (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round), resp.pitched, !!resp.ability);
         lastResp=resp; lastQ=q;
       }
     }
@@ -13524,6 +13755,14 @@ window.CardFace = {};
       : (state.subPhase === 'main' ? 'prefight' : 'respond')))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
     var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
+    /* AND THE BOARD'S QUICK ABILITIES (Holy Shroud, v1.35.2.2). `canAddToStack` counts them, so the engine offers you this
+       window for a Shroud alone — and if only the HAND decided whether to stop, a player whose one answer is on the board
+       would be auto-passed past it. Same three modes: ON stops whenever one is usable, AUTO on its stake
+       (`E.abilityStakeFor`: you are struck, or a strike card is aimed at you), OFF never. */
+    var myAbs=(E.equipAbilities ? E.equipAbilities(state, YOU) : []);
+    var abStake=(myAbs.length && E.abilityStakeFor) ? E.abilityStakeFor(state, YOU, promptTiming) : null;
+    var abStop=!!myAbs.length && PROMPT_MODE!=='off' && (PROMPT_MODE==='on' || !!abStake);
+    var abNames=myAbs.map(function(a){ return a.name+' (ability)'; }).join(', ');
     /* THE THREE OUTCOMES, AND TWO OF THEM ARE INVISIBLE ON SCREEN. "You held nothing" and "you held
        something and your own preference said don't ask" are the same silence to a player, and they are
        completely different bugs — the second is what hid Sanctuary. Recorded with the CARD NAMES so a
@@ -13547,7 +13786,7 @@ window.CardFace = {};
        timing whose box is unticked, and the next reader has to rediscover `shieldSaveOverride` to explain
        it — the same "a diagnostic that cannot explain itself" cost the prompt ledger already paid once. */
     var saved=quicks.filter(function(c){ return !promptWanted(c, promptTiming) && shieldSaveOverride(c, promptTiming); });
-    if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat + (saved.length ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
+    if(quicks.length || abStop) prioNote('['+tName+'] window SHOWN to you' + onWhat + ((saved.length || abStake) ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + [feNames(eligible), abNames].filter(Boolean).join(', ') + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
     /* NAME THE MODE, because "PROMPT OFF" alone sends the next reader to the card reader for a row that is
        not what silenced them. In `off` the global toggle did it and no checkbox will explain it — and OFF
        can suppress a STAKE, which is the one auto-pass a reader must never have to guess at. */
@@ -13563,8 +13802,8 @@ window.CardFace = {};
     /* ⚠ `NO STAKE (AUTO)` WAS `PROMPT OFF` UNTIL 2026-10-20. That name came from the per-card checkboxes retired on
        2026-09-30, and Aj read a ledger full of it as his OFF setting when he was on AUTO. In AUTO this branch means one
        thing: the window was not shown because nothing was at stake for you. */
-    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'NO STAKE (AUTO)') + onWhat,
-      'you could have cast: ' + feNames(eligible) +
+    else if(eligible.length || myAbs.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'NO STAKE (AUTO)') + onWhat,
+      'you could have cast: ' + [feNames(eligible), abNames].filter(Boolean).join(', ') +
       (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (notifications → ON)'));
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
     /* A SUPPRESSED **STAKE** GETS A VISIBLE LINE, and only that (Aj, 2026-09-24: *"can we add to the logs
@@ -13587,7 +13826,9 @@ window.CardFace = {};
       var staked=eligible.filter(function(c){ return !!E.stakeFor(state, YOU, c, promptTiming); });
       if(staked.length) logMsg('🔕 Notifications are off — you passed on <b>'+esc(feNames(staked))+'</b> with a shield at stake.', 'dim');
     }
-    if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline', auto:true}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass, and `auto` is what stops the host narrating it as a choice
+    if(PROMPT_MODE==='off' && myAbs.length && E.abilityStakeFor && E.abilityStakeFor(state, YOU, promptTiming))
+      logMsg('🔕 Notifications are off — you passed on <b>'+esc(myAbs[0].name)+'</b>\u2019s ability with a shield at stake.', 'dim');
+    if(!quicks.length && !abStop){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline', auto:true}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass, and `auto` is what stops the host narrating it as a choice
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
@@ -13621,18 +13862,18 @@ window.CardFace = {};
          the table; naming its owner and what it is about to do is the honest version. */
       lead = '<p><b>'+esc(pend.name||'Equipment')+'</b> is about to lose a counter'
            + (typeof pend.p==='number' && pend.p!==YOU ? ' ('+logName(pend.p)+'\u2019s)' : '')
-           + '. Play a Quick in response, or let it happen.</p>';
+           + '. '+answerPhrase(true)+' in response, or let it happen.</p>';
     } else if (pend) {
       /* WHAT IT IS AIMED AT, when that is not a seat (ruling 25: *"card being cast + target"*): an Equipment, a Ride,
          another effect on the stack — `E.stackTargetOf`, the noun the board's stack caption uses, so the two agree. */
       var tgtPh=(!aimTxt && E.stackTargetOf) ? stackTargetPhrase(E.stackTargetOf(state, pend)) : '';
-      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+(tgtPh ? ' at '+tgtPh : '')+'. Play a Quick in response, or let it resolve.</p>';
+      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+(tgtPh ? ' at '+tgtPh : '')+'. '+answerPhrase(true)+' in response, or let it resolve.</p>';
     } else if (fe) {
       var feWho = (typeof fe.winner==='number') ? ('<b>'+logName(fe.winner)+'</b>') : 'The winner';
       var feType = '<b>'+((state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special')+'</b>';
       var hit = (fe.strikeTargets||[]);
       if (!fe.wonWithCombo || !hit.length) {
-        lead = '<p>'+feWho+' won the round with '+feType+' — no shield is lost. Last chance to play a Quick.</p>';
+        lead = '<p>'+feWho+' won the round with '+feType+' — no shield is lost. Last chance to '+answerPhrase()+'.</p>';
       } else if (hit.indexOf(YOU) >= 0) {
         /* AT ZERO SHIELDS THIS IS THE KICK, and that is the single most important thing the window can say —
            it is the difference between losing a shield and losing the game. `kicksLanded`/`noKick` are not
@@ -13640,14 +13881,14 @@ window.CardFace = {};
         var kick = (state.players[YOU] && state.players[YOU].shields <= 0);
         lead = kick
           ? ('<p>'+feWho+'’s '+feType+' is about to land the <b class="respAtYou">FIGHTER KICK</b> on <b class="respAtYou">YOU</b>. This is your last window.</p>')
-          : ('<p>'+feWho+'’s '+feType+' is about to strip one of <b class="respAtYou">YOUR</b> shields. Play a Quick, or pass.</p>');
+          : ('<p>'+feWho+'’s '+feType+' is about to strip one of <b class="respAtYou">YOUR</b> shields. '+answerPhrase(true)+', or pass.</p>');
       } else {
         var names = hit.map(function(sq){ return logName(sq); }).join(' and ');
-        lead = '<p>'+feWho+'’s '+feType+' is about to strip <b>'+names+'</b>’s shield. Play a Quick, or pass.</p>'
+        lead = '<p>'+feWho+'’s '+feType+' is about to strip <b>'+names+'</b>’s shield. '+answerPhrase(true)+', or pass.</p>'
              + '<p class="respNotYou">You are not struck this round — a Quick here only helps '+names+'.</p>';
       }
     } else {
-      lead = '<p>You have priority. Play a Quick, or pass.</p>';
+      lead = '<p>You have priority. '+answerPhrase(true)+', or pass.</p>';
     }
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
@@ -15126,7 +15367,7 @@ window.CardFace = {};
          beats a pair of 8s in this hand, and an enabled button that cannot advance the step is a dead end. */
       { text:"Nothing in your hand beats a pair of <b>8s</b> — so <b>pass</b>. Passing is how a round <i>ends</i>: once nobody wants the lead, the fight resolves.",
         only:function(){ return []; }, hi:'#passBtn', gate:function(t){ return t==='pass'; }, wait:"Pass the round…" },
-      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Press <b>Yes</b>, tap your glowing <b>Leyline Ascension</b>, and press <b>⚡ Activate</b>: <i>you can’t lose this round.</i>",
+      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Press <b>Yes</b>, tap your glowing <b>Leyline Ascension</b>, and press <b>⚡ Activate</b>: <i>no player can lose a shield this round.</i>",
         answers:function(){ return tutPhLey ? [tutPhLey] : null; }, answersHint:'This step wants Leyline Ascension.', coach:'answer',
         hi:function(){ return tutPhLey ? ['#hand .card[data-id="'+tutPhLey+'"]','#ctxBtn'] : ['#hand']; },
         gate:function(t){ return t==='respond'; }, wait:"Spring Leyline Ascension…" },
@@ -15773,6 +16014,9 @@ window.CardFace = {};
       '<li><b>Archetype effects:</b> each suit is a class — <b>♦ Wizard</b>, <b>♥ Cleric</b>, <b>♣ Fighter</b>, <b>♠ Rogue</b> — and every card carries that class’s effect. Tap a card’s chip to <b>Activate</b> it (cost = the card’s number; some pips must be its own suit). Hover/tap any card to read it in the side panel. A <b>⏩</b> badge marks a <b>Quick</b> — playable in response, even on the Rival’s turn.</li>'+
       '<li><b>Equipment</b> stays on the table and keeps working while equipped — it shifts your (or the Rival’s) fight <b>value</b> up or down every fight, <i>including the one already on the table</i>. The chips above your hand show what’s modifying your plays right now, and from where.</li>'+
       '<li>Each round both fighters <b>draw 2</b>. Ending a round with an empty hand is fine — you only <b>deck out</b> (and lose) if you ever have to <b>draw when both your deck and shuffle pile are empty</b>.</li>'+
+      /* THE ONE LINE FOR A FULL TABLE (v1.36.0, Aj approved the wording). This page states duel rules, and they stay
+         as they are: true in a duel. */
+      '<li><b>At 3–6 players:</b> everyone starts with <b>2 + players</b> shields, a Special win strikes <b>every</b> rival, and every player draws one card per player each round.</li>'+
       '<li><b>Play hints (💡, top bar):</b> off by default. Turn them on and cards you <b>can’t</b> play right now dim out; a <b>dashed</b> group means "break me — a card inside can beat the pile." The <b>Sort</b> button also cycles Singles → Pairs → Straights to line up your combos.</li>'+
       '</ul>'+
 
@@ -16774,6 +17018,8 @@ window.CardFace = {};
            `resolutionGuardCard` is the AI's own policy, self-gated on the window, so this cannot answer an
            ordinary Counter-a-Counter chain by burning a guard. */
         if(k==='respond'){
+          var pa=AI.guardAbility ? AI.guardAbility(hostState, seat) : null;   // a Holy Shroud on the board first, as the AI does (v1.35.2.2)
+          if(pa) return hostApplyMoveN(seat, {op:'ability', eq:pa});
           var pg=AI.resolutionGuardCard(hostState, seat);
           return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline', auto:true});   // Passo answers FOR a dropped seat — never narrate it as their choice
         }
@@ -16805,6 +17051,8 @@ window.CardFace = {};
       if(!MP() && seat===1){
         if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
         if(netSettle){                                                                   // the Fight End go-round reaches a duel here — defend, exactly as the N-player branch above does
+          var da=AI.guardAbility ? AI.guardAbility(hostState, 1) : null;      // Holy Shroud first, as the N-player branch above
+          if(da) return hostApplyMove({op:'ability', eq:da});
           var dg=AI.resolutionGuardCard(hostState, 1);
           return hostApplyMove(dg ? {op:'respond', id:dg.id} : {op:'decline', auto:true});   // same as the N-player branch above
         }
@@ -17816,7 +18064,17 @@ window.CardFace = {};
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
-      if(it.op==='respond' || it.op==='decline'){
+      /* HOLY SHROUD'S QUICK ABILITY FROM THE REMOTE SEAT (v1.35.2.2). On its own turn with nothing open it is a proactive
+         use, settled like an `activate`; inside a window it is an ANSWER, and falls through to the window branch below,
+         which owns the park, the held-answer rule and the grant stamp. */
+      if(it.op==='ability' && !netSettle && hostState.respondFor==null){
+        try{ r=E.useAbility(hostState, 1, it.eq); }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
+        if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
+        sayAbility(1, r && r.ability && r.ability.name, 'rival');
+        if(r && r.ability && r.ability.card) fxBroadcast(1, r.ability.card);
+        return hostSettle(g, function(){ hostRivalContinue(g); });
+      }
+      if(it.op==='respond' || it.op==='decline' || it.op==='ability'){
         var curPg=hostState.prioGen||0;
         if(!netSettle){                                         // not parked on it yet — see `heldAnswer`
           if(it.pg!=null && it.pg===curPg && hostState.respondFor===1){ heldAnswer={ it:it, pg:curPg }; trace('answer HELD — its window is not parked yet', 'op='+it.op+' prioGen='+curPg); }
@@ -17829,6 +18087,8 @@ window.CardFace = {};
         if(it.pg!=null && it.pg!==curPg){ trace('answer DROPPED — it was for an earlier grant', 'op='+it.op+' pg='+it.pg+' prioGen='+curPg); return; }
         try{
           if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+pitchTail(r)+'.', 'rival'); if(qc) fxBroadcast(1, qc); }   // the host announces the answer (drag-and-stack step 3)
+          else if(it.op==='ability'){ r=E.useAbility(hostState, 1, it.eq); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
+            sayAbility(1, r && r.ability && r.ability.name, 'rival'); if(r && r.ability && r.ability.card) fxBroadcast(1, r.ability.card); }
           else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
@@ -18223,7 +18483,7 @@ window.CardFace = {};
         var nrl=netReact; netReact=null; return nrl.cont(lr);
       }
       // ---- REACTIVE ops: valid only for the seat whose reactive window is parked (which may NOT be its turn) ----
-      if(it.op==='respond'||it.op==='decline'||it.op==='discard'){   // `guard`/`guardPass` went with the window (step 19)
+      if(it.op==='respond'||it.op==='decline'||it.op==='discard'||(it.op==='ability' && (hostState.respondFor!=null || (netReact && netReact.seat===seat)))){   // `guard`/`guardPass` went with the window (step 19); an ability IN a window is an answer (v1.35.2.2)
         /* SAY WHY IT WAS IGNORED. This return is correct for a duplicate and FATAL when the window really is
          * open — and until now it could not tell you which had happened. Aj's host trace ends on
          * `move IN … op=discard` with nothing after it, which is exactly what this line looks like from
@@ -18243,6 +18503,9 @@ window.CardFace = {};
         if(it.op!=='discard' && it.pg!=null && it.pg!==curPgN){ trace('answer DROPPED — it was for an earlier grant', 'seat '+seat+' op='+it.op+' pg='+it.pg+' prioGen='+curPgN); return; }
         try{
           if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+seat)%hostState.numPlayers : (it.target||null))}); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed'+pitchTail(rr)+'.')), 'rival'); if(qc) fxBroadcast(seat, qc); }
+          else if(it.op==='ability'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=ability but the open window is '+netReact.kind); return; }
+            var abr=E.useAbility(hostState, seat, it.eq); if(abr && abr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:abr.reason||'Illegal move.'}); broadcastMirror(); return; }
+            sayAbility(seat, abr && abr.ability && abr.ability.name, 'rival'); if(abr && abr.ability && abr.ability.card) fxBroadcast(seat, abr.ability.card); }
           else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat);
             /* AN AUTO-PASS IS NOT A CHOICE (2026-09-23). A client whose prompt for this timing is off answers
                with the SAME `{op:'decline'}` a player clicking "Let it resolve" sends, so the host narrated
@@ -18308,6 +18571,11 @@ window.CardFace = {};
           if(it.copyId) sayCounterfeit(seat, hostState, it.copyId, 'rival');
           fxBroadcast(seat, ac);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
+        } else if(it.op==='ability'){   // Holy Shroud's ability on the seat's own turn (v1.35.2.2) — `driveN` below settles the go-round it opens
+          r=E.useAbility(hostState, seat, it.eq);
+          if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
+          sayAbility(seat, r && r.ability && r.ability.name, 'rival');
+          if(r && r.ability && r.ability.card) fxBroadcast(seat, r.ability.card);
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
       netParked=null;
@@ -18493,7 +18761,7 @@ window.CardFace = {};
     // Test-only (behind ?dbg=1): overwrite both hands on the host and resync, to stage a deterministic scenario.
     function dbgForce(hh, rh, he, re, hs, rs){ if(!hostState) return false; hostState.players[0].hand=hh.slice(); hostState.players[1].hand=rh.slice(); if(he) hostState.players[0].energy=he.slice(); if(re) hostState.players[1].energy=re.slice(); if(hs!=null) hostState.players[0].shields=hs; if(rs!=null) hostState.players[1].shields=rs; busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
     function dbgForceAll(hands, energies, shields, opts){ if(!hostState) return false; for(var s=0;s<hostState.numPlayers;s++){ if(hands&&hands[s]) hostState.players[s].hand=hands[s].slice(); if(energies&&energies[s]) hostState.players[s].energy=energies[s].slice(); if(shields&&shields[s]!=null) hostState.players[s].shields=shields[s]; if(opts&&opts.forms&&opts.forms[s]) hostState.players[s].forms=opts.forms[s].map(function(f){ return { rank:f.rank, suit:f.suit, tier:f.tier||'queen', name:f.name||'', card:{ rank:f.rank, suit:f.suit, id:'form'+f.rank+f.suit+'#'+s } }; });
-        if(opts&&opts.equip&&opts.equip[s]) hostState.players[s].equipment=opts.equip[s].map(function(e){ return { id:e.id||'dbg', name:e.name||'Equipment', delta:e.delta||0, oppDelta:e.oppDelta||0, counters:e.counters!=null?e.counters:3, decay:true, card:{ rank:e.rank, suit:e.suit, id:'eq'+e.rank+e.suit+'#'+s } }; });
+        if(opts&&opts.equip&&opts.equip[s]) hostState.players[s].equipment=opts.equip[s].map(function(e){ return { id:e.id||'dbg', name:e.name||'Equipment', delta:e.delta||0, oppDelta:e.oppDelta||0, counters:e.counters!=null?e.counters:3, decay:e.decay!==false, quickAbility:e.quickAbility||null, card:{ rank:e.rank, suit:e.suit, id:'eq'+e.rank+e.suit+'#'+s } }; });   // quickAbility: Holy Shroud (v1.35.2.2)
         if(opts&&opts.deck&&opts.deck[s]) hostState.players[s].deck=opts.deck[s].slice(); if(opts&&opts.shuffle&&opts.shuffle[s]) hostState.players[s].shuffle=opts.shuffle[s].slice();
         if(opts&&opts.shieldPile&&opts.shieldPile[s]){ hostState.players[s].shieldPile=opts.shieldPile[s].slice(); hostState.players[s].shields=opts.shieldPile[s].length; }   // the LAST card is the one a broken shield returns to hand (`nettest_strip`)
         } if(opts){ if(opts.round!=null) hostState.round=opts.round; if(opts.turn!=null){ hostState.turn=opts.turn; hostState.initiative=opts.turn; hostState.pile=null; hostState.passes=0; hostState.lastPlayer=null; hostState.preFightHandled=false; for(var q=0;q<hostState.numPlayers;q++){ hostState.players[q].lockSkip=false; hostState.players[q].lockRound=false; } } } busy=(hostState.turn!==YOU); render(); broadcastMirror(); return true; }
@@ -18665,7 +18933,7 @@ window.CardFace = {};
      * the stamp check already exempts (v1.31.57), for the same reason. */
     /* A WINDOW ANSWER NAMES THE GRANT IT ANSWERS (`pg`, 2026-10-07) — the `prioGen` this seat's mirror showed,
        so the host can hold an answer that beat its park and drop one meant for an earlier grant (`heldAnswer`). */
-    function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline') && it.pg==null && state) it.pg=state.prioGen||0;
+    function clientSend(it){ if(it && (it.op==='respond' || it.op==='decline' || it.op==='ability') && it.pg==null && state) it.pg=state.prioGen||0;
       trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')+(it&&it.pg!=null?' pg='+it.pg:'')+(it&&it.coid?' coid='+it.coid:''));   /* a counter's target, so a saved log says what it aimed at */ if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)

@@ -15,6 +15,67 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.36.0 — the loss=all package is the default, duels included
+
+**What you'll see at 3–6 players:** a Special win strikes **every** rival instead of one the winner picks; everyone
+starts with **2 + players** shields (5 / 6 / 7 / 8); Critical Hit and Ultima Attack hit every rival and no longer ask
+for a target. Games run about **11 / 13 / 15 / 17** rounds at 3 / 4 / 5 / 6 players, against 14 / 20 / 26 / 31.
+
+**What you'll see in a duel:** the three cards that protect shields now protect **everyone**. Leyline Ascension means
+nobody loses a shield that round, your own Special wins included; Sanctuary under Apollo locks every player's
+shields. Critical Hit and Ultima Attack cast on the tap, without the target tap.
+
+**Holy Shroud is a Quick ability on the Equipment** (Aj, the same day: *"So you can decide when to take the counter off
+and protect the table. Especially if you were the one winning the round"*). It no longer absorbs anything by itself:
+its owner presses **⚡ Use** on the Shroud — in a window that is theirs after Yes, or in their own Main — the counter
+comes off, and the table gets Leyline's ward for the round. AUTO stops you for it when you are struck or a strike card
+is aimed at you, even with nothing castable in hand. It cannot be countered (it is not a Technique).
+
+**Why:** Aj chose the package on 2026-10-22 after `DECISIONS.md#loss-all-remeasured`: it is the first `loss=all`
+measured tighter than the shipped game at every table size from 3 to 6 (spread 8.3 / 9.9 / 10.8 / 9.9 against
+15.1 / 17.4 / 15.0 / 12.5, knight self-play). It applies to duels too because Aj would not print two wordings of one
+card: *"i do not want to print different wordings for the same card when the game changes from duel to multi"*.
+The duel cost was measured with it (about 1 duel in 18 flips; Pure Wizard about −3, the attack decks about +2).
+
+**The card text, one wording at every table size:** Leyline Ascension *"No player can lose a shield this round — and no
+one at 0 shields can take the Fighter Kick."* · Holy Shroud *"Quick ability — remove 1 counter from Holy Shroud: no
+player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your
+Energy."* · Critical
+Hit and Ultima Attack *"… Every Rival loses 1 shield."* · Ares Mode on Ultima *"Every Rival loses 1 additional shield
+(2 total)."* · Apollo Mode on Sanctuary *"…and no player can lose a shield until end of round."*
+
+**Custom rules:** the old rules stay as rows phrased as negatives, so every row still defaults off — *"A Special win
+strikes only one rival"* (`strikeOne`, which keeps the winner's pick) and *"Shields do not scale with the table"*
+(`flatShields`). *"All round losers send cards to their Energy Pile"* does nothing unless `strikeOne` is on. The
+shared ward and the every-rival attack cards have no row, because the cards print what they do. A saved rule set
+from before drops `lossAll`, `shieldScale` and a lone `millAll`.
+
+**Also:** a Shroud's use reads *"You removed a Holy Shroud counter — no player can lose a shield this round."* on every
+seat, a netplay client sends it as its own intent (`op:'ability'`), and Passo uses a dropped player's Shroud. How to play gains a line for 3–6 players. The
+playtest export moves to schema `2.2-mp`, because an empty rules key now means the package. A v1.36 build refuses a
+v1.35 peer online. Every sim that called `'chosen'` the live game now states the package (`rulesim` keeps its old
+rows, relabelled v1.35; `flagpair`'s `base` arm is v1.35, with a new `shipped` alias). The inventory behind all of
+this is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md).
+
+**The AI stops protecting rivals** (v1.35.2.3, Aj's "no" from 2026-10-09): Counter Spell and Annoint answer only a
+threat aimed at the AI itself. Measured before shipping, with no harm and a small lean in its favour
+([`DECISIONS.md#ai-no-aid`](DECISIONS.md#ai-no-aid)). The AI uses a Holy Shroud only to guard, on Leyline's rule (two
+shields or fewer).
+
+**Holy Shroud on a phone** (v1.35.2.5): ⚡ Use is a 44px thumb target in portrait and landscape, the landscape chip keeps
+the Shroud's name when you can use it, and the Respond? box and the answering hint name the Shroud (*"Use your Holy
+Shroud, or pass."*) instead of pointing at a hand with nothing castable in it.
+
+**Two Form texts name the table** (v1.35.2.4): Spiked Armor under Meleager reads *"Every Rival's highest card each fight
+drops 1 further (to −3)."*, which is what it always did, and Poison the Air under Pandora reads *"Only Target Rival's
+Energy Pile moves to their Shuffle Pile — yours stays."*
+
+**Measured as built** (v1.35.2.4, [`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)): the spread is 11.3 /
+11.2 / 11.1 / 10.1 at 3 / 4 / 5 / 6 players against v1.35's 14.1 / 17.7 / 15.0 / 12.2 on the same deals. The
+Shroud ability made Pure Cleric about 2.5 points stronger at three players and games one to two rounds longer at
+four to six; the AI personas within each tier still differ in style, not strength, and six-player deck-outs all
+but disappear.
+
 ### v1.35.2 — seven template functions nothing called are deleted
 
 **What you'll see:** nothing; the page is about 800 bytes smaller.

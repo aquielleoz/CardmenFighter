@@ -26,6 +26,10 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
+  /* THE WINNER'S PICK IS A CUSTOM RULE SINCE v1.36.0 (`strikeOne`): by default a Special win strikes every rival,
+     so nothing is picked. Saved before any page loads, so the host starts the game under it like a player who
+     ticked the row; the clients take it from the host over the wire. */
+  await ctx.addInitScript(()=>{ try{ localStorage.setItem('cmf_rules_v1','strikeOne'); }catch(e){} });
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));
   const c2=await ctx.newPage(); c2.on('pageerror',e=>errs.push('c2: '+e.message));

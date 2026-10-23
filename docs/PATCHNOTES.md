@@ -10,6 +10,20 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0p. v1.36.0: the `loss=all` package is the default, duels included. (2026-10-22)
+
+Every rival struck by a Special win, shields 2 + players, the shared ward (Leyline, Holy Shroud and Apollo's
+Sanctuary protect every player) and Critical Hit / Ultima Attack on every rival. It is 0j's reverted package with
+the two halves that fix it: 0n's ward, and the every-rival damage that 0n had closed and the 2026-10-21 re-measure
+reopened once the ward is in place. Knight self-play, `flagpair` paired: spread **8.3 / 9.9 / 10.8 / 9.9** at
+3 / 4 / 5 / 6 players against the old **15.1 / 17.4 / 15.0 / 12.5**, median rounds **11 / 12 / 14 / 15** against
+14 / 20 / 26 / 31. Re-measured as built (Holy Shroud a Quick ability, the AI's `noAid`): spread **11.3 / 11.2 / 11.1 /
+10.1** against v1.35's 14.1 / 17.7 / 15.0 / 12.2 on the same deals, median rounds **11 / 13 / 15 / 17**
+([`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)). Its costs, the duel effect of the ward (about 1 duel in 18 flips) and what it does not settle
+(the AI was tuned on the winner's pick; human play) are in [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured).
+**The durable learning:** a rule that multiplies a class's intended weakness is fixed at the rules level (0n), and
+the fix here was to share the protection and scale the attack, not to move either between classes.
+
 ### 0j. POST-MORTEM: v1.31.0 shipped a balance regression, and a harness bug is why. (2026-08-25)
 **Reverted in v1.31.2.** This is the most expensive mistake in the project's history so far — it shipped to
 `main`, Aj played an evening on it, and the study that cleared it was incapable of detecting the problem.

@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**750**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**767**) + `node netview.test.js` (**74**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,16 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.35.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.36.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.35.2**. `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.36.0**. `epic/loss-all-default` landed as v1.36.0 (2026-10-23): the `loss=all` package is the default for
+every game, duels included; its inventory is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md) and its measurements are
+[`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured). `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -118,30 +120,11 @@ re-read its tag.
 
 ### Open — in priority order
 
-*Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
+*Nothing is open. `epic/loss-all-default` closed game length and landed as v1.36.0 (2026-10-23), with its follow-ups
+shipped inside it (the AI's `noAid`, the Form texts, Holy Shroud on a phone) and its numbers re-taken
+([`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)). Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
-fixed v1.33.16 on the way). **The first entry is the next job.***
-
-- `needs a decision` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
-  corners.**
-  **MEASURED 2026-10-21, SO WHAT IS LEFT IS AJ'S CHOICE.** Every candidate below now has a balance run beside its
-  length, in [`DECISIONS.md#loss-all-remeasured`](DECISIONS.md#loss-all-remeasured). Shields scaling down hits
-  the length (20 rounds at six) and widens the 4- and 6-player spread. `loss=all` with the shared ward,
-  Critical Hit and Ultima Attack on every rival, and shields 2+N lands at 11 / 12 / 14 / 15 rounds (3 to 6
-  players) with a tighter spread than the shipped game. Its costs are in that entry: Pure Fighter and Paladin
-  at six, the ward changing duels, and two engine switches that have no Custom rules row. Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
-  measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
-  [`DECISIONS.md`](DECISIONS.md#game-length).
-  **What is actually open:** design something that lands at **~15–18 rounds** at six players — e.g. a Special
-  win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS` scaling **down** with
-  player count (the promising re-land direction, PATCHNOTES 0k). Worth a small committed harness for
-  median/mean/max rounds by player count, since the original numbers came from a one-off.
-  **DECK CYCLING IS MEASURED NOW** ([`DECISIONS.md#deck-cycling`](DECISIONS.md#deck-cycling), 2026-10-06), and
-  `recyclesim.js` is the committed harness this entry asked for: it prints median and max rounds by player
-  count beside the cycling figures, so a length experiment can read both from one run. Current lengths are
-  **11 / 14 / 20 / 31** at 2 / 3 / 4 / 6 players. Thinning does not move them, so it is not the lever, but
-  any length change moves how many times a deck cycles, so re-run it alongside one.
-  `[id: game-length-scales-player]`
+fixed v1.33.16 on the way). Everything left is parked below, each entry saying what revives it.*
 
 ### Parked — each entry says what revives it
 
@@ -607,22 +590,6 @@ fixed v1.33.16 on the way). **The first entry is the next job.***
   default OFF, so naming them teaches a window nobody sees). Step 3 now says crossing the doorway offers
   everyone a chance to act, and `lessontest_phases` asserts it against the LEDGER.
   `[id: go-round-lesson]`
-
-- `parked`              · **PARKED 2026-10-09 — THE ANSWER IS NO, AND IT WAITS FOR THE `loss=all` WORK.** Should the
-  AI spend a Quick protecting a RIVAL from a threat aimed at someone else? Aj: *"no, but i'm gonna hold off on this
-  because it will change when we do loss=all"*. So the direction is decided and the build waits for that work
-  (`loss=all` is the custom rule where a Special win strikes every other seat —
-  [`DECISIONS.md#balance`](DECISIONS.md#balance)). What the AI does today, both counted as stakes by the engine's
-  rule (`stakeFor`):
-  - **Counter Spell** counters any `THREAT_KIND` cast that is not the AI's own, whoever it targets.
-  - **Annoint** saves a rival's Equipment from another rival. Measured headless: a computer holding Annoint and its
-    own Equipment answered a Sabotage aimed at seat 0's sword, and the sword survived. The branch's own comment
-    says "save our own equipment from a removal aimed at it"; the code checks only that it HAS Equipment.
-  (Leyline against a strike aimed at another seat was the stakeless case, and v1.33.8 stopped it: `aimed`.)
-  **Revives with the `loss=all` work.** Then build "no" behind a policy and measure it with `strengthsim …
-  players=6`, control first, naming every other shipped policy (`knight:push,pitch,ownCast,aimed`) as v1.33.8 did
-  ([`DECISIONS.md#ai-strength`](DECISIONS.md#ai-strength)).
-  `[id: ai-answers-others-casts]`
 
 - `parked`              · **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
   **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from

@@ -16,11 +16,13 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
- *   - Shields are flat at every player count. The per-round DRAW scales: = numPlayers (v1.31.3), so 2 in a duel
- *     and 6 at a six-player table. The rest of the v1.31.0 package (shields 2+numPlayers, loss 'all', mill
- *     'universal') was REVERTED in v1.31.2 — it broke deck balance badly (PATCHNOTES 0j); only the draw came back. The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
- *     A/B only. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI must never read the
- *     bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
+ *   - THE TABLE RULES SCALE WITH THE TABLE (v1.36.0): shields = 2 + numPlayers (4 in a duel, 8 at six), the
+ *     per-round DRAW = numPlayers (v1.31.3), a Special win strikes EVERY rival (loss 'all'), shield wards cover
+ *     the whole table (WARD_ALL) and Critical Hit / Ultima Attack hit every rival (DAMAGE_ALL). The v1.31.0
+ *     version of this (loss 'all' + universal mill + shields 2+N, no ward) was REVERTED in v1.31.2 for breaking
+ *     deck balance (PATCHNOTES 0j); the shared ward and the every-rival damage are what fixed it, measured in
+ *     DECISIONS.md#loss-all-remeasured. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI
+ *     must never read the bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
  *     A round is draw → one player leads → the fight is a trick; the last
  *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
  *     only banks energy. Specials are locked in round 1. At 0 shields the next
@@ -532,11 +534,11 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
-  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — flag, A/B only.
-   * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
-   * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
-   * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
-  var SHIELDS_PER_PLAYER = false;     // OFF: shipping this broke deck balance and was reverted in v1.31.2 (PATCHNOTES 0j).
+  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — the SHIPPED rule since v1.36.0.
+   * Companion to loss 'all': that makes damage scale with the table, which holds game length flat at ~10 rounds,
+   * too SHORT for six players. Scaling the shield pool with the table gives the middle ground: 2p keeps exactly
+   * the old 4, 6p gets 8. What the package's games measure at, as built, is in DECISIONS.md#v136-remeasured. The `flatShields` custom rule turns it off. */
+  var SHIELDS_PER_PLAYER = true;
   function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
   function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
   function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
@@ -661,46 +663,22 @@
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
-  // Holy Shroud: spend one of its counters to EAT the hit (a physical absorb — works vs a shield loss OR,
-  // at 0 shields, the Fighter Kick). Returns true (and spends a counter) if an absorber is available.
   function retireEquip(pl, e) { if (e && e.card) pl.energy.push(e.card); }   // worn-out / spent Equipment → its card becomes Energy (recyclable via the shuffle cycle)
-  /* WARD_ALL also shares Holy Shroud (Aj, 2026-08-26): its counters can absorb a hit for ANYONE, not only its
-   * owner. Note the difference from Leyline — Shroud is counter-limited equipment, so sharing it does NOT simply
-   * hand everyone protection: one counter still absorbs exactly one hit, it just no longer matters whose. Under
-   * `all` that turns a per-owner save into a single table-wide save, which is the asymmetry being removed.
-   * The loser's OWN absorber is always tried first, so behaviour is unchanged whenever only they have one. */
-  function findAbsorber(st, q) {
-    var own = st.players[q].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
-    if (own) return { owner: q, e: own };
-    if (!WARD_ALL) return null;
-    for (var w = 0; w < st.numPlayers; w++) {
-      if (w === q || st.players[w].eliminated) continue;
-      var e2 = st.players[w].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
-      if (e2) return { owner: w, e: e2 };
-    }
-    return null;
-  }
-  function absorbSaved(st, q) {
-    var hit = findAbsorber(st, q);
-    if (!hit) return false;
-    var owner = st.players[hit.owner], shroud = hit.e;
-    shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
-    return shroud.name || true;                                                  // TRUTHY either way; the name feeds the round's "saved" line
-  }
-  // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
-  // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
+  /* `findAbsorber` AND `absorbSaved` WERE HERE AND ARE DELETED (v1.35.2.2, epic/loss-all-default). They were Holy
+     Shroud's PASSIVE absorb: the first shield loss that reached a seat ate a counter, and under the shared ward that
+     could be the shield YOU had just broken on your Rival (Aj, 2026-10-22). The Shroud is a Quick ability now
+     (`useAbility`), so its protection arrives as Leyline's ward on the stack, and no loss is ever absorbed in passing. */
+  // Would player q's shield loss be prevented WITHOUT costing a shield? Round-long shield immunity: Leyline's `immune`,
+  // Apollo-Sanctuary's `shieldImmune`, or Holy Shroud's ability (the same ward). Nothing absorbs in passing any more.
   function shieldSaved(st, q) {
     var pl = st.players[q];
-    if (pl.shieldImmune) return pl.wardBy || true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
-                                                                                 // "Sphere of Invulnerability"; that name outlived the card by a long way.)
-    return absorbSaved(st, q);                                                   // Holy Shroud absorber
+    return pl.shieldImmune ? (pl.wardBy || true) : false;                       // (There is no card called "Sphere of Invulnerability"; that name outlived the card by a long way.)
   }
   /* `wouldBeSaved` WAS HERE AND IS DELETED (epic step 19). It was a read-only peek asking "would this
      seat's loss be prevented anyway?", used to SUPPRESS the guard window when nothing was at stake — and
      "nothing is at stake for you" is not a reason to deny priority (`PHASES-AND-PRIORITY.md` §2). It also
      held a SECOND copy of the prevention ladder that `resolveShieldLossObj` implements independently, so
-     the two could disagree. `findAbsorber` has one caller left, which is the tell that this copy existed
-     only for the whitelist. */
+     the two could disagree. (`findAbsorber`, which it shared, is deleted too — see above.) */
 
   function drawOne(pl) {
     if (pl.deck.length === 0) { if (pl.shuffle.length === 0) return null; pl.deck = shuffle(pl.shuffle); pl.shuffle = []; }
@@ -981,11 +959,11 @@
     D: {  // Wizard: Back to the Books draw 3 → a dig (look 3, 1→Energy, keep 2); Cursed Pendant 5→4 counters; Leyline Ascension loses its recycle/ramp (moved to Athena)
       6: { kind: 'draw', draw: 3, discard: 1, name: 'Back to the Books', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 1 into your Energy Pile and draw the other 2.' },
       8: { kind: 'equip', oppDelta: -2, counters: 4, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your Rivals' highest card each fight has its value reduced by 2." },
-      9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either." }
+      9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "No player can lose a shield this round — and no one at 0 shields can take the Fighter Kick." }   // the ward covers the table (WARD_ALL, v1.36.0): one wording at every table size
     },
     H: {  // Cleric: rename Holy Sword→Holy Bow; swap 9/10 so Holy Shroud=9, Sanctuary=10
       8:  { kind: 'equip', delta: 2, counters: 4, name: 'Holy Bow', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2." },
-      9:  { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: 'If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead.' },
+      9:  { kind: 'equip', counters: 1, decay: false, quickAbility: { kind: 'ward', immune: true, cantLose: true }, name: 'Holy Shroud', type: 'Equipment', impl: true, text: "Quick ability — remove 1 counter from Holy Shroud: no player can lose a shield this round, and no one at 0 shields can take the Fighter Kick. At 0 counters it retires to your Energy." },   // `useAbility` (v1.35.2.2, Aj): the owner picks the moment; the ward is Leyline's
       10: { kind: 'shield', shield: 1, shieldAll: true, name: 'Sanctuary', type: 'Technique', impl: true, text: 'Every player gains 1 Shield.' }
     },
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
@@ -994,13 +972,13 @@
       7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
       9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
-      10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
+      10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.' }   // DAMAGE_ALL (v1.36.0)
     },
     S: {  // Rogue: Hand-to-Hand and Back Stab lose Quick (moved to Perseus / Hermes); Never Out of Options dig 4→3; Caltrops 5→3 counters
       3:  { kind: 'draw', draw: 2, name: 'Hand-to-Hand Mastery', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
       7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
-      9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
+      9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Every Rival loses 1 shield.' },   // DAMAGE_ALL (v1.36.0)
       10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
   };
@@ -1019,15 +997,15 @@
     H: {
       queen: { 3: { n: 6, desc: 'Dig 1 deeper — put the top 6 of your deck into Energy.' }, 5: { addCounter: 1, desc: 'Also add 1 counter to that Equipment.' }, 8: { delta: 3, desc: 'Your highest card each fight gains an additional +1 (to +3).' } },
       king:  { 1: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 4: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 10: { quick: true, desc: 'Sanctuary becomes a Quick — cast it in response.' } },
-      super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and you can't lose a shield until end of round." } }
+      super: { 8: { delta: 4, desc: 'Your highest card each fight gains a further +1 (to +4).' }, 10: { quick: true, shieldImmune: true, desc: "Sanctuary becomes a Quick, and no player can lose a shield until end of round." } }
     },
     C: {
       queen: { 1: { draw: 3, desc: 'Draw 1 more (draw 3).' }, 7: { quick: true, desc: 'Armor Piercing becomes a Quick.' }, 8: { reclaimDiscard: true, desc: 'Also shuffle your Exile (used Techniques, destroyed Equipment) back into your deck before drawing.' } },
-      king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "The Rival's highest card each fight drops 1 further (to −3)." } },
-      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
+      king:  { 3: { boost: 3, desc: 'Boost your next play by 1 more (to +3).' }, 6: { delta: 2, desc: 'Your highest card each fight gains an additional +1 (to +2).' }, 9: { oppDelta: -3, desc: "Every Rival's highest card each fight drops 1 further (to −3)." } },
+      super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Exile, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'Every Rival loses 1 additional shield (2 total).' } }
     },
     S: {
-      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
+      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: "Only Target Rival's Energy Pile moves to their Shuffle Pile — yours stays." }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
       king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { quick: true, desc: 'Back Stab becomes a Quick.' } },
       super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, all: true, desc: 'Back Stab becomes a Quick AND ALL rivals skip the whole round.' } }
     }
@@ -1566,7 +1544,7 @@
   function canCastQuick(st, q, card) { return !castRefusal(st, q, card); }
   function canAddToStack(st, q) {
     var qp = st.players[q];
-    return qp.hand.some(function (c) { return canCastQuick(st, q, c); });
+    return qp.hand.some(function (c) { return canCastQuick(st, q, c); }) || equipAbilities(st, q).length > 0;   // a Quick ability on the board (Holy Shroud) is an addition too
   }
   /* ONE GO-ROUND WALK, PARAMETERISED BY ITS ORIGIN (epic step 11, prerequisite P2).
      `PHASES-AND-PRIORITY.md` §2/§3: a go-round starts at the CONTROLLER of the top object, or at the ACTIVE
@@ -2049,6 +2027,66 @@
     return openResponseWindow(st);                    // offer to the next opponent, or resolve when all have passed
   }
 
+  /* HOLY SHROUD IS A QUICK ABILITY ON AN EQUIPMENT (v1.35.2.2; Aj, 2026-10-22, on `epic/loss-all-default`: *"it needs
+     to be a quick activatable ability on an equip. So you can decide when to take the counter off and protect the
+     table. Especially if you were the one winning the round"*). Under the shared ward the old PASSIVE absorb fired
+     on whoever lost a shield first — the Rival you had just struck included. Now the owner picks the moment, and
+     what a counter buys is Leyline's ward for the table: no player loses a shield this round, and no one at 0 takes
+     the Fighter Kick (Aj chose that over "this hit only" and "one player you choose").
+     A STACK OBJECT, NOT AN INSTANT EFFECT. The dormant `useEquipment` (Seed Pouch's verb) resolves on the spot and
+     only on your turn; this goes on the stack like a Quick, so it gets the go-round, the brake and the ledger, and
+     anyone may answer it.
+     THE COST IS ONE COUNTER, PAID ON ACTIVATION, the way energy pays for a Technique: the counter comes off as the
+     object is pushed, and at 0 the Shroud retires to its owner's Energy at once — the ward is already on the stack.
+     IT CANNOT BE COUNTERED: Counter Spell names a Technique (`COUNTERABLE`), and the object's type is 'Equipment
+     ability', which the Queen of Diamonds' "an Equipment as it is played" does not reach either.
+     A LOCKED SEAT CANNOT USE IT — "skips means skips", the line `castRefusal` draws for a Quick.
+     THE EQUIPMENT IS NAMED BY ITS CARD'S ID, never its effect id: a class deck holds four Holy Shrouds, and they
+     share `H9` while each card id is unique. */
+  function eqKey(e) { return e.card ? e.card.id : e.id; }
+  function abilityEff(e) {
+    if (!e || !e.quickAbility || !(e.counters > 0)) return null;
+    var out = { id: 'ab:' + eqKey(e), name: e.name, type: 'Equipment ability', quick: true, impl: true, fromEquip: true };
+    for (var k in e.quickAbility) out[k] = e.quickAbility[k];
+    return out;
+  }
+  // the Quick abilities seat q could use right now — the board's half of `canAddToStack`
+  function equipAbilities(st, q) {
+    var qp = st.players[q];
+    if (!qp || qp.eliminated || st.finished || isLocked(st, q)) return [];
+    return qp.equipment.filter(function (e) { return !!abilityEff(e); }).map(function (e) { return { id: eqKey(e), name: e.name, counters: e.counters }; });
+  }
+  function useAbility(st, q, eqId) {
+    pendingReveal = null;
+    if (st.finished) return { ok: false, reason: 'Game over.' };
+    var qp = st.players[q];
+    var e = qp.equipment.filter(function (x) { return eqKey(x) === eqId; })[0], eff = abilityEff(e);
+    if (!eff) return { ok: false, reason: 'That Equipment has no ability to use.' };
+    if (isLocked(st, q)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this round.' };
+    var inWindow = st.respondFor != null;
+    if (inWindow && st.respondFor !== q) return { ok: false, reason: 'Priority is with another player.' };
+    if (!inWindow) {                                    // proactive: the gates `activate` puts on a Quick cast outside a window
+      if (q !== st.turn) return { ok: false, reason: 'Not your turn.' };
+      if (st.discardPending) return { ok: false, reason: 'A player is still discarding — the table is waiting on them.' };
+      if (st.pendingLossChoice) return { ok: false, reason: 'The round is won — the table is waiting on the winner’s strike.' };
+      if (st.subPhase === 'play') return { ok: false, reason: 'The Fight Sub-Phase has begun — play a card or pass.' };
+    }
+    var card = e.card || { rank: 9, suit: 'H', id: eqKey(e) };
+    e.counters -= 1;                                    // the cost, paid as the object is pushed
+    if (e.counters <= 0) { retireEquip(qp, e); qp.equipment = qp.equipment.filter(function (x) { return x !== e; }); refreshPile(st); }
+    st.castSeq = st.castSeq || {}; st.castSeq[q] = (st.castSeq[q] || 0) + 1;   // an addition, for the auto-pass brake (see `respond`)
+    var res;
+    if (inWindow) {
+      st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: card, eff: eff, opts: {}, countered: false });
+      st.prioPassed = {}; st.pending = null; st.respondFor = null;
+      res = openResponseWindow(st);
+      res.respondedWith = eff.id; res.respondKind = eff.kind; res.respondName = eff.name; res.countered = false;
+      res.respondCard = { rank: card.rank, suit: card.suit, id: card.id };
+    } else res = pushEffect(st, q, card, eff, {});
+    if (res) res.ability = { name: eff.name, eqId: eqId, card: { rank: card.rank, suit: card.suit, id: card.id } };
+    return res;
+  }
+
   // Resolve an effect body — called immediately, or after a response window closes.
   // Which single rival a "the Rival" effect hits. opts.target names it (human/AI choice); default = next living
   // opponent. At 2 players this is always the sole opponent, so singular effects are unchanged in a duel.
@@ -2100,6 +2138,10 @@
     /* EVERY RIVAL, WHEN IT HITS EVERY RIVAL (drag-and-stack step 4, piece 10): Back Stab under Hermes' Super carries
        `all`, and resolution locks every living rival — naming ONE seat here told the others it was not aimed at them. */
     if ((HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) && eff.all) return { allRivals: true };
+    /* AND SO DOES CRITICAL HIT / ULTIMA ATTACK SINCE v1.36.0 (DAMAGE_ALL ships on). Read off `hostileTargets`, the
+       lookup resolution uses, so the label cannot disagree with what lands. In a duel there is one rival, and it
+       is still named by seat. */
+    if (eff.kind === 'destroyShield' && DAMAGE_ALL && hostileTargets(st, o.p, effectTarget(st, o.p, opts), 'damage', eff).length > 1) return { allRivals: true };
     if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
     return null;
   }
@@ -2153,7 +2195,8 @@
         // reclaim branch is the boosted variant, and both must honour the flag or the study measures nothing.
         if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
-        spendCard(pl, card); break;
+        if (!eff.fromEquip) spendCard(pl, card);          // Holy Shroud's ability: the card is the Equipment, paid for with a counter — never Exiled
+        break;
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
         spendCard(pl, card); break;
@@ -2189,7 +2232,7 @@
           decay: eff.decay !== false,        // default true; Holy Shroud sets decay:false (spend-only)
           ability: eff.ability || null,      // 'draw' — spend a counter for the ability
           protect: eff.protect || null,      // 'special' — no shield loss on Special defeats
-          absorb: eff.absorb || false,       // Holy Shroud: spend a counter to absorb a shield loss
+          quickAbility: eff.quickAbility || null,   // Holy Shroud: a Quick ability — remove a counter for Leyline's ward (`useAbility`)
           usedThisRound: false, card: card
         });
         refreshPile(st);                                   // a new debuff/buff immediately re-values any pile already on the table (ongoing, not locked at play time)
@@ -2245,7 +2288,7 @@
          * under `all`, where every Special win hits every rival, its value multiplies by (N-1) in the caster's
          * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
          * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
-         * buys a private edge. Flag, default off. */
+         * buys a private edge. Shipped ON since v1.36.0, duels included (see the note at WARD_ALL). */
         if (eff.immune) { pl.shieldImmune = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'shieldImmune', eff.name); }
         if (eff.cantLose) { pl.cantLoseRound = true; pl.wardBy = eff.name; if (WARD_ALL) wardTable(st, 'cantLoseRound', eff.name); }
         spendCard(pl, card); break;
@@ -2641,7 +2684,7 @@
      proves a HUMAN plays that line and survives the Fighter Kick; the AI could not, in any mode, ever.
      THE ANSWER DEPENDS ON THE SHIELD COUNT, because `resolveShieldLossObj` has two branches and they
      honour different flags — read it, not this comment, if they ever disagree:
-       - at 0 shields the kick branch tests `cantLoseRound || absorbSaved` and deliberately NOT
+       - at 0 shields the kick branch tests `cantLoseRound` (it tested `absorbSaved` too until Holy Shroud became an ability) and deliberately NOT
          `shieldSaved`, so a bare `shieldImmune` is spent for NOTHING ("can't save a shield you don't
          have", its own comment). What works is Leyline's `cantLose`, or gaining a shield to get OFF 0 so
          the ordinary branch runs instead.
@@ -2666,6 +2709,26 @@
     return gainsShield ? e : null;                         // or a spare shield absorbs it
   }
 
+  /* AND THE BOARD'S HALF: DOES A QUICK ABILITY ON q's EQUIPMENT HAVE A STAKE? Holy Shroud's ward is Leyline's, so
+     its stakes are Leyline's two: q is struck at Resolution (a kick at 0 included — the ward stops it), or a
+     destroyShield on the stack is aimed at q. AUTO stops you for these, as `stakeFor` does for a card in hand;
+     ON stops you whenever `canAddToStack` says the ability is usable; OFF never. A seat already warded this
+     round has nothing left to protect. Returns the ability's effect, never a boolean, so the ledger can name it. */
+  function abilityStakeFor(st, q, timing) {
+    var ab = equipAbilities(st, q)[0]; if (!ab) return null;
+    if (st.players[q].cantLoseRound) return null;
+    var e = abilityEff(st.players[q].equipment.filter(function (x) { return eqKey(x) === ab.id; })[0]);
+    if (timing === 'resolution') {
+      var res = st.resolution;
+      return (res && (res.strikeTargets || []).indexOf(q) >= 0) ? e : null;
+    }
+    if (timing === 'respond') {
+      var top = st.pending;
+      if (top && top.eff && top.eff.kind === 'destroyShield' && top.p !== q &&
+          hostileTargets(st, top.p, effectTarget(st, top.p, top.opts), 'damage', top.eff).indexOf(q) >= 0) return e;
+    }
+    return null;
+  }
   /* DOES THIS CARD HAVE A LIVE STAKE IN WHAT IS HAPPENING RIGHT NOW, for seat q? The UI forces a prompt when it does,
      whatever the player's notification preferences say. `lossAnswerFor` answers only "does this SAVE my
      shield", and Aj widened the rule on 2026-09-23: *"i want you to see past sanctuary … when it sees
@@ -2772,7 +2835,9 @@
   function newOid(st) { st.oidSeq = (st.oidSeq || 0) + 1; return 'o' + st.oidSeq; }
   /* WHO WAS SAVED, AND BY WHAT (2026-10-20). `prevented` said only that SOME loss was stopped, so the round line read
      "won with a Full House - but the loss was prevented" when it was Aj's own Holy Shroud saving Aj. Narration only:
-     one entry per seat, and the name is null where no card can be named. */
+     one entry per seat, and the name is null where no card can be named.
+     (An `owner` field rode here for one build, naming whose Holy Shroud had absorbed a loss; the passive absorb is gone,
+     and a ward is cast, so its cast line already names who paid for it.) */
   function noteSaved(result, q, by) {
     var nm = (typeof by === 'string') ? by : null, list = result.saved = result.saved || [];
     if (!list.some(function (x) { return x.seat === q; })) list.push({ seat: q, by: nm });
@@ -2797,7 +2862,7 @@
         }
       }
       else if (wasBroken && !obj.noKick) {                                                             // struck while already at 0 = the Fighter Kick
-        var kv = opp.cantLoseRound ? (opp.wardBy || true) : absorbSaved(st, q);   // same order as before: the shroud is spent only when no ward holds
+        var kv = opp.cantLoseRound ? (opp.wardBy || true) : false;               // only "can't lose this round" stops the kick (Leyline, or Holy Shroud's ability since v1.35.2.2)
         if (kv) { result.prevented = true; noteSaved(result, q, kv); break; }               // "can't lose this round" (Leyline) or a Holy Shroud counter absorbs the killing blow; plain shield-immunity (Sphere) can't save a shield you don't have
         st.players[obj.winner].kicksLanded = (st.players[obj.winner].kicksLanded || 0) + 1;            // hidden per-player stat (seeds the future Assassin)
         result.kick = true; (result.eliminated = result.eliminated || []).push(q);
@@ -2995,7 +3060,7 @@
   var LOSER_MILL = false, LOSER_MILL_RESERVE = 4;
   function setLoserMill(v) { LOSER_MILL = !!v; }
   // ---- N-PLAYER round-resolution toggles (both are no-ops at numPlayers===2) ----
-  // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield; 'chosen' = winner strips one rival.
+  // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield (shipped); 'chosen' = winner strips one rival.
   // MILL_SCOPE: 'universal' = all non-winners mill each round; 'targeted' = only the struck rival(s) mill.
   /* HOSTILE_ALL (Aj, 2026-08-25): the targeted offensive techniques hit EVERY living rival instead of one —
    * Critical Hit and Back Stab (Rogue), Ultima Attack (Fighter). The idea pairs with SPECIAL_LOSS_MODE='all':
@@ -3008,8 +3073,13 @@
    * (Ultima Attack only) gained +0.8 while Rogue (Critical Hit AND Back Stab) gained +11.1 — and Critical Hit
    * and Ultima Attack are mechanically identical, so Back Stab was doing nearly all the work. Scaling a shield
    * strip to (N-1) matches what a Special win already costs; scaling a TURN SKIP to every rival is worth closer
-   * to a free round, a much bigger multiplier. */
-  var DAMAGE_ALL = false, LOCKOUT_ALL = false;
+   * to a free round, a much bigger multiplier.
+   * DAMAGE_ALL SHIPS ON SINCE v1.36.0 (Aj, 2026-10-22), as part of the loss 'all' package: with the ward shared,
+   * the every-rival reach is what lifts the attack decks back (DECISIONS.md#loss-all-remeasured). The card text
+   * says so at every table size ("Every Rival loses 1 shield"), so there is no Custom rules row to turn it off —
+   * a row that made the printed text false is what the one-wording ruling exists to prevent. LOCKOUT_ALL stays
+   * off: the package does not include it, and Back Stab still reads "Target Rival". */
+  var DAMAGE_ALL = true, LOCKOUT_ALL = false;
   function setDamageAll(v) { DAMAGE_ALL = !!v; }        // Critical Hit / Ultima Attack -> every rival
   function setLockoutAll(v) { LOCKOUT_ALL = !!v; }      // Back Stab -> every rival
   function setHostileAll(v) { DAMAGE_ALL = !!v; LOCKOUT_ALL = !!v; }
@@ -3050,7 +3120,11 @@
   var DAMAGE_SPAN = 1;
   function setDamageSpan(v) { DAMAGE_SPAN = (v === 'all' || v === 'half') ? v : Math.max(1, v | 0); }
   function isDamageSpan() { return DAMAGE_ALL ? 'all' : DAMAGE_SPAN; }
-  var WARD_ALL = false;
+  /* WARD_ALL SHIPS ON SINCE v1.36.0 (Aj, 2026-10-22), in duels too: Leyline, Holy Shroud and Apollo's
+     Sanctuary protect every player, and their printed text says so. It is the half of the package that changes
+     a duel — your own Shroud can eat the shield you just broke on your Rival — and Aj accepted that rather than
+     print two wordings of one card. No Custom rules row, for the same reason as DAMAGE_ALL. */
+  var WARD_ALL = true;
   function setWardAll(v) { WARD_ALL = !!v; }
   function isWardAll() { return WARD_ALL; }
   function wardTable(st, field, by) {                    // share a shield ward with every living player (`by`: the card, for the round's "saved" line)
@@ -3075,12 +3149,16 @@
          .forEach(function (x) { if (out.length < want) out.push(x); });
     return out;
   }
-  /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
-   * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
-   * explicitly ever since, so the engine's own defaults disagreed with the only game anyone plays: any probe,
-   * sim or test that did not set them got non-shipped rules and silently measured a different game. That is
-   * exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields when it strips one. */
-  var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
+  /* DEFAULTS MATCH THE SHIPPED GAME. They were 'all' / 'universal' for the v1.31.0 multiplayer package, which
+   * was REVERTED in v1.31.2, and the template then set 'chosen' / 'targeted' explicitly — so the engine's own
+   * defaults disagreed with the only game anyone played, and any probe, sim or test that did not set them
+   * silently measured a different game (a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields
+   * when it strips one).
+   * SINCE v1.36.0 THE SHIPPED GAME IS 'all' AGAIN (Aj, 2026-10-22), with the shared ward, the every-rival
+   * damage and shields 2+N beside it (DECISIONS.md#loss-all-remeasured). 'chosen' survives behind the
+   * `strikeOne` custom rule. MILL_SCOPE stays 'targeted' and does nothing under 'all': every loser is struck,
+   * and every struck loser mills. */
+  var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
   /* Getters, for symmetry with the other rule flags (isShieldsPerPlayer / isDrawPerPlayer / isApexInfinity) —
@@ -3604,7 +3682,7 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     fadeTemps: CLEANUP_EVENTS.temps,   // the round-end fade, callable early: the UI trims before its Clean-up drain, so it fades the copies first or they count toward the hand limit
-    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
+    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants

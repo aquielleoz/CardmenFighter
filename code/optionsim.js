@@ -20,7 +20,7 @@
  *
  * Run: node optionsim.js */
 var E=require('./engine.js'), AI=require('./ai.js');
-E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
+E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('all'); E.setMillScope('targeted'); E.setShieldsPerPlayer(true); E.setWardAll(true); E.setDamageAll(true);   // the live game since v1.36.0 (it was 'chosen', flat shields before)
 var DPP=(process.argv[2]||'').toLowerCase()==='drawplayers'; E.setDrawPerPlayer(DPP);
 console.log('draw per round: '+(DPP?'= number of players':'2 (shipped)'));
 function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
