@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.35.2.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.36.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -140,7 +140,10 @@ node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS
                                                 # ceremony ran `endGame()` on ANY deck-out, so the human got an
                                                 # end screen naming a winner and the table froze. The duel leg
                                                 # is the other half: a deck-out that DOES end a game still shows
-                                                # the end screen. `nettest_deckout3` is the netplay host's copy
+                                                # the end screen. `nettest_deckout3` is the netplay host's copy.
+                                                # A forced discard aimed at you is answered by `driveStep`: a v1.36.0
+                                                # sweep went red when Tank drew Outbalance and the table waited on
+                                                # your pick. `DECKOUT_OUTBALANCE=1` forces that draw
 node roartest.js                                # THE ROAR BANNER ON THE HOST/SOLO CEREMONY (32). Duel (the
                                                 # CONTROL), a 3-player round YOU win, and one an AI wins: it
                                                 # must SHOW, show INSIDE the ceremony (before the next round's
@@ -2725,7 +2728,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.35.2.5 — last FULL sweep 2026-10-23, `npm run sweep`, 138/138 in 557s, `nettest_sync` at full depth (rounds 14, actions 60)** (this line was
+Status as of **v1.36.0 — last FULL sweep 2026-10-23, `npm run sweep`, 138/138 in 553s, `nettest_sync` at full depth (rounds 14, actions 60)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,

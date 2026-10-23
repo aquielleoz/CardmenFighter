@@ -14,7 +14,7 @@
  *
  * Run: node deckouttest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
-const { selectAndFight } = require('./fightclick');
+const { selectAndFight, driveStep } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -29,6 +29,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      its last two cards. The default happens to be Fighter; a suite that depends on a mode should set it. */
   await p.evaluate(()=>{ document.querySelectorAll('#oppList select.strength').forEach(s=>{ s.value='fighter'; s.dispatchEvent(new Event('change')); }); }); await wait(200);
   await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1500);
+  if(process.env.DECKOUT_OUTBALANCE) await p.evaluate(()=>{ window.__forceOutbalance=true; });
   await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
     st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main';
     st.players.forEach(pl=>{ pl.energy=[]; pl.shields=3; });
@@ -36,17 +37,24 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     st.players[0].hand=[mk(3,'C','a3'),mk(3,'D','b3'),mk(9,'H','y9')];
     st.players[1].hand=[mk(7,'H','r7a'),mk(7,'S','r7b')]; st.players[1].deck=[]; st.players[1].shuffle=[];
     st.players[2].hand=[mk(4,'S','s4'),mk(5,'S','s5'),mk(6,'D','s6')];
+    /* DECKOUT_OUTBALANCE=1 FORCES WHAT A v1.36.0 SWEEP HIT BY CHANCE: Tank's new-round draw holds Outbalance and Tank
+       casts it at you (the AI strips a rival holding 5+ cards), so the table waits on YOUR one-card discard before
+       Tank can lead. The tapper below never answered a pick, so this leg timed out and blamed the ceremony. */
+    if(window.__forceOutbalance){ st.players[0].hand.push(mk(10,'C','x10'),mk(8,'H','x8')); st.players[2].deck.unshift(mk(3,'H','f1'),mk(3,'C','f2'),mk(1,'S','ob1'),mk(8,'D','g1'),mk(10,'H','g2'));   /* the catch-up mills the top two; the draw is then the Outbalance and two cards it cannot pair with */ st.players[2].energy=[mk(5,'S','es5')]; st.players[2].shieldPile=[mk(7,'C','sh1'),mk(9,'C','sh2'),mk(6,'C','sh3')]; }   /* and the shield it takes back cannot pair either */
     window.__solo.render(); });
   const tiers=await p.evaluate(()=>{ const d=window.__solo.st()._diff||{}; return [d[1],d[2]]; });
   ok(tiers.every(t=>t && t!=='minion'), 'STAGED: both opponents play a tier that answers a Special  ['+tiers.join(', ')+']');
   await wait(500);
   await selectAndFight(p, ['a3','b3']);
   // answer what the human is asked: decline windows, pass on any lead that is not ours
+  /* …AND A PICK (a forced discard) GOES TO `driveStep`, the shared answer, rather than a second copy of it here. */
+  let picks=0;
   const tapper=setInterval(()=>{ p.evaluate(()=>{
       const d=document.getElementById('respDecline'); if(d && d.offsetParent){ d.click(); return; }
+      const fb=document.getElementById('fightBtn'); if(fb && /Confirm/.test(fb.textContent)) return 'pick';
       const ps=document.getElementById('passBtn'), st=window.__solo.st();
       if(st.turn===0 && st.pile && ps && !ps.disabled && !st.players[0].eliminated) ps.click();
-    }).catch(()=>{}); }, 300);
+    }).then(r=>{ if(r==='pick'){ picks++; return driveStep(p); } }).catch(()=>{}); }, 300);
   const sample=()=>p.evaluate(()=>{ const st=window.__solo.st();
     return { out1:!!st.players[1].eliminated, finished:!!st.finished, round:st.round,
              end:!!document.getElementById('againBtn'), msg:((document.getElementById('message')||{}).textContent||'').trim(),
@@ -71,7 +79,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!last.finished, 'the game is still going — two Riders remain');
   ok(endAt==null, 'and no END SCREEN came up for it'+(endAt!=null?'  ← REPRODUCED: the end screen at '+endAt+'ms, mid-game':''));
   ok(!msgs.some(m=>/\bwins?\b|you win/i.test(m)), 'and no message named a winner  '+JSON.stringify(msgs.slice(0,4)));
-  ok(tankLed!=null, 'and Tank, the next seat, LED the new round: the ceremony handed the table on'+(tankLed!=null?' (at '+tankLed+'ms)':'  ← REPRODUCED: nobody led, the table stopped'));
+  if(process.env.DECKOUT_OUTBALANCE && process.env.DECKOUT_DEBUG) console.log('   LOG: '+log.slice(-14).join(' | ')+'\n   TANK: '+JSON.stringify(await p.evaluate(()=>{ const t=window.__solo.st().players[2]; return { hand:t.hand.map(c=>c.rank+c.suit), energy:t.energy.map(c=>c.rank+c.suit), deck:t.deck.slice(0,3).map(c=>c.rank+c.suit) }; })));
+  if(process.env.DECKOUT_OUTBALANCE) ok(log.some(l=>/Tank (used|played a Technique - A♠) Outbalance/.test(l)) && picks>0, 'FORCED: Tank cast Outbalance at you and the suite answered the discard  [picks '+picks+']');
+  ok(tankLed!=null, 'and Tank, the next seat, LED the new round: the ceremony handed the table on'+(tankLed!=null?' (at '+tankLed+'ms)':'  ← REPRODUCED: nobody led, the table stopped'+(picks?'':'  [no discard pick was answered]')));
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs.join(' | '):''));
 
   /* …AND THE DECK-OUT THAT ENDS A GAME STILL ENDS IT. The fix narrows `endGame()` to `state.finished`, so the

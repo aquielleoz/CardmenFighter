@@ -15,16 +15,16 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.35.2.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.36.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.35.2**. **`epic/loss-all-default`** (2026-10-22) makes the `loss=all` package the default for every game
-(builds `v1.35.2.N`, landing as v1.36.0): sub-branches PR into it, and its inventory is
-[`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md). `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
+`main` is at **v1.36.0**. `epic/loss-all-default` landed as v1.36.0 (2026-10-23): the `loss=all` package is the default for
+every game, duels included; its inventory is [`LOSS-ALL-DEFAULT-PLAN.md`](LOSS-ALL-DEFAULT-PLAN.md) and its measurements are
+[`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured). `epic/drag-and-stack` landed as v1.34.0 (2026-10-19): playing from the board, designed and
 ruled in [`DRAG-AND-STACK-DESIGN.md`](DRAG-AND-STACK-DESIGN.md). All work is on `main` again, in ordinary `fix/`/`feat/`
 branches.
 
@@ -120,8 +120,8 @@ re-read its tag.
 
 ### Open — in priority order
 
-*Nothing is open. `epic/loss-all-default` (2026-10-22) closes game length — the loss=all package becomes the default —
-and its follow-ups have shipped on it (the AI as v1.35.2.3, the Form texts as v1.35.2.4) or been measured
+*Nothing is open. `epic/loss-all-default` closed game length and landed as v1.36.0 (2026-10-23), with its follow-ups
+shipped inside it (the AI's `noAid`, the Form texts, Holy Shroud on a phone) and its numbers re-taken
 ([`DECISIONS.md#v136-remeasured`](DECISIONS.md#v136-remeasured)). Ranked by Aj on 2026-10-13: the test flakes first, then the two big items (the windows redesign, then game
 length). Forcing the flakes the same day parked all five of them, the round-ceremony entry included (it found and
 fixed v1.33.16 on the way). Everything left is parked below, each entry saying what revives it.*
