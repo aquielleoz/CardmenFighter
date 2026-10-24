@@ -15,6 +15,30 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.36.7 — the value modifiers read whole: one chip per direction, and "±0" on the play
+
+**What you'll see:**
+- **Under your bar,** modifiers of opposite signs no longer get a chip each. With Giant Boar and two −2 debuffs it
+  read "+1 Giant Boar · −2 Cursed Pendant · −2 Caltrops"; now it reads "value +1 from Giant Boar" and "value −4 from
+  Cursed Pendant, Caltrops". The pluses and the minuses stay apart, each netted with its sources (as one direction
+  already was).
+- **Over the play in the middle,** the caption shows the play's total modifier as before ("boosted +N",
+  "reduced −N"), and now "modified ±0" when its modifiers cancel. It used to show nothing at 0, the same as a play
+  nothing touches.
+
+**Why:** Aj, from a 6-player game: *"i can't see what debuffs affect the current in play, and i think it's ok to merge
+the 2 -2s into a -4 here"*. On that board Adell's Full House carried Imbue with Power under Hector Form (+3) and Giant
+Swan (+1) against Cursed Pendant and Caltrops (−2 each): a total of exactly 0, so the caption said nothing. Asked where
+the sources should go, Aj wanted the total only (*"i just want the total modifiers on it's value"*), and "±0" when it
+cancels.
+
+**How:** the engine marks a pile `modded` whenever a locked modifier (a charged play, Giant Swan, a Counterfeit copy)
+or any equipment touches it (`refreshPile`); `netview` carries it to every seat. The equipment half of both readouts
+is one itemizer, `equipMods`, which the chip row's `playModifiers` now calls instead of its own copy of the loop.
+`test.js` 767 → 771 (a pile nothing touches is not modified; Aj's board nets to 0 and is; the locked +4 still counts
+once the debuffs go; `equipMods` itemizes exactly what `equipDelta` sums). New `modtest.js` (8), against `main`'s page
+5/3.
+
 ### v1.36.6 — a Quick answer flashes its card, like any cast
 
 **What you'll see:** when the Rival answers with Counter Spell (or any Quick: Annoint, Leyline, Back Stab…), its art

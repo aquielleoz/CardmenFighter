@@ -1139,15 +1139,22 @@
   // UI can show "+1 from Giant Boar" / "+3 from Giant Boar, Hero's Sword" / "−2 from Spiked Armor". Offensive
   // context (your play on your turn): Giant Boar (+1, your turn only), your own equipment `delta`, opponents'
   // `oppDelta` against you, and a charged pre-fight boost. Totals to the same number applyEquip adds.
+  /* The equipment half of a value readout, itemized: p's own `delta`s and every rival's `oppDelta` against p — the
+   * same terms `equipDelta` sums. The hand's chip row and the standing pile both read it. */
+  function equipMods(st, p) {
+    var out = [];
+    st.players[p].equipment.forEach(function (e) { if (e.delta) out.push({ amount: e.delta, source: e.name }); });
+    for (var q = 0; q < st.numPlayers; q++) if (q !== p)
+      st.players[q].equipment.forEach(function (e) { if (e.oppDelta) out.push({ amount: e.oppDelta, source: e.name }); });
+    return out;
+  }
   function playModifiers(st, p, cards) {
     var out = [];
     if (st.turn === p) {
       var forms = st.players[p].forms || [];
       if (forms.some(function (f) { return f.rank === 11 && f.suit === 'C'; })) out.push({ amount: 1, source: 'Giant Boar' });
     }
-    st.players[p].equipment.forEach(function (e) { if (e.delta) out.push({ amount: e.delta, source: e.name }); });
-    for (var q = 0; q < st.numPlayers; q++) if (q !== p)
-      st.players[q].equipment.forEach(function (e) { if (e.oppDelta) out.push({ amount: e.oppDelta, source: e.name }); });
+    out = out.concat(equipMods(st, p));
     var pb = playBoost(st, p); if (pb) out.push({ amount: pb, source: 'charged play' });
     var cb = copyBonus(cards); if (cb) out.push({ amount: cb, source: 'Counterfeit copy' });   // `cards` optional: the selection being weighed
     return out;
@@ -1175,6 +1182,10 @@
     c.value = st.pile.raw + totalDelta;
     if (c.key && c.key.length) c.key[0] = st.pile.rawKey0 + totalDelta;
     st.pile.mod = c.value - st.pile.raw;
+    /* MODIFIED EVEN WHEN IT NETS TO ZERO (2026-10-23). Aj could not tell what was touching Adell's Full House: Imbue
+       with Power under Hector (+3) and Giant Swan (+1) cancelled Cursed Pendant and Caltrops (−2 each), `mod` read 0,
+       and the caption looked like a play nothing touches. Asked, Aj chose "±0" over a blank. */
+    st.pile.modded = !!st.pile.lockedDelta || equipMods(st, st.pile.byPlayer).length > 0;
   }
   // All equipment on the board (for targeting). own=true means it belongs to player p.
   function equipTargets(st, p) {
@@ -3682,7 +3693,7 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     fadeTemps: CLEANUP_EVENTS.temps,   // the round-end fade, callable early: the UI trims before its Clean-up drain, so it fades the copies first or they count toward the hand limit
-    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
+    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, equipMods: equipMods, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants

@@ -3290,15 +3290,22 @@
   // UI can show "+1 from Giant Boar" / "+3 from Giant Boar, Hero's Sword" / "−2 from Spiked Armor". Offensive
   // context (your play on your turn): Giant Boar (+1, your turn only), your own equipment `delta`, opponents'
   // `oppDelta` against you, and a charged pre-fight boost. Totals to the same number applyEquip adds.
+  /* The equipment half of a value readout, itemized: p's own `delta`s and every rival's `oppDelta` against p — the
+   * same terms `equipDelta` sums. The hand's chip row and the standing pile both read it. */
+  function equipMods(st, p) {
+    var out = [];
+    st.players[p].equipment.forEach(function (e) { if (e.delta) out.push({ amount: e.delta, source: e.name }); });
+    for (var q = 0; q < st.numPlayers; q++) if (q !== p)
+      st.players[q].equipment.forEach(function (e) { if (e.oppDelta) out.push({ amount: e.oppDelta, source: e.name }); });
+    return out;
+  }
   function playModifiers(st, p, cards) {
     var out = [];
     if (st.turn === p) {
       var forms = st.players[p].forms || [];
       if (forms.some(function (f) { return f.rank === 11 && f.suit === 'C'; })) out.push({ amount: 1, source: 'Giant Boar' });
     }
-    st.players[p].equipment.forEach(function (e) { if (e.delta) out.push({ amount: e.delta, source: e.name }); });
-    for (var q = 0; q < st.numPlayers; q++) if (q !== p)
-      st.players[q].equipment.forEach(function (e) { if (e.oppDelta) out.push({ amount: e.oppDelta, source: e.name }); });
+    out = out.concat(equipMods(st, p));
     var pb = playBoost(st, p); if (pb) out.push({ amount: pb, source: 'charged play' });
     var cb = copyBonus(cards); if (cb) out.push({ amount: cb, source: 'Counterfeit copy' });   // `cards` optional: the selection being weighed
     return out;
@@ -3326,6 +3333,10 @@
     c.value = st.pile.raw + totalDelta;
     if (c.key && c.key.length) c.key[0] = st.pile.rawKey0 + totalDelta;
     st.pile.mod = c.value - st.pile.raw;
+    /* MODIFIED EVEN WHEN IT NETS TO ZERO (2026-10-23). Aj could not tell what was touching Adell's Full House: Imbue
+       with Power under Hector (+3) and Giant Swan (+1) cancelled Cursed Pendant and Caltrops (−2 each), `mod` read 0,
+       and the caption looked like a play nothing touches. Asked, Aj chose "±0" over a blank. */
+    st.pile.modded = !!st.pile.lockedDelta || equipMods(st, st.pile.byPlayer).length > 0;
   }
   // All equipment on the board (for targeting). own=true means it belongs to player p.
   function equipTargets(st, p) {
@@ -5833,7 +5844,7 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     fadeTemps: CLEANUP_EVENTS.temps,   // the round-end fade, callable early: the UI trims before its Clean-up drain, so it fades the copies first or they count toward the hand limit
-    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
+    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, useAbility: useAbility, equipAbilities: equipAbilities, abilityStakeFor: abilityStakeFor, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, equipMods: equipMods, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
@@ -7160,6 +7171,7 @@ window.CardFace = {};
     return {
       byPlayer: p.byPlayer,
       mod: p.mod || 0,
+      modded: !!p.modded,
       combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, cards: cards(p.combo.cards) } : null
     };
   }
@@ -7233,7 +7245,7 @@ window.CardFace = {};
     var n = st.numPlayers;
     function rot(i) { return (typeof i === 'number' && i >= 0) ? ((i - seat + n) % n) : i; }
     var players = []; for (var i = 0; i < n; i++) players[rot(i)] = clonePlayer(st.players[i], i === seat, 'p' + i, rot);
-    function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
+    function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, modded: !!p.modded, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
     /* SAME TREATMENT for the stack. The blanket copy carried `eff` and `opts` by reference — `opts.target`
        is an ABSOLUTE seat (engine.js effectTarget reads it) reaching a client whose own seat is 0, and
        `passed` is a map keyed by absolute seat. `eff` is static card data so it is safe to pass through,
@@ -7664,7 +7676,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.36.6';
+  var GAME_VERSION='v1.36.7';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10419,20 +10431,17 @@ window.CardFace = {};
     function signed(n){ return (n>0?'+':(n<0?'−':''))+Math.abs(n); }
     function chip(cls, amt, src){ var s=document.createElement('span'); s.className='pmod '+cls;
       s.innerHTML='<span class="amt">'+amt+'</span> <span class="src">'+src+'</span>'; s.title=(amt+' '+src).replace(/<[^>]*>/g,''); el.appendChild(s); }   // title: the sources survive where a phone shows the amount only
+    /* ONE CHIP PER DIRECTION, each netted with its sources (2026-10-23). With modifiers of both signs this drew one chip
+       per SOURCE, so Giant Boar's +1 beside two −2s read "+1 Giant Boar · −2 Cursed Pendant · −2 Caltrops"; Aj: *"i
+       think it's ok to merge the 2 -2s into a -4 here"*. The pluses and the minuses stay apart, so nothing is hidden. */
     function group(mods, kind){                        // kind: 'value' | 'cost'
-      if(!mods.length) return;
-      var mixed=mods.some(function(m){return m.amount>0;}) && mods.some(function(m){return m.amount<0;});
-      if(mixed){                                        // opposing signs → one chip per source so nothing is hidden
-        mods.forEach(function(m){
-          var cls=(kind==='cost')?'cost':(m.amount>=0?'up':'down');
-          chip(cls, (kind==='cost'?'cost ':'')+signed(m.amount), m.source);
-        });
-      } else {                                          // same direction → net total + the list of sources
-        var net=mods.reduce(function(a,m){return a+m.amount;},0);
-        var srcs=mods.map(function(m){return m.source;}).join(', ');
+      [mods.filter(function(m){ return m.amount>0; }), mods.filter(function(m){ return m.amount<0; })].forEach(function(side){
+        if(!side.length) return;
+        var net=side.reduce(function(a,m){return a+m.amount;},0);
+        var srcs=side.map(function(m){return m.source;}).join(', ');
         var cls=(kind==='cost')?'cost':(net>=0?'up':'down');
         chip(cls, (kind==='cost'?'cost ':'value ')+signed(net), 'from '+srcs);
-      }
+      });
     }
     group(vals,'value'); group(costs,'cost');
   }
@@ -10593,7 +10602,7 @@ window.CardFace = {};
       var mod=state.pile.mod||0;
       pileEl.classList.toggle('boosted', mod>0);
       pileEl.classList.toggle('reduced', mod<0);
-      $('pileLabel').textContent=owner+' · '+kindLabel(state.pile.combo.type)+(mod>0?' · boosted +'+mod:(mod<0?' · reduced '+mod:''));
+      $('pileLabel').textContent=owner+' · '+kindLabel(state.pile.combo.type)+(mod>0?' · boosted +'+mod:(mod<0?' · reduced '+mod:(state.pile.modded?' · modified ±0':'')));   // ±0: modifiers that cancel are still modifiers (Aj, 2026-10-23)
     } else { $('pileLabel').textContent=state.finished?'':'New fight'; pileEl.classList.remove('boosted','reduced'); }
     pileEl.classList.toggle('noCards', !state.pile);   // drives the rail reserve off when there is nothing to collide with
     /* THE COPY HIGHLIGHT IS PAINTED EVERY RENDER, because the pile above rebuilds only when its CONTENTS change and a

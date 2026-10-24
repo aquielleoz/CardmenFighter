@@ -42,7 +42,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
        casts it at you (the AI strips a rival holding 5+ cards), so the table waits on YOUR one-card discard before
        Tank can lead. The tapper below never answered a pick, so this leg timed out and blamed the ceremony. */
     if(window.__forceOutbalance){ st.players[0].hand.push(mk(10,'C','x10'),mk(8,'H','x8')); st.players[2].deck.unshift(mk(3,'H','f1'),mk(3,'C','f2'),mk(1,'S','ob1'),mk(8,'D','g1'),mk(10,'H','g2'));   /* the catch-up mills the top two; the draw is then the Outbalance and two cards it cannot pair with */ st.players[2].energy=[mk(5,'S','es5')]; st.players[2].shieldPile=[mk(7,'C','sh1'),mk(9,'C','sh2'),mk(6,'C','sh3')]; }   /* and the shield it takes back cannot pair either */
-    /* DECKOUT_TWOCAST=1 IS THE v1.36.3 SWEEP'S DEAL: Tank casts Giant Ram AND Outbalance before it leads, two art-flash
+    /* DECKOUT_TWOCAST=1 IS THE DEAL FROM #467's SWEEP: Tank casts Giant Ram AND Outbalance before it leads, two art-flash
        holds (`castHolding`) plus your pick. The J♠ takes the 8♦'s place in the draw, and the 8♦ is what the Ride's own
        draw then gives Tank, so nothing new can pair or cast. */
     if(window.__forceTwoCast){ const d=st.players[2].deck, i=d.findIndex(c=>c.id==='g1'); d.splice(i,1,mk(11,'S','gr1')); d.splice(i+2,0,mk(8,'D','g1')); }   /* f1 f2 ob1 gr1 g2 g1 */
@@ -66,7 +66,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
              pileBy:(st.pile?st.pile.byPlayer:null) }; });
   /* THE LOOP STOPS ON WHAT IT WAITS FOR, NOT ON A CLOCK. It sampled a flat 9s past the deck-out, and a deal where Tank
      casts twice before it leads (two art-flash holds, ~2.5s each, plus your discard pick) put the lead at ~9.3s: a
-     table playing on read as "the table stopped" (a v1.36.3 sweep; DECKOUT_TWOCAST=1 forces it). It now ends LOOK ms
+     table playing on read as "the table stopped" (#467's sweep; DECKOUT_TWOCAST=1 forces it). It now ends LOOK ms
      after Tank leads, so the end-screen and message checks still look past the lead and a passing run is shorter than
      before, and only a real stall waits out LEAD_BY. The original bug never leads at all, so it waits that out too. */
   const OUT_BY=30000, LEAD_BY=20000, LOOK=1000;
