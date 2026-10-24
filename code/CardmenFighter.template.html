@@ -1507,7 +1507,7 @@
     #logWrap.collapsed #logHead > span:first-child{font-size:0;}
     #logWrap.collapsed #logHead > span:first-child::before{content:'LOG'; font-size:10px; letter-spacing:1.5px;}
   }
-  /* Center-stage interrupt flash — the QUICK cue lives here (it began as the STOPPER cue, which the rework retired) */
+  /* Center-stage interrupt flash — the emote bubble lives here (it began as the STOPPER cue, then carried the QUICK answer cue until answers got a cast's art flash) */
   #stopfx{ position:absolute; inset:0; z-index:8; display:none; align-items:center; justify-content:center; pointer-events:none; }
   #stopfx.show{ display:flex; }
   #stopfx .stx{ position:relative; text-align:center; opacity:0; padding:12px 26px; }
@@ -1520,7 +1520,7 @@
   #stopfx.you .stxMain{ color:#8fdcff; text-shadow:0 0 26px rgba(120,210,255,.55), 0 2px 10px rgba(0,0,0,.7); }
   #stopfx .stxSub{ font-size:clamp(13px,3vw,18px); font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--txt); opacity:.9; margin-top:8px; }
   @keyframes stxPop{ 0%{opacity:0; transform:translateY(10px) scale(.82);} 13%{opacity:1; transform:none;} 76%{opacity:1;} 100%{opacity:0;} }
-  /* Quick-response cue — #stopfx; gold "⏩ QUICK" for the rival, cyan for you */
+  /* The emote bubble — #stopfx; gold for the rival, cyan for you. (It was also the "⏩ QUICK" answer cue until answers got a cast's art flash.) */
   #stopfx.quick .stx::before{ background:radial-gradient(ellipse at center, rgba(232,195,122,.18), transparent 62%); }
   #stopfx.quick.you .stx::before{ background:radial-gradient(ellipse at center, rgba(120,210,255,.16), transparent 62%); }
   #stopfx.quick .stxMain{ color:#f0c85a; text-shadow:0 0 26px rgba(232,195,122,.55), 0 2px 10px rgba(0,0,0,.7); }
@@ -4539,20 +4539,9 @@ __QR__
     var room=zr.left-2*gap;
     if(sw>room){ if(fc) fc.style.zoom=String(Math.max(.8, 2.8*room/sw)); else if(img) img.style.width=Math.max(120, room)+'px'; }   // the fallback card exists only when there is no art
   }
-  // Center-stage QUICK cue — fires whenever either side plays a Quick in response, so instant-speed answers read.
-  function quickFlash(who, name, countered){
-    var fx=$('stopfx'); if(!fx || reduceMotion()) return;
-    var inner=fx.querySelector('.stx'), me=(who==='You');
-    var verb = countered ? (me?'You Counter':who+' Counters') : (me?'You answer':who+' answers');
-    inner.innerHTML='<div class="stxMain">⏩ QUICK'+(countered?'!':'')+'</div><div class="stxSub">'+verb+' with '+name+'</div>';
-    fx.className=''; void fx.offsetWidth;
-    fx.className='show quick '+(me?'you':'rival');
-    clearTimeout(quickFlash._t); var g=gen;
-    quickFlash._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1400);
-  }
   /* Show an emote from `seat`. Narration goes through `say`, so it renders in each reader's own frame ("You
    * say hi!" vs "Aj says hi!") and, on the host, broadcasts the template — the same funnel every game event
-   * uses. The bubble reuses #stopfx, the centre-stage flash box the QUICK cue already shares. */
+   * uses. The bubble reuses #stopfx, the centre-stage flash box the QUICK answer cue used to share. */
   function showEmote(seat, key){
     var em=emoteOf(key); if(!em) return;
     say(seat, '{who}: '+em.line, 'emote');   // host: this also BROADCASTS the line, so clients must not re-log
@@ -5278,7 +5267,7 @@ __QR__
     if(rec){ answering=null; endAnswerUI(); }
     hideOverlay();
     var card=r.ability && r.ability.card;
-    if(card){ flashArt(card, 'You'); quickFlash('You', nm, false); presentOwnCast(card); }
+    if(card){ revealEffect(card, 'You'); presentOwnCast(card); }   // the cast's own flash, like an answer (answer-art-flash; the QUICK banner is gone)
     setMessage('You removed a <b>'+esc(nm)+'</b> counter — no player can lose a shield this round.');
     sayAbility(YOU, nm, 'you');
     prioNote('  → you USED ' + nm + (rec ? '' : '  (in your Main)'));
@@ -7731,7 +7720,7 @@ __QR__
         else if(e.respond){
           var isCounter=!!e.countered;   // set by `E.respond` since 2026-10-19 — before that it was always false, so a countered Technique replayed as resolving
           if(e.respCard) chain.push({ name:e.respName || 'a Quick', countered:isCounter });   // only what is drawn can be popped
-          beats.push({ dwell:(reduceMotion()?300:1400), run:function(){
+          beats.push({ dwell:revealDwell(e.respCard), run:function(){   // the answer's art flash is a cast's, so it dwells like one
             var below=replayStack[replayStack.length-1];
             if(e.respCard) replayPush(e.respBy, e.respCard, { countered:isCounter, tgt:(isCounter && below) ? { effect:{ owner:below.p, name:(below.eff && below.eff.name) || 'that' } } : null });
             noteAIAnswer(e.respBy, e.respName, isCounter, e.transition, e.round, e.pitched, !!e.ability); cueAIAnswer(e.respBy, e.respName, isCounter, e.respCard); render(); } });
@@ -7886,9 +7875,14 @@ __QR__
     else if(atTransition) say(q, '{who} sprang '+name+' before the fight'+pt+'.', 'rival');
     else say(q, '{who} answered at instant speed with '+name+pt+'.', 'rival');
   }
-  function cueAIAnswer(q, name, countered, card){   // the on-screen half: the caption and the QUICK flash, which the caller then holds
+  /* AN ANSWER IS A CAST, AND IT LOOKS LIKE ONE (answer-art-flash). Aj: *"the counter spell dim only shows quick (not
+     counter spell) i think we can just do the counter spell art and text flash like regular spell casting"*. An AI's
+     answer used to get only the gold "⏩ QUICK!" banner (`quickFlash`, deleted): the screen dimmed and never showed the
+     card, while a cast in Main pops its art and then its text. Every Quick answer gets the cast's own `revealEffect`
+     now, and the cast hold that `presentStackArrival` starts is already that flash's length (ruling 20). */
+  function cueAIAnswer(q, name, countered, card){   // the on-screen half: the caption and the card's art flash, which the caller then holds
     setMessage(countered ? ('🌀 <b>'+logName(q)+' Countered with '+name+'!</b>') : ('<b>'+logName(q)+' answered with '+name+'.</b>'));
-    quickFlash(logName(q), name, !!countered);
+    revealEffect(card, logName(q));
     presentStackArrival(q, card);   // the answer's card lands in the cast column — answers never had a presentation (drag-and-stack step 3)
   }
   /* …AND A FLOOR: NO WINDOW OWED TO AN AI SURVIVES THE HAND-BACK. Every path that gives the board back to you checks
@@ -8476,7 +8470,7 @@ __QR__
     var r=E.respond(state, YOU, quickId, {counterOid:coid||null, pitch:pitch||null, target:(target==null?null:target)});
     if(!r.ok){ answering=rec; setMessage(r.reason); render(); return; }   // refused: the window is still yours, and so is the board
     hideOverlay();
-    if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); presentOwnCast(qcard); }
+    if(qeff){ revealEffect(qcard, 'You'); presentOwnCast(qcard); }   // an answer is a cast: the same flash as one in Main (answer-art-flash)
     if(qeff && qeff.kind==='counter'){ setMessage('🌀 You <b>Countered</b> '+pendName+'!'); say(YOU, '{who} countered '+pendName+' with '+qeff.name+'!', 'you'); }
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); say(YOU, '{who} answered with '+qeff.name+' at instant speed'+pitchTail(r)+'.', 'you'); }
     prioNote('  → you CAST ' + (qeff && qeff.name ? qeff.name : quickId) + (qeff && qeff.kind==='counter' ? ('  (countering ' + pendName + ')') : ''));
@@ -8770,7 +8764,7 @@ __QR__
       /* AFTER THE BEATS, BEFORE THE CEREMONY — and that order is the point (epic step 18). The go-round is
          a window on the round that just ended, so the turn it ended must have finished playing before
          anyone is asked to answer it; and the ceremony narrates outcomes that do not exist until it
-         drains. `settleWindows` presents a Quick sprung here with its own `quickFlash` + dwell, which is
+         drains. `settleWindows` presents a Quick sprung here with its art flash + dwell (`cueAIAnswer`), which is
          what the deleted `narrateShieldGuard` call used to do for the one whitelisted guard. */
       drainResolution(res, g, function(fres){
         if(g!==gen) return;
@@ -14040,7 +14034,7 @@ __QR__
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, ceremonyBlocks:function(){ return ceremonyBlocks(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ answering:function(){ return answerLive(); }, castableQuicks:function(){ if(!state || !state.players) return []; return eligibleQuicks().map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return { id:c.id, name:(e&&e.name)||'', kind:(e&&e.kind)||'', pitch:!!(e&&e.pitchHigh) }; }); }, answerPick:function(){ return answerPickView(); }, holdsPriority:function(){ return !!(state && !state.finished && state.respondFor===YOU); }, fightFlashes:function(){ return fightFlashLog.slice(); }, castHold:function(){ return castHoldLeft(); }, ceremonyBlocks:function(){ return ceremonyBlocks(); }, popArt:function(r,s){ flashArt({rank:r, suit:s, id:'pop'+r+s}, 'Rival'); return true; }, stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat, done){ return playBeats(buildOppBeats(log, seat), gen, done||function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     declineLabel:declineLabel,   // the Respond? modal's pass button reads exactly this — `mptest` stages each window and asks it
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
