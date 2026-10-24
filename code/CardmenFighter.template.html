@@ -2839,9 +2839,9 @@ __QR__
      * OFF — `RULE_DEFS.some(ruleOn)` IS the definition of "customised". Same inversion as `flatDraw` and
      * `chopStrips`. The default (2026-08-30) is that the 2 plays in chains as the LOWEST card. */
     { key:'noSeqTwos',   duel:true, label:'Sequences do not include the 2',
-      note:'By default the 2 <b>can</b> be a link in a run — a straight, consecutive pairs, consecutive trios — as the <b>lowest</b> card, so 2-3-4-5-6 is the smallest straight and 10-J-Q-K-A is still the biggest. That is how Chikicha plays it, and Big Two too. Switch this on to bar the 2 from chains entirely, which is Tiến lên and Dou Dizhu — their runs go from 3 up to the Ace. Either way the rule is about the <b>chain</b>, never the baggage: a 2 is still a legal spare card on a trio or a wing on an airplane, and a pair or trio of 2s is unaffected.' },
-    { key:'highTwos',    duel:true, label:'The 2 is the highest card in plays of 4+', deadIf:'noSeqTwos',
-      note:'The 2 is the apex as a single, a pair and a trio, and every game in this family agrees. They differ only in longer plays, and there are two answers: bar it, or rank it lowest. This is a third — the 2 keeps its top value inside chains too, so J-Q-K-A-2 is the biggest straight and a trio of 2s makes the biggest full house. It matches no source game; it is the rule this one shipped with before 2026-08-30. Meaningless while the 2 is barred from sequences above, so that row switches this one off.' },
+      note:'By default the 2 <b>can</b> be a link in a run — a straight, consecutive pairs, consecutive trios — as the <b>lowest</b> card, so 2-3-4-5-6 is the smallest straight and 10-J-Q-K-A is still the biggest. That is how Chikicha plays it, and Big Two too. Switch this on to bar the 2 from runs entirely, which is Tiến lên and Dou Dizhu — their runs go from 3 up to the Ace. This row is only about <b>runs</b>: where the 2 ranks in a full house, a four of a kind and every other play of four or more is the next row. A 2 is still a legal spare card on a trio or a wing on an airplane, and a pair or trio of 2s is unaffected.' },
+    { key:'highTwos',    duel:true, label:'The 2 is the highest card in plays of 4+',
+      note:'The 2 is the apex as a single, a pair and a trio, and every game in this family agrees. In plays of <b>four or more</b> it ranks <b>lowest</b> by default, as in Chikicha: 2-2-2 + a pair is the smallest full house and four 2s the smallest four of a kind. Switch this on to rank it <b>highest</b> there instead, which is Dou Dizhu and Tiến lên: 2-2-2 + a pair is the biggest full house and four 2s the biggest four of a kind. If the 2 may also be in runs (the row above off), it tops those too, so J-Q-K-A-2 is the biggest straight — the rule this game shipped with before 2026-08-30, and no source game\'s.' },
     { key:'trioOne',     duel:true, label:'Trio + one spare card',
       note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
     /* Big Two's five-card bomb, kept as an ordinary shape: the poker LADDER it sits on is refused on principle
@@ -2918,7 +2918,7 @@ __QR__
     { key:'table',  title:'Table rules',    keys:['strikeOne','millAll','flatShields','flatDraw'] },
     /* THE PRESET LINE LEADS FROM HERE (2026-08-30), not from Shapes. It moved because the presets now set a
      * rule in THIS section: with the 2 playing in chains by default, Tiến lên and Dou Dizhu have to switch
-     * `noSeqTwos` ON to bar it. A preset line must precede every group it governs — below one of them it reads
+     * `noSeqTwos` ON to bar it, and (since v1.37.0) `highTwos` ON to keep it their top card. A preset line must precede every group it governs — below one of them it reads
      * as a control belonging to that group, which is the one thing it is not. */
     { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip','noSeqTwos','highTwos'],
       presets:true },
@@ -2962,7 +2962,7 @@ __QR__
      * Two divergences that no rule can express yet: our FULL HOUSE is always on and Tiến lên has none, and its
      * bombs reach only a lone 2 where ours reach a pair (see chopReach). */
     { key:'tienlen', label:'Tiến lên', title:'Sequences from three, plus the family’s own bombs: 3+ consecutive pairs and four of a kind',
-      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true, noFullHouse:true, noSeqTwos:true } },
+      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true, noFullHouse:true, noSeqTwos:true, highTwos:true } },   // Tiến lên's 2 is its top card: barred from runs, highest everywhere else (v1.37.0)
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
      * 炸弹 is the bare four of a kind, which is why it comes with the chop. Its 三带二 needs no rule: that is
@@ -2971,7 +2971,7 @@ __QR__
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
     { key:'doudizhu', label:'Dou Dizhu', title:'The fullest set: 3+ consecutive pairs, long straights, trio+1, four+two, the airplane, and the bomb',
       rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
-              quadro:true, chopQuadro:true, noSeqTwos:true } }
+              quadro:true, chopQuadro:true, noSeqTwos:true, highTwos:true } }   // Dou Dizhu ranks the 2 above the A in every play, and bars it from every chain (v1.37.0)
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
@@ -3032,34 +3032,42 @@ __QR__
     RULE_DEFS.forEach(function(d){ MY_RULES[d.key]=o[d.key]; RULES[d.key]=o[d.key]; });
     applyRules();
   }
-  function applyRules(){
-    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.strikeOne ? 'chosen' : 'all');   // NOTE the inversion (v1.36.0)
-    if(E.setMillScope)       E.setMillScope(RULES.millAll ? 'universal' : 'targeted');
-    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!RULES.flatShields);   // NOTE the inversion (v1.36.0)
+  /* A LESSON PLAYS THE DEFAULT RULES (v1.37.0). Aj: *"Lessons should probably always play the default rules"*. `startGame`
+   * applied the player's saved custom rules in tutorial mode too, so a lesson inherited them: with "Sequences do not
+   * include the 2" saved, The 2 lesson's step 7 refused the full house it asks for, and its `only` locked Pass — a
+   * dead end (measured, 31/5). So `applyRules` takes the rule set to apply, and a lesson passes `defaultRules()`,
+   * which writes neither `RULES` nor `MY_RULES`: the player's picks are untouched, and back in force when it ends. */
+  function defaultRules(){ var o={}; RULE_DEFS.forEach(function(d){ o[d.key]=ruleOff(d); }); return o; }
+  function applyRules(R){
+    R=R||RULES;
+    if(E.setSpecialLossMode) E.setSpecialLossMode(R.strikeOne ? 'chosen' : 'all');   // NOTE the inversion (v1.36.0)
+    if(E.setMillScope)       E.setMillScope(R.millAll ? 'universal' : 'targeted');
+    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!R.flatShields);   // NOTE the inversion (v1.36.0)
     /* No row turns these off: they change what Leyline, Holy Shroud, Sanctuary-under-Apollo, Critical Hit and
      * Ultima Attack DO, and the cards print it. Set every game start anyway, so the page never depends on
      * whatever a debug hook or an earlier game left in the engine. */
     if(E.setWardAll)   E.setWardAll(true);
     if(E.setDamageAll) E.setDamageAll(true);
-    if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
-      if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
-      if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
-      if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
-      if(E.setKits3)            E.setKits3(!!RULES.kits3);
-      if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
-      if(E.setChopQuadro)       E.setChopQuadro(!!RULES.chopQuadro);
-      if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
-      if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
-      if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
-      if(E.setNoFullHouse)      E.setNoFullHouse(!!RULES.noFullHouse);
-      if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
-      if(E.setFourOne)          E.setFourOne(!!RULES.fourOne);
-      if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
-      if(E.setAirplane)         E.setAirplane(RULES.airplane);
-      if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
-      /* Two booleans -> the engine's three-way mode. `noSeqTwos` wins: while the 2 is barred from chains,
-       * where it would RANK inside one is meaningless (which is why that row is dead in the panel). */
-      if(E.setSeqTwos)          E.setSeqTwos(RULES.noSeqTwos ? 'off' : (RULES.highTwos ? 'high' : 'low'));
+    if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!R.flatDraw);     // NOTE the inversion
+      if(E.setApexInfinity)     E.setApexInfinity(!!R.apexInf);
+      if(E.setApexNoStrip)      E.setApexNoStrip(!!R.apexNoStrip);
+      if(E.setDoublePair)       E.setDoublePair(R.dblPair);
+      if(E.setKits3)            E.setKits3(!!R.kits3);
+      if(E.setQuadro)           E.setQuadro(!!R.quadro);
+      if(E.setChopQuadro)       E.setChopQuadro(!!R.chopQuadro);
+      if(E.setChopKits)         E.setChopKits(!!R.chopKits);
+      if(E.setChopSflush)       E.setChopSflush(!!R.chopSflush);
+      if(E.setChopStrips)       E.setChopStrips(!!R.chopStrips);
+      if(E.setNoFullHouse)      E.setNoFullHouse(!!R.noFullHouse);
+      if(E.setTrioOne)          E.setTrioOne(!!R.trioOne);
+      if(E.setFourOne)          E.setFourOne(!!R.fourOne);
+      if(E.setFourTwo)          E.setFourTwo(!!R.fourTwo);
+      if(E.setAirplane)         E.setAirplane(R.airplane);
+      if(E.setStraightMin)      E.setStraightMin(R.straightLen);
+      /* Two independent rows, two engine settings (v1.37.0): one bars the 2 from runs, the other ranks it high in plays
+       * of four or more. They used to drive ONE mode in which the bar also kept the 2 high everywhere else. */
+      if(E.setTwoChains)        E.setTwoChains(!R.noSeqTwos);
+      if(E.setTwoHigh)          E.setTwoHigh(!!R.highTwos);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
@@ -3771,7 +3779,7 @@ __QR__
      * an old file and a new one cannot read the same '' as the same game. */
     var rec={ v:'2.2-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
       numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
-      winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
+      winner:(state.winner==null?'draw':(state.winner===YOU?'you':'rival')), winnerSeat:(state.winner!=null?state.winner:null),   // 'draw': everyone left decked out on one draw (v1.37.0)
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
       seats:seats, you:seats[YOU], rival:(np===2?seats[1]:merged), rivalIsMerged:(np>2),
       /* `fullLog`, NOT THE DOM (2026-09-24). This read `$('log').children` — the RENDERED panel — and
@@ -4243,7 +4251,8 @@ __QR__
       foes.push(nm+': '+deckLabel((seatDecks && seatDecks[i]) || (i===1?rivalDeck:'full')));
     }
     var head=['Cardmen Fighter — Battle Log',
-              'You: '+deckLabel((seatDecks && seatDecks[0]) || youDeck)+'   vs   '+foes.join('   ·   ')];
+              'You: '+deckLabel((seatDecks && seatDecks[0]) || youDeck)+'   vs   '+foes.join('   ·   '),
+              rulesHeadLine()];
     if(state){
       var out='';
       if(state.finished){
@@ -4254,6 +4263,18 @@ __QR__
       head.push('Reached Round '+state.round+out);
     }
     return head;
+  }
+  /* THE RULES IN PLAY, IN THE PANEL'S OWN WORDS (v1.37.0). Aj's 32-round six-player log was played on the Dou Dizhu preset,
+     and only the shapes in it (Four + 2, Consecutive Trios) said so: the header named the decks and the round reached and
+     nothing about the rules, so a customised game read like a default one — the export's lesson, that an unstamped
+     homebrew game cannot be repaired afterwards. A default game says so outright (Aj: "Rules: default"), so a log from
+     before this line existed is told apart from a default one. A lesson plays the defaults whatever is saved; a guest's
+     `RULES` are the host's. */
+  function rulesHeadLine(){
+    var R=(tutorialMode || currentLesson) ? defaultRules() : RULES;
+    var on=RULE_DEFS.filter(function(d){ return ruleOnIn(R, d); });
+    if(!on.length) return 'Rules: default';
+    return 'Custom rules: '+on.map(function(d){ return d.mode ? (d.label+': '+valLabel(d, R[d.key])) : d.label; }).join(' · ');
   }
   function downloadLog(lines){   // `lines` defaults to the live log; the lobby passes the LAST game's stash (v1.31.95)
     var head=logHeadLines();
@@ -4424,16 +4445,20 @@ __QR__
      * the MOST rules, none of which appear anywhere a player looks. The old text also called it "No effect — a
      * pure fight card", which is the opposite of true.
      * EVERY CLAIM IS DERIVED FROM THE LIVE RULES, never hardcoded: `noSeqTwos` bars the 2 from chains entirely
-     * and `highTwos` puts it back on top, so a static note would be a lie in two of the three configurations —
+     * and `highTwos` puts it on top in plays of four or more, so a static note would be a lie in three of the four
+     * configurations —
      * and the whole reason this card needs explaining is that its behaviour is configurable. */
     if(card.rank===2){
       var anm=(E.cardName&&E.cardName(card))||null;
-      var mode=(E.isSeqTwos?E.isSeqTwos():'low');
-      var chain = mode==='off'
-        ? 'It cannot be used in a <b>straight</b> or any other chain at all.'
-        : mode==='high'
-          ? 'In plays of <b>four or more</b> it still ranks <b>above the A</b> — the top straight is <b>J-Q-K-A-2</b>.'
-          : 'But from <b>four cards up it is the LOWEST</b> card: the smallest straight is <b>2-3-4-5-6</b>, and <b>2-2-2 + any pair is the smallest full house</b> — a full house is ranked by its trio.';
+      /* TWO CLAIMS, ONE PER RULE (v1.37.0): whether it may be in a run, and where it ranks in plays of four or more. */
+      var chains=!(E.isTwoChains && !E.isTwoChains()), high=!!(E.isTwoHigh && E.isTwoHigh());
+      var chain = !chains
+        ? (high
+          ? 'It cannot be used in a <b>straight</b> or any other run. In other plays of <b>four or more</b> it still ranks <b>above the A</b>: <b>2-2-2 + any pair is the biggest full house</b> and four 2s the biggest four of a kind.'
+          : 'It cannot be used in a <b>straight</b> or any other run. In other plays of <b>four or more</b> it is the <b>LOWEST</b> card: <b>2-2-2 + any pair is the smallest full house</b> and four 2s the smallest four of a kind.')
+        : (high
+          ? 'In plays of <b>four or more</b> it still ranks <b>above the A</b> — the top straight is <b>J-Q-K-A-2</b>, and 2-2-2 + any pair is the biggest full house.'
+          : 'But from <b>four cards up it is the LOWEST</b> card: the smallest straight is <b>2-3-4-5-6</b>, and <b>2-2-2 + any pair is the smallest full house</b> — a full house is ranked by its trio.');
       var inf = (E.isApexInfinity && E.isApexInfinity())
         ? ' <b>No card can out-value it</b> under the current rules — only a chop answers it.' : '';
       return '<div class="cvName">'+name+(anm?' · '+anm:'')+'</div>'+
@@ -4618,7 +4643,7 @@ __QR__
   function startGame(starter){
     if(starter==null) starter=YOU;
     endShown=false;                        // a fresh game re-arms the end screen (see endGame)
-    applyRules();                          // the ONE newGame call site, so a game always starts under the chosen rules
+    applyRules(tutorialMode ? defaultRules() : RULES);   // the ONE newGame call site, so a game always starts under the chosen rules — and a lesson under the defaults
     var ngOpts = (mpCount>2)
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
@@ -4947,7 +4972,7 @@ __QR__
      * was no way to be in that position — a game was only ever replaced by another one. */
     if(!state) return;
     if(answerUIStale()) endAnswerUI();          // an answer's pickers, staging and borrowed selection go with its grant (step 4, piece 5)
-    noteBlockedResolves(); noteRoundRewind();   // a duplicate round resolution, and a round number that moved backwards — both into the saved log
+    noteBlockedResolves(); noteRoundRewind(); narrateDeckOuts();   // a card's draw that decked a seat out (v1.37.0)   // a duplicate round resolution, and a round number that moved backwards — both into the saved log
     /* PAINT THE SUB-PHASE ON THE HAND. Read from `state.subPhase`, not from whose turn it is: the rule it
        reports — no effects once the fight has begun — is the TABLE's, not yours, which is Aj's whole point
        for wanting the colour. A seat waiting its turn still needs to know the window has closed. */
@@ -6520,6 +6545,10 @@ __QR__
         selected={}; setMessage('<b>'+eff.name+'</b> — choose the Broadway card to discard as its extra cost. Nothing is spent until you confirm.'); render(); return;
       }
     }
+    if(!(_opts && _opts.deckOutOk) && E.drawShortfall && E.drawShortfall(state, YOU, card)>0){   // a draw that would deck you out asks first (v1.37.0)
+      var again={}; if(_opts) for(var ko2 in _opts) again[ko2]=_opts[ko2]; again.deckOutOk=true;
+      return confirmDeckOut(card, function(){ activate(cardId, again); });
+    }
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:(_opts&&_opts.target), copyId:(_opts&&_opts.copyId), pitch:(_opts&&_opts.pitch)}); selected={}; busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, _opts||{});   // choices (return-to-top / discard) auto-picked in the engine
@@ -6555,6 +6584,7 @@ __QR__
          a cast, change it HERE TOO — `nettest_actloop` covers a host Technique and stayed green throughout. */
       settleWindows(gen, function(){
         if(state.finished){ render(); return endGame(); }
+        if(handOnAfterDeckOut()) return;   // your own draw put you out: the next seat leads (v1.37.0)
         if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
         render();
       });
@@ -6569,6 +6599,7 @@ __QR__
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
       showRevealIfAny();                     // Outbalance: show the hand you just looked at
+      if(handOnAfterDeckOut()) return;   // your own draw put you out: the next seat leads (v1.37.0)
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }   // netplay: a forced discard on the Rival is theirs to choose
       if(handleDiscardAfterAction()) return; // a self draw-and-pitch opens the discard picker
       render();
@@ -6664,6 +6695,7 @@ __QR__
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
       showRevealIfAny();
+      if(handOnAfterDeckOut()) return;   // your own draw put you out: the next seat leads (v1.37.0)
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
       render();
     });
@@ -6874,6 +6906,7 @@ __QR__
        not find it. The tail is `doRemove`'s, hop included: `NET.hostAfterOwnCast` is what hands a host its board back. */
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
+      if(handOnAfterDeckOut()) return;   // your own draw put you out: the next seat leads (v1.37.0)
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
       render();
     });
@@ -7096,38 +7129,48 @@ __QR__
     if(window.__lastRoundBanner===rn) prioNote('⚠ ROUND BANNER REPEATED — the round did not advance', 'round '+rn+' announced twice', rn);
     window.__lastRoundBanner=rn;
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
-    /* A FIZZLED DRAW: THE FACT IS PUBLIC, THE ADVICE IS PRIVATE (client-never-told-draw-fizzled; Aj's wording,
-       2026-10-05). This used to be ONE host-local `logMsg`, so a netplay client whose deck and shuffle pile
-       were both empty was never told in any game — this function runs on the host and in solo only (it is
-       `LOCAL_CEREMONY`'s; a client's side of the ceremony never draws). Now: the deck-out is narrated to the TABLE (the
-       🂠 count already shows it), and the advice goes only to the seat it helps — locally for this seat, via
-       `NET.noteTo` for a remote one. `res.draws` is indexed by ABSOLUTE seat here (host / solo frame). */
-    if(res.draws) for(var dq=0; dq<res.draws.length; dq++){
-      if(res.draws[dq]!==0 || !state.players[dq] || state.players[dq].eliminated) continue;
-      say(dq, 'Draw fizzled for {who} — no cards left in the deck or shuffle pile.', 'warn');
-      var advice='Spend energy on effects to recycle cards back into your deck.';
-      if(dq===YOU) logMsg(advice, 'warn');
-      else if(typeof NET!=='undefined' && NET.isHost && NET.isHost() && NET.noteTo) NET.noteTo(dq, advice, 'warn');
-    }
+    /* (A FIZZLED DRAW used to be narrated here — "Draw fizzled for X — no cards left", with advice to recycle. Since
+       v1.37.0 a card a seat cannot draw puts it OUT, so the ceremony narrates a deck-out instead: `logDeckout`.) */
+  }
+  /* WHO DECKED OUT, FROM THE ENGINE (v1.37.0). Any card a seat cannot draw puts it out, and several seats can go on one
+     draw, so `res.deckedOutSeats` lists them all; when they were everyone left there is NO winner. (It inferred one
+     seat as "whoever didn't win", which named the wrong player in a free-for-all and has no answer for a draw.) */
+  function deckOutNames(seats){ return seats.map(function(q){ return '<b>'+esc(logName(q))+'</b>'; }).join(', '); }
+  function deckOutEnding(seats){
+    lastEndType='deckout';
+    if(state.winner==null) return deckOutNames(seats)+' decked out — no winner.';
+    return deckOutNames(seats)+' decked out — '+(state.winner===YOU?'you win!':(esc(logName(state.winner))+' wins.'));
   }
   function logDeckout(res){
-    // The engine records the decked-out seat in res.eliminated for N-player games; only a duel can safely
-    // infer it as "whoever didn't win". Deriving it that way in a free-for-all named the wrong player.
-    var elim = (res && res.eliminated && res.eliminated.length) ? res.eliminated[res.eliminated.length-1] : null;
-    var loserSeat = (elim!=null) ? elim : (MP() ? null : (state.winner===YOU ? RIVAL : YOU));
-    var loser = (loserSeat!=null) ? logName(loserSeat) : 'A rival';
-    /* MID-GAME (3-6 players, two or more left), one seat is OUT and nobody has won: name the seat and nothing
-       else. `state.winner` is not set (this used to print "Lefty decked out — Rival 1 wins." over a game still
-       being played), and `lastEndType` belongs to the real ending. `res.eliminated` always carries the seat here. */
-    if(!state.finished){
-      setMessage('<b>'+loser+'</b> decked out — out of the game.');
-      say(loserSeat, '{who} decked out!', 'warn');
-      return;
+    var seats=(res && res.deckedOutSeats && res.deckedOutSeats.length) ? res.deckedOutSeats
+            : ((res && res.eliminated && res.eliminated.length) ? [res.eliminated[res.eliminated.length-1]] : []);
+    if(!seats.length && !MP() && state.winner!=null) seats=[state.winner===YOU ? RIVAL : YOU];
+    seats.forEach(function(q){ say(q, '{who} decked out — could not draw a card.', 'warn'); });
+    /* MID-GAME (3-6 players, two or more left): the seats are OUT and nobody has won, so name them and nothing else. */
+    setMessage(state.finished ? deckOutEnding(seats) : (deckOutNames(seats)+' decked out — out of the game.'));
+  }
+  /* A CARD'S DRAW CAN DECK A SEAT OUT MID-TURN (v1.37.0), and nothing in a cast's path narrates it, so the host and solo
+     say each one here, once (`deckOutsSaid`). The round draw's are the ceremony's (`logDeckout`). A netplay guest hears
+     them through the host's `say`; `deckOuts` is not on its mirror. */
+  var deckOutsSaid=0;
+  function narrateDeckOuts(){
+    if(!state || !state.deckOuts || (typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive())) return;
+    while(deckOutsSaid<state.deckOuts.length){
+      var d=state.deckOuts[deckOutsSaid++];
+      if(d.via==='round') continue;
+      d.seats.forEach(function(q){ say(q, '{who} decked out — could not draw a card.', 'warn'); });
+      setMessage(state.finished ? deckOutEnding(d.seats) : (deckOutNames(d.seats)+' decked out — out of the game.'));
     }
-    var youWin = state.winner===YOU;
-    lastEndType='deckout';
-    setMessage('<b>'+loser+'</b> decked out — '+(youWin?'you win!':(logName(state.winner)+' wins.')));
-    say(loserSeat!=null?loserSeat:state.winner, (loserSeat!=null?'{who} decked out!':(loser+' decked out!')), 'warn');
+  }
+  /* YOU DECKED OUT ON YOUR OWN TURN (v1.37.0): your card's draw found nothing, so at 3-6 players you are out and the engine
+     has handed the turn on. Every cast tail asks this after its `finished` check, because the tail's next step gives the
+     board back to YOU, and nothing else would start the next seat. */
+  function handOnAfterDeckOut(){
+    if(!state || state.finished || !state.players[YOU] || !state.players[YOU].eliminated) return false;
+    busy=true; render();
+    if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && NET.hostDeckedOut){ NET.hostDeckedOut(); return true; }
+    if(MP()) runOpponents(); else runRival();
+    return true;
   }
 
   /* ---- Round-announcement ceremony ----------------------------------------------------------
@@ -7136,7 +7179,6 @@ __QR__
      "Round N" card flies them in. Terminal rounds (Fighter Kick) never reach here — they finish on the win. */
   function roundSubtitle(res){
     if(res.opening) return 'Jabs only';
-    if(res.draws && res.draws[YOU]===0 && !(state && state.players[YOU] && state.players[YOU].eliminated)) return 'Deck empty — spend energy to recycle';   // a knocked-out seat is watching, not out of cards
     if(res.newRound===2) return 'Specials unlocked!';
     var nDraw=(E.drawCountFor&&state)?E.drawCountFor(state):2;   // scales with the table — never hardcode it
     return 'Each player draws '+nDraw+(nDraw===1?' card':' cards');
@@ -7620,8 +7662,8 @@ __QR__
            the ceremony never reached its continuation, so whoever led next never did. `deckouttest` (solo) and
            `nettest_deckout3` (the netplay host) stage it. */
         if(res.deckedOut && state.finished){ uiPhase=null; inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
-        if(res.deckedOut) logDeckout(res);                      // one seat is out; the new round still begins below
         logRoundDraw(res);
+        if(res.deckedOut) logDeckout(res);                      // after the banner: the round began, and these seats could not draw for it
         present(render);                                        // the dealt board, drawn under the fly-in delay
         });
       });
@@ -8145,6 +8187,10 @@ __QR__
       if(pcs.length>1){
         pick={ kind:'pitch', need:1, chosen:{}, cardId:cardId, from:pcs.map(function(c){ return c.id; }), opts:opts, name:ef.name, answer:true }; selected={};
         setMessage('<b>'+esc(ef.name)+'</b> — choose the Broadway card to discard as its extra cost. Nothing is spent until you confirm.'); render(); return; }
+    }
+    if(!opts.deckOutOk && E.drawShortfall && E.drawShortfall(state, YOU, card)>0){   // an answer that would deck you out asks first too
+      var again2={}; for(var ko3 in opts) again2[ko3]=opts[ko3]; again2.deckOutOk=true;
+      return confirmDeckOut(card, function(){ if(answerRecordLive()) answerCast(cardId, again2); });
     }
     humanResponds(a.g, cardId, a.cont, opts.coid||null, opts.pitch||null, (opts.target==null ? null : opts.target));
   }
@@ -8905,6 +8951,7 @@ __QR__
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
+    deckOutsSaid=0;                                             // a new game's deck-outs are narrated from its first
     castHoldOn=false; castHoldUntil=0; castHoldCard=null; clearTimeout(castHoldT); castHoldT=null; castHoldWaiters=[];   // a cast hold never outlives its game (ruling 20)
     answering=null; answerHeldSel=null; lastAnswer=null;        // nor does an answer record, or what it borrowed (step 4)
     replayStack=[];                                             // nor a replayed AI exchange cut off by a new game
@@ -8978,10 +9025,11 @@ __QR__
        message under it named the opponent ("You decked out — Lefty wins."), so a duel lost to Lefty said two
        different things about who beat you. `seatName` is the one rule the battle log uses too: the opponent's
        name, or "Rival 2" for one that has none, the same default as every other line. */
-    var youWin=state.winner===YOU, winnerName=seatName(state.winner);
+    var youWin=state.winner===YOU, noWinner=(state.winner==null), winnerName=noWinner?'':seatName(state.winner);
     var again = !online ? (MP()?'New Game':'New Duel') : (host ? '↩ Back to the lobby' : '🔄 Ask for a rematch');
-    showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(winnerName+' Wins'))+'</h2>'+
-      '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
+    /* NO WINNER (v1.37.0): everyone left decked out on the same draw. */
+    showModal('<h2>'+(noWinner?'No winner':(youWin?'YOU WIN! 🦵💥':(winnerName+' Wins')))+'</h2>'+
+      '<p>'+(noWinner?'Everyone left decked out on the same draw, so nobody takes the '+(MP()?'table':'duel')+'. Run it back?':youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
       '<div class="respOpts"><button id="againBtn" class="modalGo" style="text-align:center;">'+again+'</button>'+
       (online ? '<p class="endNote" id="rematchAsk">'+(host ? 'Everyone keeps their connection — each player picks a deck and hits Ready to take a seat.' : 'Only the host can reopen the lobby; when they do, you land there automatically.')+'</p>' : '')+
       '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
@@ -9179,7 +9227,7 @@ __QR__
       releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
     function note(type, data){ if(!active) return; var st=steps[i]; if(!st||!st.gate) return; try{ if(st.gate(type, data)) next(); }catch(e){} }
     function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; p._dragged=false; } show(); }   // a new lesson starts from the coach's own spot, not the last lesson's drag
-    function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); tutLockBuilderCancel(false); }   // an abandoned lesson must not leave the builder's Cancel dead
+    function stop(){ releaseHold(); active=false; tutorialMode=false; applyRules();   /* the lesson played the defaults; the engine goes back to your rules */ tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); tutLockBuilderCancel(false); }   // an abandoned lesson must not leave the builder's Cancel dead
     function skip(){ stop(); setMessage('Tutorial dismissed — play on! You can restart it from New Duel.'); }
     function finish(){
       stop();
@@ -10053,12 +10101,9 @@ __QR__
     /* `needsAny` — inert while none of its group is on (Aj: "this option should uncheck if chops were not
      * available"). A checked box that cannot do anything is worse than a greyed one, so the control is dead
      * until it means something, and the handler clears it when the last of the group goes off. */
-    /* `deadIf` — the MIRROR of needsAny: inert while the named rule IS on, because the answer it gives has
-     * stopped meaning anything. `highTwos` asks where the 2 RANKS inside a chain; `noSeqTwos` removes the 2
-     * from chains, so there is nothing left to rank. Same treatment either way: dead rather than checked-and-
-     * powerless, and cleared when it goes dead so a stale tick cannot travel in `rulesKey()`. */
+    /* (`deadIf`, the mirror of needsAny, went with v1.37.0: its one user, `highTwos`, stopped depending on
+     * `noSeqTwos` once the 2's rank and its place in runs became separate rules.) */
     function depOk(d){
-      if(d.deadIf && src[d.deadIf]) return false;
       return !d.needsAny || d.needsAny.some(function(k){ return !!src[k]; });
     }
     function rowHTML(d){
@@ -10202,11 +10247,6 @@ __QR__
         /* A member of a `needsAny` group moved, so the dependent row's own live/dead state changed — and if the
          * group is now empty the dependent rule is cleared. Either way other rows move, so re-render. */
         RULE_DEFS.forEach(function(o){
-          /* `deadIf`: the dependent row's live/dead state flips whichever way this rule moved, so the panel must
-           * re-render EITHER WAY — `moved` is not only about a value changing. Clearing the tick without
-           * setting it left the row looking on and enabled, which is exactly the "checked but powerless"
-           * state the dependency exists to prevent. */
-          if(o.deadIf===k){ if(src[k] && src[o.key]) src[o.key]=false; moved=true; }
           if(!o.needsAny || o.needsAny.indexOf(k)<0) return;
           if(!o.needsAny.some(function(x){ return !!src[x]; }) && src[o.key]) src[o.key]=false;
           moved=true;
@@ -10766,6 +10806,19 @@ __QR__
     $('cancelLeave').addEventListener('click', stay);
     $('confirmLeave').addEventListener('click', function(){ NET.leaveOnline(); });
     overlayDismiss=stay;
+  }
+  /* ⚡ WARNS BEFORE A CAST THAT DECKS YOU OUT (v1.37.0). Any card you cannot draw puts you out, so a draw card or a Ride
+     cast with too few cards left would end your game; `drawShortfall` is the engine's count, the one the AI reads too.
+     The concede dialog's shape: keep it, or go ahead. */
+  function confirmDeckOut(card, go){
+    var ef=(E.effectFor?E.effectFor(state, YOU, card):E.effectOf(card))||{}, short=E.drawShortfall(state, YOU, card);
+    showStickyModal('<h2>Deck yourself out?</h2>'+
+      '<p><b>'+esc(ef.name||cardSym(card))+'</b> would draw '+short+' card'+(short===1?'':'s')+' more than your deck and Shuffle Pile hold. '+
+      'A card you cannot draw is a deck-out: '+(MP()?'you are out of the game':'you lose the duel')+'.</p>'+
+      '<div class="confirmBtns"><button id="keepDeck" class="ghostBtn">Keep it</button><button id="castDeckOut">Cast it anyway</button></div>');
+    overlayDismiss=hideOverlay;
+    $('keepDeck').addEventListener('click', hideOverlay);
+    $('castDeckOut').addEventListener('click', function(){ hideOverlay(); go(); });
   }
   function confirmConcede(){
     var mp=MP();
@@ -11415,7 +11468,6 @@ __QR__
     /* `crossingRefuses` WAS HERE AND IS DELETED with the dwell it guarded (2026-10-14): with the move applied the
        moment the seat is told, there is no window in which a second intent could arrive. */
     // a PRIVATE log line for one seat — advice that only helps the player it names (see logRoundDraw)
-    function noteTo(seat, text, cls){ sendTo(seat, {t:'note', seat:seat, text:String(text||''), cls:cls||''}); }
     function sendTo0(chan, m){ if(hubMode && chan){ try{ if(chan.readyState==='open') chan.send(JSON.stringify(m)); }catch(e){} } else send(m); }   // to one specific (not-yet-seated) channel
     function seatOfChan(chan){ var i=dcs.indexOf(chan); return (i>=0)?chanSeat[i]:null; }
 
@@ -12178,7 +12230,6 @@ __QR__
         else if(m.t==='concede'){ onOpponentConcede(); }
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
         else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; rearmAnswer(); setMessage('⚠ '+(m.reason||'Illegal move.')); } }   // a refused answer gives the window back (step 4, piece 5)
-        else if(m.t==='note'){ if(m.seat===mySeat) logMsg(esc(m.text), m.cls||''); }   // a private line from the host — escaped: it is data, never markup
         else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }
         else if(m.t==='crossed'){ if(m.seat==null || m.seat===mySeat){ clientCrossed(); } }   // the host crossed our move — lock the board until it lands (ruling 10)   // the host held our Fight — see heldPlayMessage
       }
@@ -13496,6 +13547,9 @@ __QR__
     }
     // The HOST forfeits in an N-player game: it's the authority, so it stays on as a referee (eliminated, spectating)
     // and keeps driving the remaining players; only when one is left does the game end.
+    /* THE HOST DECKED ITSELF OUT ON ITS OWN TURN (v1.37.0), at 3-6 players: the engine has put it out and handed the turn
+       on, so it referees the rest exactly as a host that conceded does. */
+    function hostDeckedOut(){ netReact=null; netParked=null; busy=true; render(); broadcastMirror(); driveN(); }
     function hostConcede(){
       if(!hostState || hostState.finished) return;
       var r=E.concede(hostState, YOU);
@@ -13950,7 +14004,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostCrossThen:hostCrossThen, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgSetParkDelay:dbgSetParkDelay, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:!!(clientCer && clientCer.stage==='opening'), stage:(clientCer?clientCer.stage:null), roundCard:!!(clientCer && clientCer.stage==='card'), hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!(clientCer && clientCer.held), awaiting:!!(clientCer && clientCer.stage==='deal') }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostCrossThen:hostCrossThen, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, hostDeckedOut:hostDeckedOut, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgSetParkDelay:dbgSetParkDelay, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, broadcastMirror:broadcastMirror, dbgCeremonyHold:function(){ return { hold:ceremonyHold, locked:ceremonyLocked, active:!!(clientCer && clientCer.stage==='opening'), stage:(clientCer?clientCer.stage:null), roundCard:!!(clientCer && clientCer.stage==='card'), hostCer:hostCer, hostCerKnown:hostCerKnown, busy:busy, pending:!!(clientCer && clientCer.held), awaiting:!!(clientCer && clientCer.stage==='deal') }; }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the

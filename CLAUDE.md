@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.36.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.37.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 771 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 793 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 771 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 793 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -90,7 +90,10 @@ node lessontest_energy.js               # the "Energy & Effects" lesson — bank
 node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone, and Next pressed before step 1's prep still lights it (18)
 node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone, and the same instant Next (18)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
-                                        # DERIVED from the live rules, not a hardcoded string (36)
+                                        # DERIVED from the live rules, not a hardcoded string (39). Since v1.37.0
+                                        # it runs with three hostile custom rules SAVED (no full house, the
+                                        # unbeatable 2, the 2 barred from runs): a lesson plays the defaults
+                                        # whatever is saved, and the saved rules come out untouched
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
 #   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
 node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (12). `card <id>
@@ -98,7 +101,7 @@ node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's es
 #                                       # `renderHand` appends bare cards with no `.group`. Forces the
 #                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
 #                                       # `answerWindow()`'s pick escape are not untested code
-node lessontest_phonepass.js            # THE LESSONS ON A PORTRAIT PHONE (128): reruns How to Play,
+node lessontest_phonepass.js            # THE LESSONS ON A PORTRAIT PHONE (131): reruns How to Play,
 #                                       # Initiative, Specials, Form Changes and The 2 at 390x844
 #                                       # (`LESSON_VIEWPORT`) and adds up their counts. On a phone the coach
 #                                       # covered the card or button a step named in all five, every suite green
@@ -134,7 +137,7 @@ node kicktest.js                                # THE FIGHTER KICK FLASHES AT EV
                                                 # EVERY LEG KILLS BEFORE ANY DRAW: `3p-out` used to cross one, and
                                                 # each Ride/Form an AI drew was a ~2.65s beat — it missed its 20s
                                                 # budget 1 run in 16. `KICK_HOSTILE_DRAW=1` forces that draw
-node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS ONE SEAT, NOT THE GAME (12).
+node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS ONE SEAT, NOT THE GAME (23).
                                                 # Solo, three seats: an AI wins a round with its last cards and
                                                 # an empty deck, decks out, and the NEXT AI must lead — the
                                                 # ceremony ran `endGame()` on ANY deck-out, so the human got an
@@ -147,6 +150,12 @@ node deckouttest.js                             # A DECK-OUT AT 3-6 PLAYERS ENDS
                                                 # check stops ONCE TANK LEADS (20s guard): a flat 9s window went red
                                                 # in #467's sweep when Tank cast twice first, each cast held for
                                                 # its art flash. `DECKOUT_TWOCAST=1` forces that (Giant Ram too)
+                                                # Since v1.37.0 (any card you cannot draw is a deck-out): the ⚡
+                                                # asks before a draw that would deck you out (and a control that
+                                                # casts without asking), "No winner" when everyone left decks out
+                                                # on one draw, and your own draw putting you out mid-turn at three
+                                                # players with the next seat playing on. `nettest_deckoutduel` is
+                                                # the netplay duel
 node roartest.js                                # THE ROAR BANNER ON THE HOST/SOLO CEREMONY (32). Duel (the
                                                 # CONTROL), a 3-player round YOU win, and one an AI wins: it
                                                 # must SHOW, show INSIDE the ceremony (before the next round's
@@ -429,7 +438,7 @@ node nettest_windowlock.js                      # A TURN OP WHILE SOMEBODY ELSE 
                                                 # checks `respondFor`, so every repeat re-granted the host's
                                                 # window and the table never moved. The host refuses (the
                                                 # authority) and the guest locks (the courtesy); both A/B'd
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (133).
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip and the window labels (135).
                                                 # Its forced-discard leg FORCES what its phase-strip driver once stalled on
                                                 # — an AI discard aimed at you — and drives it with that same `driveOnce`.
                                                 # The staging: the AI's hand holds nothing else castable and its own rule
@@ -454,7 +463,7 @@ node nettest_actloop.js                         # play must keep moving AFTER a 
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm,
                                                 # plus the EPIC LINE: a `vX.Y.Z.a` build refuses a
                                                 # `vX.Y.Z` one, two epic builds only warn (37)
-node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (155)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (157)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (28)
 node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
                                                 # to multiplayer, but `passoStep` only knew driveN's parks —
@@ -1539,10 +1548,17 @@ Three more things worth knowing before touching them:
   SHAPES from and never asked the game this one is based on. Two of four bar the 2; two demote it. A playtester
   with no chikicha background is what surfaced it.
   The panel carries **two booleans** (`noSeqTwos`, `highTwos`), not a mode row, because every rule must default
-  OFF — and `highTwos` uses **`deadIf`**, a new dependency kind and the mirror of `needsAny`: inert while the
-  named rule IS on. Note `deadIf` must set `moved` so the panel RE-RENDERS either way; clearing the tick without
-  it left the row looking on and enabled, which is the exact state the dependency exists to prevent.
-  The v1.31.45 reasoning below still holds for the `off` setting.
+  OFF.
+  **SINCE v1.37.0 THE TWO ROWS ARE INDEPENDENT, AND THE ENGINE HAS TWO SETTINGS, NOT ONE MODE** (`TWO_CHAINS`,
+  `TWO_HIGH`; `setTwoChains`/`setTwoHigh`). The mode could not say "barred from chains AND lowest elsewhere", and
+  its `off` quietly kept the 2 at the TOP of every non-chain play, so a Dou Dizhu table saw 2-2-2-9-9 beat every
+  full house under a row that said only "Sequences do not include the 2" (Aj: *"it's not a sequence tho? it's a
+  full house?"*). The bar is about runs only; `highTwos` is the 2's rank in every play of four or more, Four of
+  a Kind included (it read `fightValue`, so four 2s topped the quads while every other 2-shape bottomed out).
+  Tiến lên and Dou Dizhu tick both. `setSeqTwos` survives as a wrapper with its three old meanings ('off' =
+  barred + high), so the sims and old tests read the same; `isSeqTwos()` returns `'offlow'` for the new fourth
+  combination. `deadIf`, the dependency kind `highTwos` was its only user of, went with it.
+  The v1.31.45 reasoning below still holds for the bar.
 - **THE 2 WAS BARRED FROM EVERY CHAIN (v1.31.45).** `seqTwos` was the opt-in
   half. All three source games agree — Tiến lên and Dou Dizhu bar it from straights, 连对 and 飞机 alike; Big Two
   admits it to a run only by demoting it **below the 3**, so its top straight is 10-J-Q-K-A as well. Our old
@@ -2252,7 +2268,8 @@ is false whenever the end-of-round trim matches the draw; the ROUND NUMBER advan
 mirrors before the draw carry it and got held, which broke the shatter and the threshold beat in three suites;
 a CARD ID the client did not hold also matched a broken shield returning to hand, and needed an empty-pile
 clause; and **no card-based guess can see a seat that is dealt nothing**, so a fizzled or knocked-out client's
-Round card came late and wrong for as long as guessing lasted (`nettest_drawfizzle`).
+Round card came late and wrong for as long as guessing lasted (`nettest_drawfizzle`, since v1.37.0 `nettest_deckoutduel`:
+a draw that finds nothing is a deck-out now).
 **When the client needs to know what the host did, the host should say it.** Look for an inference in client
 code before writing a new one, and give the host a field instead; this is DECISIONS.md's *"a client may sequence,
 but never infer"*, which took four rewrites of one function to be taken literally.
@@ -2742,7 +2759,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.36.7 — last FULL sweep 2026-10-23, `npm run sweep`, 138/139 in 558s, `nettest_sync` at full depth (rounds 13, actions 60)** (the one red, `deckouttest`'s 3-player leg, was the 9s window v1.36.4 replaced; green here once rebased onto it) (this line was
+Status as of **v1.37.0 — last FULL sweep 2026-10-24, `npm run sweep`, 139/139 in 575s, `nettest_sync` at full depth (rounds 13, actions 60)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2756,18 +2773,18 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 771, `netview` 74, `modtest` 8, `mptest` 133, `rulestest` 155, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 793, `netview` 74, `modtest` 8, `mptest` 135, `rulestest` 157, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
-`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 33, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 12, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 23, `answerglowtest` 14, `sorttest` 30, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 96, `lessontest_phases` 52, `lessontest_howto` 29,
+`versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 33, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 23, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 23, `answerglowtest` 14, `sorttest` 30, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 96, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
-`lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 36, `lessontest_pickescape` 12, `lessontest_phonepass` 128, `qrref` 26 (darwin only, corroborates rather than
+`lessontest_rides` 18, `lessontest_forms` 18, `lessontest_twos` 39, `lessontest_pickescape` 12, `lessontest_phonepass` 131, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 83 netplay suites: `nettest_3p` 7, `parity` 22, `roundlock` 13, `strip` 16, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 25, `rename` 18, `prefightduel` 8, `priosig` 23, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 19, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 12, `customdeck` 18, `deckout3` 12, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 25, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 9, `prefight` 13, `react3` 8, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 17, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `drawfizzle` 12, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7, `shroud` 14.
+`target3` 17, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 16, `heldplay` 26, `heldplay3` 14, `pitch` 19, `deckoutduel` 8, `respondtarget3` 8, `ping` 10, `clientride` 35, `clientride3` 26, `piles` 12, `windowguard3` 13, `counterfeit` 15, `stackfly` 14, `answer` 16, `windowlock` 7, `shroud` 14.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -3559,6 +3576,13 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
 - Energy: activation cost = the card's number (`activationCost`); A costs 1, J/Q/K cost a flat
   `TRANSFORM_COST` into the Forms & Rides zone, and the apex 2 has no activated effect.
 - Defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
+- **A DECK-OUT IS ANY CARD YOU CANNOT DRAW (v1.37.0), and it is a game loss regardless of shields** (Aj). The
+  round's draw, a card's draw (a dig counts only the cards it says to DRAW, not the ones it looks at) and a
+  Ride's draw alike: a duel ends, and at 3-6 players the seat is out (`deckOut` → `dropSeat`, the turn handed
+  on if it was theirs). Everyone left decking out on one draw is **no winner** (`winner: null`, the record's
+  `'draw'`). Before v1.37.0 a draw from an empty deck and Shuffle Pile just FIZZLED. **`E.drawShortfall(st, p,
+  card)` is the one count of how short a cast would leave you** — the AI never casts into one, and the ⚡ asks
+  first. It counts what the cast moves before it draws: its paid energy lands in the Shuffle Pile, which is drawable.
 - **The per-round DRAW scales with the table (v1.31.3): `= numPlayers`** — 2 in a duel, 6 at six players.
   Shields are 2 + players since v1.36.0 (4 in a duel, 8 at six; `E.startShieldsFor(n)`). Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
   (the duel value) — reading the constant in the UI is what made the round banner announce "draws 2" at a table

@@ -787,6 +787,45 @@ because `eliminatePlayer` zeroes the shields: read after the step, every N-playe
 kick. It now reads the shields from before the step. The duel path was right all along, which is why only
 forcing the N-player case found it.
 
+## A deck-out is any card you cannot draw — what it does to game length and balance (2026-10-23) <a id="deck-out-rule"></a>
+
+**The rule (v1.37.0, Aj's ruling):** the first card a seat cannot draw puts it out, regardless of shields — the round's
+draw and a card's alike — and everyone left decking out on one draw is no winner. Before it, a draw from an empty deck and
+an empty Shuffle Pile fizzled, and a seat went out only when it had to lead with nothing in hand. **Everything in the
+deck-cycling tables above was measured under the old rule**; their deck-out column is the old rule's, not this one's.
+Both studies below ran the shipped v1.36.0 rules (the `loss=all` package): the `main` arm is v1.36.0's engine, the other
+v1.37.0's.
+
+**Game length and deck-outs** (`recyclesim.js 300`, knight, Math.random pinned per game so the two builds are paired):
+
+| players | median / max rounds, old → new | deck-outs per game, old → new |
+| --- | --- | --- |
+| 2 | 11 / 24 → 11 / 24 | 0.00 → 0.00 |
+| 3 | 11 / 18 → 11 / 18 | 0.00 → 0.01 |
+| 4 | 12 / 24 → 12 / 24 | 0.00 → 0.13 |
+| 6 | **16 / 32 → 12 / 21** | **0.01 → 3.36** |
+
+So it is a six-player rule in practice: more than half the table goes out by deck-out, the median game is a quarter
+shorter and the longest a third. At two to four players nothing measurable moves.
+
+**Deck balance** (`mpsim.js 1000 knight`, SIX runs per build, NOT pinned; the table is the mean of six, the run-to-run sd
+of one deck is ~1.5–3 points, and a change is called only past three standard errors of the difference):
+
+| | 6 players, old | 6 players, new | change |
+| --- | --- | --- | --- |
+| Pure Cleric | 14.8% | 11.0% | **−3.9** (the only one past 3 s.e.) |
+| Full Set | 14.1% | 10.7% | −3.4 (2.8 s.e.) |
+| Mage Knight (Wiz+Fig) | 17.6% | 19.6% | +2.0 |
+| top deck | Bard 24.0% | Bard 25.1% | |
+| spread, mean of runs | 12.3 ± 2.0 | 14.9 ± 2.5 | +2.6 (about 2 s.e.) |
+
+At two to four players no deck moves past noise, and the four-player spread (13.0 → 11.4) is inside it. At six the
+long-game decks lose a few points and the spread widens a little.
+**Measured first under the old `loss=chosen` rules and superseded:** there the rule cut the six-player median from 31 rounds
+to 19, deck-outs per game went 0.08 → 2.96, and Pure Cleric fell 15 points (one run per build). `loss=all` games are short
+enough already that the deck-out rule moves far less. A paired six-player balance run (`flagpair`, which has no arm for
+the old deck-out rule) was not built.
+
 ## Wizard at six players, and what recycling Techniques does to each deck (2026-10-12) <a id="diamond-6p"></a>
 
 **The lead was "♦ is strong at six players because reclaim refuels a deck that thins fastest there", and it does

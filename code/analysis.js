@@ -65,6 +65,7 @@ function playGame(kA, kB, seed) {
   // availability: each proactive card is "available" to a player whose deck holds its suit
   [0, 1].forEach(function (p) { suits[p].forEach(function (s) { SUIT_PROACTIVE[s].forEach(function (id) { C(id).avail++; }); }); });
   var w = g.winner, l = w === 0 ? 1 : 0;
+  if (w == null) return { winner: null, rounds: g.round, castW: 0 };   // both decked out on one draw: no winner (v1.37.0), so no win or loss to credit
   Object.keys(used[w]).forEach(function (id) { C(id).winUsed++; });
   Object.keys(used[l]).forEach(function (id) { C(id).loseUsed++; });
   return { winner: w, rounds: g.round, castW: Object.keys(used[w]).length };
@@ -82,7 +83,7 @@ for (var i = 0; i < DECKS.length; i++) {
       if (!isMirror) {
         deckGames[LA]++; deckGames[LB]++;
         deckRounds[LA] += res.rounds; deckRounds[LB] += res.rounds;
-        if (res.winner === 0) deckWins[LA]++; else deckWins[LB]++;
+        if (res.winner === 0) deckWins[LA]++; else if (res.winner === 1) deckWins[LB]++;   // a draw counts for neither
       }
     }
   }

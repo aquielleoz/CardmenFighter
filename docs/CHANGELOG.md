@@ -15,6 +15,53 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.37.0 — a deck-out is any card you cannot draw, the 2's two rules come apart, and lessons play the defaults
+
+**What you'll see:**
+- **A deck-out ends your game, whatever your shields.** The first card you cannot draw (your deck and Shuffle Pile
+  both empty) puts you out: the round's draw, a card's draw, a Ride's. A duel is lost; at 3-6 players you are out
+  and the rest play on, the turn moving on if it was yours. It used to fizzle: in Aj's six-player game four seats
+  drew nothing at round 26 and kept playing. If everyone left decks out on the same draw, the game ends with
+  **No winner**. A dig ("look at the top 3… draw the other 2") puts you out only if it cannot give you the cards
+  it says to *draw*.
+- **⚡ asks before you deck yourself out** ("Deck yourself out?" — Keep it / Cast it anyway), and the AI never
+  casts a draw its deck cannot give. The battle log says who decked out and why.
+- **"Sequences do not include the 2" is only about runs now.** It used to keep the 2 at the TOP of every other
+  play of four or more too, so on the Dou Dizhu preset a Rival's 2-2-2-9-9 beat every full house. With only that
+  row ticked, 2-2-2-9-9 is the lowest full house; "The 2 is the highest card in plays of 4+" makes it the highest,
+  and that row is no longer greyed out under the first. **Four 2s follow the same rule**: the lowest Four of a
+  Kind by default (they were always the highest), the highest with the second row ticked. The Tiến lên and Dou
+  Dizhu presets tick both, so they play exactly as before; the 2's card text states whichever rule is on.
+- **Lessons play the default rules**, whatever you have saved in Custom rules, and leave your saved rules alone.
+  With "Sequences do not include the 2" saved, The 2 lesson used to dead-end at its full house.
+- **A saved battle log names the rules it was played under**: "Custom rules: 3 or more consecutive pairs ·
+  Sequences do not include the 2 · Straight length: 5 or more", in the panel's own words, or "Rules: default".
+  Aj's 32-round Dou Dizhu log could only be told from a default game by the shapes played in it.
+
+**Why:** Aj, on a six-player log: *"this is a game loss by the way... deck out are game loss... regardless of shield
+count"*, then, asked as card scenarios: any card you cannot draw, card draws included, no winner when everyone
+goes out together. On the Dou Dizhu table: *"it's not a sequence tho? it's a full house?"* and *"it should check
+both"*; Four of a Kind of 2s *"is also the lowest in chikicha"* (pagat: Dou Dizhu ranks four 2s the top bomb, and
+Tiến lên the top four of a kind, so both presets tick the rank row). *"Lessons should probably always play the
+default rules"*. Versioned on the minor because it changes what a game plays: Aj chose v1.37.0, after v1.36.0's `loss=all` package.
+
+**How:** the engine's 2 mode became two settings, `TWO_CHAINS` and `TWO_HIGH` (`setSeqTwos` keeps its three
+old meanings for the sims), and Four of a Kind is keyed by `seqValue` like every other play of four or more.
+`deckOut` takes a seat out (`dropSeat`, split out of `concede`, and `handOn` for a seat that was on turn); the
+round's draw collects every seat that drew short and puts them out together; card draws go through `drawFor`;
+`drawShortfall` is the one count the AI and the ⚡ read. The old "a leader with no card" rule stays, and its
+`activate` copy no longer ends a 3-6 player game for everyone when one player empties their hand on a lead.
+`applyRules` takes the rule set to apply, and a lesson passes `defaultRules()`. Deleted: the fizzle line and its
+advice (`NET.noteTo` and the guest's `t:'note'` handler had no other use), the Round card's "Deck empty"
+subtitle, and the panel's `deadIf` dependency (its only user was `highTwos`).
+`test.js` 771 → 793, `rulestest` 155 → 157, `lessontest_twos` 36 → 39 (so `lessontest_phonepass`, which reruns it, 128 → 131) (its forced repair now stages an unpaired
+deck: an empty one decks the Rival out), `deckouttest` 12 → 23, `mptest` 133 → 135 (the header's rules line, both ways);
+`nettest_drawfizzle` is `nettest_deckoutduel` (a guest who cannot draw loses the duel, both screens say so).
+**What it does to a game** ([`DECISIONS.md#deck-out-rule`](DECISIONS.md#deck-out-rule), measured on the `loss=all` rules):
+nothing measurable at two to four players; at six, more than half the table now goes out by deck-out (3.36 seats a game,
+0.01 before), the median game falls from 16 rounds to 12 and the longest from 32 to 21. Over six balance runs per build,
+Pure Cleric loses about 4 points at six players (14.8% → 11.0%) and the six-player spread widens by about 2.6.
+
 ### v1.36.7 — the value modifiers read whole: one chip per direction, and "±0" on the play
 
 **What you'll see:**

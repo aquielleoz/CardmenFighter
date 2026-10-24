@@ -773,8 +773,20 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     const won = await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=true; s.winner=2;
       return window.__solo.logHeadText(); });
     ok(won.indexOf(names[1]+' won')>=0,
-       'and the winner line NAMES the winner rather than saying "Rival won"  ['+won.split('\n')[2]+']');
+       'and the winner line NAMES the winner rather than saying "Rival won"  ['+won.split('\n')[3]+']');
     await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=false; s.winner=null; });
+  }
+
+  /* ============ …AND THE RULES IT WAS PLAYED UNDER (v1.37.0) ============
+     Aj's 32-round six-player log was on the Dou Dizhu preset and the header could not say so. A pair off one header:
+     every rule off reads "Rules: default" (Aj's choice over silence), and rules on are named in the panel's own words,
+     a mode row as label: value. Put back afterwards, since `setRulesFromKey` reaches the engine. */
+  {
+    const off = await p.evaluate(()=>{ window.__solo.setRulesFromKey(''); return window.__solo.logHeadText(); });
+    ok(/^Rules: default$/m.test(off), 'the saved header says "Rules: default" when no custom rule is on  ['+off.split('\n')[2]+']');
+    const on = await p.evaluate(()=>{ window.__solo.setRulesFromKey('kits3,noSeqTwos,straightLen=5'); const h=window.__solo.logHeadText(); window.__solo.setRulesFromKey(''); return h; });
+    ok(/^Custom rules: 3 or more consecutive pairs · Sequences do not include the 2 · Straight length: 5 or more$/m.test(on),
+       '…and names the custom rules in play, in the panel\'s words  ['+on.split('\n')[2]+']');
   }
 
   /* ============ THE PHASE-STRIP DRIVER ANSWERS A FORCED DISCARD (mptest-phase-strip-stalls-under-load) ============
