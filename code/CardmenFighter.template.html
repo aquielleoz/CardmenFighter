@@ -2799,7 +2799,7 @@ __QR__
     { key:'flatShields', mp:true,  label:'Shields do not scale with the table',
       note:'Normally everyone starts with 2 + players shields (4 in a duel, 8 at six). With this on, 4 at every player count.' },
     { key:'flatDraw',    mp:true,  label:'Draw does not scale with the table',
-      note:'Every round draws a flat 2 cards instead of one per player.' },
+      note:'Every round draws a flat 2 cards instead of one per player (up to 4).' },
     /* The first two toggles that change a DUEL. Measured 2026-08-26 (PATCHNOTES 0m) and each carries a real
      * cost, stated qualitatively — numbers and deck names belong in the docs, not in a player's face. They are
      * independent flags: no-strip stopped requiring infinity the same day, because a 2 that deals no damage but
@@ -5477,7 +5477,7 @@ __QR__
         /* ⚠ NO `g.cards.length===1` HERE ANY MORE. A freshly drawn card that landed INSIDE a group — a
            pair, a trio — was silently excluded from the deal-in, so it appeared with no animation at all.
            It reads as a player-count bug and is not: the draw scales with the table (`drawCountFor` =
-           numPlayers), so at 3+ players you draw more cards and far more of them land in groups. Aj, from
+           numPlayers, up to 4), so at 3+ players you draw more cards and far more of them land in groups. Aj, from
            a 3-player game with two pairs in hand: *"didn't see the card fly in for the 2nd round."* */
         if(pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
         cardrow.appendChild(el);
@@ -7103,8 +7103,8 @@ __QR__
     /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
      * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
      * matters (your own fizzle) still follows. */
-    // The per-round draw SCALES with the table (= numPlayers since v1.31.3), so ask the engine.
-    // E.DRAW_PER_ROUND is the DUEL value and would announce "draws 2" at a six-player table drawing 6.
+    // The per-round draw SCALES with the table (= numPlayers since v1.31.3, up to 4 since v1.38.0), so ask the engine.
+    // E.DRAW_PER_ROUND is the DUEL value and would announce "draws 2" at a six-player table drawing 4.
     var per=(E.drawCountFor&&state)?E.drawCountFor(state):((E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2);
     /* ---- THE ROUND-BOUNDARY DETECTOR (2026-09-17). A round CANNOT begin with a pile still on the table:
        `pileClear` is a clean-up event and runs long before this line. If it is set here, the boundary did
@@ -10592,7 +10592,7 @@ __QR__
       '<li>Each round both fighters <b>draw 2</b>. Ending a round with an empty hand is fine — you only <b>deck out</b> (and lose) if you ever have to <b>draw when both your deck and shuffle pile are empty</b>.</li>'+
       /* THE ONE LINE FOR A FULL TABLE (v1.36.0, Aj approved the wording). This page states duel rules, and they stay
          as they are: true in a duel. */
-      '<li><b>At 3–6 players:</b> everyone starts with <b>2 + players</b> shields, a Special win strikes <b>every</b> rival, and every player draws one card per player each round.</li>'+
+      '<li><b>At 3–6 players:</b> everyone starts with <b>2 + players</b> shields, a Special win strikes <b>every</b> rival, and every player draws one card per player each round, up to 4.</li>'+
       '<li><b>Play hints (💡, top bar):</b> off by default. Turn them on and cards you <b>can’t</b> play right now dim out; a <b>dashed</b> group means "break me — a card inside can beat the pile." The <b>Sort</b> button also cycles Singles → Pairs → Straights to line up your combos.</li>'+
       '</ul>'+
 

@@ -17,7 +17,7 @@
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
  *   - THE TABLE RULES SCALE WITH THE TABLE (v1.36.0): shields = 2 + numPlayers (4 in a duel, 8 at six), the
- *     per-round DRAW = numPlayers (v1.31.3), a Special win strikes EVERY rival (loss 'all'), shield wards cover
+ *     per-round DRAW = numPlayers up to 4 (v1.31.3; the cap of 4, v1.38.0), a Special win strikes EVERY rival (loss 'all'), shield wards cover
  *     the whole table (WARD_ALL) and Critical Hit / Ultima Attack hit every rival (DAMAGE_ALL). The v1.31.0
  *     version of this (loss 'all' + universal mill + shields 2+N, no ward) was REVERTED in v1.31.2 for breaking
  *     deck balance (PATCHNOTES 0j); the shared ward and the every-rival damage are what fixed it, measured in
@@ -593,7 +593,12 @@
                                       // Shipped ALONE — shields stay flat, loss stays 'chosen', mill 'targeted'.
   function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
   function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
-  function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
+  /* …UP TO FOUR (v1.38.0, Aj: *"maybe the draw 6 is a bit aggressive?"*). Once a card you cannot draw put you out
+   * (v1.37.0), drawing six a round at six players emptied decks fast: 3.36 seats a game went out by deck-out. Capped at
+   * 4 that is 0.66, the six-player median game goes 12 → 15 rounds, and two to four players are untouched (the cap only
+   * reaches five and six). The alternatives measured are in DECISIONS.md#draw-cap. */
+  var DRAW_CAP = 4;
+  function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, Math.min(DRAW_CAP, st.numPlayers)) : DRAW_PER_ROUND; }
 
   // End-of-turn hand limit: discard down to MAX_HAND. `ids` = the player's chosen cards
   // to pitch (auto-picks lowest values if omitted / short). Discards go to the ENERGY pile

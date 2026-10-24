@@ -32,7 +32,7 @@ E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('all'); E.set
 if(E.setRecycleTech) E.setRecycleTech(RECYCLE);
 const realRandom=Math.random;
 console.log('CONFIG: games='+N+' players='+PLAYERS.join(',')+' techniques='+(RECYCLE?'RECYCLE (to the Shuffle Pile)':'EXILE (shipped)')+' tier='+TIER+
-            ' draw=numPlayers('+(E.isDrawPerPlayer?E.isDrawPerPlayer():'?')+')');
+            ' draw='+PLAYERS.map(n=>n+'p:'+E.drawCountFor({numPlayers:n})).join(' '));
 const med=a=>{ if(!a.length) return '—'; const b=a.slice().sort((x,y)=>x-y); return b[Math.floor(b.length/2)]; };
 const avg=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length):0;
 const pct=(n,d)=>d?Math.round(100*n/d)+'%':'—';

@@ -1,7 +1,6 @@
 /* Multiplayer balance sim: N-player free-for-alls, random deck per seat, track each deck's win rate + placement.
- * DEFAULTS MATCH THE LIVE GAME, which since the v1.31.2 revert is: rework + catch-up (shields-as-cards,
- * loser-mill), SPECIAL_LOSS_MODE='chosen', MILL_SCOPE='targeted', flat 4 shields, draw = numPlayers.
- * (This line used to claim loss='all' / mill='universal' were live. They are not — they are A/B flags.)
+ * DEFAULTS MATCH THE LIVE GAME because they are READ FROM THE ENGINE (the shipped rules: since v1.36.0 the loss=all
+ * package, since v1.38.0 the draw = numPlayers up to 4). The CONFIG line prints what was resolved — read it.
  * Player counts 2/3/4/6 swept automatically. See the flag list below — and CHECK THE PRINTED CONFIG. */
 var E = require('./engine.js');
 var AI = require('./ai.js');
@@ -204,7 +203,7 @@ function runSweep(P, games, seed0){
 }
 
 var base = parseInt(process.argv[2],10) || 2000;
-console.log('Multiplayer balance sim — rework + catch-up, SPECIAL_LOSS=chosen, MILL=targeted (live default), AI=' + DIFF);
+console.log('Multiplayer balance sim — rework + catch-up, SPECIAL_LOSS=' + LM + ', MILL=' + MS + ', AI=' + DIFF);
 runSweep(2, Math.round(base*1.3), 500);
 runSweep(3, base, 1);
 runSweep(4, Math.round(base*0.8), 100000);
