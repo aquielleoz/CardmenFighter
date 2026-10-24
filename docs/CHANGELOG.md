@@ -15,6 +15,26 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.38.0 — the round's draw is one per player, up to 4
+
+**What you'll see:** at five and six players everyone draws **4** cards a round instead of 5 or 6. Two to four players
+draw exactly as before (2, 3, 4), and so does a duel. The round banner and the rules page say so. "Draw does not scale
+with the table" still draws a flat 2.
+
+**Why:** Aj, the day after a card you cannot draw became a loss: *"maybe the draw 6 is a bit aggressive?"* It was.
+Drawing six a round put more than half a six-player table out by deck-out. Offered cap 5, cap 4, cap 3, 1 + ceil(N/3)
+and flat 2, measured: *"cap 4 it is"*.
+
+**How:** `drawCountFor` caps the per-player draw at `DRAW_CAP = 4`; the deal and the round banner both read it, so
+both follow. `test.js` 793 → 797: the draw at every table size, a real six-player round draw
+dealing 4 a seat against a four-player CONTROL, and `flatDraw` still flat (without the cap, exactly the two six-player
+checks go red). The rules note and the 3–6 player rules line say "up to 4". `recyclesim`'s CONFIG line now prints the
+draw it really uses, and `mpsim`'s header and banner stopped claiming `loss=chosen` and flat shields (stale since v1.36.0).
+**What it does to a game** ([`DECISIONS.md#draw-cap`](DECISIONS.md#draw-cap)): at six players deck-outs fall from 3.36
+seats a game to 0.66 and the median game goes from 12 rounds to 15; at five, 1.34 → 0.27. Over six balance runs per
+arm the six-player spread does not widen (12.2 → 10.1), and Pure Cleric gets back what the deck-out rule took (13.3% →
+18.3%). Two to four players are untouched by construction.
+
 ### v1.37.0 — a deck-out is any card you cannot draw, the 2's two rules come apart, and lessons play the defaults
 
 **What you'll see:**

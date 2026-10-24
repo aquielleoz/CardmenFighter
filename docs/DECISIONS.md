@@ -821,10 +821,51 @@ of one deck is ~1.5–3 points, and a change is called only past three standard 
 
 At two to four players no deck moves past noise, and the four-player spread (13.0 → 11.4) is inside it. At six the
 long-game decks lose a few points and the spread widens a little.
+**Followed by the draw cap (v1.38.0):** one card per player up to 4 takes the six-player deck-outs from 3.36 a game to 0.66 — [`#draw-cap`](#draw-cap).
 **Measured first under the old `loss=chosen` rules and superseded:** there the rule cut the six-player median from 31 rounds
 to 19, deck-outs per game went 0.08 → 2.96, and Pure Cleric fell 15 points (one run per build). `loss=all` games are short
 enough already that the deck-out rule moves far less. A paired six-player balance run (`flagpair`, which has no arm for
 the old deck-out rule) was not built.
+
+## The round's draw is one per player, up to 4 (2026-10-24) <a id="draw-cap"></a>
+
+**Decided (v1.38.0, Aj: *"maybe the draw 6 is a bit aggressive?"*, then *"cap 4 it is"*):** the per-round draw is
+`numPlayers` capped at 4 — 2 / 3 / 4 / 4 / 4 at two to six players. It followed [the deck-out rule](#deck-out-rule)
+by a day: once a card you cannot draw puts you out, drawing six a round at six players decked out more than half the
+table. `flatDraw` (a flat 2) is unchanged and still a Custom rule.
+
+**Game length and deck-outs** (`recyclesim.js 300 players=2,3,4,5,6`, knight, Math.random pinned per game so every
+arm plays the same deals; the arms ran on a scratch engine with `drawCountFor` switched, and the shipped cap
+reproduces its cap-4 arm EXACTLY):
+
+| draw at 2/3/4/5/6p | 3p median · deck-outs | 4p | 5p | 6p median / max · deck-outs |
+| --- | --- | --- | --- | --- |
+| N (v1.37.0) — 2/3/4/5/6 | 11 · 0.01 | 12 · 0.13 | 13 · 1.34 | 12 / 21 · **3.36** |
+| cap 5 — 2/3/4/5/5 | 11 · 0.01 | 12 · 0.13 | 13 · 1.34 | 14 / 22 · 2.49 |
+| **cap 4 — 2/3/4/4/4 (shipped)** | 11 · 0.01 | 12 · 0.13 | 13 · 0.27 | **15 / 27 · 0.66** |
+| cap 3 — 2/3/3/3/3 | 11 · 0.01 | 12 · 0.01 | 13 · 0.04 | 15 / 28 · 0.17 |
+| 1 + ceil(N/3) — 2/2/3/3/3 | 12 · 0.00 | 12 · 0.01 | 13 · 0.04 | 15 / 28 · 0.17 |
+| flat 2 (`flatDraw`) | 12 · 0.00 | 13 · 0.00 | 14 · 0.01 | 15 / 27 · 0.00 |
+
+Below a draw of 4 the six-player game gets no longer: the rounds a big draw saves are almost all seats decking out.
+
+**Deck balance** (`mpsim.js 1000 knight`, SIX runs per arm, NOT pinned). **The noise floor is measured, not assumed:**
+the N and cap-4 arms play identical rules at three and four players, and there they moved up to ±3 points per deck and
+~2 on the spread. So a change is read only past that.
+
+| | N (v1.37.0) | cap 4 | 1 + ceil(N/3) | flat 2 |
+| --- | --- | --- | --- | --- |
+| 6p spread, mean of runs | 12.2 ± 1.4 | 10.1 ± 2.8 | 11.9 ± 2.7 | 15.9 ± 1.3 |
+| 6p Pure Cleric | 13.3% | 18.3% | 23.0% (top deck) | 26.6% (top deck) |
+| 6p Warlock (Wiz+Rog) | 19.7% | 16.0% | 15.2% | 13.6% |
+| 3p | — | unchanged (same rules) | Pure Fighter +6.6, the Cleric decks about −3.5 | |
+
+**The pattern: the smaller the draw at a big table, the stronger Pure Cleric gets** — it is the slow shield-protection
+deck, and a trickle of cards suits it. Cap 4 is the gentlest fix: it changes only five and six players, removes ~80% of
+the six-player deck-outs, gives back what the deck-out rule took from the Cleric decks, and leaves the spread no wider.
+1 + ceil(N/3) (Aj's alternative) all but ends deck-outs but also draws one fewer at three and four players and makes
+Pure Cleric the top six-player deck; flat 2 does that more. **Re-measure before revisiting** — a draw change moves deck
+balance at six players more than any card does.
 
 ## Wizard at six players, and what recycling Techniques does to each deck (2026-10-12) <a id="diamond-6p"></a>
 

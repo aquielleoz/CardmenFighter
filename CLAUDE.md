@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.37.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.38.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 793 + 74 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 797 + 74 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 793 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 797 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 74, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -2759,7 +2759,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.37.0 — last FULL sweep 2026-10-24, `npm run sweep`, 139/139 in 575s, `nettest_sync` at full depth (rounds 13, actions 60)** (this line was
+Status as of **v1.38.0 — last FULL sweep 2026-10-24, `npm run sweep`, 139/139 in 570s, `nettest_sync` at full depth (rounds 15, actions 60)** (this line was
 bumped to the new version BEFORE the run, so `versiontest` was green on it — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2773,7 +2773,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 793, `netview` 74, `modtest` 8, `mptest` 135, `rulestest` 157, `landscapetest` 305, `decktest` 42, `viewtest` 26,
+`test` 797, `netview` 74, `modtest` 8, `mptest` 135, `rulestest` 157, `landscapetest` 305, `decktest` 42, `viewtest` 26,
 `piletest` 51, `revealtest` 12, `phantasmtest` 14, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 43, `qrtest` 32, `peektest` 43, `logtest` 33, `motiontest` 7, `phonetest` 96, `oppbeatstest` 33, `counterfeittest` 22, `roartest` 32, `ceremonylocktest` 6, `kicktest` 29, `deckouttest` 23, `fightbeattest` 21, `stackrowtest` 25, `castholdtest` 10, `upkeepstrandtest` 7, `answertest` 12, `respmintest` 9, `answercasttest` 23, `answerglowtest` 14, `sorttest` 30, `quicktest` 11, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 96, `lessontest_phases` 52, `lessontest_howto` 29,
 `lessontest_zones` 26, `lessontest_initiative` 23, `lessontest_specials` 22, `lessontest_energy` 19,
@@ -3553,7 +3553,7 @@ survive as `strikeOne` / `flatShields`, negatives like `flatDraw`.
 `SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='universal'`. It fixed pacing (6p length 33 → 15 rounds, jab share
 24% → 10%) and **broke deck balance**: 6p spread 15.5 → 40.7 points, Pure Wizard 44% vs Pure Rogue 1.7%.
 Isolated to `loss='all'` alone, because **`all` multiplies the value of landing a Special by (N-1)** — at six
-players the best Special-lander gains against five people at once. `setShieldsPerPlayer` defaults **ON** since v1.36.0 (off before); `setDrawPerPlayer` defaults **ON** (draw = numPlayers shipped in v1.31.3 — this file used to claim both were off). Both are now player-facing through the custom rules menu. **Read `startShieldsFor(n)` /
+players the best Special-lander gains against five people at once. `setShieldsPerPlayer` defaults **ON** since v1.36.0 (off before); `setDrawPerPlayer` defaults **ON** (draw = numPlayers shipped in v1.31.3, capped at 4 since v1.38.0 — this file used to claim both were off). Both are now player-facing through the custom rules menu. **Read `startShieldsFor(n)` /
 `drawCountFor(st)`, never the bare constants** — reading `E.DRAW_PER_ROUND` in the UI is what once made the
 round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**. The re-land direction
 this line used to call promising, shields scaling **down** (**0k**), was balance-tested on 2026-10-21 and widens
@@ -3583,7 +3583,9 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
   `'draw'`). Before v1.37.0 a draw from an empty deck and Shuffle Pile just FIZZLED. **`E.drawShortfall(st, p,
   card)` is the one count of how short a cast would leave you** — the AI never casts into one, and the ⚡ asks
   first. It counts what the cast moves before it draws: its paid energy lands in the Shuffle Pile, which is drawable.
-- **The per-round DRAW scales with the table (v1.31.3): `= numPlayers`** — 2 in a duel, 6 at six players.
+- **The per-round DRAW scales with the table (v1.31.3): `= numPlayers`, UP TO 4 (v1.38.0)** — 2 in a duel, 4 at four,
+  five and six. The cap exists because a card you cannot draw puts you out (v1.37.0): six a round decked out more than
+  half a six-player table. The measurement and the alternatives are in [`DECISIONS.md#draw-cap`](docs/DECISIONS.md#draw-cap).
   Shields are 2 + players since v1.36.0 (4 in a duel, 8 at six; `E.startShieldsFor(n)`). Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
   (the duel value) — reading the constant in the UI is what made the round banner announce "draws 2" at a table
   drawing 6, twice.

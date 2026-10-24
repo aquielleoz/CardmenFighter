@@ -4267,5 +4267,25 @@ function cards(ids) { return ids.map(card); }
   ok(!noDeck.some(function (e) { return e.card && e.card.id === 'apfc'; }) && !tb.finished, '…and with an empty deck it does not: it never decks itself out');
 })();
 
+/* ---- THE ROUND'S DRAW IS ONE CARD PER PLAYER, UP TO FOUR (v1.38.0). Aj: *"maybe the draw 6 is a bit aggressive?"* —
+   once a card you cannot draw put you out (v1.37.0), six a round at six players decked out 3.36 seats a game
+   (DECISIONS.md#draw-cap). The cap only reaches five and six players, so 2-4 are the CONTROL, and `flatDraw` still
+   wins outright. Pinned by the getter AND by a real round draw, since the banner and the deal both read the engine. */
+(function () {
+  var counts = [2, 3, 4, 5, 6].map(function (n) { return E.drawCountFor(E.newGame(null, { numPlayers: n, starter: 0 })); });
+  ok(counts.join('/') === '2/3/4/4/4', 'the round draw is one per player, up to 4: 2/3/4/5/6 players draw ' + counts.join('/') + (counts[4] === 6 ? '  ← REPRODUCED: six a round at six players' : ''));
+  [4, 6].forEach(function (np) {
+    var g = E.newGame(null, { numPlayers: np, starter: 0 }); g.round = 3; g.turn = 0; g.pile = null;
+    var d0 = g.players.map(function (p) { return p.deck.length; }), r = E.roundDraw(g, {});
+    var took = g.players.map(function (p, i) { return d0[i] - p.deck.length; });
+    ok(r.draws.every(function (n) { return n === 4; }) && took.every(function (n) { return n === 4; }),
+       (np === 4 ? 'CONTROL: ' : '') + 'a real ' + np + '-player round draw deals every seat 4 cards, and each deck gives 4  [' + r.draws.join(',') + ']');
+  });
+  E.setDrawPerPlayer(false);
+  var flat = [2, 4, 6].map(function (n) { return E.drawCountFor(E.newGame(null, { numPlayers: n, starter: 0 })); });
+  E.setDrawPerPlayer(true);
+  ok(flat.join('/') === '2/2/2', '"Draw does not scale with the table" still draws a flat 2 at any size (' + flat.join('/') + ')');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
